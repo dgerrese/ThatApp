@@ -1,0 +1,19 @@
+# Build output
+web/dist/
+web/node_modules/
+bin/
+
+# Local state
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# Environment
+.env
+.env.local
+
+# Editor
+.idea/
+.vscode/
+*.swp
