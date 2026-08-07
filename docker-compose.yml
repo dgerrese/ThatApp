@@ -19,6 +19,15 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    # "app" collides with the .app gTLD, which sits on Chromium and Firefox's
+    # built-in HSTS preload list, so a browser silently upgrades http://app to
+    # https and breaks the Playwright rig. wd-app is a second, unambiguous name
+    # on the same network for the rig to target instead. See docker-compose.yml
+    # `playwright` service and .claude/e2e/playwright.config.ts.
+    networks:
+      default:
+        aliases:
+          - wd-app
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
       interval: 3s
@@ -64,7 +73,7 @@ services:
       - ./.claude/e2e:/e2e
       - playwright-node-modules:/e2e/node_modules
     environment:
-      WD_BASE_URL: "http://app:8080"
+      WD_BASE_URL: "http://wd-app:8080"
     depends_on:
       app:
         condition: service_healthy
