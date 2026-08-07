@@ -307,26 +307,27 @@ make test     go test ./... + playwright
 make verify   all of the above — the merge gate
 ```
 
-`make verify` is the single source of truth for whether a change is green. The developer agent
-runs it before reporting done, the reviewer agent runs it independently before passing, and
-GitHub Actions runs it on every pull request.
+`make verify` is the single source of truth for whether a change is green. It is run before any
+task is reported done, independently again at review, and by GitHub Actions on every pull request.
 
-## Agent team
+## Development workflow
 
-Three agents live in `.claude/agents/`, adapted from the reference set at
-`v4-dashboard-ridgeline-hosting` to this stack:
+> **Superseded 2026-08-07.** This section originally specified a bespoke three-agent team
+> (project-manager, developer, reviewer) under `.claude/agents/`. Those definitions were written
+> but never run: ticket 1 shipped through the superpowers skills instead, and the agent team was
+> removed rather than maintained alongside a second workflow that did the same job.
 
-- **project-manager** — owns the ticket backlog, dispatches the developer and then the reviewer,
-  loops on review failures. Never edits application code.
-- **developer** — implements one ticket under strict TDD, ships the minimum diff that satisfies
-  the acceptance criteria, and reports improvement opportunities rather than acting on them.
-- **reviewer** — runs `make verify`, checks the diff against the acceptance criteria and repo
-  conventions, drives Playwright for UI changes, returns PASS or FAIL. Never fixes the code it
-  reviews.
+Work runs through the superpowers skills: `writing-plans` decomposes an issue into tasks,
+`subagent-driven-development` executes them with a fresh subagent per task and a review after
+each, `test-driven-development` governs implementation, and `finishing-a-development-branch`
+pushes and opens the pull request.
 
-Two adaptations from the reference set: repo conventions are Go and vanilla TypeScript rather
-than PHP and Laravel, and the backlog lives in GitHub issues with one PR per issue rather than in
-local ticket files.
+The whole-branch review at the end of that loop is load-bearing, not ceremony. On ticket 1 every
+one of the seven task reviews passed while the branch still carried a Critical defect, because
+each reviewer saw only its own diff and each diff was correct in isolation.
+
+The backlog lives in GitHub issues, one pull request per issue. Merging is always the project
+owner's decision.
 
 ## Ticket sequence
 

@@ -12,6 +12,11 @@ This plan implements **ticket 1** of the sequence in
 `docs/superpowers/specs/2026-08-04-work-dashboard-design.md`. Tickets 2–13 get their own tickets
 written by the project-manager agent as they are picked up.
 
+> **Historical note, 2026-08-07.** Ticket 1 shipped from this plan and it is kept as the record of
+> that. The sentence above is no longer true: the project-manager agent was removed along with the
+> rest of the agent team, and tickets 2–13 get their plans from `superpowers:writing-plans`
+> instead. See `CLAUDE.md` for the current workflow. Nothing else in this document was changed.
+
 ## Global Constraints
 
 Every task's requirements implicitly include all of these. They come from the spec and are not

@@ -64,8 +64,7 @@ web/               frontend source and the built dist/
   assets_dev.go    assets read from disk            (//go:build dev)
   src/components/  wd-* WebComponents
   src/views/       lazily imported views
-.claude/agents/    developer, project-manager, reviewer
-.claude/e2e/       Playwright specs (reviewer-owned)
+.claude/e2e/       Playwright specs (not created yet)
 docs/superpowers/  specs and plans
 ```
 
@@ -112,16 +111,27 @@ reads the same way is a constant, not configuration.
 ## Workflow
 
 Development goes by GitHub issues in `dgerrese/work-dashboard`. Every task has an issue; every
-issue has a branch and a pull request. Three agents in `.claude/agents/` run the cycle:
+issue has a branch and a pull request.
 
-- **project-manager** — owns the issue backlog, dispatches the developer then the reviewer, opens
-  the PR on a pass, loops on failures. Never edits application code.
-- **developer** — implements one issue under strict TDD, ships the minimum diff that satisfies the
-  acceptance criteria, reports improvement opportunities rather than acting on them. Commits on a
-  branch; never pushes.
-- **reviewer** — runs `make verify` independently, checks the diff against the criteria, drives
-  Playwright for UI changes, returns PASS or FAIL. Never fixes the code it reviews.
+Work runs through the superpowers skills. There is no bespoke agent team — the `.claude/agents/`
+definitions were removed once ticket 1 shipped through this loop instead.
+
+1. **`superpowers:writing-plans`** turns an issue's acceptance criteria into a plan under
+   `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into tasks that each carry their own
+   test cycle. Reach for `superpowers:brainstorming` first when an issue needs design work the
+   spec does not already settle.
+2. **`superpowers:subagent-driven-development`** executes that plan: a fresh subagent per task, a
+   task review after each, and a whole-branch review before the branch is finished. Implementation
+   follows `superpowers:test-driven-development` — a failing test first, always.
+3. **`superpowers:finishing-a-development-branch`** pushes the branch and opens the pull request.
+
+Two properties of that loop are load-bearing, and ticket 1 proved both. **A fresh subagent per
+task** keeps each implementer's context clean and stops one task's confusion leaking into the
+next. **The whole-branch review is not optional**: all seven of ticket 1's task reviews passed
+while the branch still contained a Critical defect — `docker compose up` served a 404 on a fresh
+clone — because every task diff was individually correct and only a cross-task read could see it.
 
 Issue state is tracked with `status:*` labels, since GitHub issues only have open and closed.
 
-**Merging is always the user's call.** No agent merges a pull request or closes an issue.
+**Merging is always the user's call.** Nothing merges a pull request or closes an issue on its
+own.
