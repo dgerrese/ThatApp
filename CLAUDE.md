@@ -37,6 +37,7 @@ make up          # start the dev stack on localhost:8080
 make down        # stop it and drop its volumes
 make verify      # the full merge gate — lint, tsc, tests
 make test-go     # Go suite only
+make test-e2e    # Playwright suite — needs the app stack already up
 make lint        # golangci-lint + eslint
 make tsc         # frontend type check
 make build-web   # build the frontend into web/dist
@@ -47,11 +48,13 @@ Anything not covered by a `make` target runs through Compose:
 ```shell
 docker compose run --rm --no-deps app go test ./internal/server/ -run TestHealth -v
 docker compose run --rm --no-deps web npm install
-docker compose --profile e2e run --rm playwright npx playwright test
+docker compose --profile e2e run --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 ```
 
-`make verify` is the single source of truth for whether a change is green. It is what GitHub
-Actions runs on every pull request. Never claim work is done without pasting its output.
+`make verify` and `make test-e2e` together are the source of truth for whether a change is green:
+`verify` deliberately needs no running stack and is what GitHub Actions runs on every pull request,
+while `test-e2e` covers the browser-level behaviour `verify` does not and needs the app stack up
+first. Never claim work is done without pasting their output.
 
 ## Layout
 

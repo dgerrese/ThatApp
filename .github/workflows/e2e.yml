@@ -1,0 +1,44 @@
+name: E2E
+
+# Only when the frontend or the rig itself changes. Deliberate trade-off,
+# recorded on #16: pull requests that change Go handlers the UI depends on skip
+# this entirely, and their UI needs checking by hand.
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - ".claude/e2e/**"
+      - ".github/workflows/e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".claude/e2e/**"
+      - ".github/workflows/e2e.yml"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Provide a test environment
+        run: |
+          cp .env.example .env
+          sed -i '/^WD_SECRET_KEY=/d' .env
+          printf 'WD_SECRET_KEY=%s\n' "$(head -c 32 /dev/urandom | base64)" >> .env
+
+      - name: Build the frontend and start the stack
+        run: |
+          make build-web
+          docker compose up -d app
+
+      - name: Run the end-to-end suite
+        run: make test-e2e
+
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: .claude/e2e/test-results/

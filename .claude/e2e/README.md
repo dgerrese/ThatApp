@@ -38,6 +38,15 @@ opposite contract. Wiring `test-e2e` into `test` or `verify` would make the
 merge gate depend on Docker being up, breaking that loop. `make test-e2e` is
 a separate, deliberate step.
 
+## Why the base URL says `wd-app`, not `app`
+
+`WD_BASE_URL` points at `http://wd-app:8080`, a network alias for the `app`
+service, rather than at `app` directly. `app` collides with the `.app` gTLD on
+Chromium and Firefox's HSTS preload list, so a bare `http://app` gets silently
+rewritten to `https://` before the request leaves the browser and every test
+dies on SSL against a plain-HTTP dev server. See the comment on the `app`
+service in `docker-compose.yml` for the full explanation.
+
 ## Browser coverage
 
 Firefox and Chromium only. Firefox is the primary target and is listed
