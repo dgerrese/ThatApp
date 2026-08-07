@@ -26,6 +26,10 @@ These come from the project owner. They are not preferences and not open to rein
   views load through dynamic `import()`.
 - **Reusable UI is a native WebComponent** registered as `wd-*`, using **light DOM, never shadow
   DOM** — shadow roots stop Tailwind utilities reaching component internals.
+- **Browser support is Firefox and Chromium.** Firefox is the primary target — it is what the owner
+  uses — with Chromium covered for occasional switching. **Safari and WebKit are an explicit
+  non-goal**, not an unaddressed gap: do not raise them as missing coverage, and do not add WebKit
+  to the e2e matrix. This also means the phone in ticket 13 is an Android device.
 - **One issue, one branch, one pull request.** Project-design changes are the one exception — see
   *Workflow*.
 
