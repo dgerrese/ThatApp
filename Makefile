@@ -14,7 +14,7 @@ up: ## Start the dev stack
 	$(COMPOSE) up
 
 down: ## Stop the dev stack and drop its volumes
-	$(COMPOSE) down -v
+	$(COMPOSE) --profile e2e down -v
 
 install-web: ## Install frontend dependencies into the web-node-modules volume
 	$(WEB) npm ci

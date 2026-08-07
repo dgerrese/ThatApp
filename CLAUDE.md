@@ -51,10 +51,11 @@ docker compose run --rm --no-deps web npm install
 docker compose --profile e2e run --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 ```
 
-`make verify` and `make test-e2e` together are the source of truth for whether a change is green:
-`verify` deliberately needs no running stack and is what GitHub Actions runs on every pull request,
-while `test-e2e` covers the browser-level behaviour `verify` does not and needs the app stack up
-first. Never claim work is done without pasting their output.
+`make verify` and `make test-e2e` together are the source of truth for whether a change is green.
+Both run in CI, but on different triggers: `verify` deliberately needs no running stack and runs
+on every pull request; `test-e2e` needs the app stack up first, so it runs in its own CI workflow,
+gated to pull requests that touch the frontend or the rig itself. Never claim work is done without
+pasting their output.
 
 ## Layout
 
