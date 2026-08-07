@@ -16,6 +16,9 @@ services:
       WD_SECRET_KEY: "${WD_SECRET_KEY:-}"
       WD_TIMEZONE: "${WD_TIMEZONE:-Europe/Amsterdam}"
     command: go run -tags dev ./cmd/server
+    depends_on:
+      web:
+        condition: service_healthy
 
   web:
     image: node:26-alpine
@@ -24,7 +27,17 @@ services:
       - .:/src
       - web-node-modules:/src/web/node_modules
       - web-npm-cache:/root/.npm
-    command: npm run watch
+    # A fresh clone has neither node_modules nor web/dist, so `docker compose up`
+    # has to install and build once before watching. The marker file reports that
+    # first build to the healthcheck, which is what holds the app back from
+    # serving an empty web/dist.
+    command: sh -c 'npm ci && npm run build && touch /tmp/web-built && npm run watch'
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/web-built"]
+      interval: 2s
+      timeout: 5s
+      retries: 3
+      start_period: 300s
 
   lint:
     image: golangci/golangci-lint:v2.12.2
