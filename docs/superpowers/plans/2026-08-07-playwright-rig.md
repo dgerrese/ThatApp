@@ -29,6 +29,7 @@ Confirmed empirically in this project's containers before this plan was written.
 - The official `mcr.microsoft.com/playwright:v1.62.1-noble` image exists but **ships all three browsers including WebKit**, which is why this plan builds its own.
 - The `app` Compose service uses the Dockerfile's `dev` target (`golang:1.26-alpine`), which **has `/bin/sh` and `/usr/bin/wget`** — so a healthcheck can shell out to `wget`.
 - Compose services today are exactly `app`, `web`, `lint`. There is no `profiles:` key anywhere yet.
+- **`app` is a real gTLD on the browser HSTS preload list.** A single-label host named `app` is rewritten to `https://` by both Chromium and Firefox, so the rig must reach the server through a non-colliding network alias. Confirmed empirically: identical container, aliased hostname, 4/4 passing.
 
 ## File structure
 
@@ -141,11 +142,27 @@ Then add a new service:
       - ./.claude/e2e:/e2e
       - playwright-node-modules:/e2e/node_modules
     environment:
-      WD_BASE_URL: "http://app:8080"
+      WD_BASE_URL: "http://wd-app:8080"
     depends_on:
       app:
         condition: service_healthy
 ```
+
+**The alias is not cosmetic.** `app` is a real gTLD that Google operates as HTTPS-only, and the
+whole TLD sits on the browsers' HSTS preload list — so a single-label host named `app` matches it
+and both Chromium and Firefox rewrite `http://app:8080` to `https://` before the request leaves the
+browser. Every test then fails on SSL. Give the **`app`** service a network alias and point the rig
+at that instead:
+
+```yaml
+    networks:
+      default:
+        aliases:
+          - wd-app
+```
+
+An alias rather than a rename, because renaming the service would ripple through every `make`
+target, the CI workflow and `CLAUDE.md`'s command examples for no gain.
 
 And add `playwright-node-modules:` to the `volumes:` block.
 
@@ -204,7 +221,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 // The rig runs inside Compose and reaches the app over the service network, so
 // it behaves identically here and in CI and does not depend on WD_PORT.
-const baseURL = process.env.WD_BASE_URL ?? "http://app:8080";
+const baseURL = process.env.WD_BASE_URL ?? "http://wd-app:8080";
 
 export default defineConfig({
   testDir: "./tests",
