@@ -60,8 +60,8 @@ Applied migrations are recorded in a table, not in `PRAGMA user_version`:
 
 ```sql
 CREATE TABLE schema_migrations (
-  version    TEXT PRIMARY KEY,   -- the migration's filename
-  applied_at TEXT NOT NULL       -- RFC3339
+  version    VARCHAR(150) PRIMARY KEY,  -- the migration's filename
+  applied_at DATETIME NOT NULL          -- RFC3339
 );
 ```
 

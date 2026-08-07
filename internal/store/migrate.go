@@ -21,8 +21,8 @@ var migrationsFS embed.FS
 func (s *Store) migrate() error {
 	if _, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_migrations (
-			version    TEXT PRIMARY KEY,
-			applied_at TEXT NOT NULL
+			version    VARCHAR(150) PRIMARY KEY,
+			applied_at DATETIME NOT NULL
 		)`); err != nil {
 		return fmt.Errorf("creating schema_migrations: %w", err)
 	}
