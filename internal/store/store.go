@@ -37,7 +37,13 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("connecting to database %s: %w", path, err)
 	}
 
-	return &Store{db: db}, nil
+	s := &Store{db: db}
+	if err := s.migrate(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("migrating database %s: %w", path, err)
+	}
+
+	return s, nil
 }
 
 // Close releases the database handle.
