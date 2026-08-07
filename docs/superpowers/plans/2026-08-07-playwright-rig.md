@@ -73,14 +73,18 @@ FROM node:26-bookworm-slim
 
 WORKDIR /e2e
 
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 
 # Only the two browsers this project supports. WebKit is an explicit non-goal,
 # which is also why this does not use the official Playwright image — that one
 # ships all three.
-RUN npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund \
+RUN npm ci --no-audit --no-fund \
  && npx playwright install --with-deps firefox chromium
 ```
+
+The `COPY` names `package-lock.json` without a glob and the install is a plain `npm ci`, so a
+missing lock file is a hard build failure rather than a silent fallback to `npm install`. That is
+why the next step generates the lock before anything builds.
 
 `.claude/e2e/package.json`:
 
@@ -98,7 +102,20 @@ RUN npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund 
 }
 ```
 
-- [ ] **Step 2: Add the app healthcheck and the playwright service**
+- [ ] **Step 2: Generate the lock file**
+
+The Dockerfile above requires `package-lock.json` to exist. Generate it in a throwaway container —
+never on the host — before anything tries to build:
+
+```bash
+docker run --rm -v "$PWD/.claude/e2e":/e2e -w /e2e node:26-bookworm-slim \
+  npm install --package-lock-only --no-audit --no-fund
+```
+
+Expected: `.claude/e2e/package-lock.json` appears, pinning `@playwright/test` at 1.62.1. Note it
+will be written as root — that is a known repo-wide wart, not something to fix here.
+
+- [ ] **Step 3: Add the app healthcheck and the playwright service**
 
 In `docker-compose.yml`, add to the **`app`** service (alongside its existing keys):
 
@@ -134,7 +151,7 @@ And add `playwright-node-modules:` to the `volumes:` block.
 
 **Why the named volume:** the bind mount would otherwise shadow the `node_modules` the image installed, exactly as it does for the `web` service. The browsers themselves live in `/root/.cache/ms-playwright` and are not shadowed.
 
-- [ ] **Step 3: Verify the profile gate and the healthcheck**
+- [ ] **Step 4: Verify the profile gate and the healthcheck**
 
 ```bash
 docker compose config --services
@@ -150,7 +167,7 @@ docker compose ps app
 
 Expected: `app` reaches `(healthy)`. Then `docker compose down`.
 
-- [ ] **Step 4: Verify the image carries no WebKit**
+- [ ] **Step 5: Verify the image carries no WebKit**
 
 ```bash
 docker compose --profile e2e build playwright
@@ -159,7 +176,7 @@ docker compose --profile e2e run --rm --no-deps playwright ls /root/.cache/ms-pl
 
 Expected: `chromium-*`, `chromium_headless_shell-*`, `ffmpeg-*`, `firefox-*` and **no `webkit-*`**. This is acceptance criterion 5; paste the real listing.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add .claude/e2e/ docker-compose.yml
