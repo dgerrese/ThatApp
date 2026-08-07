@@ -1,5 +1,6 @@
 # Build output
-web/dist/
+web/dist/*
+!web/dist/.gitkeep
 web/node_modules/
 bin/
 

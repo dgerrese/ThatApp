@@ -1,0 +1,42 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "${WD_PORT:-8080}:8080"
+    volumes:
+      - .:/src
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+      - wd-data:/data
+    environment:
+      WD_ADDR: ":8080"
+      WD_DB_PATH: /data/work-dashboard.db
+      WD_SECRET_KEY: "${WD_SECRET_KEY:-}"
+      WD_TIMEZONE: "${WD_TIMEZONE:-Europe/Amsterdam}"
+    command: go run -tags dev ./cmd/server
+
+  web:
+    image: node:26-alpine
+    working_dir: /src/web
+    volumes:
+      - .:/src
+      - web-node-modules:/src/web/node_modules
+    command: npm run watch
+
+  lint:
+    image: golangci/golangci-lint:v2.12.2
+    working_dir: /src
+    entrypoint: []
+    volumes:
+      - .:/src
+      - go-mod-cache:/go/pkg/mod
+      - golangci-cache:/root/.cache
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
+  golangci-cache:
+  web-node-modules:
+  wd-data:
