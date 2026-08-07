@@ -113,25 +113,41 @@ reads the same way is a constant, not configuration.
 Development goes by GitHub issues in `dgerrese/work-dashboard`. Every task has an issue; every
 issue has a branch and a pull request.
 
-Work runs through the superpowers skills. There is no bespoke agent team — the `.claude/agents/`
-definitions were removed once ticket 1 shipped through this loop instead.
+Work runs through the superpowers skills, in the order that project documents. There is no bespoke
+agent team — the `.claude/agents/` definitions were removed once ticket 1 shipped through this
+loop instead.
 
-1. **`superpowers:writing-plans`** turns an issue's acceptance criteria into a plan under
-   `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into tasks that each carry their own
-   test cycle. Reach for `superpowers:brainstorming` first when an issue needs design work the
-   spec does not already settle.
-2. **`superpowers:subagent-driven-development`** executes that plan: a fresh subagent per task, a
-   task review after each, and a whole-branch review before the branch is finished. Implementation
-   follows `superpowers:test-driven-development` — a failing test first, always.
-3. **`superpowers:finishing-a-development-branch`** pushes the branch and opens the pull request.
+1. **`brainstorming`** — before any code, when an issue needs design the spec does not already
+   settle. Most of tickets 2-12 do not: the design of record answers them and the acceptance
+   criteria are the only open work.
+2. **`using-git-worktrees`** — after design approval. **Standing decision for this repo: branch in
+   place, no worktree.** Compose derives its project name from the directory, so a worktree gets
+   its own images and volumes and rebuilds everything from cold. Invoke the skill, then apply this
+   decision unless a ticket genuinely needs the isolation.
+3. **`writing-plans`** — turns the acceptance criteria into a plan under
+   `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into bite-sized tasks with exact
+   file paths, complete code and verification steps.
+4. **`subagent-driven-development`** — executes the plan with a fresh subagent per task and a
+   two-stage review after each. `executing-plans` is the batched alternative when human
+   checkpoints are wanted instead.
+5. **`test-driven-development`** — governs every implementation task. RED before GREEN, and the
+   failing output belongs in the task report; a task that cannot show it is not done.
+6. **`requesting-code-review`** — between tasks and again before merge.
+7. **`finishing-a-development-branch`** — verifies the suite, presents the integration options,
+   pushes and opens the pull request.
 
-Two properties of that loop are load-bearing, and ticket 1 proved both. **A fresh subagent per
-task** keeps each implementer's context clean and stops one task's confusion leaking into the
-next. **The whole-branch review is not optional**: all seven of ticket 1's task reviews passed
-while the branch still contained a Critical defect — `docker compose up` served a 404 on a fresh
-clone — because every task diff was individually correct and only a cross-task read could see it.
+**Use the skills' own prompt templates.** `subagent-driven-development` ships
+`implementer-prompt.md`, `task-reviewer-prompt.md` and `re-review-prompt.md`;
+`requesting-code-review` ships `code-reviewer.md`. Read the template before dispatching. Ticket 1
+was run with hand-written prompts instead — it worked, but it threw away accumulated wording for
+no benefit and made every dispatch a fresh invention.
 
-Issue state is tracked with `status:*` labels, since GitHub issues only have open and closed.
+**The whole-branch review is not optional.** All seven of ticket 1's task reviews passed while the
+branch still contained a Critical defect — `docker compose up` served a 404 on a fresh clone —
+because every task diff was individually correct and only a cross-task read could see it.
+
+Issue state is tracked with `status:*` labels — `refinement`, `ready`, `blocked` — since GitHub
+issues only have open and closed.
 
 **Merging is always the user's call.** Nothing merges a pull request or closes an issue on its
 own.
