@@ -23,6 +23,7 @@ services:
     volumes:
       - .:/src
       - web-node-modules:/src/web/node_modules
+      - web-npm-cache:/root/.npm
     command: npm run watch
 
   lint:
@@ -39,4 +40,5 @@ volumes:
   go-build-cache:
   golangci-cache:
   web-node-modules:
+  web-npm-cache:
   wd-data:
