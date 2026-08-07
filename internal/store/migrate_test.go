@@ -2,6 +2,8 @@ package store
 
 import (
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -59,6 +61,90 @@ func TestMigrateIsIdempotent(t *testing.T) {
 	names, err := migrationNames()
 	if err != nil {
 		t.Fatalf("migrationNames() returned error: %v", err)
+	}
+	if rows != len(names) {
+		t.Errorf("schema_migrations has %d rows, want %d (one per migration file)", rows, len(names))
+	}
+}
+
+func TestOpenRejectsADatabaseMigratedByANewerBuild(t *testing.T) {
+	// Rolling the container image back after a schema change must not start the
+	// app against a database whose shape it does not understand.
+	path := filepath.Join(t.TempDir(), "test.db")
+
+	first, err := Open(path)
+	if err != nil {
+		t.Fatalf("first Open() returned error: %v", err)
+	}
+
+	const future = "2099-01-01_000000_future.sql"
+	if _, err := first.db.Exec(
+		`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,
+		future, "2099-01-01T00:00:00Z",
+	); err != nil {
+		t.Fatalf("recording a future migration: %v", err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("closing first store: %v", err)
+	}
+
+	second, err := Open(path)
+	if err == nil {
+		_ = second.Close()
+		t.Fatal("Open() succeeded against a database migrated by a newer build, want error")
+	}
+	if !strings.Contains(err.Error(), future) {
+		t.Errorf("Open() error = %v, want it to name the unknown version %q", err, future)
+	}
+}
+
+func TestConcurrentOpenMigratesExactlyOnce(t *testing.T) {
+	// Two containers racing on `docker compose up` open the same fresh database
+	// at once. Each Open gets its own connection pool, so this is the real race:
+	// without the recheck inside the migration transaction the loser dies with
+	// "table instances already exists".
+	path := filepath.Join(t.TempDir(), "test.db")
+
+	const openers = 8
+	var wg sync.WaitGroup
+	errs := make(chan error, openers)
+	start := make(chan struct{})
+
+	for range openers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			s, err := Open(path)
+			if err != nil {
+				errs <- err
+				return
+			}
+			t.Cleanup(func() { _ = s.Close() })
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Errorf("concurrent Open() returned error: %v", err)
+	}
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open() after the race returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	names, err := migrationNames()
+	if err != nil {
+		t.Fatalf("migrationNames() returned error: %v", err)
+	}
+
+	var rows int
+	if err := s.db.QueryRow(`SELECT count(*) FROM schema_migrations`).Scan(&rows); err != nil {
+		t.Fatalf("counting schema_migrations: %v", err)
 	}
 	if rows != len(names) {
 		t.Errorf("schema_migrations has %d rows, want %d (one per migration file)", rows, len(names))

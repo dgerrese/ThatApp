@@ -3,7 +3,10 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -83,6 +86,77 @@ func TestInstancesReturnsEveryRow(t *testing.T) {
 	}
 	if len(all) != 2 {
 		t.Fatalf("len(Instances()) = %d, want 2", len(all))
+	}
+}
+
+func TestInstancesAreOldestFirst(t *testing.T) {
+	// instances.id is INTEGER PRIMARY KEY without AUTOINCREMENT, so SQLite may
+	// reuse a rowid freed by a delete. Ordering by id alone would then put a newly
+	// created site before older ones.
+	s := openTestStore(t)
+
+	rows := []struct {
+		id        int64
+		name      string
+		createdAt string
+	}{
+		{id: 9, name: "oldest", createdAt: "2026-08-01T09:00:00Z"},
+		{id: 1, name: "newest", createdAt: "2026-08-03T09:00:00Z"},
+		{id: 5, name: "middle", createdAt: "2026-08-02T09:00:00Z"},
+	}
+	for _, row := range rows {
+		if _, err := s.db.Exec(
+			`INSERT INTO instances (id, name, base_url, email, api_token_enc, created_at)
+			 VALUES (?, ?, 'https://x.example', 'a@b.c', X'01', ?)`,
+			row.id, row.name, row.createdAt,
+		); err != nil {
+			t.Fatalf("inserting %q: %v", row.name, err)
+		}
+	}
+
+	all, err := s.Instances(context.Background())
+	if err != nil {
+		t.Fatalf("Instances() returned error: %v", err)
+	}
+
+	want := []string{"oldest", "middle", "newest"}
+	if len(all) != len(want) {
+		t.Fatalf("len(Instances()) = %d, want %d", len(all), len(want))
+	}
+	for i, name := range want {
+		if all[i].Name != name {
+			got := make([]string, len(all))
+			for j, inst := range all {
+				got[j] = inst.Name
+			}
+			t.Fatalf("Instances() order = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestInstanceDoesNotSerialiseItsToken(t *testing.T) {
+	// From ticket 3 TokenEnc holds an AES-GCM ciphertext of a Jira API token.
+	// Ticket 4 drives instances from a settings UI, where the obvious handler
+	// hands the struct straight to json.NewEncoder.
+	token := []byte("ciphertext-not-for-the-browser")
+	inst := &Instance{
+		ID: 1, Name: "Acme", BaseURL: "https://acme.atlassian.net",
+		Email: "a@b.c", TokenEnc: token, CreatedAt: time.Now().UTC(),
+	}
+
+	encoded, err := json.Marshal(inst)
+	if err != nil {
+		t.Fatalf("json.Marshal() returned error: %v", err)
+	}
+
+	for _, leak := range []string{
+		"TokenEnc",
+		"api_token_enc",
+		base64.StdEncoding.EncodeToString(token),
+	} {
+		if strings.Contains(string(encoded), leak) {
+			t.Errorf("json.Marshal(Instance) = %s, want it to omit %q", encoded, leak)
+		}
 	}
 }
 

@@ -10,13 +10,16 @@ import (
 // Instance is a configured Jira Cloud site.
 //
 // TokenEnc is opaque to the store: it is written and read unchanged, and
-// encrypting it is the caller's job.
+// encrypting it is the caller's job. Its json:"-" is defence in depth, not a
+// licence to serialise this struct — the HTTP layer owns its own response
+// shape, and from ticket 3 this field is a Jira API token's ciphertext that must
+// never reach the browser.
 type Instance struct {
 	ID        int64
 	Name      string
 	BaseURL   string
 	Email     string
-	TokenEnc  []byte
+	TokenEnc  []byte `json:"-"`
 	CreatedAt time.Time
 }
 
@@ -78,9 +81,14 @@ func (s *Store) CreateInstance(
 }
 
 // Instances returns every stored Jira site, oldest first.
+//
+// Ordered by created_at rather than id: id is INTEGER PRIMARY KEY without
+// AUTOINCREMENT, so SQLite may hand a new row a rowid freed by a delete, which
+// would sort a new site among the old ones. id breaks ties, since created_at
+// has one-second resolution.
 func (s *Store) Instances(ctx context.Context) ([]Instance, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+instanceColumns+` FROM instances ORDER BY id`)
+		`SELECT `+instanceColumns+` FROM instances ORDER BY created_at, id`)
 	if err != nil {
 		return nil, fmt.Errorf("querying instances: %w", err)
 	}

@@ -80,16 +80,68 @@ would re-run on next boot, and one recorded without applying would be skipped fo
 A failure aborts startup with a wrapped error. The server refusing to start on a bad schema matches
 how `config.Load` treats malformed configuration — loud at boot beats subtle at runtime.
 
+### Refusing a database from a newer build
+
+Recording *which* migrations ran is only worth the table if something acts on it. After reading the
+applied set, `Open` **errors when a recorded version is absent from the embedded set**, naming the
+unknown versions. Roll the container image back after a schema change and the old binary would
+otherwise start cheerfully against a database whose shape it does not understand — the same "loud at
+boot" rule, applied to the one failure the version rows can detect.
+
+There is no down-migration. Recovering from a rollback means restoring a backup or moving forward
+again, not undoing schema.
+
+### Two processes migrating at once
+
+The applied set is read before `applyMigration` opens its transaction, so two processes starting
+against the same fresh database can both decide a migration is unapplied. **The runner therefore
+rechecks membership inside the transaction**, and returns without applying when the row is already
+there.
+
+The recheck is only sound because the transaction holds the write lock from `BEGIN` — see
+`_txlock=immediate` below. The alternative, holding one write transaction across the whole runner,
+was rejected: it would have to wrap `CREATE TABLE IF NOT EXISTS schema_migrations` and every
+migration body in a single transaction, which makes a partial failure harder to reason about for no
+gain over a per-migration recheck.
+
+One race the recheck cannot close is the first connection's WAL conversion: `PRAGMA journal_mode =
+WAL` needs exclusive access, and SQLite does **not** run the busy handler for it, so `busy_timeout`
+does not apply. Two processes creating the database simultaneously leave one with an immediate
+`SQLITE_BUSY` from the very first `Ping`. `Open` retries a busy `Ping` a bounded number of times; the
+conversion happens once, and the retry finds the database already in WAL.
+
 ## Connection setup
 
-Three pragmas, set in the DSN so they apply to every pooled connection rather than to whichever
-one happened to execute a `PRAGMA` statement:
+Three pragmas and one transaction-locking option, set in the DSN so they apply to every pooled
+connection rather than to whichever one happened to execute a `PRAGMA` statement:
 
-| Pragma | Why |
+| Setting | Why |
 |---|---|
 | `foreign_keys = ON` | SQLite defaults it **off**. Without it the schema's `ON DELETE CASCADE` clauses silently do nothing, and deleting an instance orphans its pins, entries and timer instead of removing them. |
 | `journal_mode = WAL` | A reader does not block the writer. Matters once the end-of-day push writes while the UI reads. |
-| `busy_timeout = 5000` | Turns a transient lock into a short wait rather than an immediate `SQLITE_BUSY` error. |
+| `busy_timeout = 5000` | Turns a transient lock into a short wait rather than an immediate `SQLITE_BUSY`. **Covers plain statements only** — see below. |
+| `_txlock=immediate` | Makes `db.Begin` issue `BEGIN IMMEDIATE`, so a transaction takes its write lock up front, where `busy_timeout` applies. |
+
+### Why `busy_timeout` is not enough on its own
+
+`busy_timeout` installs a busy handler that retries a blocked *statement*. It does **not** rescue a
+transaction. `db.Begin` opens a **deferred** transaction, which takes only a read lock; when the
+first write arrives SQLite must upgrade read→write, and it returns `SQLITE_BUSY` **immediately**
+rather than invoking the busy handler, because sleeping while holding a read lock could deadlock two
+upgraders against each other.
+
+Measured on this schema, eight concurrent `CreateInstance` calls — plain `ExecContext`, no
+transaction — all succeed, while eight concurrent read-then-insert transactions see **six to seven
+of eight fail** with `database is locked (5) (SQLITE_BUSY)`. `_txlock=immediate` takes the write lock
+at `BEGIN`, where the busy handler does run, and all eight then commit.
+
+**The trade-off:** every transaction now takes the database's write lock, so a future read-only
+transaction serialises behind writers instead of running concurrently with them. For a single-user
+self-hosted app that is the right side of the trade — the alternative is intermittent, hard to
+reproduce `SQLITE_BUSY` in tickets 6-9, which are inherently transactional: stopping a timer must
+create its entry and clear the timer atomically, and the end-of-day push updates entries in bulk.
+This is a recorded decision, not an accident. A workload that ever wants genuinely concurrent
+read-only transactions must revisit it rather than quietly drop the option.
 
 ## Instances
 
@@ -103,6 +155,17 @@ func (s *Store) DeleteInstance(ctx context.Context, id int64) error
 
 `tokenEnc` is opaque to the store — it neither encrypts nor decrypts. Encryption is ticket 3, and
 keeping the store ignorant of it means ticket 3 changes one layer rather than two.
+
+**`Instance.TokenEnc` carries `json:"-"`.** From ticket 3 it holds an AES-GCM ciphertext of a Jira
+API token; without the tag, `json.NewEncoder(w).Encode(inst)` — the obvious handler body — ships that
+ciphertext to the browser. The tag is **defence in depth, not permission**: ticket 4 must still
+define its own response type for `/api/instances` rather than serialising the store struct, because
+a DTO is what keeps the wire format from drifting every time a column is added. Tickets 6-9 should
+give their own structs the same treatment for any field the browser has no business seeing.
+
+`Instances` orders by `created_at, id`, not by `id` alone. `instances.id` is `INTEGER PRIMARY KEY`
+**without** `AUTOINCREMENT`, so SQLite may reuse a rowid freed by a delete and a newly created site
+could sort among the old ones. `id` breaks ties, since `created_at` has one-second resolution.
 
 Every method takes a `context.Context`: ticket 5 fans out across instances concurrently and will
 want cancellation to propagate.
@@ -144,6 +207,14 @@ Coverage:
   invisible until a later ticket reads orphaned data.
 - instances round-trip through create, list, get, update and delete
 - `Instance` on a missing id returns an error satisfying `errors.Is(err, sql.ErrNoRows)`
+- **eight concurrent write transactions all commit** — the test that fails if `_txlock=immediate` is
+  dropped, and the one that stands in for tickets 6-9's transactional writes
+- `Open` refuses a database recording a migration this build does not carry, naming it
+- **eight concurrent `Open` calls on one fresh database all succeed** and record one row per
+  migration file. Each `Open` gets its own connection pool, so this exercises the cross-process race
+  rather than goroutines sharing a `*sql.DB`
+- `json.Marshal` on an `Instance` omits the token
+- `Instances` returns rows oldest first when `id` order and `created_at` order disagree
 
 ## Out of scope
 

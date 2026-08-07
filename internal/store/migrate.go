@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,13 @@ func (s *Store) migrate() error {
 	names, err := migrationNames()
 	if err != nil {
 		return err
+	}
+
+	if unknown := unknownRecordedMigrations(applied, names); len(unknown) > 0 {
+		return fmt.Errorf(
+			"database records migrations this build does not carry, so its schema is newer "+
+				"than this binary understands: %s", strings.Join(unknown, ", "),
+		)
 	}
 
 	for _, name := range names {
@@ -76,6 +84,27 @@ func (s *Store) appliedMigrations() (map[string]bool, error) {
 	return applied, nil
 }
 
+// unknownRecordedMigrations returns the recorded versions absent from embedded,
+// sorted. A non-empty result means the database was migrated by a newer build —
+// roll the image back after a schema change and this is what catches it, rather
+// than the app running happily against a shape it does not understand.
+func unknownRecordedMigrations(applied map[string]bool, embedded []string) []string {
+	known := make(map[string]bool, len(embedded))
+	for _, name := range embedded {
+		known[name] = true
+	}
+
+	unknown := make([]string, 0)
+	for version := range applied {
+		if !known[version] {
+			unknown = append(unknown, version)
+		}
+	}
+	slices.Sort(unknown)
+
+	return unknown
+}
+
 // migrationNames lists the embedded migration filenames in the order they must
 // be applied. The timestamp naming scheme sorts correctly under plain string
 // comparison, including when a collision added a millisecond suffix.
@@ -94,13 +123,31 @@ func migrationNames() ([]string, error) {
 	return names, nil
 }
 
-// applyMigration runs body and records name, in one transaction.
+// applyMigration runs body and records name, in one transaction. A migration
+// another process recorded first is left alone.
+//
+// The applied set is read before this transaction opens, so a second process
+// starting against the same fresh database can reach here for a migration that
+// is no longer unapplied. Rechecking inside the transaction closes that window:
+// the DSN's _txlock=immediate means the write lock is held from BEGIN, so the
+// loser of the race waits, then sees the winner's row and skips instead of
+// dying on "table instances already exists".
 func (s *Store) applyMigration(name string, body []byte) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	var recorded int
+	if err := tx.QueryRow(
+		`SELECT count(*) FROM schema_migrations WHERE version = ?`, name,
+	).Scan(&recorded); err != nil {
+		return fmt.Errorf("rechecking: %w", err)
+	}
+	if recorded > 0 {
+		return nil
+	}
 
 	if _, err := tx.Exec(string(body)); err != nil {
 		return fmt.Errorf("executing: %w", err)
