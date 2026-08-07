@@ -19,6 +19,13 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      # go run compiles before it listens; a cold start is slow.
+      start_period: 60s
 
   web:
     image: node:26-alpine
@@ -48,6 +55,20 @@ services:
       - go-mod-cache:/go/pkg/mod
       - golangci-cache:/root/.cache
 
+  playwright:
+    profiles: [e2e]
+    build:
+      context: .claude/e2e
+    working_dir: /e2e
+    volumes:
+      - ./.claude/e2e:/e2e
+      - playwright-node-modules:/e2e/node_modules
+    environment:
+      WD_BASE_URL: "http://app:8080"
+    depends_on:
+      app:
+        condition: service_healthy
+
 volumes:
   go-mod-cache:
   go-build-cache:
@@ -55,3 +76,4 @@ volumes:
   web-node-modules:
   web-npm-cache:
   wd-data:
+  playwright-node-modules:
