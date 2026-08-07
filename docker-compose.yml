@@ -1,0 +1,57 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "${WD_PORT:-8080}:8080"
+    volumes:
+      - .:/src
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+      - wd-data:/data
+    environment:
+      WD_ADDR: ":8080"
+      WD_DB_PATH: /data/work-dashboard.db
+      WD_SECRET_KEY: "${WD_SECRET_KEY:-}"
+      WD_TIMEZONE: "${WD_TIMEZONE:-Europe/Amsterdam}"
+    command: go run -tags dev ./cmd/server
+    depends_on:
+      web:
+        condition: service_healthy
+
+  web:
+    image: node:26-alpine
+    working_dir: /src/web
+    volumes:
+      - .:/src
+      - web-node-modules:/src/web/node_modules
+      - web-npm-cache:/root/.npm
+    # A fresh clone has neither node_modules nor web/dist, so `docker compose up`
+    # has to install and build once before watching. The marker file reports that
+    # first build to the healthcheck, which is what holds the app back from
+    # serving an empty web/dist.
+    command: sh -c 'npm ci && npm run build && touch /tmp/web-built && npm run watch'
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/web-built"]
+      interval: 2s
+      timeout: 5s
+      retries: 3
+      start_period: 300s
+
+  lint:
+    image: golangci/golangci-lint:v2.12.2
+    working_dir: /src
+    entrypoint: []
+    volumes:
+      - .:/src
+      - go-mod-cache:/go/pkg/mod
+      - golangci-cache:/root/.cache
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
+  golangci-cache:
+  web-node-modules:
+  web-npm-cache:
+  wd-data:

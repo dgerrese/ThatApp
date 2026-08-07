@@ -659,47 +659,13 @@ Run: `docker compose run --rm --no-deps app go test ./internal/server/ -v`
 
 Expected: PASS — all five test functions.
 
-- [ ] **Step 5: Wire the entrypoint**
+- [ ] **Step 5: Commit**
 
-`cmd/server/main.go`:
-
-```go
-package main
-
-import (
-	"log"
-	"net/http"
-	"os"
-
-	_ "time/tzdata" // embed the zoneinfo database; the scratch image has none
-
-	"github.com/dgerrese/work-dashboard/internal/config"
-	"github.com/dgerrese/work-dashboard/internal/server"
-	"github.com/dgerrese/work-dashboard/web"
-)
-
-func main() {
-	cfg, err := config.Load(os.Getenv)
-	if err != nil {
-		log.Fatalf("configuration: %v", err)
-	}
-
-	srv := server.New(cfg, web.Assets())
-
-	log.Printf("work-dashboard listening on %s (%s)", cfg.Addr, cfg.Location)
-	if err := http.ListenAndServe(cfg.Addr, srv); err != nil {
-		log.Fatalf("server: %v", err)
-	}
-}
-```
-
-This will not compile until Task 4 provides `web.Assets()`. That is expected and correct ordering —
-commit the server package now and the entrypoint compiles at the end of the next task.
-
-- [ ] **Step 6: Commit**
+Leave `cmd/server/main.go` alone in this task. Wiring it to `server.New` requires `web.Assets()`,
+which Task 4 creates, and editing it here would leave the branch unable to compile.
 
 ```bash
-git add internal/server/ cmd/server/main.go
+git add internal/server/
 git commit -m "feat: serve the api health endpoint and static assets"
 ```
 
@@ -709,10 +675,11 @@ git commit -m "feat: serve the api health endpoint and static assets"
 
 **Files:**
 - Create: `web/embed.go`, `web/assets_dev.go`
+- Modify: `cmd/server/main.go`
 
 **Interfaces:**
-- Consumes: nothing
-- Produces: `func web.Assets() fs.FS` — one implementation per build tag
+- Consumes: `config.Load` from Task 2, `server.New` from Task 3
+- Produces: `func web.Assets() fs.FS` — one implementation per build tag; a working entrypoint
 
 - [ ] **Step 1: Write the production implementation**
 
@@ -765,7 +732,41 @@ func Assets() fs.FS {
 }
 ```
 
-- [ ] **Step 3: Verify both build tags compile**
+- [ ] **Step 3: Wire the entrypoint**
+
+`cmd/server/main.go` — replace the placeholder from Task 1 entirely:
+
+```go
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+
+	_ "time/tzdata" // embed the zoneinfo database; the scratch image has none
+
+	"github.com/dgerrese/work-dashboard/internal/config"
+	"github.com/dgerrese/work-dashboard/internal/server"
+	"github.com/dgerrese/work-dashboard/web"
+)
+
+func main() {
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		log.Fatalf("configuration: %v", err)
+	}
+
+	srv := server.New(cfg, web.Assets())
+
+	log.Printf("work-dashboard listening on %s (%s)", cfg.Addr, cfg.Location)
+	if err := http.ListenAndServe(cfg.Addr, srv); err != nil {
+		log.Fatalf("server: %v", err)
+	}
+}
+```
+
+- [ ] **Step 4: Verify both build tags compile**
 
 ```bash
 docker compose run --rm --no-deps app go build ./...
@@ -775,16 +776,16 @@ docker compose run --rm --no-deps app go build -tags dev ./...
 Expected: both exit 0 with no output. The untagged build is the one that would fail if
 `web/dist/.gitkeep` were missing, because `go:embed` errors on an empty match.
 
-- [ ] **Step 4: Run the full Go suite**
+- [ ] **Step 5: Run the full Go suite**
 
 Run: `make test-go`
 
 Expected: PASS for `internal/config` and `internal/server`; `no test files` for the others.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add web/embed.go web/assets_dev.go
+git add web/embed.go web/assets_dev.go cmd/server/main.go
 git commit -m "feat: select embedded or on-disk assets by build tag"
 ```
 
