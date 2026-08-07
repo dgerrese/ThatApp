@@ -86,34 +86,34 @@ roughly 15MB with no runtime dependencies. A named volume holds the SQLite datab
 ```sql
 CREATE TABLE instances (
   id             INTEGER PRIMARY KEY,
-  name           TEXT NOT NULL,          -- display name, e.g. "Acme"
-  base_url       TEXT NOT NULL,          -- https://acme.atlassian.net
-  email          TEXT NOT NULL,
+  name           VARCHAR(120) NOT NULL,  -- display name, e.g. "Acme"
+  base_url       VARCHAR(255) NOT NULL,  -- https://acme.atlassian.net
+  email          VARCHAR(255) NOT NULL,
   api_token_enc  BLOB NOT NULL,          -- AES-GCM, key from WD_SECRET_KEY
-  created_at     TEXT NOT NULL
+  created_at     DATETIME NOT NULL
 );
 
 CREATE TABLE pinned_issues (
   id             INTEGER PRIMARY KEY,
   instance_id    INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
-  issue_key      TEXT NOT NULL,          -- ABC-123
+  issue_key      VARCHAR(20) NOT NULL,   -- ABC-123
   summary_cache  TEXT,                   -- so pins render without a Jira round trip
-  created_at     TEXT NOT NULL,
+  created_at     DATETIME NOT NULL,
   UNIQUE(instance_id, issue_key)
 );
 
 CREATE TABLE time_entries (
   id             INTEGER PRIMARY KEY,
   instance_id    INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
-  issue_key      TEXT NOT NULL,
-  day            TEXT NOT NULL,          -- YYYY-MM-DD, user's local date
-  started_at     TEXT NOT NULL,          -- RFC3339, clock time work began
+  issue_key      VARCHAR(20) NOT NULL,
+  day            DATE NOT NULL,          -- YYYY-MM-DD, user's local date
+  started_at     DATETIME NOT NULL,      -- RFC3339, clock time work began
   seconds        INTEGER NOT NULL,
   comment        TEXT,
-  worklog_id     TEXT,                   -- NULL until pushed to Jira
-  pushed_at      TEXT,                   -- NULL until pushed
-  created_at     TEXT NOT NULL,
-  updated_at     TEXT NOT NULL
+  worklog_id     VARCHAR(32),            -- NULL until pushed to Jira
+  pushed_at      DATETIME,               -- NULL until pushed
+  created_at     DATETIME NOT NULL,
+  updated_at     DATETIME NOT NULL
 );
 CREATE INDEX idx_entries_day ON time_entries(day);
 CREATE INDEX idx_entries_issue_day ON time_entries(instance_id, issue_key, day);
@@ -121,8 +121,8 @@ CREATE INDEX idx_entries_issue_day ON time_entries(instance_id, issue_key, day);
 CREATE TABLE timers (
   id             INTEGER PRIMARY KEY CHECK (id = 1),   -- at most one running timer
   instance_id    INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
-  issue_key      TEXT NOT NULL,
-  started_at     TEXT NOT NULL
+  issue_key      VARCHAR(20) NOT NULL,
+  started_at     DATETIME NOT NULL
 );
 ```
 
