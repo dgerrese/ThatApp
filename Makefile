@@ -4,7 +4,7 @@ APP     := $(COMPOSE) run --rm --no-deps app
 WEB     := $(COMPOSE) run --rm --no-deps web
 LINT    := $(COMPOSE) run --rm --no-deps lint
 
-.PHONY: help up down install-web build-web test-go test fmt lint-go lint-web lint tsc verify
+.PHONY: help up down install-web build-web test-go test test-e2e fmt lint-go lint-web lint tsc verify
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -26,6 +26,9 @@ test-go: ## Run the Go test suite
 	$(APP) go test ./...
 
 test: test-go ## Run all tests
+
+test-e2e: ## Run the Playwright suite (needs the app stack)
+	$(COMPOSE) --profile e2e run --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 
 fmt: install-web ## Format Go and frontend sources
 	$(LINT) golangci-lint fmt
