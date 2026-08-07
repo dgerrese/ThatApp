@@ -18,3 +18,7 @@ data/
 .idea/
 .vscode/
 *.swp
+
+# Playwright output
+.claude/e2e/test-results/
+.claude/e2e/playwright-report/
