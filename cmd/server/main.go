@@ -1,3 +1,4 @@
+// Command server runs the work-dashboard HTTP server.
 package main
 
 import (
