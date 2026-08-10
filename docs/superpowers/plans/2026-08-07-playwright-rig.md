@@ -44,7 +44,7 @@ Confirmed empirically in this project's containers before this plan was written.
     smoke.spec.ts        the app shell boots and reaches the API
 docker-compose.yml       + app healthcheck, + profile-gated playwright service
 Makefile                 + test-e2e
-.github/workflows/ci.yml + filtered e2e job
+.github/workflows/e2e.yml  new: the filtered e2e workflow
 CLAUDE.md                corrected: verify is not the whole gate
 docs/superpowers/specs/2026-08-04-work-dashboard-design.md   corrected make-target table
 ```
@@ -318,7 +318,8 @@ git commit -m "test: playwright smoke spec on firefox and chromium"
 ### Task 3: CI and the documentation corrections
 
 **Files:**
-- Modify: `.github/workflows/ci.yml`, `CLAUDE.md`, `docs/superpowers/specs/2026-08-04-work-dashboard-design.md`
+- Create: `.github/workflows/e2e.yml` (not a job in `ci.yml` — see Step 1)
+- Modify: `CLAUDE.md`, `docs/superpowers/specs/2026-08-04-work-dashboard-design.md`
 
 **Interfaces:**
 - Consumes: `make test-e2e` from Task 2

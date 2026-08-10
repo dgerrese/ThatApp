@@ -284,8 +284,9 @@ Go carries most of the weight: the standard `testing` package with `httptest` fo
 fake Jira server for client tests. **No test ever contacts a real Jira instance.**
 
 Playwright covers the UI, running in its own Docker Compose profile behind `make test-e2e`. It is
-deliberately outside `make test` and `make verify`: those must pass with no stack running, and the
-Playwright suite requires `app` already up and healthy — the opposite contract. Specs exercise the
+deliberately outside `make test` and `make verify`: those must pass with no stack running and start
+nothing, whereas the Playwright suite brings `app` up and blocks on its healthcheck before the first
+test — the opposite contract. Specs exercise the
 acceptance criteria of the ticket that introduced them — the user-visible behaviour promised —
 rather than merely asserting that a page returns 200.
 
@@ -307,14 +308,14 @@ make lint     golangci-lint + eslint
 make tsc      tsc --noEmit
 make test     go test ./...
 make verify   lint + tsc + test — the merge gate
-make test-e2e Playwright, separately — needs the app stack already up
+make test-e2e Playwright, separately — brings the app stack up itself
 ```
 
 `make verify` and `make test-e2e` together are the source of truth for whether a change is green.
 `verify` deliberately needs no running stack: it is run before any task is reported done,
 independently again at review, and by GitHub Actions on every pull request. `test-e2e` is out of
-that loop by design — it needs `app` up and healthy first — and runs in its own CI workflow, gated
-to pull requests that touch the frontend or the rig itself.
+that loop by design — it starts the stack and waits on `app`'s healthcheck — and runs in its own CI
+workflow, gated to pull requests that touch the frontend or the rig itself.
 
 ## Development workflow
 

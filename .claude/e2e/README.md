@@ -6,19 +6,28 @@ completing. Nothing a Go handler test or a frontend unit test can reach.
 
 ## Running the suite
 
-The app stack must already be up — the suite is a client of it, not a
-replacement for `make up`:
-
 ```shell
-docker compose up -d app
-make test-e2e
-docker compose down
+make test-e2e   # starts the stack, waits for it, runs the suite
+make down       # stop the stack and drop its volumes, including the rig's
 ```
+
+The `playwright` service declares `depends_on: app: condition: service_healthy`,
+and `compose run` honours that, so `make test-e2e` on its own brings the stack
+up and waits for `/api/health`. It leaves the stack running afterwards — that is
+what `make down` is for. If the stack is already up from `make up`, the suite
+just attaches to it.
+
+`.env` must exist and carry a valid `WD_SECRET_KEY` first (`cp .env.example .env`).
+The server refuses to boot without one, so the healthcheck never passes and the
+suite fails with an opaque `dependency failed to start: container ... is
+unhealthy` rather than anything about configuration.
 
 `make test-e2e` runs `npm ci` before `npx playwright test`. The `playwright`
 service bind-mounts `.claude/e2e` with a named volume over `node_modules`,
 and that volume starts empty on a fresh clone — without the `npm ci` the
-first run on any new machine fails with `playwright: not found`.
+first run on any new machine fails with `playwright: not found`. It also passes
+`--build`: the browsers are baked into the image, so a cached image plus a
+freshly installed `@playwright/test` would disagree about which browsers exist.
 
 ## Why this service is profile-gated
 
@@ -31,12 +40,12 @@ service most of those commands have no use for.
 
 ## Why `make verify` excludes it
 
-`make verify` is the merge gate and the fast local TDD loop, and it must
-pass with **nothing running** — no `docker compose up` first. Running the
-Playwright suite requires the app stack to be up and healthy, which is the
-opposite contract. Wiring `test-e2e` into `test` or `verify` would make the
-merge gate depend on Docker being up, breaking that loop. `make test-e2e` is
-a separate, deliberate step.
+`make verify` is the merge gate and the fast local TDD loop. Every one of its
+steps is a `run --rm --no-deps`, so it needs no stack and starts nothing.
+The Playwright suite is the opposite contract: it cannot run until `app` is up
+and healthy, which means building the frontend and waiting on a healthcheck.
+Wiring `test-e2e` into `test` or `verify` would put that cost and that
+dependency inside the fast loop. `make test-e2e` is a separate, deliberate step.
 
 ## Why the base URL says `wd-app`, not `app`
 

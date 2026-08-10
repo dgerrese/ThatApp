@@ -10,9 +10,8 @@ before answering "how is this supposed to work" — it holds the architecture, d
 surface, push semantics and the 13-ticket sequence. This file holds the rules for working in the
 repo; it does not repeat the design.
 
-> **Status:** scaffolding is not yet implemented. The implementation plan for ticket 1 is at
-> `docs/superpowers/plans/2026-08-07-scaffolding.md`. Commands below describe the repo as that plan
-> builds it.
+> **Status:** tickets 1 (scaffolding) and 2 (store) have shipped; the commands below describe the
+> repo as it stands. Plans for shipped tickets live in `docs/superpowers/plans/`.
 
 ## Hard constraints
 
@@ -37,7 +36,7 @@ make up          # start the dev stack on localhost:8080
 make down        # stop it and drop its volumes
 make verify      # the full merge gate — lint, tsc, tests
 make test-go     # Go suite only
-make test-e2e    # Playwright suite — needs the app stack already up
+make test-e2e    # Playwright suite — brings the app stack up itself
 make lint        # golangci-lint + eslint
 make tsc         # frontend type check
 make build-web   # build the frontend into web/dist
@@ -48,14 +47,15 @@ Anything not covered by a `make` target runs through Compose:
 ```shell
 docker compose run --rm --no-deps app go test ./internal/server/ -run TestHealth -v
 docker compose run --rm --no-deps web npm install
-docker compose --profile e2e run --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test'
+docker compose --profile e2e run --build --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 ```
 
 `make verify` and `make test-e2e` together are the source of truth for whether a change is green.
 Both run in CI, but on different triggers: `verify` deliberately needs no running stack and runs
-on every pull request; `test-e2e` needs the app stack up first, so it runs in its own CI workflow,
-gated to pull requests that touch the frontend or the rig itself. Never claim work is done without
-pasting their output.
+on every pull request; `test-e2e` builds the frontend and waits on the app's healthcheck, so it
+runs in its own CI workflow, gated to pull requests that touch the frontend or the rig itself —
+that gate is the `paths:` list in `.github/workflows/e2e.yml`, which must name every file the rig
+depends on. Never claim work is done without pasting their output.
 
 ## Layout
 
@@ -68,7 +68,7 @@ web/               frontend source and the built dist/
   assets_dev.go    assets read from disk            (//go:build dev)
   src/components/  wd-* WebComponents
   src/views/       lazily imported views
-.claude/e2e/       Playwright specs (not created yet)
+.claude/e2e/       Playwright rig: its image, config and tests/
 docs/superpowers/  specs and plans
 ```
 
