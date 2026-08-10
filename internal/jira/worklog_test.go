@@ -24,6 +24,32 @@ func amsterdamTime(t *testing.T) time.Time {
 	return time.Date(2026, 8, 10, 14, 30, 0, 0, loc)
 }
 
+// adfText digs the single text node out of a minimal ADF document, returning ""
+// when the document carries no text at all.
+func adfText(t *testing.T, doc map[string]any) string {
+	t.Helper()
+
+	content, ok := doc["content"].([]any)
+	if !ok || len(content) == 0 {
+		return ""
+	}
+	paragraph, ok := content[0].(map[string]any)
+	if !ok {
+		return ""
+	}
+	inner, ok := paragraph["content"].([]any)
+	if !ok || len(inner) == 0 {
+		return ""
+	}
+	node, ok := inner[0].(map[string]any)
+	if !ok {
+		return ""
+	}
+	text, _ := node["text"].(string)
+
+	return text
+}
+
 func TestCreateWorklogWireFormat(t *testing.T) {
 	var (
 		gotMethod, gotPath, gotQuery string
@@ -77,6 +103,12 @@ func TestCreateWorklogWireFormat(t *testing.T) {
 	}
 	if comment["type"] != "doc" || comment["version"] != float64(1) {
 		t.Errorf("comment = %#v, want type doc and version 1", comment)
+	}
+	// The wrapping is the part worth asserting: a helper that produced a valid
+	// but empty doc would satisfy the type and version checks above while every
+	// pushed worklog carried a blank comment.
+	if got := adfText(t, comment); got != "wrote the plan" {
+		t.Errorf("comment text = %q, want %q", got, "wrote the plan")
 	}
 
 	values, err := url.ParseQuery(gotQuery)
@@ -134,15 +166,21 @@ func TestCreateWorklogRejectsBadInput(t *testing.T) {
 	}
 }
 
-func TestUpdateWorklogTargetsTheKnownID(t *testing.T) {
-	var gotMethod, gotPath string
+func TestUpdateWorklogWireFormat(t *testing.T) {
+	var (
+		gotMethod, gotPath, gotQuery string
+		gotBody                      map[string]any
+	)
+
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		gotMethod, gotPath = r.Method, r.URL.Path
+		gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
 		_, _ = io.WriteString(w, `{"id":"10101"}`)
 	})
 
 	err := client.UpdateWorklog(context.Background(), "10101", jira.Worklog{
-		IssueKey: "ABC-1", Started: amsterdamTime(t), Seconds: 900,
+		IssueKey: "ABC-1", Started: amsterdamTime(t), Seconds: 900, Comment: "corrected",
 	})
 	if err != nil {
 		t.Fatalf("UpdateWorklog: %v", err)
@@ -154,12 +192,66 @@ func TestUpdateWorklogTargetsTheKnownID(t *testing.T) {
 	if gotPath != "/rest/api/3/issue/ABC-1/worklog/10101" {
 		t.Errorf("path = %s, want /rest/api/3/issue/ABC-1/worklog/10101", gotPath)
 	}
+
+	// Update carries the same duration, timestamp and estimate semantics as
+	// create. Asserting only method and path here would let the whole query
+	// string and body be deleted without a single test noticing.
+	if got := gotBody["started"]; got != "2026-08-10T14:30:00.000+0200" {
+		t.Errorf("started = %v, want 2026-08-10T14:30:00.000+0200", got)
+	}
+	if got := gotBody["timeSpentSeconds"]; got != float64(900) {
+		t.Errorf("timeSpentSeconds = %v, want 900", got)
+	}
+	comment, ok := gotBody["comment"].(map[string]any)
+	if !ok {
+		t.Fatalf("comment = %#v, want an ADF object", gotBody["comment"])
+	}
+	if got := adfText(t, comment); got != "corrected" {
+		t.Errorf("comment text = %q, want %q", got, "corrected")
+	}
+
+	values, err := url.ParseQuery(gotQuery)
+	if err != nil {
+		t.Fatalf("ParseQuery(%q): %v", gotQuery, err)
+	}
+	if values.Get("adjustEstimate") != "auto" {
+		t.Errorf("adjustEstimate = %q, want auto", values.Get("adjustEstimate"))
+	}
+	if values.Get("notifyUsers") != "false" {
+		t.Errorf("notifyUsers = %q, want false", values.Get("notifyUsers"))
+	}
+}
+
+func TestUpdateWorklogClearsAnEmptiedComment(t *testing.T) {
+	var gotBody map[string]any
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		_, _ = io.WriteString(w, `{"id":"10101"}`)
+	})
+
+	err := client.UpdateWorklog(context.Background(), "10101", jira.Worklog{
+		IssueKey: "ABC-1", Started: amsterdamTime(t), Seconds: 900,
+	})
+	if err != nil {
+		t.Fatalf("UpdateWorklog: %v", err)
+	}
+
+	// A PUT leaves omitted fields unchanged, so omitting the comment the way
+	// create does would strand the old text in Jira with no way to remove it.
+	comment, ok := gotBody["comment"].(map[string]any)
+	if !ok {
+		t.Fatalf("comment = %#v, want an explicit empty ADF document, not an absent field", gotBody["comment"])
+	}
+	if got := adfText(t, comment); got != "" {
+		t.Errorf("comment text = %q, want it empty", got)
+	}
 }
 
 func TestDeleteWorklogTargetsTheKnownID(t *testing.T) {
-	var gotMethod, gotPath string
+	var gotMethod, gotPath, gotQuery string
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		gotMethod, gotPath = r.Method, r.URL.Path
+		gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
 		w.WriteHeader(http.StatusNoContent)
 	})
 
@@ -172,6 +264,17 @@ func TestDeleteWorklogTargetsTheKnownID(t *testing.T) {
 	}
 	if gotPath != "/rest/api/3/issue/ABC-1/worklog/10101" {
 		t.Errorf("path = %s, want /rest/api/3/issue/ABC-1/worklog/10101", gotPath)
+	}
+
+	// deleteWorklog defaults notifyUsers to true just as add and update do.
+	// Ticket 10 deletes the Jira worklog whenever a pushed entry is removed, so
+	// without this every correction emails the whole watcher list.
+	values, err := url.ParseQuery(gotQuery)
+	if err != nil {
+		t.Fatalf("ParseQuery(%q): %v", gotQuery, err)
+	}
+	if values.Get("notifyUsers") != "false" {
+		t.Errorf("notifyUsers = %q, want false", values.Get("notifyUsers"))
 	}
 }
 

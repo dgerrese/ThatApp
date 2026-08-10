@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
+	"slices"
 	"testing"
 	"time"
 )
@@ -36,15 +36,19 @@ func TestSearchAssignedSendsBoundedJQLAndNamedFields(t *testing.T) {
 	if gotPath != "/rest/api/3/search/jql" {
 		t.Errorf("path = %s, want /rest/api/3/search/jql", gotPath)
 	}
-	if !strings.Contains(got.JQL, "assignee = currentUser()") {
-		t.Errorf("jql = %q, missing the assignee clause", got.JQL)
+	// Pinned whole rather than by substring: the ORDER BY is what puts the most
+	// recently touched work at the top of the Today view, and a Contains check
+	// would not notice it disappearing.
+	wantJQL := "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC"
+	if got.JQL != wantJQL {
+		t.Errorf("jql = %q, want %q", got.JQL, wantJQL)
 	}
-	if !strings.Contains(got.JQL, "statusCategory != Done") {
-		t.Errorf("jql = %q, missing the statusCategory clause", got.JQL)
-	}
-	// Omitting fields makes Jira return ids only, which would render an empty list.
-	if len(got.Fields) == 0 {
-		t.Error("fields was empty; Jira returns ids only unless fields are named")
+	// Omitting fields, or naming the wrong ones, makes Jira return ids only and
+	// every summary would render blank.
+	for _, field := range []string{"summary", "status"} {
+		if !slices.Contains(got.Fields, field) {
+			t.Errorf("fields = %v, missing %q", got.Fields, field)
+		}
 	}
 	if got.MaxResults <= 0 {
 		t.Errorf("maxResults = %d, want a positive page size", got.MaxResults)

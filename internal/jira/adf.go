@@ -22,3 +22,15 @@ func adfParagraph(text string) adfNode {
 		}},
 	}
 }
+
+// adfEmptyDoc is the document that means "no comment". A PUT leaves omitted
+// fields unchanged, so clearing a comment needs an explicit empty document
+// rather than an absent field. ADF documents a paragraph's content as "zero or
+// more nodes", which is what makes an empty paragraph legal here.
+func adfEmptyDoc() adfNode {
+	return adfNode{
+		Type:    "doc",
+		Version: 1,
+		Content: []adfNode{{Type: "paragraph"}},
+	}
+}

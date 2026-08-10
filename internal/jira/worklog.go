@@ -43,7 +43,9 @@ type worklogRequest struct {
 	Comment          *adfNode `json:"comment,omitempty"`
 }
 
-func (w Worklog) request() worklogRequest {
+// createRequest omits an empty comment entirely, since a new worklog has no
+// previous comment to displace.
+func (w Worklog) createRequest() worklogRequest {
 	req := worklogRequest{
 		TimeSpentSeconds: w.Seconds,
 		Started:          w.Started.Format(startedLayout),
@@ -56,11 +58,30 @@ func (w Worklog) request() worklogRequest {
 	return req
 }
 
-// worklogWriteQuery is sent on create and update. adjustEstimate=auto makes the
-// remaining estimate fall by the time logged, matching what the Jira UI does.
-// notifyUsers=false keeps an end-of-day push of a dozen entries from emailing
-// every watcher a dozen times.
-func worklogWriteQuery() url.Values {
+// updateRequest always sends a comment, unlike createRequest. A PUT leaves
+// omitted fields unchanged, so a user who clears the note on an already-pushed
+// entry would otherwise leave the old text in Jira with no way to remove it.
+func (w Worklog) updateRequest() worklogRequest {
+	req := worklogRequest{
+		TimeSpentSeconds: w.Seconds,
+		Started:          w.Started.Format(startedLayout),
+	}
+
+	doc := adfEmptyDoc()
+	if w.Comment != "" {
+		doc = adfParagraph(w.Comment)
+	}
+	req.Comment = &doc
+
+	return req
+}
+
+// worklogQuery is sent on every worklog write, delete included. adjustEstimate
+// auto moves the remaining estimate with the logged time — down on create,
+// back up on delete — matching what the Jira UI does. notifyUsers=false keeps
+// an end-of-day push, or a correction to one, from emailing every watcher once
+// per entry; all three operations default it to true.
+func worklogQuery() url.Values {
 	return url.Values{
 		"adjustEstimate": {"auto"},
 		"notifyUsers":    {"false"},
@@ -78,7 +99,7 @@ func (c *Client) CreateWorklog(ctx context.Context, w Worklog) (string, error) {
 		ID string `json:"id"`
 	}
 	path := fmt.Sprintf("/rest/api/3/issue/%s/worklog", url.PathEscape(w.IssueKey))
-	if err := c.do(ctx, http.MethodPost, path, worklogWriteQuery(), w.request(), &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, path, worklogQuery(), w.createRequest(), &resp); err != nil {
 		return "", fmt.Errorf("creating worklog on %s: %w", w.IssueKey, err)
 	}
 	if resp.ID == "" {
@@ -98,7 +119,7 @@ func (c *Client) UpdateWorklog(ctx context.Context, id string, w Worklog) error 
 	}
 
 	path := fmt.Sprintf("/rest/api/3/issue/%s/worklog/%s", url.PathEscape(w.IssueKey), url.PathEscape(id))
-	if err := c.do(ctx, http.MethodPut, path, worklogWriteQuery(), w.request(), nil); err != nil {
+	if err := c.do(ctx, http.MethodPut, path, worklogQuery(), w.updateRequest(), nil); err != nil {
 		return fmt.Errorf("updating worklog %s on %s: %w", id, w.IssueKey, err)
 	}
 
@@ -113,7 +134,7 @@ func (c *Client) DeleteWorklog(ctx context.Context, issueKey, id string) error {
 	}
 
 	path := fmt.Sprintf("/rest/api/3/issue/%s/worklog/%s", url.PathEscape(issueKey), url.PathEscape(id))
-	if err := c.do(ctx, http.MethodDelete, path, nil, nil, nil); err != nil {
+	if err := c.do(ctx, http.MethodDelete, path, worklogQuery(), nil, nil); err != nil {
 		return fmt.Errorf("deleting worklog %s on %s: %w", id, issueKey, err)
 	}
 
