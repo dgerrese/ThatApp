@@ -21,4 +21,4 @@ data/
 
 # Playwright output
 .claude/e2e/test-results/
-.claude/e2e/playwright-report/
+.claude/e2e/node_modules/
