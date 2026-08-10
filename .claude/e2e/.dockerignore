@@ -1,0 +1,5 @@
+# The image needs the two package files and nothing else; the specs and the
+# config arrive at run time over the bind mount.
+*
+!package.json
+!package-lock.json

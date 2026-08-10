@@ -19,6 +19,22 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    # "app" collides with the .app gTLD, which sits on Chromium and Firefox's
+    # built-in HSTS preload list, so a browser silently upgrades http://app to
+    # https and breaks the Playwright rig. wd-app is a second, unambiguous name
+    # on the same network for the rig to target instead. See docker-compose.yml
+    # `playwright` service and .claude/e2e/playwright.config.ts.
+    networks:
+      default:
+        aliases:
+          - wd-app
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      # go run compiles before it listens; a cold start is slow.
+      start_period: 60s
 
   web:
     image: node:26-alpine
@@ -48,6 +64,29 @@ services:
       - go-mod-cache:/go/pkg/mod
       - golangci-cache:/root/.cache
 
+  playwright:
+    profiles: [e2e]
+    build:
+      context: .claude/e2e
+    working_dir: /e2e
+    # Playwright's own Docker guidance: Chromium's renderer dies on the default
+    # 64MB /dev/shm, and the runner leaves browser processes to reap.
+    ipc: host
+    init: true
+    volumes:
+      - ./.claude/e2e:/e2e
+      - playwright-node-modules:/e2e/node_modules
+      - playwright-npm-cache:/root/.npm
+    environment:
+      WD_BASE_URL: "http://wd-app:8080"
+      # playwright.config.ts branches on CI for forbidOnly, retries and the
+      # reporter. `compose run` forwards nothing from the host environment, so
+      # without this the container never sees the CI runner's CI=true.
+      CI: "${CI:-}"
+    depends_on:
+      app:
+        condition: service_healthy
+
 volumes:
   go-mod-cache:
   go-build-cache:
@@ -55,3 +94,5 @@ volumes:
   web-node-modules:
   web-npm-cache:
   wd-data:
+  playwright-node-modules:
+  playwright-npm-cache:

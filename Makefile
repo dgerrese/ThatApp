@@ -4,7 +4,7 @@ APP     := $(COMPOSE) run --rm --no-deps app
 WEB     := $(COMPOSE) run --rm --no-deps web
 LINT    := $(COMPOSE) run --rm --no-deps lint
 
-.PHONY: help up down install-web build-web test-go test fmt lint-go lint-web lint tsc verify
+.PHONY: help up down install-web build-web test-go test test-e2e fmt lint-go lint-web lint tsc verify
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -14,7 +14,7 @@ up: ## Start the dev stack
 	$(COMPOSE) up
 
 down: ## Stop the dev stack and drop its volumes
-	$(COMPOSE) down -v
+	$(COMPOSE) --profile e2e down -v
 
 install-web: ## Install frontend dependencies into the web-node-modules volume
 	$(WEB) npm ci
@@ -26,6 +26,12 @@ test-go: ## Run the Go test suite
 	$(APP) go test ./...
 
 test: test-go ## Run all tests
+
+# --build, because `run` reuses a cached image: without it a bump to
+# @playwright/test installs new packages into the node_modules volume while the
+# image still carries the browsers the old version pinned.
+test-e2e: ## Run the Playwright suite (starts the app stack itself)
+	$(COMPOSE) --profile e2e run --build --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test'
 
 fmt: install-web ## Format Go and frontend sources
 	$(LINT) golangci-lint fmt
