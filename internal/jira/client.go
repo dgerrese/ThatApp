@@ -88,7 +88,7 @@ func (c *Client) do(
 		// A transport failure is indistinguishable to the caller from a 5xx: the
 		// site did not answer. Both become ErrUnreachable so the HTTP layer has
 		// one case to handle.
-		return fmt.Errorf("%s %s: %w: %v", method, path, ErrUnreachable, err)
+		return fmt.Errorf("%s %s: %w: %w", method, path, ErrUnreachable, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
