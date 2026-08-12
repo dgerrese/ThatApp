@@ -13,21 +13,13 @@ import (
 	"github.com/dgerrese/work-dashboard/internal/store"
 )
 
-// instanceClients is populated by Task 5, which adds the per-instance Jira
-// client factory. It is declared here only so the Server struct compiles.
-//
-//nolint:unused // no reader yet; Task 5 gives it one
-type instanceClients struct{}
-
 // Server routes API requests and serves the PWA's static assets.
 type Server struct {
 	cfg    *config.Config
 	assets fs.FS
 	db     *store.Store
 	sealer *crypto.Sealer
-	//nolint:unused // stays nil until Task 5 populates it
-	clients *instanceClients
-	mux     *http.ServeMux
+	mux    *http.ServeMux
 }
 
 // New builds a Server that serves its static files from assets. Production
