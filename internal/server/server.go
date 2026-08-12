@@ -15,11 +15,12 @@ import (
 
 // Server routes API requests and serves the PWA's static assets.
 type Server struct {
-	cfg    *config.Config
-	assets fs.FS
-	db     *store.Store
-	sealer *crypto.Sealer
-	mux    *http.ServeMux
+	cfg     *config.Config
+	assets  fs.FS
+	db      *store.Store
+	sealer  *crypto.Sealer
+	clients *instanceClients
+	mux     *http.ServeMux
 }
 
 // New builds a Server that serves its static files from assets. Production
@@ -32,6 +33,7 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 		sealer: sealer,
 		mux:    http.NewServeMux(),
 	}
+	s.clients = newInstanceClients(db, sealer)
 
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
 	s.mux.HandleFunc("/api/", handleAPINotFound)
