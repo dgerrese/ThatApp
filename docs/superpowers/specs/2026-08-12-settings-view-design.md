@@ -29,15 +29,30 @@ than a 401, so only `GET /rest/api/3/myself` can tell working credentials from r
 
 ## Schema and migration
 
-A new migration rebuilds `instances` — create, copy, drop, rename — rather than `ALTER TABLE DROP
-COLUMN`. The rebuild is safe on any SQLite build and runs inside the transaction `applyMigration`
-already opens.
+A new migration adds the two columns, backfills them, and drops `base_url`:
 
 ```sql
-site_url      VARCHAR(255) NULL CHECK (site_url     IS NULL OR site_url     <> ''),
-api_base_url  VARCHAR(255) NULL CHECK (api_base_url IS NULL OR api_base_url <> ''),
-CHECK (site_url IS NOT NULL OR api_base_url IS NOT NULL)
+ALTER TABLE instances ADD COLUMN site_url     VARCHAR(255) CHECK (site_url     IS NULL OR site_url     <> '');
+ALTER TABLE instances ADD COLUMN api_base_url VARCHAR(255) CHECK (api_base_url IS NULL OR api_base_url <> '');
+UPDATE instances SET ... ;                 -- classify by host, below
+ALTER TABLE instances DROP COLUMN base_url;
 ```
+
+**It must not be a create-copy-drop-rename table rebuild.** `applyMigration` runs each migration
+inside a transaction, and `PRAGMA foreign_keys` is a no-op inside one, so foreign keys cannot be
+turned off for the rebuild. With them on, `DROP TABLE instances` performs an implicit delete of every
+row first, and that fires the `ON DELETE CASCADE` on `pinned_issues`, `time_entries` and `timers`.
+Verified against `modernc.org/sqlite` rather than reasoned about: the child row was gone. A rebuild
+would destroy the user's logged time on upgrade.
+
+`ADD COLUMN` with a column `CHECK`, and `DROP COLUMN`, are both supported by the driver — also
+verified, including that the `CHECK` rejects an empty string.
+
+The cost is that **the table-level `CHECK (site_url IS NOT NULL OR api_base_url IS NOT NULL)` cannot
+be expressed**: `ALTER TABLE` cannot add a table-level constraint, and the only way to get one is the
+rebuild that loses data. "At least one URL is present" is therefore enforced in `store`, where
+`InstanceInput` is validated, and covered by a test there. Losing a constraint to the database is the
+lesser harm; losing the time entries is not recoverable.
 
 The backfill classifies the old `base_url` by host: an `api.atlassian.com` host becomes
 `api_base_url`, anything else becomes `site_url`. Whichever column that leaves unfilled stays `NULL`.
@@ -165,7 +180,10 @@ utilities reaching component internals.
 - The migration runs against a database seeded with a pre-migration row in **both** URL shapes. This
   is the table-driven test the ticket asks for, and the gateway-shaped row is the case that would
   otherwise be discovered in production.
-- Store tests cover the new columns, `InstanceInput` and `SetInstanceAPIBase`.
+- A migration test asserts that a pre-existing `time_entries` row **survives** the migration. That is
+  the regression guarding against someone later "tidying" the migration into a table rebuild.
+- Store tests cover the new columns, `InstanceInput`, `SetInstanceAPIBase`, and the rejection of an
+  input carrying neither URL.
 - `internal/atlassian` tests against an `httptest.Server`, including a site whose tenant info is
   unreadable.
 - The `/myself` trap gets a case of its own: a stub answering `search/jql` with `200 {"issues":[]}`
