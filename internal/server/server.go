@@ -36,6 +36,8 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 	s.clients = newInstanceClients(db, sealer)
 
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /api/instances", s.handleListInstances)
+	s.mux.HandleFunc("POST /api/instances", s.handleCreateInstance)
 	s.mux.HandleFunc("/api/", handleAPINotFound)
 	s.mux.HandleFunc("/", s.handleAsset)
 

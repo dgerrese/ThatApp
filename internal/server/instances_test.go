@@ -1,0 +1,241 @@
+package server
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/dgerrese/work-dashboard/internal/store"
+)
+
+// jiraSiteServer stands in for a whole Jira site: the unauthenticated
+// tenant-info endpoint and the authenticated /myself endpoint. myselfStatus
+// chooses whether the credentials are accepted.
+func jiraSiteServer(t *testing.T, myselfStatus int) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/_edge/tenant_info":
+			_, _ = w.Write([]byte(`{"cloudId":"7c41e2b6"}`))
+		case "/rest/api/3/myself":
+			if myselfStatus != http.StatusOK {
+				w.WriteHeader(myselfStatus)
+				return
+			}
+			_, _ = w.Write([]byte(`{"accountId":"5b10a2","displayName":"Dion","active":true}`))
+		default:
+			// The trap: a search answers an unauthenticated caller happily.
+			_, _ = w.Write([]byte(`{"issues":[],"isLast":true}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// pointAtSite makes both tenant-info resolution and the resolved API base land
+// on the stub site.
+func pointAtSite(srv *Server, site *httptest.Server) {
+	srv.clients.http = site.Client()
+	srv.clients.apiBaseFor = func(string) string { return site.URL }
+}
+
+func postInstance(t *testing.T, srv *Server, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/instances", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	return rec
+}
+
+func TestPostInstanceStoresAVerifiedSite(t *testing.T) {
+	srv, db, _ := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusOK)
+	pointAtSite(srv, site)
+
+	rec := postInstance(t, srv, `{
+		"name":"Work","siteUrl":"`+site.URL+`",
+		"email":"me@example.com","token":"secret"}`)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusCreated, rec.Body)
+	}
+
+	var got instanceDTO
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if got.Name != "Work" {
+		t.Errorf("name = %q, want Work", got.Name)
+	}
+	if got.APIBaseURL == "" {
+		t.Error("apiBaseUrl is empty; creating an instance must resolve it")
+	}
+
+	stored, err := db.Instance(context.Background(), got.ID)
+	if err != nil {
+		t.Fatalf("Instance() returned error: %v", err)
+	}
+	if len(stored.TokenEnc) == 0 {
+		t.Error("stored token is empty")
+	}
+}
+
+// The trap, at the HTTP boundary: a site that answers searches with 200 and
+// /myself with 401 must not produce a stored instance.
+func TestPostInstanceRefusesCredentialsJiraRejects(t *testing.T) {
+	srv, db, _ := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusUnauthorized)
+	pointAtSite(srv, site)
+
+	rec := postInstance(t, srv, `{
+		"name":"Work","siteUrl":"`+site.URL+`",
+		"email":"me@example.com","token":"wrong"}`)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d; body %s", rec.Code, http.StatusUnauthorized, rec.Body)
+	}
+
+	var body errorBody
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if body.Code != "credentials_rejected" {
+		t.Errorf("code = %q, want credentials_rejected", body.Code)
+	}
+
+	instances, err := db.Instances(context.Background())
+	if err != nil {
+		t.Fatalf("Instances() returned error: %v", err)
+	}
+	if len(instances) != 0 {
+		t.Errorf("stored %d instances, want 0: an unverified instance must not persist", len(instances))
+	}
+}
+
+func TestPostInstanceRejectsBadRequests(t *testing.T) {
+	site := jiraSiteServer(t, http.StatusOK)
+
+	cases := map[string]struct {
+		body     string
+		wantCode string
+	}{
+		"missing name":     {body: `{"siteUrl":"URL","email":"me@example.com","token":"t"}`, wantCode: "invalid_name"},
+		"blank name":       {body: `{"name":"  ","siteUrl":"URL","email":"me@example.com","token":"t"}`, wantCode: "invalid_name"},
+		"missing site URL": {body: `{"name":"Work","email":"me@example.com","token":"t"}`, wantCode: "invalid_site_url"},
+		"malformed site":   {body: `{"name":"Work","siteUrl":"not-a-url","email":"me@example.com","token":"t"}`, wantCode: "invalid_site_url"},
+		"missing email":    {body: `{"name":"Work","siteUrl":"URL","token":"t"}`, wantCode: "invalid_email"},
+		"missing token":    {body: `{"name":"Work","siteUrl":"URL","email":"me@example.com"}`, wantCode: "missing_token"},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			srv, db, _ := newServerWithStore(t)
+			pointAtSite(srv, site)
+
+			rec := postInstance(t, srv, strings.ReplaceAll(tc.body, "URL", site.URL))
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusBadRequest, rec.Body)
+			}
+			var body errorBody
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decoding body: %v", err)
+			}
+			if body.Code != tc.wantCode {
+				t.Errorf("code = %q, want %q", body.Code, tc.wantCode)
+			}
+
+			instances, err := db.Instances(context.Background())
+			if err != nil {
+				t.Fatalf("Instances() returned error: %v", err)
+			}
+			if len(instances) != 0 {
+				t.Errorf("stored %d instances, want 0", len(instances))
+			}
+		})
+	}
+}
+
+func TestPostInstanceReportsAnUnreadableSiteAsBadGateway(t *testing.T) {
+	srv, _, _ := newServerWithStore(t)
+
+	rec := postInstance(t, srv, `{
+		"name":"Work","siteUrl":"http://127.0.0.1:1",
+		"email":"me@example.com","token":"secret"}`)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusBadGateway, rec.Body)
+	}
+	var body errorBody
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if body.Code != "tenant_unreadable" {
+		t.Errorf("code = %q, want tenant_unreadable", body.Code)
+	}
+}
+
+func TestGetInstancesNeverReturnsTheToken(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+
+	sealed, err := sealer.Seal("super-secret-token")
+	if err != nil {
+		t.Fatalf("sealing: %v", err)
+	}
+	if _, err := db.CreateInstance(context.Background(), store.InstanceInput{
+		Name: "Work", SiteURL: "https://example.atlassian.net",
+		APIBaseURL: "https://api.atlassian.com/ex/jira/7c41e2b6",
+		Email:      "me@example.com", TokenEnc: sealed,
+	}); err != nil {
+		t.Fatalf("CreateInstance() returned error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/instances", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	raw := rec.Body.String()
+	for _, forbidden := range []string{"super-secret-token", "token", "TokenEnc", "apiToken"} {
+		if bytes.Contains([]byte(raw), []byte(forbidden)) {
+			t.Errorf("response mentions %q; it must carry no token in any form:\n%s", forbidden, raw)
+		}
+	}
+
+	var got []instanceDTO
+	if err := json.NewDecoder(strings.NewReader(raw)).Decode(&got); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("returned %d instances, want 1", len(got))
+	}
+	// #5 needs this for issue links.
+	if got[0].SiteURL != "https://example.atlassian.net" {
+		t.Errorf("siteUrl = %q, want the stored site URL", got[0].SiteURL)
+	}
+}
+
+func TestGetInstancesReturnsAnEmptyArrayNotNull(t *testing.T) {
+	srv, _, _ := newServerWithStore(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/instances", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	// null would make the frontend branch before it can iterate.
+	if got := strings.TrimSpace(rec.Body.String()); got != "[]" {
+		t.Errorf("body = %q, want []", got)
+	}
+}
