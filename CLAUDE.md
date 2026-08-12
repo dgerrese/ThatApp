@@ -26,7 +26,8 @@ These come from the project owner. They are not preferences and not open to rein
   views load through dynamic `import()`.
 - **Reusable UI is a native WebComponent** registered as `wd-*`, using **light DOM, never shadow
   DOM** — shadow roots stop Tailwind utilities reaching component internals.
-- **One issue, one branch, one pull request.**
+- **One issue, one branch, one pull request.** Project-design changes are the one exception — see
+  *Workflow*.
 
 ## Commands
 
@@ -69,6 +70,7 @@ web/               frontend source and the built dist/
   src/components/  wd-* WebComponents
   src/views/       lazily imported views
 .claude/e2e/       Playwright rig: its image, config and tests/
+.claude/skills/    repo-local skills, starting with ticket-workflow
 docs/superpowers/  specs and plans
 ```
 
@@ -112,46 +114,55 @@ Adding a `WD_*` variable is a public API change. It must be documented in `.env.
 only justified when a value must genuinely differ per environment. A lookup table the code always
 reads the same way is a constant, not configuration.
 
+## Where correctness lives
+
+Two things carry most of this system's risk, and most bugs worth fearing will trace back to one of
+them. Test them harder than anything else.
+
+- **Derived push state.** Whether an entry is unpushed, clean or dirty is computed from
+  `worklog_id`, `updated_at` and `pushed_at` — never stored as a flag. That is what makes pushing
+  the same day repeatedly idempotent, and it is what a stored flag would quietly break. A push
+  across instances is not transactional: each entry succeeds or fails on its own, failures keep
+  `worklog_id IS NULL` for the next attempt, and the UI must show which entries did not make it.
+- **The day boundary.** `day` is the user's local date, resolved against `WD_TIMEZONE`, while the
+  container's clock is almost certainly UTC. Anything that decides which day an entry belongs to —
+  entry creation, the end-of-day push, the weekly rollup — must agree, including when no browser is
+  open to ask.
+
+Both are worth a table-driven test that a plausible refactor would fail.
+
 ## Workflow
 
-Development goes by GitHub issues in `dgerrese/work-dashboard`. Every task has an issue; every
-issue has a branch and a pull request.
+Development goes by GitHub issues in `dgerrese/work-dashboard`. Every change to the *product* has
+an issue, a branch and a pull request. Changes to how the project is *run* — `CLAUDE.md`,
+`.claude/**`, process documents — need no issue and go in their own pull request; split a change
+that touches both.
 
-Work runs through the superpowers skills, in the order that project documents. There is no bespoke
-agent team — the `.claude/agents/` definitions were removed once ticket 1 shipped through this
-loop instead.
+Tickets move through four statuses, tracked by a single `status:*` label per open issue:
 
-1. **`brainstorming`** — before any code, when an issue needs design the spec does not already
-   settle. Most of tickets 2-12 do not: the design of record answers them and the acceptance
-   criteria are the only open work.
-2. **`using-git-worktrees`** — after design approval. **Standing decision for this repo: branch in
-   place, no worktree.** Compose derives its project name from the directory, so a worktree gets
-   its own images and volumes and rebuilds everything from cold. Invoke the skill, then apply this
-   decision unless a ticket genuinely needs the isolation.
-3. **`writing-plans`** — turns the acceptance criteria into a plan under
-   `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into bite-sized tasks with exact
-   file paths, complete code and verification steps.
-4. **`subagent-driven-development`** — executes the plan with a fresh subagent per task and a
-   two-stage review after each. `executing-plans` is the batched alternative when human
-   checkpoints are wanted instead.
-5. **`test-driven-development`** — governs every implementation task. RED before GREEN, and the
-   failing output belongs in the task report; a task that cannot show it is not done.
-6. **`requesting-code-review`** — between tasks and again before merge.
-7. **`finishing-a-development-branch`** — verifies the suite, presents the integration options,
-   pushes and opens the pull request.
+```
+intake → refinement → ready → (pull request open) → closed
+   ↓                    ↓
+ closed              blocked (from anywhere)
+```
 
-**Use the skills' own prompt templates.** `subagent-driven-development` ships
-`implementer-prompt.md`, `task-reviewer-prompt.md` and `re-review-prompt.md`;
-`requesting-code-review` ships `code-reviewer.md`. Read the template before dispatching. Ticket 1
-was run with hand-written prompts instead — it worked, but it threw away accumulated wording for
-no benefit and made every dispatch a fresh invention.
+Two moves are the owner's alone: **intake → refinement** (approval) and **merging or closing**. A
+green `make verify`, a passing CI run and an approving review are not the merge signal — the owner
+saying so is. Create an intake ticket and stop; never approve your own.
 
-**The whole-branch review is not optional.** All seven of ticket 1's task reviews passed while the
-branch still contained a Critical defect — `docker compose up` served a 404 on a fresh clone —
-because every task diff was individually correct and only a cross-task read could see it.
+**Blocked is a hard stop.** The moment a blocker appears, move the ticket to `status:blocked`, say
+what blocked it, and stop. Do not lower a threshold, skip a test, reshape the scope to dodge it, or
+pick up another ticket to stay busy.
 
-Issue state is tracked with `status:*` labels — `refinement`, `ready`, `blocked` — since GitHub
-issues only have open and closed.
+Work inside "Ready" runs through the superpowers skills: brainstorm → branch in place → plan →
+subagent execution under TDD → code review → finish the branch and open the pull request. There is
+no bespoke agent team — the `.claude/agents/` definitions were removed once ticket 1 shipped
+through this loop instead.
 
-**Merging is always the user's call.** Nothing merges a pull request or closes an issue on its
-own.
+**Invoke the `ticket-workflow` skill** whenever work starts, a ticket changes status, or a blocker
+appears. It holds the label mechanics, the `gh` commands, what each status requires and the loop in
+full — including the standing decision on worktrees and why the whole-branch review is not
+optional.
+
+`docs/superpowers/plans/2026-08-12-handoff.md` is where a session resumes from: current state,
+decisions not to reopen, and what is still open.
