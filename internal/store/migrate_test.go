@@ -1,6 +1,8 @@
 package store
 
 import (
+	"context"
+	"database/sql"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -179,13 +181,115 @@ CREATE TABLE this is not valid sql;
 	}
 }
 
+// seedPreMigrationDB builds a database in the shape the initial migration left,
+// records that migration as applied, and inserts one instance plus one child
+// row. Opening it afterwards runs only the migrations that follow.
+func seedPreMigrationDB(t *testing.T, baseURL string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatalf("opening seed database: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	initial, err := migrationsFS.ReadFile("migrations/2026-08-07_120000_initial.sql")
+	if err != nil {
+		t.Fatalf("reading initial migration: %v", err)
+	}
+	stmts := []string{
+		string(initial),
+		`CREATE TABLE schema_migrations (
+			version VARCHAR(150) PRIMARY KEY, applied_at DATETIME NOT NULL)`,
+		`INSERT INTO schema_migrations (version, applied_at)
+		 VALUES ('2026-08-07_120000_initial.sql', '2026-08-07T12:00:00Z')`,
+		`INSERT INTO instances (id, name, base_url, email, api_token_enc, created_at)
+		 VALUES (1, 'Work', '` + baseURL + `', 'me@example.com', X'0102', '2026-08-07T12:00:00Z')`,
+		`INSERT INTO time_entries
+		   (instance_id, issue_key, day, started_at, seconds, created_at, updated_at)
+		 VALUES (1, 'AB-1', '2026-08-07', '2026-08-07T09:00:00Z', 3600,
+		         '2026-08-07T09:00:00Z', '2026-08-07T09:00:00Z')`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("seeding: %v", err)
+		}
+	}
+
+	return path
+}
+
+func TestMigrationSplitsInstanceURLsByHost(t *testing.T) {
+	cases := map[string]struct {
+		baseURL        string
+		wantSiteURL    string
+		wantAPIBaseURL string
+	}{
+		"site URL becomes site_url": {
+			baseURL:        "https://example.atlassian.net",
+			wantSiteURL:    "https://example.atlassian.net",
+			wantAPIBaseURL: "",
+		},
+		// The row that cannot be repaired offline: a gateway URL carries no site.
+		"gateway URL becomes api_base_url": {
+			baseURL:        "https://api.atlassian.com/ex/jira/7c41e2b6",
+			wantSiteURL:    "",
+			wantAPIBaseURL: "https://api.atlassian.com/ex/jira/7c41e2b6",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := seedPreMigrationDB(t, tc.baseURL)
+
+			s, err := Open(path)
+			if err != nil {
+				t.Fatalf("Open() after seeding returned error: %v", err)
+			}
+			t.Cleanup(func() { _ = s.Close() })
+
+			inst, err := s.Instance(context.Background(), 1)
+			if err != nil {
+				t.Fatalf("Instance(1) returned error: %v", err)
+			}
+			if inst.SiteURL != tc.wantSiteURL {
+				t.Errorf("SiteURL = %q, want %q", inst.SiteURL, tc.wantSiteURL)
+			}
+			if inst.APIBaseURL != tc.wantAPIBaseURL {
+				t.Errorf("APIBaseURL = %q, want %q", inst.APIBaseURL, tc.wantAPIBaseURL)
+			}
+		})
+	}
+}
+
+// The migration must not be "tidied" into a table rebuild: dropping instances
+// with foreign keys on cascades into time_entries and destroys logged time.
+func TestMigrationPreservesChildRows(t *testing.T) {
+	path := seedPreMigrationDB(t, "https://example.atlassian.net")
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open() after seeding returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	var entries int
+	if err := s.db.QueryRow(`SELECT count(*) FROM time_entries`).Scan(&entries); err != nil {
+		t.Fatalf("counting time_entries: %v", err)
+	}
+	if entries != 1 {
+		t.Errorf("time_entries has %d rows after migrating, want 1", entries)
+	}
+}
+
 func TestDeletingAnInstanceCascades(t *testing.T) {
 	// This is the test that fails if the foreign_keys pragma is ever dropped.
 	// Without it SQLite accepts the delete and silently orphans every child row.
 	s := openTestStore(t)
 
 	if _, err := s.db.Exec(
-		`INSERT INTO instances (id, name, base_url, email, api_token_enc, created_at)
+		`INSERT INTO instances (id, name, site_url, email, api_token_enc, created_at)
 		 VALUES (1, 'Acme', 'https://acme.atlassian.net', 'a@b.c', X'00', '2026-08-07T12:00:00Z')`,
 	); err != nil {
 		t.Fatalf("inserting instance: %v", err)

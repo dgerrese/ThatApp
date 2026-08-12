@@ -94,7 +94,9 @@ func seed(ctx context.Context, db *store.Store, sealer *crypto.Sealer, args []st
 	if err != nil {
 		return fmt.Errorf("sealing token: %w", err)
 	}
-	inst, err := db.CreateInstance(ctx, *name, *baseURL, *email, sealed)
+	inst, err := db.CreateInstance(ctx, store.InstanceInput{
+		Name: *name, SiteURL: *baseURL, Email: *email, TokenEnc: sealed,
+	})
 	if err != nil {
 		return err
 	}
@@ -136,7 +138,12 @@ func checkInstance(ctx context.Context, sealer *crypto.Sealer, inst store.Instan
 	if err != nil {
 		return fmt.Errorf("opening sealed token: %w", err)
 	}
-	client, err := jira.New(inst.BaseURL, inst.Email, token)
+
+	base := inst.APIBaseURL
+	if base == "" {
+		base = inst.SiteURL
+	}
+	client, err := jira.New(base, inst.Email, token)
 	if err != nil {
 		return err
 	}
@@ -145,7 +152,7 @@ func checkInstance(ctx context.Context, sealer *crypto.Sealer, inst store.Instan
 	if err != nil {
 		return fmt.Errorf("search: %w", err)
 	}
-	fmt.Printf("%s (%s): %d assigned issues\n", inst.Name, inst.BaseURL, len(issues))
+	fmt.Printf("%s (%s): %d assigned issues\n", inst.Name, base, len(issues))
 	for i, issue := range issues {
 		if i == 5 {
 			fmt.Println("  ...")
@@ -186,7 +193,7 @@ func diagnose(ctx context.Context, db *store.Store, sealer *crypto.Sealer, args 
 		if err != nil {
 			return fmt.Errorf("instance %q: opening sealed token: %w", inst.Name, err)
 		}
-		probe := &probe{baseURL: strings.TrimSuffix(inst.BaseURL, "/"), email: inst.Email, token: token}
+		probe := &probe{baseURL: strings.TrimSuffix(inst.SiteURL, "/"), email: inst.Email, token: token}
 
 		fmt.Printf("== %s (%s)\n", inst.Name, probe.baseURL)
 		fmt.Printf("   seeded email: %s\n", inst.Email)

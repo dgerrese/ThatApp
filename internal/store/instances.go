@@ -3,45 +3,77 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
 
 // Instance is a configured Jira Cloud site.
 //
-// TokenEnc is opaque to the store: it is written and read unchanged, and
-// encrypting it is the caller's job. Its json:"-" is defence in depth, not a
-// licence to serialise this struct — the HTTP layer owns its own response
-// shape, and from ticket 3 this field is a Jira API token's ciphertext that must
-// never reach the browser.
+// SiteURL and APIBaseURL are two different things and neither is derived from
+// the other: REST calls go to the API gateway, issue links go to the site host.
+// Either may be empty, which is how a NULL column reads: a migrated row that
+// held a gateway URL has no recoverable site, and a row awaiting its first use
+// has no resolved API base. Both cannot be empty at once — validate enforces
+// what ALTER TABLE could not express as a table-level CHECK.
+//
+// TokenEnc is opaque to the store: written and read unchanged, and encrypting
+// it is the caller's job. Its json:"-" is defence in depth, not a licence to
+// serialise this struct — the HTTP layer owns its own response shape.
 type Instance struct {
-	ID        int64
-	Name      string
-	BaseURL   string
-	Email     string
-	TokenEnc  []byte `json:"-"`
-	CreatedAt time.Time
+	ID         int64
+	Name       string
+	SiteURL    string
+	APIBaseURL string
+	Email      string
+	TokenEnc   []byte `json:"-"`
+	CreatedAt  time.Time
 }
 
-// instanceColumns is the select list every instance query shares, in the order
-// scanInstance expects.
-const instanceColumns = `id, name, base_url, email, api_token_enc, created_at`
+// InstanceInput carries the fields a caller supplies when storing a site. It is
+// a struct rather than positional parameters because six adjacent strings at a
+// call site cannot be read for correctness.
+type InstanceInput struct {
+	Name       string
+	SiteURL    string
+	APIBaseURL string
+	Email      string
+	TokenEnc   []byte
+}
 
-// scanner is satisfied by both *sql.Row and *sql.Rows.
+// ErrInstanceNeedsURL reports an input carrying neither URL. The schema cannot
+// enforce this: ALTER TABLE adds no table-level CHECK, and the rebuild that
+// would add one cascades into time_entries.
+var ErrInstanceNeedsURL = errors.New("store: instance needs a site URL or an API base URL")
+
+func (in InstanceInput) validate() error {
+	if in.SiteURL == "" && in.APIBaseURL == "" {
+		return ErrInstanceNeedsURL
+	}
+
+	return nil
+}
+
+const instanceColumns = `id, name, site_url, api_base_url, email, api_token_enc, created_at`
+
 type scanner interface {
 	Scan(dest ...any) error
 }
 
 func scanInstance(row scanner) (*Instance, error) {
 	var (
-		inst      Instance
-		createdAt string
+		inst       Instance
+		siteURL    sql.NullString
+		apiBaseURL sql.NullString
+		createdAt  string
 	)
 	if err := row.Scan(
-		&inst.ID, &inst.Name, &inst.BaseURL, &inst.Email, &inst.TokenEnc, &createdAt,
+		&inst.ID, &inst.Name, &siteURL, &apiBaseURL, &inst.Email, &inst.TokenEnc, &createdAt,
 	); err != nil {
 		return nil, err
 	}
+	inst.SiteURL = siteURL.String
+	inst.APIBaseURL = apiBaseURL.String
 
 	parsed, err := time.Parse(time.RFC3339, createdAt)
 	if err != nil {
@@ -52,31 +84,44 @@ func scanInstance(row scanner) (*Instance, error) {
 	return &inst, nil
 }
 
+// nullable turns the Go zero value into a SQL NULL, so that absence has one
+// representation in the database and the CHECK constraints stay satisfiable.
+func nullable(s string) any {
+	if s == "" {
+		return nil
+	}
+
+	return s
+}
+
 // CreateInstance stores a new Jira site and returns it with its assigned id.
-func (s *Store) CreateInstance(
-	ctx context.Context, name, baseURL, email string, tokenEnc []byte,
-) (*Instance, error) {
+func (s *Store) CreateInstance(ctx context.Context, in InstanceInput) (*Instance, error) {
+	if err := in.validate(); err != nil {
+		return nil, err
+	}
+
 	// Truncated because created_at is stored as RFC3339, which has one-second
 	// resolution. Without this the returned value would not equal the stored one.
 	createdAt := time.Now().UTC().Truncate(time.Second)
 
 	result, err := s.db.ExecContext(ctx,
-		`INSERT INTO instances (name, base_url, email, api_token_enc, created_at)
-		 VALUES (?, ?, ?, ?, ?)`,
-		name, baseURL, email, tokenEnc, createdAt.Format(time.RFC3339),
+		`INSERT INTO instances (name, site_url, api_base_url, email, api_token_enc, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		in.Name, nullable(in.SiteURL), nullable(in.APIBaseURL), in.Email, in.TokenEnc,
+		createdAt.Format(time.RFC3339),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("inserting instance %q: %w", name, err)
+		return nil, fmt.Errorf("inserting instance %q: %w", in.Name, err)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return nil, fmt.Errorf("reading id of new instance %q: %w", name, err)
+		return nil, fmt.Errorf("reading id of new instance %q: %w", in.Name, err)
 	}
 
 	return &Instance{
-		ID: id, Name: name, BaseURL: baseURL, Email: email,
-		TokenEnc: tokenEnc, CreatedAt: createdAt,
+		ID: id, Name: in.Name, SiteURL: in.SiteURL, APIBaseURL: in.APIBaseURL,
+		Email: in.Email, TokenEnc: in.TokenEnc, CreatedAt: createdAt,
 	}, nil
 }
 
@@ -125,18 +170,39 @@ func (s *Store) Instance(ctx context.Context, id int64) (*Instance, error) {
 
 // UpdateInstance overwrites a stored Jira site. A missing id yields an error
 // wrapping sql.ErrNoRows.
-func (s *Store) UpdateInstance(
-	ctx context.Context, id int64, name, baseURL, email string, tokenEnc []byte,
-) error {
+func (s *Store) UpdateInstance(ctx context.Context, id int64, in InstanceInput) error {
+	if err := in.validate(); err != nil {
+		return err
+	}
+
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE instances SET name = ?, base_url = ?, email = ?, api_token_enc = ? WHERE id = ?`,
-		name, baseURL, email, tokenEnc, id,
+		`UPDATE instances
+		    SET name = ?, site_url = ?, api_base_url = ?, email = ?, api_token_enc = ?
+		  WHERE id = ?`,
+		in.Name, nullable(in.SiteURL), nullable(in.APIBaseURL), in.Email, in.TokenEnc, id,
 	)
 	if err != nil {
 		return fmt.Errorf("updating instance %d: %w", id, err)
 	}
 
 	return errNoRowsIfUnaffected(result, "updating instance", id)
+}
+
+// SetInstanceAPIBase persists an API base resolved after the row was stored.
+// Only a migrated row reaches here: creating an instance resolves its cloud id
+// up front, because the save-time identity check cannot run without one.
+func (s *Store) SetInstanceAPIBase(ctx context.Context, id int64, apiBaseURL string) error {
+	if apiBaseURL == "" {
+		return fmt.Errorf("setting API base for instance %d: %w", id, ErrInstanceNeedsURL)
+	}
+
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE instances SET api_base_url = ? WHERE id = ?`, apiBaseURL, id)
+	if err != nil {
+		return fmt.Errorf("setting API base for instance %d: %w", id, err)
+	}
+
+	return errNoRowsIfUnaffected(result, "setting API base for instance", id)
 }
 
 // DeleteInstance removes a stored Jira site, cascading to its pinned issues,
