@@ -1268,10 +1268,9 @@ In `internal/server/server.go`:
 type Server struct {
 	cfg     *config.Config
 	assets  fs.FS
-	db      *store.Store
-	sealer  *crypto.Sealer
-	clients *instanceClients
-	mux     *http.ServeMux
+	db     *store.Store
+	sealer *crypto.Sealer
+	mux    *http.ServeMux
 }
 
 // New builds a Server that serves its static files from assets. Production
@@ -1293,7 +1292,9 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 }
 ```
 
-Add the `internal/crypto` and `internal/store` imports. Leave `clients` nil for now — Task 5 populates it.
+Add the `internal/crypto` and `internal/store` imports.
+
+**The `clients` field is deliberately absent here.** It is declared in Task 5, in the same change that defines `instanceClients` and gives it a reader. Declaring the field now would need a stub type and a `//nolint:unused` — a suppression with no precedent in this repo, introduced to satisfy a linter about code that does not exist yet.
 
 - [ ] **Step 5: Update the existing server tests**
 
@@ -1302,9 +1303,9 @@ Every `New(cfg, assets)` call in `internal/server/server_test.go` becomes `New(c
 Add a helper the later tasks reuse, so each does not reinvent it:
 
 ```go
-// newTestServer builds a Server over a real store in a temp directory and a
+// newServerWithStore builds a Server over a real store in a temp directory and a
 // sealer with a throwaway key.
-func newTestServer(t *testing.T) (*Server, *store.Store, *crypto.Sealer) {
+func newServerWithStore(t *testing.T) (*Server, *store.Store, *crypto.Sealer) {
 	t.Helper()
 
 	db, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
@@ -1432,7 +1433,7 @@ func tenantInfoServer(t *testing.T, cloudID string) *httptest.Server {
 }
 
 func TestForInstanceResolvesAndPersistsAMissingAPIBase(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 	site := tenantInfoServer(t, "7c41e2b6")
 
 	sealed, err := sealer.Seal("token")
@@ -1464,7 +1465,7 @@ func TestForInstanceResolvesAndPersistsAMissingAPIBase(t *testing.T) {
 }
 
 func TestForInstanceLeavesAStoredAPIBaseAlone(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 
 	sealed, err := sealer.Seal("token")
 	if err != nil {
@@ -1494,7 +1495,7 @@ func TestForInstanceLeavesAStoredAPIBaseAlone(t *testing.T) {
 }
 
 func TestForInstanceReportsAnUnreadableSite(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 
 	sealed, err := sealer.Seal("token")
 	if err != nil {
@@ -1516,7 +1517,7 @@ func TestForInstanceReportsAnUnreadableSite(t *testing.T) {
 
 // A migrated gateway-URL row has no site to resolve from and needs none.
 func TestForInstanceWorksWithNoSiteURL(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 
 	sealed, err := sealer.Seal("token")
 	if err != nil {
@@ -1635,7 +1636,20 @@ func (c *instanceClients) apiBaseForSite(ctx context.Context, siteURL string) (s
 }
 ```
 
-In `internal/server/server.go`, populate the field inside `New`:
+In `internal/server/server.go`, add the field to `Server` and populate it inside `New`. Task 4 deliberately left both out, so this is where they first appear:
+
+```go
+type Server struct {
+	cfg     *config.Config
+	assets  fs.FS
+	db      *store.Store
+	sealer  *crypto.Sealer
+	clients *instanceClients
+	mux     *http.ServeMux
+}
+```
+
+and in `New`, before the route registrations:
 
 ```go
 	s.clients = newInstanceClients(db, sealer)
@@ -1753,7 +1767,7 @@ func postInstance(t *testing.T, srv *Server, body string) *httptest.ResponseReco
 }
 
 func TestPostInstanceStoresAVerifiedSite(t *testing.T) {
-	srv, db, _ := newTestServer(t)
+	srv, db, _ := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
 	pointAtSite(srv, site)
 
@@ -1788,7 +1802,7 @@ func TestPostInstanceStoresAVerifiedSite(t *testing.T) {
 // The trap, at the HTTP boundary: a site that answers searches with 200 and
 // /myself with 401 must not produce a stored instance.
 func TestPostInstanceRefusesCredentialsJiraRejects(t *testing.T) {
-	srv, db, _ := newTestServer(t)
+	srv, db, _ := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusUnauthorized)
 	pointAtSite(srv, site)
 
@@ -1834,7 +1848,7 @@ func TestPostInstanceRejectsBadRequests(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			srv, db, _ := newTestServer(t)
+			srv, db, _ := newServerWithStore(t)
 			pointAtSite(srv, site)
 
 			rec := postInstance(t, srv, strings.ReplaceAll(tc.body, "URL", site.URL))
@@ -1862,7 +1876,7 @@ func TestPostInstanceRejectsBadRequests(t *testing.T) {
 }
 
 func TestPostInstanceReportsAnUnreadableSiteAsBadGateway(t *testing.T) {
-	srv, _, _ := newTestServer(t)
+	srv, _, _ := newServerWithStore(t)
 
 	rec := postInstance(t, srv, `{
 		"name":"Work","siteUrl":"http://127.0.0.1:1",
@@ -1881,7 +1895,7 @@ func TestPostInstanceReportsAnUnreadableSiteAsBadGateway(t *testing.T) {
 }
 
 func TestGetInstancesNeverReturnsTheToken(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 
 	sealed, err := sealer.Seal("super-secret-token")
 	if err != nil {
@@ -1924,7 +1938,7 @@ func TestGetInstancesNeverReturnsTheToken(t *testing.T) {
 }
 
 func TestGetInstancesReturnsAnEmptyArrayNotNull(t *testing.T) {
-	srv, _, _ := newTestServer(t)
+	srv, _, _ := newServerWithStore(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/instances", nil)
 	rec := httptest.NewRecorder()
@@ -2164,7 +2178,7 @@ func patchInstance(t *testing.T, srv *Server, id int64, body string) *httptest.R
 }
 
 func TestPatchInstanceWithoutATokenKeepsTheStoredOne(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
 	pointAtSite(srv, site)
 	inst := seedInstance(t, db, sealer, site)
@@ -2192,7 +2206,7 @@ func TestPatchInstanceWithoutATokenKeepsTheStoredOne(t *testing.T) {
 // Every write re-verifies, with no exception for a rename. This is the test that
 // catches an "unless only the name changed" shortcut being reintroduced.
 func TestPatchInstanceVerifiesEvenWhenOnlyTheNameChanges(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 	good := jiraSiteServer(t, http.StatusOK)
 	inst := seedInstance(t, db, sealer, good)
 
@@ -2223,7 +2237,7 @@ func TestPatchInstanceVerifiesEvenWhenOnlyTheNameChanges(t *testing.T) {
 }
 
 func TestPatchInstanceRejectsAMissingID(t *testing.T) {
-	srv, _, _ := newTestServer(t)
+	srv, _, _ := newServerWithStore(t)
 
 	rec := patchInstance(t, srv, 404, `{"name":"X","siteUrl":"https://x.atlassian.net","email":"me@example.com"}`)
 
@@ -2236,7 +2250,7 @@ func TestPatchInstanceRejectsAMissingID(t *testing.T) {
 // inserted directly. This asserts only what the handler adds: the row goes, and
 // the response is a 204.
 func TestDeleteInstanceRemovesTheRow(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
 	inst := seedInstance(t, db, sealer, site)
 
@@ -2260,7 +2274,7 @@ func TestDeleteInstanceRemovesTheRow(t *testing.T) {
 
 // Deleting must not require Jira: there is nothing left to verify.
 func TestDeleteInstanceWorksWithJiraUnreachable(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
 	inst := seedInstance(t, db, sealer, site)
 	site.Close()
@@ -2485,7 +2499,7 @@ func testConnection(t *testing.T, srv *Server, id int64) *httptest.ResponseRecor
 }
 
 func TestConnectionTestReportsTheIdentity(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
 	pointAtSite(srv, site)
 	inst := seedInstance(t, db, sealer, site)
@@ -2510,7 +2524,7 @@ func TestConnectionTestReportsTheIdentity(t *testing.T) {
 // The trap, stated exactly as #22 framed it: a stub that answers search/jql with
 // 200 {"issues": []} and /myself with 401 must make the test FAIL.
 func TestConnectionTestFailsWhenOnlyMyselfRejects(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusUnauthorized)
 	pointAtSite(srv, site)
 	inst := seedInstance(t, db, sealer, site)
@@ -2532,7 +2546,7 @@ func TestConnectionTestFailsWhenOnlyMyselfRejects(t *testing.T) {
 // 401 versus 502: a rejected credential is the user's to fix, an unreachable
 // host is not.
 func TestConnectionTestDistinguishesUnreachableFromRejected(t *testing.T) {
-	srv, db, sealer := newTestServer(t)
+	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
 	pointAtSite(srv, site)
 	inst := seedInstance(t, db, sealer, site)
@@ -2553,7 +2567,7 @@ func TestConnectionTestDistinguishesUnreachableFromRejected(t *testing.T) {
 }
 
 func TestConnectionTestRejectsAMissingID(t *testing.T) {
-	srv, _, _ := newTestServer(t)
+	srv, _, _ := newServerWithStore(t)
 
 	if rec := testConnection(t, srv, 404); rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
