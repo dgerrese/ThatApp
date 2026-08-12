@@ -142,17 +142,19 @@ an issue, a branch and a pull request. Changes to how the project is *run* — `
 `.claude/**`, process documents — need no issue and go in their own pull request; split a change
 that touches both.
 
-Tickets move through four statuses, tracked by a single `status:*` label per open issue:
+Tickets move through seven statuses, tracked by a single `status:*` label per issue — closed ones
+included, where the label records which kind of closed it is:
 
 ```
-intake → refinement → ready → (pull request open) → closed
+intake → refinement → ready → review → done
    ↓                    ↓
- closed              blocked (from anywhere)
+declined             blocked (from anywhere)
 ```
 
-Two moves are the owner's alone: **intake → refinement** (approval) and **merging or closing**. A
-green `make verify`, a passing CI run and an approving review are not the merge signal — the owner
-saying so is. Create an intake ticket and stop; never approve your own.
+Three moves are the owner's alone: **intake → refinement** (approval), **intake → declined**, and
+**review → done** (the merge). A green `make verify`, a passing CI run and an approving review are
+not the merge signal — the owner saying so is. Create an intake ticket and stop; never approve your
+own.
 
 **Blocked is a hard stop.** The moment a blocker appears, move the ticket to `status:blocked`, say
 what blocked it, and stop. Do not lower a threshold, skip a test, reshape the scope to dodge it, or
