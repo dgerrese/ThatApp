@@ -157,3 +157,12 @@ change touches the frontend or the rig. Paste the output. See
 `docs/superpowers/plans/2026-08-12-handoff.md` is what a session on another machine resumes from.
 Update it when a ticket changes status, when a decision is taken that a later session should not
 reopen, or when work stops mid-flight. It is a project-design document, so it needs no ticket.
+
+**Edit it freely; push it once.** Handoff edits accumulate on a local branch and go out as a single
+pull request when the owner signals they are shutting down for the day. Do not push a branch or
+open a pull request for an individual handoff edit — one pull request per touch-up bloats the
+history and the pull request list for no gain. Keep writing to the file as things change; just hold
+the push until the end-of-day signal.
+
+This applies to the handoff alone. Product pull requests still go out per ticket, when the ticket
+is finished — never batched, never held.
