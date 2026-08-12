@@ -1570,10 +1570,19 @@ type instanceClients struct {
 	// http serves tenant-info lookups only. Jira calls go through jira.Client,
 	// which owns its own timeout.
 	http *http.Client
+	// apiBaseFor turns a cloud id into a base URL. It is a field rather than a
+	// direct call so a test can point it at an httptest.Server; production always
+	// gets atlassian.APIBaseURL from the constructor.
+	apiBaseFor func(cloudID string) string
 }
 
 func newInstanceClients(db *store.Store, sealer *crypto.Sealer) *instanceClients {
-	return &instanceClients{db: db, sealer: sealer, http: http.DefaultClient}
+	return &instanceClients{
+		db:         db,
+		sealer:     sealer,
+		http:       http.DefaultClient,
+		apiBaseFor: atlassian.APIBaseURL,
+	}
 }
 
 // forInstance returns a client for a stored site, resolving and persisting the
@@ -1621,7 +1630,7 @@ func (c *instanceClients) apiBaseForSite(ctx context.Context, siteURL string) (s
 		return "", err
 	}
 
-	return atlassian.APIBaseURL(cloudID), nil
+	return c.apiBaseFor(cloudID), nil
 }
 ```
 
@@ -1678,26 +1687,7 @@ missing API base only ever comes from a migrated row."
   ```
   Routes `GET /api/instances` and `POST /api/instances`.
 
-**Note on the `jira.Client` seam:** `POST` must verify credentials before storing. In tests, the site's `httptest.Server` serves both `/_edge/tenant_info` and `/rest/api/3/myself`, and `apiBaseForSite` is overridden per test by pointing `clients.http` at it. Because `atlassian.APIBaseURL` would return a real gateway URL that tests cannot reach, `instanceClients` gains one test-only seam: an `apiBaseOverride` func field, nil in production.
-
-Add to `internal/server/clients.go`:
-
-```go
-// apiBaseOverride replaces gateway-URL construction in tests, where the resolved
-// base must point at an httptest.Server rather than api.atlassian.com. It is nil
-// in production and the only branch this type takes for testing.
-apiBaseOverride func(cloudID string) string
-```
-
-and in `apiBaseForSite`:
-
-```go
-	if c.apiBaseOverride != nil {
-		return c.apiBaseOverride(cloudID), nil
-	}
-
-	return atlassian.APIBaseURL(cloudID), nil
-```
+**Note on reaching a stub Jira in tests:** `POST` must verify credentials before storing, so a test needs both `/_edge/tenant_info` and `/rest/api/3/myself` to land on its `httptest.Server`. Two fields on `instanceClients` make that possible, both already present from Task 5: `http` (which tenant-info resolution uses) and `apiBaseFor` (which turns the resolved cloud id into a base URL). A test points both at its stub. Production takes `atlassian.APIBaseURL` from the constructor — there is no test-only branch in the code.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1747,7 +1737,7 @@ func jiraSiteServer(t *testing.T, myselfStatus int) *httptest.Server {
 // on the stub site.
 func pointAtSite(srv *Server, site *httptest.Server) {
 	srv.clients.http = site.Client()
-	srv.clients.apiBaseOverride = func(string) string { return site.URL }
+	srv.clients.apiBaseFor = func(string) string { return site.URL }
 }
 
 func postInstance(t *testing.T, srv *Server, body string) *httptest.ResponseRecorder {
