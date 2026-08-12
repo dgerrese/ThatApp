@@ -22,29 +22,32 @@ with no issue behind them, on a branch named for the topic rather than an issue 
 The distinction is how the project is *run* versus how the product *works*. A spec describing push
 semantics needs a ticket; a change to this skill does not. When a change touches both, split it.
 
-## The four statuses
+## The seven statuses
 
-Status lives in a label. **Exactly one `status:*` label on every open issue, always.** The label is
-the source of truth — not a board, not a comment, not a checklist.
+Status lives in a label. **Exactly one `status:*` label per issue, always.** The label is the
+source of truth — not a board, not a comment, not a checklist. It applies to closed issues too:
+`status:done` and `status:declined` are how a closed issue says which kind of closed it is.
 
 | Status | Label | Who moves it | Meaning |
 |---|---|---|---|
 | Intake | `status:intake` | You create it here | A raw problem or idea, a few sentences. Nothing else happens yet. |
 | Refinement | `status:refinement` | **Owner only** | The intake was approved. Research and refine until nothing is fuzzy. |
 | Ready | `status:ready` | You, when refinement is genuinely finished | Acceptance criteria are complete and unambiguous. Work may start. |
+| Review | `status:review` | You, when the pull request is open | Implementation is done, pull request raised, awaiting the owner's review. |
+| Done | `status:done` | You, **only after the owner says it merged** | Finished. |
 | Blocked | `status:blocked` | You, immediately, from any status | A blocker exists. Work stops. |
+| Declined | `status:declined` | **Owner only** | The intake was rejected. Kept so the idea is not redrafted later. |
 
-There is no label for *in review* or *done*: an open pull request is review, and a closed issue is
-done. That keeps the label set small, and it means **the issue stays on `status:ready` while its
-pull request is open** — do not invent a status to mark the difference.
+Opening the pull request is what moves a ticket to `status:review`, and it is the last move you
+make on it unaided.
 
 ### Transitions you may never make yourself
 
 - **Intake → Refinement.** The owner approves an intake ticket. Create it, then stop and ask.
-- **Declining an intake.** The owner closes ideas that are not wanted. Never pre-empt it.
-- **Merging, or closing an issue.** Only the owner merges a pull request or closes the issue behind
-  it. A green `make verify`, a passing CI run, an approving review and a branch that looks merged
-  are none of them that signal. The owner saying so is the signal.
+- **Intake → Declined.** The owner declines ideas that are not wanted. Never pre-empt it.
+- **Review → Done.** Only when the owner states the pull request is approved and merged. A green
+  `make verify`, a passing CI run, an approving review, a closed pull request and a branch that
+  looks merged are none of them that signal. The owner saying so is the signal.
 
 ### Blocked is a hard stop
 
@@ -71,6 +74,7 @@ gh issue create --label status:intake --title "..." --body "..."
 
 # Move a ticket (always remove the old label in the same call)
 gh issue edit <n> --remove-label status:refinement --add-label status:ready
+gh issue edit <n> --remove-label status:ready --add-label status:review
 
 # See the board
 gh issue list --label status:ready
@@ -80,7 +84,7 @@ gh issue list --state all --json number,title,labels
 gh issue comment <n> --body "..."
 ```
 
-Never leave an open issue with two `status:*` labels or none. If you find one in that state, say so
+Never leave an issue with two `status:*` labels or none. If you find one in that state, say so
 rather than guessing which is right.
 
 ## What each status actually involves
@@ -96,7 +100,15 @@ nothing about the ticket is still fuzzy — not when you have run out of patienc
 
 **Ready.** Work may begin. See the loop below.
 
+**Review.** The pull request is open and linked to the issue with `Closes #<n>`. Nothing further
+happens on the ticket until the owner responds.
+
+**Done.** The owner has confirmed the merge. The issue is closed and keeps the label.
+
 **Blocked.** Nothing happens until the owner responds.
+
+**Declined.** The owner rejected the intake. The issue is closed and keeps the label, so the idea
+is not redrafted later.
 
 ## The superpowers loop, inside "Ready"
 
@@ -120,10 +132,11 @@ nothing about the ticket is still fuzzy — not when you have run out of patienc
    and the failing output belongs in the task report; a task that cannot show it is not done.
 6. **`superpowers:requesting-code-review`** — between tasks and again before merge.
 7. **`superpowers:finishing-a-development-branch`** — verifies the suite, presents the integration
-   options, pushes and opens the pull request.
+   options, pushes and opens the pull request. Move the ticket to `status:review` in the same
+   breath, then stop.
 
 **One issue, one branch, one pull request.** The pull request body references the issue with
-`Closes #<n>`, and opening it is what puts the ticket into review.
+`Closes #<n>`, and opening it is what puts the ticket into `status:review`.
 
 **Use the skills' own prompt templates.** `subagent-driven-development` ships
 `implementer-prompt.md`, `task-reviewer-prompt.md` and `re-review-prompt.md`;
