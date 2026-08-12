@@ -28,7 +28,8 @@ Every task's requirements implicitly include this section.
 - **TypeScript is `strict` with `noUncheckedIndexedAccess`.** Do not weaken `web/tsconfig.json`. No `any`, no `as any`, no non-null assertions.
 - **Go: standard library first.** The approved non-stdlib set is `modernc.org/sqlite` and `golang.org/x/sync`. Adding anything else is a blocker, not a decision.
 - **Wrap errors with `%w`** and context about what was attempted. Table-driven tests with `t.Run` subtests.
-- **Tests use `context.Background()`**, matching every existing test in the repo. `t.Context()` exists on Go 1.26 and is arguably better, but a second idiom for the same thing is worse than the marginal gain. Add `"context"` to the imports of any test file that gains its first use.
+- **Tests use `context.Background()`**, matching every existing test in the repo. `t.Context()` exists on Go 1.26 and is arguably better, but a second idiom for the same thing is worse than the marginal gain.
+- **The test code blocks below omit their `import` blocks.** Wherever a pasted test calls `context.Background()`, add `"context"` to that file's imports; likewise `"database/sql"`, `"errors"`, `"strconv"` and any other package the pasted code uses. This bit Tasks 1 and 2 — it is transcription friction, not a design question, so just add the import and carry on.
 - **Comments are rare and earn their place** — a non-obvious "why", a workaround, a subtle invariant. Never narrate the next line.
 - **Naming:** a function's name must let a reader predict what it returns. Bare verbs (`process`, `handle`, `build`) fail that test.
 - **Adding a `WD_*` variable is a public API change.** This ticket adds none.
