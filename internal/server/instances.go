@@ -270,6 +270,48 @@ func (s *Server) handleDeleteInstance(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// connectionTestDTO reports who Jira resolved the credentials to. The account
+// id is the assertion: a 2xx from any endpoint is not one, which is why this
+// route exists at all.
+type connectionTestDTO struct {
+	AccountID   string `json:"accountId"`
+	DisplayName string `json:"displayName"`
+}
+
+func (s *Server) handleTestInstance(w http.ResponseWriter, r *http.Request) {
+	id, ok := instanceIDFromPath(r)
+	if !ok {
+		writeError(w, http.StatusNotFound, "not_found", "no such instance")
+		return
+	}
+
+	inst, err := s.db.Instance(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "not_found", "no such instance")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "store_failed", "could not read the instance")
+		return
+	}
+
+	client, err := s.clients.forInstance(r.Context(), inst)
+	if err != nil {
+		writeInstanceError(w, err)
+		return
+	}
+
+	me, err := client.Myself(r.Context())
+	if err != nil {
+		writeInstanceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, connectionTestDTO{
+		AccountID: me.AccountID, DisplayName: me.DisplayName,
+	})
+}
+
 // writeInstanceError maps the errors a Jira round trip produces onto statuses.
 // Rejected credentials are the user's to fix in Settings; an unreachable site is
 // not a server fault, so neither is a 500.

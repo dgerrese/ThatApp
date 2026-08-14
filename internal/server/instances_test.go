@@ -412,3 +412,90 @@ func TestDeleteInstanceWorksWithJiraUnreachable(t *testing.T) {
 		t.Errorf("status = %d, want %d; body %s", rec.Code, http.StatusNoContent, rec.Body)
 	}
 }
+
+func testConnection(t *testing.T, srv *Server, id int64) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/instances/"+strconv.FormatInt(id, 10)+"/test", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	return rec
+}
+
+func TestConnectionTestReportsTheIdentity(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusOK)
+	pointAtSite(srv, site)
+	inst := seedInstance(t, db, sealer, site)
+
+	rec := testConnection(t, srv, inst.ID)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body)
+	}
+	var got connectionTestDTO
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if got.AccountID != "5b10a2" {
+		t.Errorf("accountId = %q, want 5b10a2", got.AccountID)
+	}
+	if got.DisplayName != "Dion" {
+		t.Errorf("displayName = %q, want Dion", got.DisplayName)
+	}
+}
+
+// The trap, stated exactly as #22 framed it: a stub that answers search/jql with
+// 200 {"issues": []} and /myself with 401 must make the test FAIL.
+func TestConnectionTestFailsWhenOnlyMyselfRejects(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusUnauthorized)
+	pointAtSite(srv, site)
+	inst := seedInstance(t, db, sealer, site)
+
+	rec := testConnection(t, srv, inst.ID)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d; a search-based test would have passed here", rec.Code, http.StatusUnauthorized)
+	}
+	var body errorBody
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if body.Code != "credentials_rejected" {
+		t.Errorf("code = %q, want credentials_rejected", body.Code)
+	}
+}
+
+// 401 versus 502: a rejected credential is the user's to fix, an unreachable
+// host is not.
+func TestConnectionTestDistinguishesUnreachableFromRejected(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusOK)
+	pointAtSite(srv, site)
+	inst := seedInstance(t, db, sealer, site)
+	site.Close()
+
+	rec := testConnection(t, srv, inst.ID)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadGateway)
+	}
+	var body errorBody
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if body.Code != "instance_unreachable" {
+		t.Errorf("code = %q, want instance_unreachable", body.Code)
+	}
+}
+
+func TestConnectionTestRejectsAMissingID(t *testing.T) {
+	srv, _, _ := newServerWithStore(t)
+
+	if rec := testConnection(t, srv, 404); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
