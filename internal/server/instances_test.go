@@ -492,6 +492,55 @@ func TestConnectionTestDistinguishesUnreachableFromRejected(t *testing.T) {
 	}
 }
 
+// A 404 from /myself means the site answered but this account has no access
+// to the Jira product on it — a realistic wrong-account misconfiguration, not
+// a server fault.
+func TestConnectionTestReportsAccountNotFoundAsBadGateway(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusNotFound)
+	pointAtSite(srv, site)
+	inst := seedInstance(t, db, sealer, site)
+
+	rec := testConnection(t, srv, inst.ID)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusBadGateway, rec.Body)
+	}
+	var body errorBody
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if body.Code != "account_not_found" {
+		t.Errorf("code = %q, want account_not_found", body.Code)
+	}
+}
+
+// A status writeInstanceError does not recognize (429 here) falls to the
+// default branch, which must not leak the underlying error's text — that text
+// carries the request path and the Jira response body.
+func TestConnectionTestHidesTheUnderlyingErrorOnAnUnmappedStatus(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusTooManyRequests)
+	pointAtSite(srv, site)
+	inst := seedInstance(t, db, sealer, site)
+
+	rec := testConnection(t, srv, inst.ID)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusInternalServerError, rec.Body)
+	}
+	var body errorBody
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if body.Code != "unexpected" {
+		t.Errorf("code = %q, want unexpected", body.Code)
+	}
+	if strings.Contains(body.Message, "/rest/api/3/myself") || strings.Contains(body.Message, site.URL) {
+		t.Errorf("message = %q, leaks the underlying error's request detail", body.Message)
+	}
+}
+
 func TestConnectionTestRejectsAMissingID(t *testing.T) {
 	srv, _, _ := newServerWithStore(t)
 

@@ -4,12 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/dgerrese/work-dashboard/internal/atlassian"
 	"github.com/dgerrese/work-dashboard/internal/crypto"
 	"github.com/dgerrese/work-dashboard/internal/jira"
 	"github.com/dgerrese/work-dashboard/internal/store"
 )
+
+// tenantInfoTimeout bounds the tenant-info lookup made against a host the user
+// just typed in. jira.Client sets its own 30s requestTimeout independently;
+// this client never talks to jira.Client's target, only to the Atlassian
+// gateway's tenant-info endpoint.
+const tenantInfoTimeout = 10 * time.Second
 
 // instanceClients builds a Jira client for a stored instance: unseal the token,
 // resolve the API base if the row has none, hand both to jira.New.
@@ -19,8 +26,8 @@ import (
 type instanceClients struct {
 	db     *store.Store
 	sealer *crypto.Sealer
-	// http serves tenant-info lookups only. Jira calls go through jira.Client,
-	// which owns its own timeout.
+	// http serves tenant-info lookups only, bounded by tenantInfoTimeout. Jira
+	// calls go through jira.Client, which owns its own separate timeout.
 	http *http.Client
 	// apiBaseFor turns a cloud id into a base URL. It is a field rather than a
 	// direct call so a test can point it at an httptest.Server; production always
@@ -32,7 +39,7 @@ func newInstanceClients(db *store.Store, sealer *crypto.Sealer) *instanceClients
 	return &instanceClients{
 		db:         db,
 		sealer:     sealer,
-		http:       http.DefaultClient,
+		http:       &http.Client{Timeout: tenantInfoTimeout},
 		apiBaseFor: atlassian.APIBaseURL,
 	}
 }

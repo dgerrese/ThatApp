@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -323,9 +324,13 @@ func writeInstanceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, jira.ErrUnauthorized):
 		writeError(w, http.StatusUnauthorized, "credentials_rejected",
 			"Jira rejected the email and API token")
+	case errors.Is(err, jira.ErrNotFound):
+		writeError(w, http.StatusBadGateway, "account_not_found",
+			"the site answered but this account has no access to it; check the site URL and account email")
 	case errors.Is(err, jira.ErrUnreachable):
 		writeError(w, http.StatusBadGateway, "instance_unreachable", "the Jira site could not be reached")
 	default:
-		writeError(w, http.StatusInternalServerError, "unexpected", err.Error())
+		log.Printf("unexpected instance error: %v", err)
+		writeError(w, http.StatusInternalServerError, "unexpected", "an unexpected error occurred")
 	}
 }

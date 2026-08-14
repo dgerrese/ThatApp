@@ -324,10 +324,10 @@ func TestSetInstanceAPIBaseRejectsMissingID(t *testing.T) {
 	}
 }
 
-// The acceptance criterion "deleting an instance cascades to its pins and time
-// entries" has no coverage anywhere before this test. It lives in package store
-// because only here can a child row be inserted directly: the cascade is the
-// schema's, and what makes it fire is the foreign_keys pragma in the DSN.
+// TestDeletingAnInstanceCascades (migrate_test.go) already covers the same
+// three child tables through raw SQL. This test's value is exercising the
+// cascade through the DeleteInstance API instead. It lives in package store
+// because only here can a child row be inserted directly.
 func TestDeleteInstanceCascadesToChildren(t *testing.T) {
 	s := openTestStore(t)
 
