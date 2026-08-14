@@ -22,3 +22,6 @@ data/
 # Playwright output
 .claude/e2e/test-results/
 .claude/e2e/node_modules/
+
+# Subagent-driven development scratch: ledgers, task briefs and review packages
+.superpowers/

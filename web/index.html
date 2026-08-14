@@ -8,9 +8,19 @@
     <script type="module" src="/app.js"></script>
   </head>
   <body class="bg-neutral-50 text-neutral-900">
-    <main id="app" class="mx-auto max-w-3xl p-6">
-      <h1 class="text-2xl font-semibold">Work Dashboard</h1>
-      <p id="status" class="mt-2 text-neutral-600">Checking the server…</p>
+    <main class="mx-auto max-w-3xl p-6">
+      <header class="mb-6 flex items-baseline justify-between">
+        <h1 class="text-2xl font-semibold">Work Dashboard</h1>
+        <nav>
+          <a
+            href="/settings"
+            data-route
+            class="text-sm font-medium text-neutral-600 underline hover:text-neutral-900"
+            >Settings</a
+          >
+        </nav>
+      </header>
+      <div id="view"></div>
     </main>
   </body>
 </html>

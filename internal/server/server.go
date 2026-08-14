@@ -9,21 +9,38 @@ import (
 	"strings"
 
 	"github.com/dgerrese/work-dashboard/internal/config"
+	"github.com/dgerrese/work-dashboard/internal/crypto"
+	"github.com/dgerrese/work-dashboard/internal/store"
 )
 
 // Server routes API requests and serves the PWA's static assets.
 type Server struct {
-	cfg    *config.Config
-	assets fs.FS
-	mux    *http.ServeMux
+	cfg     *config.Config
+	assets  fs.FS
+	db      *store.Store
+	sealer  *crypto.Sealer
+	clients *instanceClients
+	mux     *http.ServeMux
 }
 
 // New builds a Server that serves its static files from assets. Production
 // passes an embedded filesystem; development passes one backed by web/dist.
-func New(cfg *config.Config, assets fs.FS) *Server {
-	s := &Server{cfg: cfg, assets: assets, mux: http.NewServeMux()}
+func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Sealer) *Server {
+	s := &Server{
+		cfg:    cfg,
+		assets: assets,
+		db:     db,
+		sealer: sealer,
+		mux:    http.NewServeMux(),
+	}
+	s.clients = newInstanceClients(db, sealer)
 
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /api/instances", s.handleListInstances)
+	s.mux.HandleFunc("POST /api/instances", s.handleCreateInstance)
+	s.mux.HandleFunc("PATCH /api/instances/{id}", s.handleUpdateInstance)
+	s.mux.HandleFunc("DELETE /api/instances/{id}", s.handleDeleteInstance)
+	s.mux.HandleFunc("POST /api/instances/{id}/test", s.handleTestInstance)
 	s.mux.HandleFunc("/api/", handleAPINotFound)
 	s.mux.HandleFunc("/", s.handleAsset)
 
@@ -35,11 +52,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, `{"status":"ok"}`)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func handleAPINotFound(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusNotFound, `{"code":"not_found","message":"no such endpoint"}`)
+	writeError(w, http.StatusNotFound, "not_found", "no such endpoint")
 }
 
 // handleAsset serves a file from the asset filesystem, falling back to the app
@@ -59,10 +76,4 @@ func (s *Server) handleAsset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.ServeFileFS(w, r, s.assets, name)
-}
-
-func writeJSON(w http.ResponseWriter, status int, body string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_, _ = w.Write([]byte(body))
 }

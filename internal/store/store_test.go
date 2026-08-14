@@ -59,7 +59,7 @@ func readThenInsertInTransaction(s *Store, n int) error {
 	}
 
 	if _, err := tx.Exec(
-		`INSERT INTO instances (name, base_url, email, api_token_enc, created_at)
+		`INSERT INTO instances (name, site_url, email, api_token_enc, created_at)
 		 VALUES (?, ?, ?, ?, ?)`,
 		fmt.Sprintf("site-%d", n), "https://x.example", "a@b.c", []byte{0x01},
 		"2026-08-07T12:00:00Z",

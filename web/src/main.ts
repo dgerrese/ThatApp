@@ -1,14 +1,6 @@
-async function showServerStatus(): Promise<void> {
-  const el = document.querySelector<HTMLElement>("#status");
-  if (!el) return;
+import { startRouter } from "./router";
 
-  try {
-    const res = await fetch("/api/health");
-    const body = (await res.json()) as { status?: string };
-    el.textContent = body.status === "ok" ? "Server is up." : "Server reported a problem.";
-  } catch {
-    el.textContent = "Could not reach the server.";
-  }
+const root = document.querySelector<HTMLElement>("#view");
+if (root) {
+  startRouter(root);
 }
-
-void showServerStatus();

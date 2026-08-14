@@ -23,7 +23,7 @@ func newTestServer() *server.Server {
 		"index.html": {Data: []byte("<!doctype html><title>shell</title>")},
 		"app.js":     {Data: []byte("console.log('app')")},
 	}
-	return server.New(cfg, assets)
+	return server.New(cfg, assets, nil, nil)
 }
 
 func get(t *testing.T, path string) *http.Response {
@@ -44,7 +44,7 @@ func TestHealthReportsOK(t *testing.T) {
 		t.Errorf("Content-Type = %q, want %q", ct, "application/json")
 	}
 	body, _ := io.ReadAll(res.Body)
-	if got, want := string(body), `{"status":"ok"}`; got != want {
+	if got, want := string(body), "{\"status\":\"ok\"}\n"; got != want {
 		t.Errorf("body = %q, want %q", got, want)
 	}
 }

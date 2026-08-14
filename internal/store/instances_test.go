@@ -14,9 +14,12 @@ import (
 func createTestInstance(t *testing.T, s *Store) *Instance {
 	t.Helper()
 
-	inst, err := s.CreateInstance(
-		context.Background(), "Acme", "https://acme.atlassian.net", "a@b.c", []byte{0x01, 0x02},
-	)
+	inst, err := s.CreateInstance(context.Background(), InstanceInput{
+		Name:     "Acme",
+		SiteURL:  "https://acme.atlassian.net",
+		Email:    "a@b.c",
+		TokenEnc: []byte{0x01, 0x02},
+	})
 	if err != nil {
 		t.Fatalf("CreateInstance() returned error: %v", err)
 	}
@@ -56,7 +59,9 @@ func TestInstanceTokenRoundTripsUnchanged(t *testing.T) {
 	s := openTestStore(t)
 	token := []byte{0x00, 0xff, 0x10, 0x00, 0x7f}
 
-	created, err := s.CreateInstance(context.Background(), "Acme", "https://a.example", "a@b.c", token)
+	created, err := s.CreateInstance(context.Background(), InstanceInput{
+		Name: "Acme", SiteURL: "https://a.example", Email: "a@b.c", TokenEnc: token,
+	})
 	if err != nil {
 		t.Fatalf("CreateInstance() returned error: %v", err)
 	}
@@ -75,7 +80,9 @@ func TestInstancesReturnsEveryRow(t *testing.T) {
 	ctx := context.Background()
 
 	for _, name := range []string{"Acme", "Globex"} {
-		if _, err := s.CreateInstance(ctx, name, "https://x.example", "a@b.c", []byte{0x01}); err != nil {
+		if _, err := s.CreateInstance(ctx, InstanceInput{
+			Name: name, SiteURL: "https://x.example", Email: "a@b.c", TokenEnc: []byte{0x01},
+		}); err != nil {
 			t.Fatalf("CreateInstance(%q) returned error: %v", name, err)
 		}
 	}
@@ -106,7 +113,7 @@ func TestInstancesAreOldestFirst(t *testing.T) {
 	}
 	for _, row := range rows {
 		if _, err := s.db.Exec(
-			`INSERT INTO instances (id, name, base_url, email, api_token_enc, created_at)
+			`INSERT INTO instances (id, name, site_url, email, api_token_enc, created_at)
 			 VALUES (?, ?, 'https://x.example', 'a@b.c', X'01', ?)`,
 			row.id, row.name, row.createdAt,
 		); err != nil {
@@ -140,7 +147,7 @@ func TestInstanceDoesNotSerialiseItsToken(t *testing.T) {
 	// hands the struct straight to json.NewEncoder.
 	token := []byte("ciphertext-not-for-the-browser")
 	inst := &Instance{
-		ID: 1, Name: "Acme", BaseURL: "https://acme.atlassian.net",
+		ID: 1, Name: "Acme", SiteURL: "https://acme.atlassian.net",
 		Email: "a@b.c", TokenEnc: token, CreatedAt: time.Now().UTC(),
 	}
 
@@ -177,7 +184,9 @@ func TestUpdateInstanceChangesTheStoredRow(t *testing.T) {
 	ctx := context.Background()
 	inst := createTestInstance(t, s)
 
-	if err := s.UpdateInstance(ctx, inst.ID, "Renamed", "https://new.example", "new@b.c", []byte{0x09}); err != nil {
+	if err := s.UpdateInstance(ctx, inst.ID, InstanceInput{
+		Name: "Renamed", SiteURL: "https://new.example", Email: "new@b.c", TokenEnc: []byte{0x09},
+	}); err != nil {
 		t.Fatalf("UpdateInstance() returned error: %v", err)
 	}
 
@@ -188,8 +197,8 @@ func TestUpdateInstanceChangesTheStoredRow(t *testing.T) {
 	if stored.Name != "Renamed" {
 		t.Errorf("Name = %q, want %q", stored.Name, "Renamed")
 	}
-	if stored.BaseURL != "https://new.example" {
-		t.Errorf("BaseURL = %q, want %q", stored.BaseURL, "https://new.example")
+	if stored.SiteURL != "https://new.example" {
+		t.Errorf("SiteURL = %q, want %q", stored.SiteURL, "https://new.example")
 	}
 	if string(stored.TokenEnc) != string([]byte{0x09}) {
 		t.Errorf("TokenEnc = %v, want %v", stored.TokenEnc, []byte{0x09})
@@ -223,7 +232,9 @@ func TestMissingInstanceIsNotFound(t *testing.T) {
 			return err
 		},
 		"UpdateInstance": func() error {
-			return s.UpdateInstance(ctx, missing, "x", "https://x.example", "a@b.c", []byte{0x01})
+			return s.UpdateInstance(ctx, missing, InstanceInput{
+				Name: "x", SiteURL: "https://x.example", Email: "a@b.c", TokenEnc: []byte{0x01},
+			})
 		},
 		"DeleteInstance": func() error {
 			return s.DeleteInstance(ctx, missing)
@@ -234,6 +245,142 @@ func TestMissingInstanceIsNotFound(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if err := call(); !errors.Is(err, sql.ErrNoRows) {
 				t.Errorf("%s on a missing id returned %v, want an error wrapping sql.ErrNoRows", name, err)
+			}
+		})
+	}
+}
+
+func TestCreateInstanceRejectsInputWithNoURL(t *testing.T) {
+	s := openTestStore(t)
+
+	_, err := s.CreateInstance(context.Background(), InstanceInput{
+		Name: "Work", Email: "me@example.com", TokenEnc: []byte{0x01},
+	})
+	if !errors.Is(err, ErrInstanceNeedsURL) {
+		t.Errorf("CreateInstance() error = %v, want ErrInstanceNeedsURL", err)
+	}
+}
+
+func TestCreateInstanceStoresAbsentURLAsNull(t *testing.T) {
+	s := openTestStore(t)
+
+	inst, err := s.CreateInstance(context.Background(), InstanceInput{
+		Name:       "Work",
+		APIBaseURL: "https://api.atlassian.com/ex/jira/7c41e2b6",
+		Email:      "me@example.com",
+		TokenEnc:   []byte{0x01},
+	})
+	if err != nil {
+		t.Fatalf("CreateInstance() returned error: %v", err)
+	}
+
+	// NULL, not "": the CHECK constraints reject the empty string, so a second
+	// representation of absence would be a write that fails at runtime.
+	var siteURL sql.NullString
+	if err := s.db.QueryRow(
+		`SELECT site_url FROM instances WHERE id = ?`, inst.ID,
+	).Scan(&siteURL); err != nil {
+		t.Fatalf("reading site_url: %v", err)
+	}
+	if siteURL.Valid {
+		t.Errorf("site_url = %q, want NULL", siteURL.String)
+	}
+}
+
+func TestSetInstanceAPIBasePersists(t *testing.T) {
+	s := openTestStore(t)
+
+	inst, err := s.CreateInstance(context.Background(), InstanceInput{
+		Name: "Work", SiteURL: "https://example.atlassian.net",
+		Email: "me@example.com", TokenEnc: []byte{0x01},
+	})
+	if err != nil {
+		t.Fatalf("CreateInstance() returned error: %v", err)
+	}
+
+	const apiBase = "https://api.atlassian.com/ex/jira/7c41e2b6"
+	if err := s.SetInstanceAPIBase(context.Background(), inst.ID, apiBase); err != nil {
+		t.Fatalf("SetInstanceAPIBase() returned error: %v", err)
+	}
+
+	reloaded, err := s.Instance(context.Background(), inst.ID)
+	if err != nil {
+		t.Fatalf("Instance() returned error: %v", err)
+	}
+	if reloaded.APIBaseURL != apiBase {
+		t.Errorf("APIBaseURL = %q, want %q", reloaded.APIBaseURL, apiBase)
+	}
+	if reloaded.SiteURL != "https://example.atlassian.net" {
+		t.Errorf("SiteURL = %q, want it untouched", reloaded.SiteURL)
+	}
+}
+
+func TestSetInstanceAPIBaseRejectsMissingID(t *testing.T) {
+	s := openTestStore(t)
+
+	err := s.SetInstanceAPIBase(context.Background(), 404, "https://api.atlassian.com/ex/jira/x")
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Errorf("SetInstanceAPIBase() error = %v, want sql.ErrNoRows", err)
+	}
+}
+
+// TestDeletingAnInstanceCascades (migrate_test.go) already covers the same
+// three child tables through raw SQL. This test's value is exercising the
+// cascade through the DeleteInstance API instead. It lives in package store
+// because only here can a child row be inserted directly.
+func TestDeleteInstanceCascadesToChildren(t *testing.T) {
+	s := openTestStore(t)
+
+	inst, err := s.CreateInstance(context.Background(), InstanceInput{
+		Name: "Work", SiteURL: "https://example.atlassian.net",
+		Email: "me@example.com", TokenEnc: []byte{0x01},
+	})
+	if err != nil {
+		t.Fatalf("CreateInstance() returned error: %v", err)
+	}
+
+	children := []struct {
+		table string
+		stmt  string
+	}{
+		{
+			table: "pinned_issues",
+			stmt: `INSERT INTO pinned_issues (instance_id, issue_key, created_at)
+			       VALUES (?, 'AB-1', '2026-08-12T09:00:00Z')`,
+		},
+		{
+			table: "time_entries",
+			stmt: `INSERT INTO time_entries
+			         (instance_id, issue_key, day, started_at, seconds, created_at, updated_at)
+			       VALUES (?, 'AB-1', '2026-08-12', '2026-08-12T09:00:00Z', 3600,
+			               '2026-08-12T09:00:00Z', '2026-08-12T09:00:00Z')`,
+		},
+		{
+			table: "timers",
+			stmt: `INSERT INTO timers (id, instance_id, issue_key, started_at)
+			       VALUES (1, ?, 'AB-1', '2026-08-12T09:00:00Z')`,
+		},
+	}
+	for _, child := range children {
+		if _, err := s.db.Exec(child.stmt, inst.ID); err != nil {
+			t.Fatalf("seeding %s: %v", child.table, err)
+		}
+	}
+
+	if err := s.DeleteInstance(context.Background(), inst.ID); err != nil {
+		t.Fatalf("DeleteInstance() returned error: %v", err)
+	}
+
+	for _, child := range children {
+		t.Run(child.table, func(t *testing.T) {
+			var remaining int
+			if err := s.db.QueryRow(
+				`SELECT count(*) FROM ` + child.table,
+			).Scan(&remaining); err != nil {
+				t.Fatalf("counting %s: %v", child.table, err)
+			}
+			if remaining != 0 {
+				t.Errorf("%s has %d rows after deleting the instance, want 0", child.table, remaining)
 			}
 		})
 	}
