@@ -341,6 +341,35 @@ func TestPatchInstanceRejectsAMissingID(t *testing.T) {
 	}
 }
 
+// PATCH validates its body through the same decodeInstanceRequest as POST; this
+// proves the handler actually routes through it rather than a diverging copy.
+func TestPatchInstanceRejectsAMalformedSiteURL(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusOK)
+	inst := seedInstance(t, db, sealer, site)
+
+	rec := patchInstance(t, srv, inst.ID, `{"name":"Renamed","siteUrl":"not-a-url","email":"me@example.com"}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusBadRequest, rec.Body)
+	}
+	var body errorBody
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+	if body.Code != "invalid_site_url" {
+		t.Errorf("code = %q, want invalid_site_url", body.Code)
+	}
+
+	after, err := db.Instance(context.Background(), inst.ID)
+	if err != nil {
+		t.Fatalf("Instance() returned error: %v", err)
+	}
+	if after.Name == "Renamed" {
+		t.Error("the rename persisted despite the malformed site URL")
+	}
+}
+
 // The cascade itself is covered in package store, where a child row can be
 // inserted directly. This asserts only what the handler adds: the row goes, and
 // the response is a 204.

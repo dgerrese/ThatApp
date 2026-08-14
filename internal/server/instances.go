@@ -62,33 +62,12 @@ func (s *Server) handleListInstances(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
-	var req instanceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", "the request body is not valid JSON")
+	fields, ok := decodeInstanceRequest(w, r, true)
+	if !ok {
 		return
 	}
 
-	name := strings.TrimSpace(req.Name)
-	email := strings.TrimSpace(req.Email)
-	if name == "" {
-		writeError(w, http.StatusBadRequest, "invalid_name", "a name is required")
-		return
-	}
-	if email == "" {
-		writeError(w, http.StatusBadRequest, "invalid_email", "an account email is required")
-		return
-	}
-	if req.Token == "" {
-		writeError(w, http.StatusBadRequest, "missing_token", "an API token is required")
-		return
-	}
-	siteURL, err := atlassian.NormalizeSiteURL(req.SiteURL)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_site_url", err.Error())
-		return
-	}
-
-	apiBase, err := s.clients.apiBaseForSite(r.Context(), siteURL)
+	apiBase, err := s.clients.apiBaseForSite(r.Context(), fields.SiteURL)
 	if err != nil {
 		writeInstanceError(w, err)
 		return
@@ -96,24 +75,18 @@ func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 
 	// Verify before storing: an instance must not be storable in a state that
 	// silently returns nothing.
-	client, err := jira.New(apiBase, email, req.Token)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_site_url", err.Error())
-		return
-	}
-	if _, err := client.Myself(r.Context()); err != nil {
-		writeInstanceError(w, err)
+	if !verifyJiraCredentials(w, r, apiBase, fields.Email, fields.Token) {
 		return
 	}
 
-	sealed, err := s.sealer.Seal(req.Token)
+	sealed, err := s.sealer.Seal(fields.Token)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "seal_failed", "could not encrypt the API token")
 		return
 	}
 
 	inst, err := s.db.CreateInstance(r.Context(), store.InstanceInput{
-		Name: name, SiteURL: siteURL, APIBaseURL: apiBase, Email: email, TokenEnc: sealed,
+		Name: fields.Name, SiteURL: fields.SiteURL, APIBaseURL: apiBase, Email: fields.Email, TokenEnc: sealed,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "store_failed", "could not store the instance")
@@ -121,6 +94,70 @@ func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, dtoFromInstance(*inst))
+}
+
+// instanceFields is the request body validated for both POST and PATCH: a
+// trimmed name and email, a normalized site URL, and the token exactly as the
+// client sent it. Token requirements differ per verb — POST requires a
+// non-empty one, PATCH treats an empty one as "keep the stored one" — so that
+// distinction stays with the caller.
+type instanceFields struct {
+	Name    string
+	Email   string
+	SiteURL string
+	Token   string
+}
+
+// decodeInstanceRequest reads and validates the fields common to POST and
+// PATCH bodies, in the order each field is checked: name, email, then
+// (only when requireToken) the token, then the site URL. It writes the error
+// response itself and returns ok=false on any failure, so callers can return
+// immediately.
+func decodeInstanceRequest(w http.ResponseWriter, r *http.Request, requireToken bool) (instanceFields, bool) {
+	var req instanceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "the request body is not valid JSON")
+		return instanceFields{}, false
+	}
+
+	name := strings.TrimSpace(req.Name)
+	email := strings.TrimSpace(req.Email)
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "invalid_name", "a name is required")
+		return instanceFields{}, false
+	}
+	if email == "" {
+		writeError(w, http.StatusBadRequest, "invalid_email", "an account email is required")
+		return instanceFields{}, false
+	}
+	if requireToken && req.Token == "" {
+		writeError(w, http.StatusBadRequest, "missing_token", "an API token is required")
+		return instanceFields{}, false
+	}
+	siteURL, err := atlassian.NormalizeSiteURL(req.SiteURL)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_site_url", err.Error())
+		return instanceFields{}, false
+	}
+
+	return instanceFields{Name: name, Email: email, SiteURL: siteURL, Token: req.Token}, true
+}
+
+// verifyJiraCredentials confirms email and token authenticate against apiBase.
+// It writes the error response itself and returns false on any failure, so
+// callers can return immediately.
+func verifyJiraCredentials(w http.ResponseWriter, r *http.Request, apiBase, email, token string) bool {
+	client, err := jira.New(apiBase, email, token)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_site_url", err.Error())
+		return false
+	}
+	if _, err := client.Myself(r.Context()); err != nil {
+		writeInstanceError(w, err)
+		return false
+	}
+
+	return true
 }
 
 // instanceIDFromPath reads the {id} wildcard. A non-numeric id is a 404 rather
@@ -151,31 +188,14 @@ func (s *Server) handleUpdateInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req instanceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", "the request body is not valid JSON")
-		return
-	}
-
-	name := strings.TrimSpace(req.Name)
-	email := strings.TrimSpace(req.Email)
-	if name == "" {
-		writeError(w, http.StatusBadRequest, "invalid_name", "a name is required")
-		return
-	}
-	if email == "" {
-		writeError(w, http.StatusBadRequest, "invalid_email", "an account email is required")
-		return
-	}
-	siteURL, err := atlassian.NormalizeSiteURL(req.SiteURL)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_site_url", err.Error())
+	fields, ok := decodeInstanceRequest(w, r, false)
+	if !ok {
 		return
 	}
 
 	// An empty token means "keep the stored one", so re-verification never
 	// forces the credential to be re-entered.
-	token := req.Token
+	token := fields.Token
 	sealed := existing.TokenEnc
 	if token == "" {
 		token, err = s.sealer.Open(existing.TokenEnc)
@@ -193,7 +213,7 @@ func (s *Server) handleUpdateInstance(w http.ResponseWriter, r *http.Request) {
 
 	// The site URL may have changed, so the API base is resolved afresh rather
 	// than reused.
-	apiBase, err := s.clients.apiBaseForSite(r.Context(), siteURL)
+	apiBase, err := s.clients.apiBaseForSite(r.Context(), fields.SiteURL)
 	if err != nil {
 		writeInstanceError(w, err)
 		return
@@ -203,18 +223,12 @@ func (s *Server) handleUpdateInstance(w http.ResponseWriter, r *http.Request) {
 	// rename. A rule with no exceptions is harder to erode than one carrying a
 	// special case, and a stored instance nothing has checked is the failure
 	// this whole ticket exists to prevent.
-	client, err := jira.New(apiBase, email, token)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_site_url", err.Error())
-		return
-	}
-	if _, err := client.Myself(r.Context()); err != nil {
-		writeInstanceError(w, err)
+	if !verifyJiraCredentials(w, r, apiBase, fields.Email, token) {
 		return
 	}
 
 	if err := s.db.UpdateInstance(r.Context(), id, store.InstanceInput{
-		Name: name, SiteURL: siteURL, APIBaseURL: apiBase, Email: email, TokenEnc: sealed,
+		Name: fields.Name, SiteURL: fields.SiteURL, APIBaseURL: apiBase, Email: fields.Email, TokenEnc: sealed,
 	}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusNotFound, "not_found", "no such instance")
