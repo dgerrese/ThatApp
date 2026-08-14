@@ -99,7 +99,7 @@ function instanceRow(container: HTMLElement, instance: Instance): HTMLElement {
     container.replaceChildren(instanceForm(container, instance));
   });
   remove.addEventListener("click", () => {
-    void removeInstance(container, instance, status);
+    void removeInstance(container, instance, remove, status);
   });
 
   return row;
@@ -126,13 +126,17 @@ async function runConnectionTest(
 async function removeInstance(
   container: HTMLElement,
   instance: Instance,
+  trigger: HTMLElement,
   status: HTMLElement,
 ): Promise<void> {
+  trigger.setAttribute("disabled", "");
+
   try {
     await deleteInstance(instance.id);
     await refresh(container);
   } catch (error) {
     status.replaceChildren(alertFor("error", messageOf(error)));
+    trigger.removeAttribute("disabled");
   }
 }
 
