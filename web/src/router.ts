@@ -25,6 +25,9 @@ export function startRouter(root: HTMLElement): void {
     if (!(event.target instanceof Element)) return;
     const link = event.target.closest("a[data-route]");
     if (!(link instanceof HTMLAnchorElement)) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+      return;
+    }
 
     event.preventDefault();
     navigate(new URL(link.href).pathname);

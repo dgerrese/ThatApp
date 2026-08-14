@@ -6,8 +6,9 @@ const VARIANTS: Record<string, string> = {
 
 /**
  * Wraps a real <button> rather than making the host focusable itself, so that
- * keyboard activation, form participation and the disabled state come from the
- * platform instead of being reimplemented.
+ * keyboard activation and the disabled state come from the platform instead of
+ * being reimplemented. The inner button is deliberately type="button": this
+ * component does not participate in form submission.
  */
 export class WdButton extends HTMLElement {
   static get observedAttributes(): string[] {

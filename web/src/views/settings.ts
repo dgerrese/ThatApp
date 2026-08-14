@@ -164,12 +164,8 @@ function instanceForm(container: HTMLElement, editing: Instance | undefined): HT
   form.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper, status, submit);
   card.append(form);
 
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    void save();
-  });
   // wd-button renders a real <button type="button">, so it does not submit the
-  // form on its own.
+  // form on its own; this click handler is the only path into save().
   submit.addEventListener("click", () => {
     void save();
   });
