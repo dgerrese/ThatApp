@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/dgerrese/work-dashboard/internal/crypto"
 	"github.com/dgerrese/work-dashboard/internal/store"
 )
 
@@ -237,5 +239,147 @@ func TestGetInstancesReturnsAnEmptyArrayNotNull(t *testing.T) {
 	// null would make the frontend branch before it can iterate.
 	if got := strings.TrimSpace(rec.Body.String()); got != "[]" {
 		t.Errorf("body = %q, want []", got)
+	}
+}
+
+func seedInstance(t *testing.T, db *store.Store, sealer *crypto.Sealer, site *httptest.Server) *store.Instance {
+	t.Helper()
+
+	sealed, err := sealer.Seal("secret")
+	if err != nil {
+		t.Fatalf("sealing: %v", err)
+	}
+	inst, err := db.CreateInstance(context.Background(), store.InstanceInput{
+		Name: "Work", SiteURL: site.URL, APIBaseURL: site.URL,
+		Email: "me@example.com", TokenEnc: sealed,
+	})
+	if err != nil {
+		t.Fatalf("CreateInstance() returned error: %v", err)
+	}
+
+	return inst
+}
+
+func patchInstance(t *testing.T, srv *Server, id int64, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPatch,
+		"/api/instances/"+strconv.FormatInt(id, 10), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	return rec
+}
+
+func TestPatchInstanceWithoutATokenKeepsTheStoredOne(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusOK)
+	pointAtSite(srv, site)
+	inst := seedInstance(t, db, sealer, site)
+	before := inst.TokenEnc
+
+	rec := patchInstance(t, srv, inst.ID, `{
+		"name":"Renamed","siteUrl":"`+site.URL+`","email":"me@example.com"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body)
+	}
+
+	after, err := db.Instance(context.Background(), inst.ID)
+	if err != nil {
+		t.Fatalf("Instance() returned error: %v", err)
+	}
+	if after.Name != "Renamed" {
+		t.Errorf("name = %q, want Renamed", after.Name)
+	}
+	if !bytes.Equal(after.TokenEnc, before) {
+		t.Error("stored token changed; a PATCH with no token must keep it")
+	}
+}
+
+// Every write re-verifies, with no exception for a rename. This is the test that
+// catches an "unless only the name changed" shortcut being reintroduced.
+func TestPatchInstanceVerifiesEvenWhenOnlyTheNameChanges(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	good := jiraSiteServer(t, http.StatusOK)
+	inst := seedInstance(t, db, sealer, good)
+
+	// Jira now rejects the stored credential.
+	bad := jiraSiteServer(t, http.StatusUnauthorized)
+	if err := db.UpdateInstance(context.Background(), inst.ID, store.InstanceInput{
+		Name: inst.Name, SiteURL: bad.URL, APIBaseURL: bad.URL,
+		Email: inst.Email, TokenEnc: inst.TokenEnc,
+	}); err != nil {
+		t.Fatalf("UpdateInstance() returned error: %v", err)
+	}
+	pointAtSite(srv, bad)
+
+	rec := patchInstance(t, srv, inst.ID, `{
+		"name":"Renamed","siteUrl":"`+bad.URL+`","email":"me@example.com"}`)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusUnauthorized, rec.Body)
+	}
+
+	after, err := db.Instance(context.Background(), inst.ID)
+	if err != nil {
+		t.Fatalf("Instance() returned error: %v", err)
+	}
+	if after.Name == "Renamed" {
+		t.Error("the rename persisted despite the identity check failing")
+	}
+}
+
+func TestPatchInstanceRejectsAMissingID(t *testing.T) {
+	srv, _, _ := newServerWithStore(t)
+
+	rec := patchInstance(t, srv, 404, `{"name":"X","siteUrl":"https://x.atlassian.net","email":"me@example.com"}`)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+// The cascade itself is covered in package store, where a child row can be
+// inserted directly. This asserts only what the handler adds: the row goes, and
+// the response is a 204.
+func TestDeleteInstanceRemovesTheRow(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusOK)
+	inst := seedInstance(t, db, sealer, site)
+
+	req := httptest.NewRequest(http.MethodDelete,
+		"/api/instances/"+strconv.FormatInt(inst.ID, 10), nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusNoContent, rec.Body)
+	}
+
+	instances, err := db.Instances(context.Background())
+	if err != nil {
+		t.Fatalf("Instances() returned error: %v", err)
+	}
+	if len(instances) != 0 {
+		t.Errorf("instances remaining = %d, want 0", len(instances))
+	}
+}
+
+// Deleting must not require Jira: there is nothing left to verify.
+func TestDeleteInstanceWorksWithJiraUnreachable(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	site := jiraSiteServer(t, http.StatusOK)
+	inst := seedInstance(t, db, sealer, site)
+	site.Close()
+
+	req := httptest.NewRequest(http.MethodDelete,
+		"/api/instances/"+strconv.FormatInt(inst.ID, 10), nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("status = %d, want %d; body %s", rec.Code, http.StatusNoContent, rec.Body)
 	}
 }
