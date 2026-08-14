@@ -15,10 +15,17 @@ const copyShell = () => copyFileSync("index.html", "dist/index.html");
 
 const jsOptions = {
   entryPoints: ["src/main.ts"],
-  outfile: "dist/app.js",
+  // outdir, not outfile: code splitting emits chunks alongside the entry, and
+  // esbuild rejects outfile when splitting is on. entryNames keeps the entry at
+  // dist/app.js so index.html needs no change.
+  outdir: "dist",
+  entryNames: "app",
+  chunkNames: "chunk-[hash]",
   bundle: true,
   format: "esm",
-  splitting: false,
+  // Views load through dynamic import(). Without splitting, esbuild inlines
+  // them into the entry bundle and the lazy loading is a lie.
+  splitting: true,
   minify: true,
   sourcemap: watch,
   target: ["es2022"],
