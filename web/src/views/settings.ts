@@ -9,37 +9,48 @@ import { setThemePreference, themePreference } from "../theme";
 import type { Instance } from "../types";
 import type { ThemePreference } from "../theme";
 
+let listCard: HTMLElement;
+let formCard: HTMLElement;
+let errorSlot: HTMLElement;
+
 export async function render(root: HTMLElement): Promise<void> {
-  const container = document.createElement("div");
-  container.className = "space-y-6";
+  errorSlot = document.createElement("div");
+
+  listCard = document.createElement("div");
+  formCard = document.createElement("div");
+  formCard.className = "mt-6";
 
   // wd-card overwrites its own className on connect, so the spacing lives on a
-  // wrapper. Appearance sits outside `container` because refresh() replaces
-  // that element's children on every mutation.
+  // wrapper. Appearance sits outside the regions refresh() touches.
   const appearance = document.createElement("div");
   appearance.className = "mt-6";
   appearance.append(appearanceCard());
 
-  root.append(container, appearance);
+  root.append(errorSlot, listCard, formCard, appearance);
 
-  await refresh(container);
+  showForm(undefined);
+  await refresh();
 }
 
-async function refresh(container: HTMLElement): Promise<void> {
-  container.replaceChildren();
-
+async function refresh(): Promise<void> {
   let instances: Instance[];
   try {
     instances = await listInstances();
   } catch (error) {
-    container.append(alertFor("error", messageOf(error)));
+    errorSlot.replaceChildren(alertFor("error", messageOf(error)));
+
     return;
   }
 
-  container.append(instanceList(container, instances), instanceForm(container, undefined));
+  errorSlot.replaceChildren();
+  listCard.replaceChildren(instanceList(instances));
 }
 
-function instanceList(container: HTMLElement, instances: Instance[]): HTMLElement {
+function showForm(editing: Instance | undefined): void {
+  formCard.replaceChildren(instanceForm(editing));
+}
+
+function instanceList(instances: Instance[]): HTMLElement {
   const card = document.createElement("wd-card");
   card.setAttribute("heading", "Jira instances");
 
@@ -55,14 +66,14 @@ function instanceList(container: HTMLElement, instances: Instance[]): HTMLElemen
   const list = document.createElement("ul");
   list.className = "divide-y divide-edge";
   for (const instance of instances) {
-    list.append(instanceRow(container, instance));
+    list.append(instanceRow(instance));
   }
   card.append(list);
 
   return card;
 }
 
-function instanceRow(container: HTMLElement, instance: Instance): HTMLElement {
+function instanceRow(instance: Instance): HTMLElement {
   const row = document.createElement("li");
   row.className = "py-3";
   row.dataset["instanceId"] = String(instance.id);
@@ -108,10 +119,10 @@ function instanceRow(container: HTMLElement, instance: Instance): HTMLElement {
     void runConnectionTest(instance, test, status);
   });
   edit.addEventListener("click", () => {
-    container.replaceChildren(instanceForm(container, instance));
+    showForm(instance);
   });
   remove.addEventListener("click", () => {
-    void removeInstance(container, instance, remove, status);
+    void removeInstance(instance, remove, status);
   });
 
   return row;
@@ -136,7 +147,6 @@ async function runConnectionTest(
 }
 
 async function removeInstance(
-  container: HTMLElement,
   instance: Instance,
   trigger: HTMLElement,
   status: HTMLElement,
@@ -152,14 +162,14 @@ async function removeInstance(
 
   try {
     await deleteInstance(instance.id);
-    await refresh(container);
+    await refresh();
   } catch (error) {
     status.replaceChildren(alertFor("error", messageOf(error)));
     trigger.removeAttribute("disabled");
   }
 }
 
-function instanceForm(container: HTMLElement, editing: Instance | undefined): HTMLElement {
+function instanceForm(editing: Instance | undefined): HTMLElement {
   const card = document.createElement("wd-card");
   card.setAttribute("heading", editing ? `Edit ${editing.name}` : "Add an instance");
 
@@ -180,7 +190,19 @@ function instanceForm(container: HTMLElement, editing: Instance | undefined): HT
   const status = document.createElement("div");
   const submit = button(editing ? "Save changes" : "Add instance", "primary");
 
-  form.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper, status, submit);
+  const actions = document.createElement("div");
+  actions.className = "flex gap-2";
+  actions.append(submit);
+
+  if (editing) {
+    const cancel = button("Cancel changes", "secondary");
+    cancel.addEventListener("click", () => {
+      showForm(undefined);
+    });
+    actions.append(cancel);
+  }
+
+  form.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper, status, actions);
   card.append(form);
 
   // wd-button renders a real <button type="button">, so it does not submit the
@@ -206,7 +228,8 @@ function instanceForm(container: HTMLElement, editing: Instance | undefined): HT
       } else {
         await createInstance(draft);
       }
-      await refresh(container);
+      await refresh();
+      showForm(undefined);
     } catch (error) {
       status.replaceChildren(alertFor("error", messageOf(error)));
       submit.removeAttribute("disabled");

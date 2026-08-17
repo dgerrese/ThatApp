@@ -179,3 +179,37 @@ test("pressing Escape cancels the removal", async ({ page }) => {
   await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
   expect(stub.deleteCount()).toBe(0);
 });
+
+test("typed input survives removing another instance", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+
+  // Waits for the add's own async round trip to finish resetting the form
+  // before typing into it — without this, the fill below races the reset
+  // and lands on the form save() is about to discard.
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  await page.getByLabel("Name").fill("Half-typed");
+
+  await page.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Remove instance" }).click();
+
+  await expect(page.getByText("No instances yet. Add one below.")).toBeVisible();
+  await expect(page.getByLabel("Name")).toHaveValue("Half-typed");
+});
+
+test("editing can be cancelled", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByLabel("Name")).toHaveValue("Work");
+
+  await page.getByRole("button", { name: "Cancel changes" }).click();
+
+  await expect(page.getByRole("button", { name: "Add instance" })).toBeVisible();
+  await expect(page.getByLabel("Name")).toHaveValue("");
+  await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
+});
