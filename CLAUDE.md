@@ -32,6 +32,11 @@ These come from the project owner. They are not preferences and not open to rein
   to the e2e matrix. This also means the phone in ticket 13 is an Android device.
 - **One issue, one branch, one pull request.** Project-design changes are the one exception — see
   *Workflow*.
+- **Never merge a branch into `main` locally.** Every branch reaches `main` through a pull request
+  the owner merges, and nothing else. This is absolute: it holds for a green branch, an approved
+  one, a one-line fix, a documentation typo, and a branch the owner said they were happy with. Do
+  not run `git merge` onto `main`, do not fast-forward it, and do not offer merging locally as an
+  option to choose from. If a skill or a tool presents that choice, this constraint overrides it.
 
 ## Commands
 
@@ -155,6 +160,10 @@ Three moves are the owner's alone: **intake → refinement** (approval), **intak
 **review → done** (the merge). A green `make verify`, a passing CI run and an approving review are
 not the merge signal — the owner saying so is. Create an intake ticket and stop; never approve your
 own.
+
+The merge is theirs in the literal sense too: **merging into `main` locally is forbidden**, per the
+hard constraint above. Finishing a branch means pushing it and opening a pull request — those are
+the only two endings, alongside leaving the branch alone.
 
 **Blocked is a hard stop.** The moment a blocker appears, move the ticket to `status:blocked`, say
 what blocked it, and stop. Do not lower a threshold, skip a test, reshape the scope to dodge it, or

@@ -49,6 +49,13 @@ make on it unaided.
   `make verify`, a passing CI run, an approving review, a closed pull request and a branch that
   looks merged are none of them that signal. The owner saying so is the signal.
 
+**Merging into `main` locally is forbidden outright** — a hard constraint in `CLAUDE.md`, not a
+preference. A branch reaches `main` through a pull request the owner merges and no other way, no
+matter how green or how small it is. `superpowers:finishing-a-development-branch` offers "merge back
+to main locally" as its first option; in this repo that option does not exist. Present only the
+other two — push and open a pull request, or leave the branch as it is — and say why the third is
+missing rather than silently dropping it.
+
 ### Blocked is a hard stop
 
 The moment a blocker appears — a decision only the owner can make, an external dependency that
