@@ -48,10 +48,42 @@ test("unreadable storage still themes from the OS", async ({ page }) => {
   expect(await bodyBackground(page)).toBe("rgb(10, 10, 10)");
 });
 
+// The inline script only proves storage-that-throws survives at "/", which
+// never imports settings.ts. appearanceCard() calls themePreference()
+// synchronously inside render(); if that throw were left uncaught it would
+// reject the awaited render() in router.ts and blank the whole Settings view.
+test("unreadable storage still renders Settings, defaulting to Auto", async ({ page }) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => {
+      throw new Error("storage disabled");
+    };
+  });
+  await openSettings(page);
+
+  await expect(page.getByRole("heading", { name: "Jira instances" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Auto" })).toBeChecked();
+});
+
 async function openSettings(page: Page): Promise<void> {
   await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
   await page.goto("/settings");
 }
+
+test("choosing Light themes the page and survives a reload", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await openSettings(page);
+
+  await page.getByRole("radio", { name: "Light" }).check();
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await bodyBackground(page)).toBe("rgb(250, 250, 250)");
+
+  await page.reload();
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await bodyBackground(page)).toBe("rgb(250, 250, 250)");
+  await expect(page.getByRole("radio", { name: "Light" })).toBeChecked();
+});
 
 test("choosing Dark themes the page and survives a reload", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });

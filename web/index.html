@@ -12,7 +12,7 @@
       // overrides — an absent attribute is the auto state, so doing nothing
       // when storage throws is the correct behaviour, not a swallowed bug.
       try {
-        var stored = localStorage.getItem("theme");
+        let stored = localStorage.getItem("theme");
         if (stored === "light" || stored === "dark") {
           document.documentElement.dataset.theme = stored;
         }

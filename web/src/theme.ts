@@ -1,5 +1,8 @@
 export type ThemePreference = "light" | "dark" | "auto";
 
+// The inline script in web/index.html duplicates this key (and the accepted
+// values) so it can apply a stored preference before the module graph loads.
+// Change either without the other and the two fall out of agreement.
 const STORAGE_KEY = "theme";
 
 /**

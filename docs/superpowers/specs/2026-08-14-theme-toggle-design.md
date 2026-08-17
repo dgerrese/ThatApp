@@ -130,7 +130,7 @@ Inline in `<head>`, so it runs before the first paint and there is no flash:
 ```html
 <script>
   try {
-    var p = localStorage.getItem("theme");
+    let p = localStorage.getItem("theme");
     if (p === "light" || p === "dark") document.documentElement.dataset.theme = p;
   } catch {}
 </script>
@@ -189,7 +189,7 @@ In scope. Without it the tokens exist and nothing uses them.
 | `web/src/components/wd-card.ts` | `bg-white border-neutral-200` → `bg-raised border-edge` |
 | `web/src/components/wd-button.ts` | primary → `bg-accent text-accent-ink`; secondary → `bg-raised border-edge text-ink`; danger → `bg-danger-solid text-danger-solid-ink hover:bg-danger-solid-hover` |
 | `web/src/components/wd-alert.ts` | each tone → `bg-{tone}-tint border-{tone}-edge text-{tone}-ink` |
-| `web/src/views/settings.ts` | inputs → `border-edge focus:border-ink`; link → `text-link`; `divide-neutral-200` → `divide-edge` |
+| `web/src/views/settings.ts` | inputs → `border-edge focus:border-ink`; field caption → `text-ink`; `divide-neutral-200` → `divide-edge` |
 
 No stock colour utility should remain in `web/src/` or `web/index.html` afterwards.
 
