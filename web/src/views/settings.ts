@@ -1,8 +1,10 @@
 import "../components/wd-alert";
 import "../components/wd-button";
 import "../components/wd-card";
+import "../components/wd-confirm";
 
 import { ApiError, createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
+import { confirmDestructive } from "../components/wd-confirm";
 import { setThemePreference, themePreference } from "../theme";
 import type { Instance } from "../types";
 import type { ThemePreference } from "../theme";
@@ -139,6 +141,13 @@ async function removeInstance(
   trigger: HTMLElement,
   status: HTMLElement,
 ): Promise<void> {
+  const confirmed = await confirmDestructive({
+    heading: `Remove ${instance.name}?`,
+    body: "Its pinned issues and any time logged against it are deleted too. This cannot be undone.",
+    confirmLabel: "Remove instance",
+  });
+  if (!confirmed) return;
+
   trigger.setAttribute("disabled", "");
 
   try {

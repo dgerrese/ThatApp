@@ -9,12 +9,19 @@ interface StubInstance {
   createdAt: string;
 }
 
+interface InstancesStub {
+  deleteCount: () => number;
+}
+
 /**
  * Stubs the instances API in the browser, so the spec covers the view rather
  * than the server. The server's own behaviour is covered by httptest, and no
  * test anywhere contacts a real Jira instance.
  */
-async function stubInstancesApi(page: Page, options: { testStatus: number }): Promise<void> {
+async function stubInstancesApi(
+  page: Page,
+  options: { testStatus: number },
+): Promise<InstancesStub> {
   const instances: StubInstance[] = [];
 
   await page.route("**/api/instances", async (route) => {
@@ -46,6 +53,26 @@ async function stubInstancesApi(page: Page, options: { testStatus: number }): Pr
       json: { code: "credentials_rejected", message: "Jira rejected the email and API token" },
     });
   });
+
+  let deletes = 0;
+
+  // A single path segment, so this never catches /api/instances/{id}/test.
+  await page.route("**/api/instances/*", async (route) => {
+    if (route.request().method() !== "DELETE") {
+      await route.fallback();
+      return;
+    }
+
+    const id = Number(new URL(route.request().url()).pathname.split("/").pop());
+    const index = instances.findIndex((instance) => instance.id === id);
+    if (index >= 0) {
+      instances.splice(index, 1);
+    }
+    deletes += 1;
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  return { deleteCount: () => deletes };
 }
 
 async function addInstance(page: Page): Promise<void> {
@@ -104,4 +131,51 @@ test("settings is reachable from the shell nav", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
+});
+
+test("removing an instance asks first, and cancelling changes nothing", async ({ page }) => {
+  const stub = await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+
+  await page.getByRole("button", { name: "Remove" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Work");
+  await expect(dialog).toContainText("cannot be undone");
+
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
+  expect(stub.deleteCount()).toBe(0);
+});
+
+test("confirming the dialog removes the instance", async ({ page }) => {
+  const stub = await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+
+  await page.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Remove instance" }).click();
+
+  await expect(page.getByText("No instances yet. Add one below.")).toBeVisible();
+  expect(stub.deleteCount()).toBe(1);
+});
+
+// Esc is the platform's own dismissal path, so a regression here would be silent.
+test("pressing Escape cancels the removal", async ({ page }) => {
+  const stub = await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+
+  await page.getByRole("button", { name: "Remove" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  await page.keyboard.press("Escape");
+
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
+  expect(stub.deleteCount()).toBe(0);
 });
