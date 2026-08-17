@@ -250,3 +250,44 @@ test("an in-flight connection test survives another row being saved", async ({ p
 
   await expect(page.getByText("Connected as Dion.")).toBeVisible({ timeout: 5000 });
 });
+
+// A reused row's handlers must read the current instance, not the one the row
+// was originally built from, or a destructive confirmation can name the wrong
+// (stale) instance even though the delete itself still targets the right id.
+test("removing a renamed instance names the confirm dialog correctly", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Renamed", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Remove" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Renamed");
+});
+
+// patchRow must re-evaluate the warning on every reconciled row, not just at
+// creation — the brief's original "re-rendered through the edit path anyway"
+// reasoning held only under the wholesale rebuild this ticket removed.
+test("editing an instance to add its site URL clears the missing-URL warning", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+
+  await page.getByLabel("Name").fill("No Site");
+  await page.getByLabel("Account email").fill("me@example.com");
+  await page.getByLabel("API token", { exact: true }).fill("secret");
+  await page.getByRole("button", { name: "Add instance" }).click();
+
+  await expect(page.getByText("This instance has no site URL")).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Site URL").fill("https://example.atlassian.net");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(page.getByText("This instance has no site URL")).toBeHidden();
+});

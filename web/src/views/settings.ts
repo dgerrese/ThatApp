@@ -132,10 +132,19 @@ function emptyNotice(): HTMLElement {
   return empty;
 }
 
+// Handlers close over this per-row state rather than the instance parameter
+// instanceRow was called with, so a row reused by reconcileList reads the
+// current instance on click instead of the one it happened to be built from.
+// Keyed by the row element (not module-level) so it is collected with the row.
+const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
+
 function instanceRow(regions: Regions, instance: Instance): HTMLElement {
   const row = document.createElement("li");
   row.className = "py-3";
   row.dataset["instanceId"] = String(instance.id);
+
+  const state = { instance };
+  rowState.set(row, state);
 
   const heading = document.createElement("div");
   heading.className = "flex items-center justify-between gap-3";
@@ -163,25 +172,14 @@ function instanceRow(regions: Regions, instance: Instance): HTMLElement {
   status.className = "mt-2 empty:mt-0";
   row.append(status);
 
-  // A migrated row that held a gateway URL: REST calls still work, but #5 has no
-  // URL to link an issue to until the user supplies one.
-  if (instance.siteUrl === "") {
-    row.append(
-      alertFor(
-        "warning",
-        "This instance has no site URL, so issue links are unavailable. Edit it to add one.",
-      ),
-    );
-  }
-
   test.addEventListener("click", () => {
-    void runConnectionTest(instance, test, status);
+    void runConnectionTest(state.instance, test, status);
   });
   edit.addEventListener("click", () => {
-    showForm(regions, instance);
+    showForm(regions, state.instance);
   });
   remove.addEventListener("click", () => {
-    void removeInstance(regions, instance, remove, status);
+    void removeInstance(regions, state.instance, remove, status);
   });
 
   patchRow(row, instance);
@@ -190,6 +188,11 @@ function instanceRow(regions: Regions, instance: Instance): HTMLElement {
 }
 
 function patchRow(row: HTMLElement, instance: Instance): void {
+  const state = rowState.get(row);
+  if (state) {
+    state.instance = instance;
+  }
+
   const name = row.querySelector<HTMLElement>("[data-row-name]");
   const detail = row.querySelector<HTMLElement>("[data-row-detail]");
   if (name) {
@@ -197,6 +200,23 @@ function patchRow(row: HTMLElement, instance: Instance): void {
   }
   if (detail) {
     detail.textContent = `${instance.email} · ${instance.siteUrl || "no site URL"}`;
+  }
+
+  // A migrated row that held a gateway URL: REST calls still work, but #5 has no
+  // URL to link an issue to until the user supplies one. Re-evaluated on every
+  // patch, since editing can add or remove the site URL without a page reload.
+  const warning = row.querySelector<HTMLElement>("[data-site-url-warning]");
+  if (instance.siteUrl === "") {
+    if (!warning) {
+      const alert = alertFor(
+        "warning",
+        "This instance has no site URL, so issue links are unavailable. Edit it to add one.",
+      );
+      alert.dataset["siteUrlWarning"] = "";
+      row.append(alert);
+    }
+  } else {
+    warning?.remove();
   }
 }
 
