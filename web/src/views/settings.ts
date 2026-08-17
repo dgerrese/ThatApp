@@ -1,80 +1,161 @@
 import "../components/wd-alert";
 import "../components/wd-button";
 import "../components/wd-card";
+import "../components/wd-confirm";
 
 import { ApiError, createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
+import { confirmDestructive } from "../components/wd-confirm";
 import { setThemePreference, themePreference } from "../theme";
 import type { Instance } from "../types";
 import type { ThemePreference } from "../theme";
 
+interface Regions {
+  errorSlot: HTMLElement;
+  listCard: HTMLElement;
+  formCard: HTMLElement;
+}
+
 export async function render(root: HTMLElement): Promise<void> {
-  const container = document.createElement("div");
-  container.className = "space-y-6";
+  const regions: Regions = {
+    errorSlot: document.createElement("div"),
+    listCard: document.createElement("div"),
+    formCard: document.createElement("div"),
+  };
+  regions.formCard.className = "mt-6";
 
   // wd-card overwrites its own className on connect, so the spacing lives on a
-  // wrapper. Appearance sits outside `container` because refresh() replaces
-  // that element's children on every mutation.
+  // wrapper. Appearance sits outside the regions refresh() touches.
   const appearance = document.createElement("div");
   appearance.className = "mt-6";
   appearance.append(appearanceCard());
 
-  root.append(container, appearance);
+  root.append(regions.errorSlot, regions.listCard, regions.formCard, appearance);
 
-  await refresh(container);
+  showForm(regions, undefined);
+  await refresh(regions);
 }
 
-async function refresh(container: HTMLElement): Promise<void> {
-  container.replaceChildren();
-
+// regions is captured by every closure this function and its callees create
+// (button handlers, save()), so a render() superseded by a later navigation
+// still writes into its own detached elements when it resolves late, never
+// into whatever is now on screen.
+async function refresh(regions: Regions): Promise<void> {
   let instances: Instance[];
   try {
     instances = await listInstances();
   } catch (error) {
-    container.append(alertFor("error", messageOf(error)));
+    regions.errorSlot.replaceChildren(alertFor("error", messageOf(error)));
+
     return;
   }
 
-  container.append(instanceList(container, instances), instanceForm(container, undefined));
+  regions.errorSlot.replaceChildren();
+  reconcileList(regions, instances);
 }
 
-function instanceList(container: HTMLElement, instances: Instance[]): HTMLElement {
-  const card = document.createElement("wd-card");
-  card.setAttribute("heading", "Jira instances");
+function reconcileList(regions: Regions, instances: Instance[]): void {
+  const card = regions.listCard.querySelector<HTMLElement>("wd-card") ?? newListCard(regions);
+
+  // Never replaceChildren() on the card itself: wd-card injects its heading once,
+  // in connectedCallback, so wiping its children deletes the heading with no way
+  // to get it back.
+  const notice = card.querySelector("[data-empty-notice]");
+  let list = card.querySelector("ul");
 
   if (instances.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "text-sm text-ink-muted";
-    empty.textContent = "No instances yet. Add one below.";
-    card.append(empty);
+    list?.remove();
+    if (!notice) {
+      card.append(emptyNotice());
+    }
 
-    return card;
+    return;
   }
 
-  const list = document.createElement("ul");
-  list.className = "divide-y divide-edge";
+  notice?.remove();
+  if (!list) {
+    list = newList();
+    card.append(list);
+  }
+
+  const existing = new Map<string, HTMLElement>();
+  for (const row of list.querySelectorAll<HTMLElement>("li[data-instance-id]")) {
+    const key = row.dataset["instanceId"];
+    if (key !== undefined) {
+      existing.set(key, row);
+    }
+  }
+
+  // Appending a node that is already a child moves it, so this also enforces
+  // the server's ordering without a separate pass.
   for (const instance of instances) {
-    list.append(instanceRow(container, instance));
+    const key = String(instance.id);
+    const row = existing.get(key);
+    if (row) {
+      existing.delete(key);
+      patchRow(row, instance);
+      list.append(row);
+    } else {
+      list.append(instanceRow(regions, instance));
+    }
   }
-  card.append(list);
+
+  for (const stale of existing.values()) {
+    stale.remove();
+  }
+}
+
+function showForm(regions: Regions, editing: Instance | undefined): void {
+  regions.formCard.replaceChildren(instanceForm(regions, editing));
+}
+
+function newListCard(regions: Regions): HTMLElement {
+  const card = document.createElement("wd-card");
+  card.setAttribute("heading", "Jira instances");
+  regions.listCard.replaceChildren(card);
 
   return card;
 }
 
-function instanceRow(container: HTMLElement, instance: Instance): HTMLElement {
+function newList(): HTMLUListElement {
+  const list = document.createElement("ul");
+  list.className = "divide-y divide-edge";
+
+  return list;
+}
+
+function emptyNotice(): HTMLElement {
+  const empty = document.createElement("p");
+  empty.dataset["emptyNotice"] = "";
+  empty.className = "text-sm text-ink-muted";
+  empty.textContent = "No instances yet. Add one below.";
+
+  return empty;
+}
+
+// Handlers close over this per-row state rather than the instance parameter
+// instanceRow was called with, so a row reused by reconcileList reads the
+// current instance on click instead of the one it happened to be built from.
+// Keyed by the row element (not module-level) so it is collected with the row.
+const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
+
+function instanceRow(regions: Regions, instance: Instance): HTMLElement {
   const row = document.createElement("li");
   row.className = "py-3";
   row.dataset["instanceId"] = String(instance.id);
+
+  const state = { instance };
+  rowState.set(row, state);
 
   const heading = document.createElement("div");
   heading.className = "flex items-center justify-between gap-3";
 
   const labels = document.createElement("div");
   const name = document.createElement("p");
+  name.dataset["rowName"] = "";
   name.className = "font-medium";
-  name.textContent = instance.name;
   const detail = document.createElement("p");
+  detail.dataset["rowDetail"] = "";
   detail.className = "text-sm text-ink-muted";
-  detail.textContent = `${instance.email} · ${instance.siteUrl || "no site URL"}`;
   labels.append(name, detail);
 
   const actions = document.createElement("div");
@@ -89,30 +170,67 @@ function instanceRow(container: HTMLElement, instance: Instance): HTMLElement {
 
   const status = document.createElement("div");
   status.className = "mt-2 empty:mt-0";
+  status.dataset["rowStatus"] = "";
   row.append(status);
 
-  // A migrated row that held a gateway URL: REST calls still work, but #5 has no
-  // URL to link an issue to until the user supplies one.
-  if (instance.siteUrl === "") {
-    row.append(
-      alertFor(
-        "warning",
-        "This instance has no site URL, so issue links are unavailable. Edit it to add one.",
-      ),
-    );
-  }
-
   test.addEventListener("click", () => {
-    void runConnectionTest(instance, test, status);
+    void runConnectionTest(state.instance, test, status);
   });
   edit.addEventListener("click", () => {
-    container.replaceChildren(instanceForm(container, instance));
+    showForm(regions, state.instance);
   });
   remove.addEventListener("click", () => {
-    void removeInstance(container, instance, remove, status);
+    void removeInstance(regions, state.instance, remove, status);
   });
 
+  patchRow(row, instance);
+
   return row;
+}
+
+function patchRow(row: HTMLElement, instance: Instance): void {
+  const state = rowState.get(row);
+  if (state) {
+    state.instance = instance;
+  }
+
+  const name = row.querySelector<HTMLElement>("[data-row-name]");
+  const detail = row.querySelector<HTMLElement>("[data-row-detail]");
+  if (name) {
+    name.textContent = instance.name;
+  }
+  if (detail) {
+    detail.textContent = `${instance.email} · ${instance.siteUrl || "no site URL"}`;
+  }
+
+  // A migrated row that held a gateway URL: REST calls still work, but #5 has no
+  // URL to link an issue to until the user supplies one. Re-evaluated on every
+  // patch, since editing can add or remove the site URL without a page reload.
+  const warning = row.querySelector<HTMLElement>("[data-site-url-warning]");
+  if (instance.siteUrl === "") {
+    if (!warning) {
+      const alert = alertFor(
+        "warning",
+        "This instance has no site URL, so issue links are unavailable. Edit it to add one.",
+      );
+      alert.dataset["siteUrlWarning"] = "";
+      row.append(alert);
+    }
+  } else {
+    warning?.remove();
+  }
+}
+
+// A saved token is never echoed back by the API (Instance carries no token
+// field), so a token-only edit is invisible to any comparison of the
+// reconciled Instance against its prior state — patchRow cannot detect it.
+// Clearing here instead, scoped to the one row that was just saved, reaches
+// that case too and — because it is scoped to that id — never touches a
+// sibling row's own in-flight "Testing…" the way an unconditional clear in
+// patchRow's per-row reconcile pass would.
+function clearRowStatus(regions: Regions, instanceId: number): void {
+  const row = regions.listCard.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
+  row?.querySelector<HTMLElement>("[data-row-status]")?.replaceChildren();
 }
 
 async function runConnectionTest(
@@ -134,25 +252,43 @@ async function runConnectionTest(
 }
 
 async function removeInstance(
-  container: HTMLElement,
+  regions: Regions,
   instance: Instance,
   trigger: HTMLElement,
   status: HTMLElement,
 ): Promise<void> {
+  const confirmed = await confirmDestructive({
+    heading: `Remove ${instance.name}?`,
+    body: "Its pinned issues and any time logged against it are deleted too. This cannot be undone.",
+    confirmLabel: "Remove instance",
+  });
+  if (!confirmed) return;
+
   trigger.setAttribute("disabled", "");
 
   try {
     await deleteInstance(instance.id);
-    await refresh(container);
+    await refresh(regions);
+
+    // The list persists beside the form now, so Remove is reachable while that
+    // same instance is being edited. Left alone, the form would still read
+    // "Edit <name>" and PATCH an id SQLite is free to hand to whatever
+    // instance is created next (no AUTOINCREMENT on instances.id).
+    if (regions.formCard.querySelector(`[data-editing-id="${instance.id}"]`)) {
+      showForm(regions, undefined);
+    }
   } catch (error) {
     status.replaceChildren(alertFor("error", messageOf(error)));
     trigger.removeAttribute("disabled");
   }
 }
 
-function instanceForm(container: HTMLElement, editing: Instance | undefined): HTMLElement {
+function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElement {
   const card = document.createElement("wd-card");
   card.setAttribute("heading", editing ? `Edit ${editing.name}` : "Add an instance");
+  if (editing) {
+    card.dataset["editingId"] = String(editing.id);
+  }
 
   const form = document.createElement("form");
   form.className = "space-y-3";
@@ -171,7 +307,19 @@ function instanceForm(container: HTMLElement, editing: Instance | undefined): HT
   const status = document.createElement("div");
   const submit = button(editing ? "Save changes" : "Add instance", "primary");
 
-  form.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper, status, submit);
+  const actions = document.createElement("div");
+  actions.className = "flex gap-2";
+  actions.append(submit);
+
+  if (editing) {
+    const cancel = button("Cancel changes", "secondary");
+    cancel.addEventListener("click", () => {
+      showForm(regions, undefined);
+    });
+    actions.append(cancel);
+  }
+
+  form.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper, status, actions);
   card.append(form);
 
   // wd-button renders a real <button type="button">, so it does not submit the
@@ -197,7 +345,11 @@ function instanceForm(container: HTMLElement, editing: Instance | undefined): HT
       } else {
         await createInstance(draft);
       }
-      await refresh(container);
+      await refresh(regions);
+      if (editing) {
+        clearRowStatus(regions, editing.id);
+      }
+      showForm(regions, undefined);
     } catch (error) {
       status.replaceChildren(alertFor("error", messageOf(error)));
       submit.removeAttribute("disabled");
