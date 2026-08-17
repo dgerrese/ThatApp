@@ -470,12 +470,12 @@ export async function render(root: HTMLElement): Promise<void> {
   await refresh();
 }
 
-async function refresh(): Promise<void> {
+async function refresh(regions: Regions): Promise<void> {
   let instances: Instance[];
   try {
     instances = await listInstances();
   } catch (error) {
-    errorSlot.replaceChildren(alertFor("error", messageOf(error)));
+    regions.errorSlot.replaceChildren(alertFor("error", messageOf(error)));
 
     return;
   }
@@ -489,9 +489,25 @@ function showForm(editing: Instance | undefined): void {
 }
 ```
 
-Module-level `let` bindings rather than threading three elements through every function: this view
-is a singleton — `render()` is called once per navigation and the router replaces `#view` wholesale
-— and passing them down would touch every signature for nothing.
+**Corrected 2026-08-17 after Task 2's review — this plan originally specified module-level `let`
+bindings for the three regions, justified as "the view is a singleton". That premise is false:
+`web/src/router.ts` reuses one persistent `mountPoint` and `renderCurrent()` has no cancellation, so
+two overlapping navigations can leave a stale `refresh()` writing through shared bindings into the
+*live* view. Thread a `Regions` object instead — one per `render()` call, closed over by that
+render's handlers, so a late resolution writes into detached DOM as it did before this ticket.**
+
+```ts
+interface Regions {
+  errorSlot: HTMLElement;
+  listCard: HTMLElement;
+  formCard: HTMLElement;
+}
+```
+
+`refresh(regions)`, `showForm(regions, editing)`, `instanceList(regions, instances)`,
+`instanceRow(regions, instance)`, `instanceForm(regions, editing)` and
+`removeInstance(regions, instance, trigger, status)` each take it, exactly where `container` used to
+sit.
 
 The error slot is separate from the list card, which is what lets a failed initial load show the
 error *and* the Add form instead of an empty page.
@@ -617,22 +633,22 @@ row holding the pending result is discarded. Paste the output.
 Replace `refresh`'s success path and `instanceList` with:
 
 ```ts
-async function refresh(): Promise<void> {
+async function refresh(regions: Regions): Promise<void> {
   let instances: Instance[];
   try {
     instances = await listInstances();
   } catch (error) {
-    errorSlot.replaceChildren(alertFor("error", messageOf(error)));
+    regions.errorSlot.replaceChildren(alertFor("error", messageOf(error)));
 
     return;
   }
 
-  errorSlot.replaceChildren();
-  reconcileList(instances);
+  regions.errorSlot.replaceChildren();
+  reconcileList(regions, instances);
 }
 
-function reconcileList(instances: Instance[]): void {
-  const card = listCard.querySelector<HTMLElement>("wd-card") ?? emptyListCard();
+function reconcileList(regions: Regions, instances: Instance[]): void {
+  const card = regions.listCard.querySelector<HTMLElement>("wd-card") ?? emptyListCard(regions);
 
   // Never replaceChildren() on the card itself: wd-card injects its heading once,
   // in connectedCallback, so wiping its children deletes the heading with no way
@@ -673,7 +689,7 @@ function reconcileList(instances: Instance[]): void {
       patchRow(row, instance);
       list.append(row);
     } else {
-      list.append(instanceRow(instance));
+      list.append(instanceRow(regions, instance));
     }
   }
 
@@ -686,10 +702,10 @@ function reconcileList(instances: Instance[]): void {
 with these three helpers, next to the other local helpers:
 
 ```ts
-function emptyListCard(): HTMLElement {
+function emptyListCard(regions: Regions): HTMLElement {
   const card = document.createElement("wd-card");
   card.setAttribute("heading", "Jira instances");
-  listCard.replaceChildren(card);
+  regions.listCard.replaceChildren(card);
 
   return card;
 }
