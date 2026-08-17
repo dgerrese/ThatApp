@@ -14,7 +14,7 @@ export class WdConfirm extends HTMLElement {
 
     const dialog = document.createElement("dialog");
     dialog.className =
-      "max-w-sm rounded-lg border border-edge bg-raised p-4 text-ink shadow-sm backdrop:bg-transparent";
+      "max-w-sm rounded-lg border border-edge bg-raised p-4 text-ink shadow-sm";
 
     const heading = document.createElement("h2");
     heading.id = "wd-confirm-heading";
