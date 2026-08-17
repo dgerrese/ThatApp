@@ -68,8 +68,8 @@ a real dependency on that decision rather than a free choice.
 
 ## The token vocabulary
 
-Nineteen tokens, derived from the twenty-eight colour utilities the app uses today rather than
-invented. Each names both palettes in one declaration, so there is no second block to keep in sync.
+Twenty tokens, derived from the colour utilities the app uses today rather than invented. Each names
+both palettes in one declaration, so there is no second block to keep in sync.
 
 Names are chosen for how they read at the call site, since that is where they are typed. Tailwind
 generates a utility per token, so `--color-border` would produce `border-border` and a tone's
@@ -98,6 +98,7 @@ background would produce `bg-danger-bg`. Hence `edge` for hairlines and `tint` f
   --color-danger-ink:          light-dark(#7f1d1d, #fecaca);
   --color-danger-solid:        light-dark(#dc2626, #dc2626);
   --color-danger-solid-hover:  light-dark(#b91c1c, #ef4444);
+  --color-danger-solid-ink:    light-dark(#ffffff, #ffffff);  /* label on solid */
   --color-success-tint:        light-dark(#f0fdf4, #052e16);
   --color-success-edge:        light-dark(#86efac, #166534);
   --color-success-ink:         light-dark(#14532d, #bbf7d0);
@@ -114,6 +115,13 @@ background would produce `bg-danger-bg`. Hence `edge` for hairlines and `tint` f
 `--color-danger-solid` is deliberately the same in both palettes: a destructive action should not
 soften in dark mode. Only its hover state lightens, because the light-mode hover darkens and that
 reads as *less* prominent against a dark surface.
+
+`--color-danger-solid-ink` is white in both palettes for the same reason — it labels the red button,
+not the page, so it must not invert with the theme the way `--color-accent-ink` does. It is a token
+rather than a bare `text-white` so that the criterion below — no stock colour utility left in
+`web/src/` — stays literally true and greppable. **Added 2026-08-17 while planning**, on finding that
+the danger variant's label had no token that fits: `accent-ink` is near-black in dark mode, which
+would put dark text on red.
 
 ## First paint
 
@@ -179,7 +187,7 @@ In scope. Without it the tokens exist and nothing uses them.
 | `web/index.html` | body → `bg-surface text-ink`; header link → `text-ink-muted hover:text-ink` |
 | `web/src/router.ts` | placeholder paragraph → `text-ink-muted`; its link → `text-link` |
 | `web/src/components/wd-card.ts` | `bg-white border-neutral-200` → `bg-raised border-edge` |
-| `web/src/components/wd-button.ts` | primary → `bg-accent text-accent-ink`; secondary → `border-edge text-ink`; danger → `bg-danger-solid hover:bg-danger-solid-hover` |
+| `web/src/components/wd-button.ts` | primary → `bg-accent text-accent-ink`; secondary → `bg-raised border-edge text-ink`; danger → `bg-danger-solid text-danger-solid-ink hover:bg-danger-solid-hover` |
 | `web/src/components/wd-alert.ts` | each tone → `bg-{tone}-tint border-{tone}-edge text-{tone}-ink` |
 | `web/src/views/settings.ts` | inputs → `border-edge focus:border-ink`; link → `text-link`; `divide-neutral-200` → `divide-edge` |
 
