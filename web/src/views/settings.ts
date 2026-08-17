@@ -9,16 +9,19 @@ import { setThemePreference, themePreference } from "../theme";
 import type { Instance } from "../types";
 import type { ThemePreference } from "../theme";
 
-let listCard: HTMLElement;
-let formCard: HTMLElement;
-let errorSlot: HTMLElement;
+interface Regions {
+  errorSlot: HTMLElement;
+  listCard: HTMLElement;
+  formCard: HTMLElement;
+}
 
 export async function render(root: HTMLElement): Promise<void> {
-  errorSlot = document.createElement("div");
-
-  listCard = document.createElement("div");
-  formCard = document.createElement("div");
-  formCard.className = "mt-6";
+  const regions: Regions = {
+    errorSlot: document.createElement("div"),
+    listCard: document.createElement("div"),
+    formCard: document.createElement("div"),
+  };
+  regions.formCard.className = "mt-6";
 
   // wd-card overwrites its own className on connect, so the spacing lives on a
   // wrapper. Appearance sits outside the regions refresh() touches.
@@ -26,31 +29,35 @@ export async function render(root: HTMLElement): Promise<void> {
   appearance.className = "mt-6";
   appearance.append(appearanceCard());
 
-  root.append(errorSlot, listCard, formCard, appearance);
+  root.append(regions.errorSlot, regions.listCard, regions.formCard, appearance);
 
-  showForm(undefined);
-  await refresh();
+  showForm(regions, undefined);
+  await refresh(regions);
 }
 
-async function refresh(): Promise<void> {
+// regions is captured by every closure this function and its callees create
+// (button handlers, save()), so a render() superseded by a later navigation
+// still writes into its own detached elements when it resolves late, never
+// into whatever is now on screen.
+async function refresh(regions: Regions): Promise<void> {
   let instances: Instance[];
   try {
     instances = await listInstances();
   } catch (error) {
-    errorSlot.replaceChildren(alertFor("error", messageOf(error)));
+    regions.errorSlot.replaceChildren(alertFor("error", messageOf(error)));
 
     return;
   }
 
-  errorSlot.replaceChildren();
-  listCard.replaceChildren(instanceList(instances));
+  regions.errorSlot.replaceChildren();
+  regions.listCard.replaceChildren(instanceList(regions, instances));
 }
 
-function showForm(editing: Instance | undefined): void {
-  formCard.replaceChildren(instanceForm(editing));
+function showForm(regions: Regions, editing: Instance | undefined): void {
+  regions.formCard.replaceChildren(instanceForm(regions, editing));
 }
 
-function instanceList(instances: Instance[]): HTMLElement {
+function instanceList(regions: Regions, instances: Instance[]): HTMLElement {
   const card = document.createElement("wd-card");
   card.setAttribute("heading", "Jira instances");
 
@@ -66,14 +73,14 @@ function instanceList(instances: Instance[]): HTMLElement {
   const list = document.createElement("ul");
   list.className = "divide-y divide-edge";
   for (const instance of instances) {
-    list.append(instanceRow(instance));
+    list.append(instanceRow(regions, instance));
   }
   card.append(list);
 
   return card;
 }
 
-function instanceRow(instance: Instance): HTMLElement {
+function instanceRow(regions: Regions, instance: Instance): HTMLElement {
   const row = document.createElement("li");
   row.className = "py-3";
   row.dataset["instanceId"] = String(instance.id);
@@ -119,10 +126,10 @@ function instanceRow(instance: Instance): HTMLElement {
     void runConnectionTest(instance, test, status);
   });
   edit.addEventListener("click", () => {
-    showForm(instance);
+    showForm(regions, instance);
   });
   remove.addEventListener("click", () => {
-    void removeInstance(instance, remove, status);
+    void removeInstance(regions, instance, remove, status);
   });
 
   return row;
@@ -147,6 +154,7 @@ async function runConnectionTest(
 }
 
 async function removeInstance(
+  regions: Regions,
   instance: Instance,
   trigger: HTMLElement,
   status: HTMLElement,
@@ -162,14 +170,14 @@ async function removeInstance(
 
   try {
     await deleteInstance(instance.id);
-    await refresh();
+    await refresh(regions);
   } catch (error) {
     status.replaceChildren(alertFor("error", messageOf(error)));
     trigger.removeAttribute("disabled");
   }
 }
 
-function instanceForm(editing: Instance | undefined): HTMLElement {
+function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElement {
   const card = document.createElement("wd-card");
   card.setAttribute("heading", editing ? `Edit ${editing.name}` : "Add an instance");
 
@@ -197,7 +205,7 @@ function instanceForm(editing: Instance | undefined): HTMLElement {
   if (editing) {
     const cancel = button("Cancel changes", "secondary");
     cancel.addEventListener("click", () => {
-      showForm(undefined);
+      showForm(regions, undefined);
     });
     actions.append(cancel);
   }
@@ -228,8 +236,8 @@ function instanceForm(editing: Instance | undefined): HTMLElement {
       } else {
         await createInstance(draft);
       }
-      await refresh();
-      showForm(undefined);
+      await refresh(regions);
+      showForm(regions, undefined);
     } catch (error) {
       status.replaceChildren(alertFor("error", messageOf(error)));
       submit.removeAttribute("disabled");
