@@ -54,7 +54,7 @@ async function refresh(regions: Regions): Promise<void> {
 }
 
 function reconcileList(regions: Regions, instances: Instance[]): void {
-  const card = regions.listCard.querySelector<HTMLElement>("wd-card") ?? emptyListCard(regions);
+  const card = regions.listCard.querySelector<HTMLElement>("wd-card") ?? newListCard(regions);
 
   // Never replaceChildren() on the card itself: wd-card injects its heading once,
   // in connectedCallback, so wiping its children deletes the heading with no way
@@ -108,7 +108,7 @@ function showForm(regions: Regions, editing: Instance | undefined): void {
   regions.formCard.replaceChildren(instanceForm(regions, editing));
 }
 
-function emptyListCard(regions: Regions): HTMLElement {
+function newListCard(regions: Regions): HTMLElement {
   const card = document.createElement("wd-card");
   card.setAttribute("heading", "Jira instances");
   regions.listCard.replaceChildren(card);
@@ -170,6 +170,7 @@ function instanceRow(regions: Regions, instance: Instance): HTMLElement {
 
   const status = document.createElement("div");
   status.className = "mt-2 empty:mt-0";
+  status.dataset["rowStatus"] = "";
   row.append(status);
 
   test.addEventListener("click", () => {
@@ -220,6 +221,18 @@ function patchRow(row: HTMLElement, instance: Instance): void {
   }
 }
 
+// A saved token is never echoed back by the API (Instance carries no token
+// field), so a token-only edit is invisible to any comparison of the
+// reconciled Instance against its prior state — patchRow cannot detect it.
+// Clearing here instead, scoped to the one row that was just saved, reaches
+// that case too and — because it is scoped to that id — never touches a
+// sibling row's own in-flight "Testing…" the way an unconditional clear in
+// patchRow's per-row reconcile pass would.
+function clearRowStatus(regions: Regions, instanceId: number): void {
+  const row = regions.listCard.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
+  row?.querySelector<HTMLElement>("[data-row-status]")?.replaceChildren();
+}
+
 async function runConnectionTest(
   instance: Instance,
   trigger: HTMLElement,
@@ -256,6 +269,14 @@ async function removeInstance(
   try {
     await deleteInstance(instance.id);
     await refresh(regions);
+
+    // The list persists beside the form now, so Remove is reachable while that
+    // same instance is being edited. Left alone, the form would still read
+    // "Edit <name>" and PATCH an id SQLite is free to hand to whatever
+    // instance is created next (no AUTOINCREMENT on instances.id).
+    if (regions.formCard.querySelector(`[data-editing-id="${instance.id}"]`)) {
+      showForm(regions, undefined);
+    }
   } catch (error) {
     status.replaceChildren(alertFor("error", messageOf(error)));
     trigger.removeAttribute("disabled");
@@ -265,6 +286,9 @@ async function removeInstance(
 function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElement {
   const card = document.createElement("wd-card");
   card.setAttribute("heading", editing ? `Edit ${editing.name}` : "Add an instance");
+  if (editing) {
+    card.dataset["editingId"] = String(editing.id);
+  }
 
   const form = document.createElement("form");
   form.className = "space-y-3";
@@ -322,6 +346,9 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
         await createInstance(draft);
       }
       await refresh(regions);
+      if (editing) {
+        clearRowStatus(regions, editing.id);
+      }
       showForm(regions, undefined);
     } catch (error) {
       status.replaceChildren(alertFor("error", messageOf(error)));

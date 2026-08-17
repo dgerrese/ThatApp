@@ -13,8 +13,11 @@ export class WdConfirm extends HTMLElement {
     if (this.querySelector("dialog")) return;
 
     const dialog = document.createElement("dialog");
+    // Preflight's `* { margin: 0 }` is author origin, which beats the UA's own
+    // `dialog { margin: auto }` regardless of specificity — without this the
+    // dialog resolves to the top-left corner in both Firefox and Chromium.
     dialog.className =
-      "max-w-sm rounded-lg border border-edge bg-raised p-4 text-ink shadow-sm";
+      "m-auto max-w-sm rounded-lg border border-edge bg-raised p-4 text-ink shadow-sm";
 
     const heading = document.createElement("h2");
     heading.id = "wd-confirm-heading";
