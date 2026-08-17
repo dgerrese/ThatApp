@@ -4,7 +4,7 @@
  */
 export class WdCard extends HTMLElement {
   connectedCallback(): void {
-    this.className = "block rounded-lg border border-neutral-200 bg-white p-4 shadow-sm";
+    this.className = "block rounded-lg border border-edge bg-raised p-4 shadow-sm";
 
     const heading = this.getAttribute("heading");
     if (heading && !this.querySelector("[data-card-heading]")) {

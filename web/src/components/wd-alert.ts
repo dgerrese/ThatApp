@@ -1,7 +1,7 @@
 const TONES: Record<string, string> = {
-  success: "border-green-300 bg-green-50 text-green-900",
-  error: "border-red-300 bg-red-50 text-red-900",
-  warning: "border-amber-300 bg-amber-50 text-amber-900",
+  success: "border-success-edge bg-success-tint text-success-ink",
+  error: "border-danger-edge bg-danger-tint text-danger-ink",
+  warning: "border-warning-edge bg-warning-tint text-warning-ink",
 };
 
 /**

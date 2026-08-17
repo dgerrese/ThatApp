@@ -83,3 +83,16 @@ test("choosing Auto after Dark follows the OS again", async ({ page }) => {
 
   await expect(page.getByRole("radio", { name: "Auto" })).toBeChecked();
 });
+
+test("cards and buttons take the dark palette too", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await openSettings(page);
+
+  const card = page.locator("wd-card").first();
+  await expect(card).toHaveCSS("background-color", "rgb(23, 23, 23)");
+  await expect(card).toHaveCSS("border-color", "rgb(38, 38, 38)");
+
+  const addButton = page.getByRole("button", { name: "Add instance" });
+  await expect(addButton).toHaveCSS("background-color", "rgb(245, 245, 245)");
+  await expect(addButton).toHaveCSS("color", "rgb(10, 10, 10)");
+});

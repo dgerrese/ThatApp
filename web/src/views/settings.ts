@@ -43,7 +43,7 @@ function instanceList(container: HTMLElement, instances: Instance[]): HTMLElemen
 
   if (instances.length === 0) {
     const empty = document.createElement("p");
-    empty.className = "text-sm text-neutral-600";
+    empty.className = "text-sm text-ink-muted";
     empty.textContent = "No instances yet. Add one below.";
     card.append(empty);
 
@@ -51,7 +51,7 @@ function instanceList(container: HTMLElement, instances: Instance[]): HTMLElemen
   }
 
   const list = document.createElement("ul");
-  list.className = "divide-y divide-neutral-200";
+  list.className = "divide-y divide-edge";
   for (const instance of instances) {
     list.append(instanceRow(container, instance));
   }
@@ -73,7 +73,7 @@ function instanceRow(container: HTMLElement, instance: Instance): HTMLElement {
   name.className = "font-medium";
   name.textContent = instance.name;
   const detail = document.createElement("p");
-  detail.className = "text-sm text-neutral-600";
+  detail.className = "text-sm text-ink-muted";
   detail.textContent = `${instance.email} · ${instance.siteUrl || "no site URL"}`;
   labels.append(name, detail);
 
@@ -217,7 +217,7 @@ function field(name: string, label: string, type: string, value: string): Field 
   wrapper.className = "block";
 
   const caption = document.createElement("span");
-  caption.className = "mb-1 block text-sm font-medium text-neutral-700";
+  caption.className = "mb-1 block text-sm font-medium text-ink";
   caption.textContent = label;
 
   const input = document.createElement("input");
@@ -225,8 +225,8 @@ function field(name: string, label: string, type: string, value: string): Field 
   input.type = type;
   input.value = value;
   input.className =
-    "w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm " +
-    "focus:border-neutral-900 focus:outline-none";
+    "w-full rounded-md border border-edge px-3 py-1.5 text-sm " +
+    "focus:border-ink focus:outline-none";
 
   wrapper.append(caption, input);
 

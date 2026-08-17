@@ -1,7 +1,7 @@
 const VARIANTS: Record<string, string> = {
-  primary: "bg-neutral-900 text-white hover:bg-neutral-700",
-  secondary: "bg-white text-neutral-900 border border-neutral-300 hover:bg-neutral-50",
-  danger: "bg-red-700 text-white hover:bg-red-600",
+  primary: "bg-accent text-accent-ink hover:opacity-90",
+  secondary: "bg-raised text-ink border border-edge hover:bg-surface",
+  danger: "bg-danger-solid text-danger-solid-ink hover:bg-danger-solid-hover",
 };
 
 /**
