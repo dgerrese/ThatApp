@@ -627,15 +627,29 @@ async function refresh(): Promise<void> {
 }
 
 function reconcileList(instances: Instance[]): void {
-  const card = listCard.querySelector("wd-card") ?? emptyListCard();
+  const card = listCard.querySelector<HTMLElement>("wd-card") ?? emptyListCard();
+
+  // Never replaceChildren() on the card itself: wd-card injects its heading once,
+  // in connectedCallback, so wiping its children deletes the heading with no way
+  // to get it back.
+  const notice = card.querySelector("[data-empty-notice]");
+  let list = card.querySelector("ul");
 
   if (instances.length === 0) {
-    card.replaceChildren(emptyNotice());
+    list?.remove();
+    if (!notice) {
+      card.append(emptyNotice());
+    }
 
     return;
   }
 
-  const list = card.querySelector("ul") ?? newList();
+  notice?.remove();
+  if (!list) {
+    list = newList();
+    card.append(list);
+  }
+
   const existing = new Map<string, HTMLElement>();
   for (const row of list.querySelectorAll<HTMLElement>("li[data-instance-id]")) {
     const key = row.dataset["instanceId"];
@@ -661,8 +675,6 @@ function reconcileList(instances: Instance[]): void {
   for (const stale of existing.values()) {
     stale.remove();
   }
-
-  card.replaceChildren(list);
 }
 ```
 
@@ -677,7 +689,7 @@ function emptyListCard(): HTMLElement {
   return card;
 }
 
-function newList(): HTMLElement {
+function newList(): HTMLUListElement {
   const list = document.createElement("ul");
   list.className = "divide-y divide-edge";
 
@@ -686,6 +698,7 @@ function newList(): HTMLElement {
 
 function emptyNotice(): HTMLElement {
   const empty = document.createElement("p");
+  empty.dataset["emptyNotice"] = "";
   empty.className = "text-sm text-ink-muted";
   empty.textContent = "No instances yet. Add one below.";
 
