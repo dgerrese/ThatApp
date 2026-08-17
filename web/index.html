@@ -6,6 +6,18 @@
     <title>Work Dashboard</title>
     <link rel="stylesheet" href="/app.css" />
     <script type="module" src="/app.js"></script>
+    <script>
+      // Duplicates two lines of src/theme.ts on purpose: this must run before
+      // the module graph loads, so it cannot import them. It only ever
+      // overrides — an absent attribute is the auto state, so doing nothing
+      // when storage throws is the correct behaviour, not a swallowed bug.
+      try {
+        var stored = localStorage.getItem("theme");
+        if (stored === "light" || stored === "dark") {
+          document.documentElement.dataset.theme = stored;
+        }
+      } catch {}
+    </script>
   </head>
   <body class="bg-surface text-ink">
     <main class="mx-auto max-w-3xl p-6">
