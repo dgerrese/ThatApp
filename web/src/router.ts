@@ -66,13 +66,13 @@ function renderPlaceholder(root: HTMLElement): void {
   root.replaceChildren();
 
   const paragraph = document.createElement("p");
-  paragraph.className = "text-neutral-600";
+  paragraph.className = "text-ink-muted";
   paragraph.textContent = "Nothing here yet. Add a Jira instance to get started.";
 
   const link = document.createElement("a");
   link.href = "/settings";
   link.dataset["route"] = "";
-  link.className = "mt-4 inline-block font-medium text-blue-700 underline";
+  link.className = "mt-4 inline-block font-medium text-link underline";
   link.textContent = "Open Settings";
 
   root.append(paragraph, link);
