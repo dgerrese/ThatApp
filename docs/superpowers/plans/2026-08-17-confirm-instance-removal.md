@@ -232,8 +232,7 @@ export class WdConfirm extends HTMLElement {
     if (this.querySelector("dialog")) return;
 
     const dialog = document.createElement("dialog");
-    dialog.className =
-      "max-w-sm rounded-lg border border-edge bg-raised p-4 text-ink shadow-sm backdrop:bg-transparent";
+    dialog.className = "max-w-sm rounded-lg border border-edge bg-raised p-4 text-ink shadow-sm";
 
     const heading = document.createElement("h2");
     heading.id = "wd-confirm-heading";
@@ -314,8 +313,14 @@ export function confirmDestructive(options: {
 }
 ```
 
-`backdrop:bg-transparent` keeps the browser's own backdrop rather than painting one — there is no
-scrim token, and inventing a colour here would break the no-stock-utility rule.
+**Nothing styles `::backdrop`, deliberately.** `showModal()` gets a translucent scrim from the UA
+stylesheet, and author CSS beats UA-origin styles regardless of specificity — so writing any
+`backdrop:` utility, including `backdrop:bg-transparent`, *erases* that dimming rather than
+preserving it. Leaving it to the browser means writing nothing. There is no scrim token, and
+inventing a colour here would break #30's no-stock-utility rule.
+
+*(Corrected 2026-08-17 after Task 1's review: this plan originally mandated
+`backdrop:bg-transparent` with a rationale that was factually backwards.)*
 
 - [ ] **Step 5: Ask before deleting**
 
