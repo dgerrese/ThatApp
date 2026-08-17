@@ -10,8 +10,8 @@ utilities. This introduces a colour vocabulary, a dark palette, and a three-stat
 selects between them.
 
 It is taken out of ticket order deliberately. Only the Settings view exists today, so the retrofit
-is twenty-eight utility usages. Each of #5–#12 adds a view that would otherwise be written against
-hardcoded light colours and need retrofitting afterwards.
+is thirty-three utility usages across six files. Each of #5–#12 adds a view that would otherwise be
+written against hardcoded light colours and need retrofitting afterwards.
 
 ## Decisions taken in brainstorming
 
@@ -177,6 +177,7 @@ In scope. Without it the tokens exist and nothing uses them.
 | File | Change |
 |---|---|
 | `web/index.html` | body → `bg-surface text-ink`; header link → `text-ink-muted hover:text-ink` |
+| `web/src/router.ts` | placeholder paragraph → `text-ink-muted`; its link → `text-link` |
 | `web/src/components/wd-card.ts` | `bg-white border-neutral-200` → `bg-raised border-edge` |
 | `web/src/components/wd-button.ts` | primary → `bg-accent text-accent-ink`; secondary → `border-edge text-ink`; danger → `bg-danger-solid hover:bg-danger-solid-hover` |
 | `web/src/components/wd-alert.ts` | each tone → `bg-{tone}-tint border-{tone}-edge text-{tone}-ink` |
