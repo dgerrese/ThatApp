@@ -760,8 +760,23 @@ which means the two paragraphs in `instanceRow` need the hooks `patchRow` looks 
   detail.className = "text-sm text-ink-muted";
 ```
 
-Leave the no-site-URL warning where it is: it is appended once when the row is built, and an
-instance that gains a site URL is re-rendered through the edit path anyway.
+**Corrected 2026-08-17 after Task 3's review — this plan originally said to leave the no-site-URL
+warning alone, reasoning that "an instance that gains a site URL is re-rendered through the edit
+path anyway". That was true only under the wholesale rebuild this task removes.** A reused row keeps
+whatever warning it was built with, so a user who edits an instance to add its missing site URL keeps
+seeing the warning until a reload. The same root cause makes the row's event handlers close over a
+stale `instance`, so Edit pre-fills pre-edit values and the Remove dialog names the old name.
+
+Give each row a mutable state holder its handlers read through, and make `patchRow` the only writer:
+
+```ts
+const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
+```
+
+`instanceRow` registers `{ instance }` for the row and its handlers read `state.instance`;
+`patchRow` updates `state.instance`, the name and detail text, and adds or removes the
+`data-site-url-warning` alert to match. A `WeakMap` keyed by the row element is per-row and collected
+with it — not the shared module-level state Task 2's fix removed.
 
 - [ ] **Step 5: Run the spec, then the whole suite**
 
