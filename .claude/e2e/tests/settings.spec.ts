@@ -58,12 +58,28 @@ async function stubInstancesApi(
 
   // A single path segment, so this never catches /api/instances/{id}/test.
   await page.route("**/api/instances/*", async (route) => {
-    if (route.request().method() !== "DELETE") {
+    const method = route.request().method();
+    const id = Number(new URL(route.request().url()).pathname.split("/").pop());
+
+    if (method === "PATCH") {
+      const body = route.request().postDataJSON() as { name: string; siteUrl: string; email: string };
+      const existing = instances.find((instance) => instance.id === id);
+      if (!existing) {
+        await route.fulfill({ status: 404, json: { code: "not_found", message: "No such instance" } });
+        return;
+      }
+      existing.name = body.name;
+      existing.siteUrl = body.siteUrl;
+      existing.email = body.email;
+      await route.fulfill({ status: 200, json: existing });
+      return;
+    }
+
+    if (method !== "DELETE") {
       await route.fallback();
       return;
     }
 
-    const id = Number(new URL(route.request().url()).pathname.split("/").pop());
     const index = instances.findIndex((instance) => instance.id === id);
     if (index >= 0) {
       instances.splice(index, 1);
@@ -212,4 +228,25 @@ test("editing can be cancelled", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Add instance" })).toBeVisible();
   await expect(page.getByLabel("Name")).toHaveValue("");
   await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
+});
+
+// The row's node must survive a sibling's save, or the awaited result renders
+// into detached DOM and the user never sees it.
+test("an in-flight connection test survives another row being saved", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+
+  await page.route("**/api/instances/*/test", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.fulfill({ status: 200, json: { accountId: "5b10a2", displayName: "Dion" } });
+  });
+
+  await page.getByRole("button", { name: "Test" }).click();
+  await expect(page.getByText("Testing…")).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(page.getByText("Connected as Dion.")).toBeVisible({ timeout: 5000 });
 });

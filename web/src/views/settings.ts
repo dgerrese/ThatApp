@@ -50,34 +50,86 @@ async function refresh(regions: Regions): Promise<void> {
   }
 
   regions.errorSlot.replaceChildren();
-  regions.listCard.replaceChildren(instanceList(regions, instances));
+  reconcileList(regions, instances);
+}
+
+function reconcileList(regions: Regions, instances: Instance[]): void {
+  const card = regions.listCard.querySelector<HTMLElement>("wd-card") ?? emptyListCard(regions);
+
+  // Never replaceChildren() on the card itself: wd-card injects its heading once,
+  // in connectedCallback, so wiping its children deletes the heading with no way
+  // to get it back.
+  const notice = card.querySelector("[data-empty-notice]");
+  let list = card.querySelector("ul");
+
+  if (instances.length === 0) {
+    list?.remove();
+    if (!notice) {
+      card.append(emptyNotice());
+    }
+
+    return;
+  }
+
+  notice?.remove();
+  if (!list) {
+    list = newList();
+    card.append(list);
+  }
+
+  const existing = new Map<string, HTMLElement>();
+  for (const row of list.querySelectorAll<HTMLElement>("li[data-instance-id]")) {
+    const key = row.dataset["instanceId"];
+    if (key !== undefined) {
+      existing.set(key, row);
+    }
+  }
+
+  // Appending a node that is already a child moves it, so this also enforces
+  // the server's ordering without a separate pass.
+  for (const instance of instances) {
+    const key = String(instance.id);
+    const row = existing.get(key);
+    if (row) {
+      existing.delete(key);
+      patchRow(row, instance);
+      list.append(row);
+    } else {
+      list.append(instanceRow(regions, instance));
+    }
+  }
+
+  for (const stale of existing.values()) {
+    stale.remove();
+  }
 }
 
 function showForm(regions: Regions, editing: Instance | undefined): void {
   regions.formCard.replaceChildren(instanceForm(regions, editing));
 }
 
-function instanceList(regions: Regions, instances: Instance[]): HTMLElement {
+function emptyListCard(regions: Regions): HTMLElement {
   const card = document.createElement("wd-card");
   card.setAttribute("heading", "Jira instances");
-
-  if (instances.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "text-sm text-ink-muted";
-    empty.textContent = "No instances yet. Add one below.";
-    card.append(empty);
-
-    return card;
-  }
-
-  const list = document.createElement("ul");
-  list.className = "divide-y divide-edge";
-  for (const instance of instances) {
-    list.append(instanceRow(regions, instance));
-  }
-  card.append(list);
+  regions.listCard.replaceChildren(card);
 
   return card;
+}
+
+function newList(): HTMLUListElement {
+  const list = document.createElement("ul");
+  list.className = "divide-y divide-edge";
+
+  return list;
+}
+
+function emptyNotice(): HTMLElement {
+  const empty = document.createElement("p");
+  empty.dataset["emptyNotice"] = "";
+  empty.className = "text-sm text-ink-muted";
+  empty.textContent = "No instances yet. Add one below.";
+
+  return empty;
 }
 
 function instanceRow(regions: Regions, instance: Instance): HTMLElement {
@@ -90,11 +142,11 @@ function instanceRow(regions: Regions, instance: Instance): HTMLElement {
 
   const labels = document.createElement("div");
   const name = document.createElement("p");
+  name.dataset["rowName"] = "";
   name.className = "font-medium";
-  name.textContent = instance.name;
   const detail = document.createElement("p");
+  detail.dataset["rowDetail"] = "";
   detail.className = "text-sm text-ink-muted";
-  detail.textContent = `${instance.email} · ${instance.siteUrl || "no site URL"}`;
   labels.append(name, detail);
 
   const actions = document.createElement("div");
@@ -132,7 +184,20 @@ function instanceRow(regions: Regions, instance: Instance): HTMLElement {
     void removeInstance(regions, instance, remove, status);
   });
 
+  patchRow(row, instance);
+
   return row;
+}
+
+function patchRow(row: HTMLElement, instance: Instance): void {
+  const name = row.querySelector<HTMLElement>("[data-row-name]");
+  const detail = row.querySelector<HTMLElement>("[data-row-detail]");
+  if (name) {
+    name.textContent = instance.name;
+  }
+  if (detail) {
+    detail.textContent = `${instance.email} · ${instance.siteUrl || "no site URL"}`;
+  }
 }
 
 async function runConnectionTest(
