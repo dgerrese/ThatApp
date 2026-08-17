@@ -3,12 +3,22 @@ import "../components/wd-button";
 import "../components/wd-card";
 
 import { ApiError, createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
+import { setThemePreference, themePreference } from "../theme";
 import type { Instance } from "../types";
+import type { ThemePreference } from "../theme";
 
 export async function render(root: HTMLElement): Promise<void> {
   const container = document.createElement("div");
   container.className = "space-y-6";
-  root.append(container);
+
+  // wd-card overwrites its own className on connect, so the spacing lives on a
+  // wrapper. Appearance sits outside `container` because refresh() replaces
+  // that element's children on every mutation.
+  const appearance = document.createElement("div");
+  appearance.className = "mt-6";
+  appearance.append(appearanceCard());
+
+  root.append(container, appearance);
 
   await refresh(container);
 }
@@ -229,6 +239,53 @@ function button(label: string, variant: string): HTMLElement {
   element.setAttribute("variant", variant);
 
   return element;
+}
+
+const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "auto", label: "Auto" },
+];
+
+/**
+ * Plain markup rather than a wd-* component: this has exactly one call site,
+ * and the settings form already builds its controls from local helpers. Native
+ * radios also inherit color-scheme themeing without any extra work.
+ */
+function appearanceCard(): HTMLElement {
+  const card = document.createElement("wd-card");
+  card.setAttribute("heading", "Appearance");
+
+  const fieldset = document.createElement("fieldset");
+  const legend = document.createElement("legend");
+  legend.className = "mb-2 text-sm font-medium";
+  legend.textContent = "Theme";
+  fieldset.append(legend);
+
+  const current = themePreference();
+  for (const option of THEME_OPTIONS) {
+    const wrapper = document.createElement("label");
+    wrapper.className = "mr-4 inline-flex items-center gap-2 text-sm";
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "theme";
+    radio.value = option.value;
+    radio.checked = option.value === current;
+    radio.addEventListener("change", () => {
+      setThemePreference(option.value);
+    });
+
+    const caption = document.createElement("span");
+    caption.textContent = option.label;
+
+    wrapper.append(radio, caption);
+    fieldset.append(wrapper);
+  }
+
+  card.append(fieldset);
+
+  return card;
 }
 
 function alertFor(tone: string, message: string): HTMLElement {

@@ -47,3 +47,39 @@ test("unreadable storage still themes from the OS", async ({ page }) => {
   await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
   expect(await bodyBackground(page)).toBe("rgb(10, 10, 10)");
 });
+
+async function openSettings(page: Page): Promise<void> {
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.goto("/settings");
+}
+
+test("choosing Dark themes the page and survives a reload", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openSettings(page);
+
+  await page.getByRole("radio", { name: "Dark" }).check();
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await bodyBackground(page)).toBe("rgb(10, 10, 10)");
+
+  await page.reload();
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await bodyBackground(page)).toBe("rgb(10, 10, 10)");
+  await expect(page.getByRole("radio", { name: "Dark" })).toBeChecked();
+});
+
+test("choosing Auto after Dark follows the OS again", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openSettings(page);
+
+  await page.getByRole("radio", { name: "Dark" }).check();
+  await page.getByRole("radio", { name: "Auto" }).check();
+
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
+  expect(await bodyBackground(page)).toBe("rgb(250, 250, 250)");
+
+  await page.reload();
+
+  await expect(page.getByRole("radio", { name: "Auto" })).toBeChecked();
+});
