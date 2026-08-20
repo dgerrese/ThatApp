@@ -147,14 +147,19 @@ an issue, a branch and a pull request. Changes to how the project is *run* — `
 `.claude/**`, process documents — need no issue and go in their own pull request; split a change
 that touches both.
 
-Tickets move through seven statuses, tracked by a single `status:*` label per issue — closed ones
+Tickets move through eight statuses, tracked by a single `status:*` label per issue — closed ones
 included, where the label records which kind of closed it is:
 
 ```
-intake → refinement → ready → review → done
-   ↓                    ↓
-declined             blocked (from anywhere)
+intake → refinement → ready → in-progress → review → done
+   ↓                             ↓
+declined                      blocked (from anywhere)
 ```
+
+**Cutting the branch is what moves a ticket to `status:in-progress`.** The trigger is the branch
+existing, not a judgement about how far the work has got: a ticket with `issue-<n>-<slug>` pushed is
+in progress even when that branch carries only a design and a plan. That makes `status:ready` mean
+"nobody has started this" rather than "started or not, who knows".
 
 Three moves are the owner's alone: **intake → refinement** (approval), **intake → declined**, and
 **review → done** (the merge). A green `make verify`, a passing CI run and an approving review are
