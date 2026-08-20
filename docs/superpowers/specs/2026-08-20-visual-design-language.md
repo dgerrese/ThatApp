@@ -212,7 +212,31 @@ consequence is accepted — the breakdown reads as a footnote to the total rathe
 equals, which is the correct emphasis for a glance.
 
 **Push is disabled, not hidden.** A control that vanishes teaches nothing about what it would have
-done.
+done. Disabled, it is outlined rather than filled — `--color-rail-active` border on transparent,
+`--color-rail-muted` label — so a dead control never wears the primary.
+
+### Nav
+
+Three destinations, directly under Push with no divider and no bottom-pinning: **Today**, **Week**,
+**Settings**. Each is a 38px row, `9px` radius, `2px` apart, with a 16px stroked icon `11px` from
+its label.
+
+| State | Fill | Ink | Weight |
+| --- | --- | --- | --- |
+| Current | `--color-rail-active` | `--color-rail-ink` | 700 |
+| Other | none | `--color-rail-muted` | 500 |
+
+Where you are is shown by **fill and weight, not by colour alone**, and both are driven from
+`aria-current="page"`, which the router sets after resolving a path. Week is inert until #11 builds
+the view — visible and dimmed rather than linking to a dead address, on the same reasoning that keeps
+Push visible and disabled.
+
+### One rule the framework does not supply
+
+A native `<button>` resolves to the default arrow cursor and Tailwind v4's Preflight deliberately
+leaves it there. **Every button therefore sets `cursor-pointer` explicitly**, and a disabled one
+says `not-allowed`. This is in `wd-button`'s base, so it is one decision rather than one per
+caller.
 
 ## The five screen states
 

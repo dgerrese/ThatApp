@@ -22,7 +22,7 @@ export class WdTicketRow extends HTMLElement {
 
     if (!this.body) {
       this.body = document.createElement("div");
-      this.body.className = "flex flex-1 items-baseline justify-between gap-3";
+      this.body.className = "flex min-w-0 flex-1 items-baseline justify-between gap-3";
       this.append(this.body);
     }
     this.render();
@@ -41,7 +41,11 @@ export class WdTicketRow extends HTMLElement {
     const url = this.getAttribute("url") ?? "";
 
     const identity = document.createElement("div");
-    identity.className = "flex items-baseline gap-3";
+    // min-w-0 and flex-1 are load-bearing: a flex item's floor is its
+    // min-content width, so without them this box refuses to shrink, the
+    // summary's truncate never engages, and a long title pushes the status
+    // clean past the card's edge on a narrow viewport.
+    identity.className = "flex min-w-0 flex-1 items-baseline gap-3";
     identity.append(this.keyLabel(url), this.summarySpan());
 
     const status = document.createElement("span");

@@ -103,6 +103,23 @@
   background: oklch(0.7 0.13 var(--h));
 }
 
+/* Where you are, shown by fill and weight rather than by colour alone. The
+   rail is the only place in the app with a persistent selected state, so this
+   is a rule rather than a utility repeated on every link. */
+.wd-nav {
+  color: var(--color-rail-muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+a.wd-nav:hover {
+  color: var(--color-rail-ink);
+}
+.wd-nav[aria-current="page"] {
+  background: var(--color-rail-active);
+  color: var(--color-rail-ink);
+  font-weight: 700;
+}
+
 /* Figures that sit above one another have to align, or the column reads as
    ragged noise rather than as quantities. */
 .wd-tnum {

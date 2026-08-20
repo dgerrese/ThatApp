@@ -60,6 +60,8 @@ async function renderCurrent(): Promise<void> {
     window.history.replaceState({}, "", target);
   }
 
+  markActiveRoute();
+
   const load = routes[window.location.pathname];
   if (!load) {
     renderPlaceholder(root);
@@ -69,6 +71,23 @@ async function renderCurrent(): Promise<void> {
   const view = await load();
   root.replaceChildren();
   await view.render(root);
+}
+
+/**
+ * The rail shows where you are by weight and fill, and aria-current is what
+ * both the styling and a screen reader read it from. Set here rather than in
+ * the shell because only the router knows which path won.
+ */
+function markActiveRoute(): void {
+  for (const link of document.querySelectorAll("a[data-route]")) {
+    if (!(link instanceof HTMLAnchorElement)) continue;
+
+    if (new URL(link.href).pathname === window.location.pathname) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  }
 }
 
 /**
