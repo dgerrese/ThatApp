@@ -63,6 +63,11 @@ export class WdTicketRow extends HTMLElement {
    * An anchor only when there is somewhere to go. An instance migrated from a
    * gateway URL has no site, and an anchor with an empty href navigates to the
    * current page instead of doing nothing.
+   *
+   * Linked or not, the key is ink-muted: on a row, colour means state, and a
+   * key wearing the primary would compete with the running and failed tones
+   * that #8 and #9 put on exactly this element. The link declares itself by
+   * darkening to full ink on hover instead.
    */
   private keyLabel(url: string): HTMLElement {
     const key = this.getAttribute("key") ?? "";
@@ -80,7 +85,7 @@ export class WdTicketRow extends HTMLElement {
     link.target = "_blank";
     // Without noopener the opened page gets a window.opener handle back here.
     link.rel = "noopener";
-    link.className = "wd-key wd-tnum text-primary hover:underline";
+    link.className = "wd-key wd-tnum text-ink-muted";
     link.textContent = key;
 
     return link;

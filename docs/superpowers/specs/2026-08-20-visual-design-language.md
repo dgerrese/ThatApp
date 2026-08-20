@@ -244,7 +244,7 @@ Three parts on one baseline: the key, the summary, the status.
 
 | Part | Treatment |
 | --- | --- |
-| Key | A **76px column**, not a word — `--text-sm`, weight 700, `+0.03em`, tabular figures |
+| Key | A **76px column**, not a word — `--text-sm`, weight 700, `+0.03em`, tabular figures, `--color-ink-muted` |
 | Summary | `--text-lg`, `min-width: 0`, truncating with an ellipsis |
 | Status | `--text-sm`, `--color-ink-muted`, never shrinking |
 
@@ -261,6 +261,12 @@ identifier the row exists to give you.
 
 Per list rather than per card or per app, because two instances with differently-shaped project keys
 are two lists: padding the short one to suit the long one spends width the summary needs.
+
+**A row key never wears the primary.** It is `--color-ink-muted` whether it links or not, and takes
+a colour only when it carries state — the running tone on a ticket whose timer is going, the failed
+tone on one Jira refused. A key permanently in magenta would compete with exactly those signals on
+exactly that element, and the primary is identity rather than state. A linked key declares itself by
+darkening to `--color-ink` on hover instead of by colour.
 
 The summary is the only part that may shrink, and it must be allowed to: a flex item's floor is its
 min-content width, so without `min-width: 0` the truncation never engages and the status is pushed

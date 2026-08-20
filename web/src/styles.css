@@ -135,6 +135,10 @@ a.wd-nav:hover {
   letter-spacing: 0.03em;
   text-decoration: none;
 }
+/* The link's affordance, since it no longer announces itself by colour. */
+a.wd-key:hover {
+  color: var(--color-ink);
+}
 
 /* Figures that sit above one another have to align, or the column reads as
    ragged noise rather than as quantities. */
