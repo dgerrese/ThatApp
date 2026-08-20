@@ -6,8 +6,8 @@
 
 The design for [#6](https://github.com/dgerrese/work-dashboard/issues/6). Pins are how time gets
 logged against tickets that are not assigned to the user — shared work, standing meetings,
-miscellaneous overhead. `GET/POST/DELETE /api/pins` back them, and the Today view grows a Pinned card
-above the assigned instance cards.
+miscellaneous overhead. `GET/POST/DELETE /api/pins` back them, `GET /api/issues/search` finds the
+issue to pin, and the Today view grows a Pinned card above the assigned instance cards.
 
 The design of record settles the endpoint paths and the `pinned_issues` table and nothing else about
 this ticket. #5 left it one question by name — pins span instances and the card-per-instance layout
@@ -24,24 +24,31 @@ time of writing. `issue-6-pinned-issues` is a **stacked pull request** on top of
    its pins vanish with it, and flipping Today to one merged list discards #5's layout and leaves
    per-instance errors homeless. **The chosen layout renders from the local database alone**, which is
    what `summary_cache` exists for: pins paint instantly and survive every instance being down.
-2. **Pinning is a form inside the Pinned card** — instance `<select>`, issue-key field, Pin and
-   Cancel. It is the only route that can pin an issue *not* assigned to the user, which is the entire
-   purpose of pins. A pin control on assigned rows was rejected as extra surface that makes the
-   assigned-and-pinned collision routine, and competes for room in `wd-ticket-row` that #7 and #8 want.
-   Pinning from Settings was rejected as putting a daily action two clicks away.
-3. **Cache on load, refresh on demand.** `GET /api/pins` reads the store and makes no Jira call.
+2. **Pinning is a search box inside the Pinned card** — one combobox that searches by issue key *and*
+   by title, across every instance at once, and pins the issue you pick. A pin control on assigned rows
+   was rejected as extra surface that makes the assigned-and-pinned collision routine, and competes for
+   room in `wd-ticket-row` that #7 and #8 want. Pinning from Settings was rejected as putting a daily
+   action two clicks away.
+3. **The search spans instances, so there is no instance picker.** An earlier draft paired an instance
+   `<select>` with a free-form key field; the owner replaced it on 2026-08-20 with a search select, and
+   searching within one chosen instance was rejected in the same breath. Pins span instances by
+   definition, and requiring the user to know *which* instance a shared ticket lives on before they can
+   look for it asks them for the answer the search exists to give. The form is one control as a result.
+   **What it costs is written down rather than discovered:** a Jira search per instance per keystroke
+   pause, a new endpoint, and a new component — see *The search*.
+4. **Cache on load, refresh on demand.** `GET /api/pins` reads the store and makes no Jira call.
    `GET /api/pins?refresh=1` re-looks-up every pin and rewrites the cache. Cache-only-forever was
    rejected because a renamed ticket would stay wrong until unpinned and re-pinned; refreshing on
    every load was rejected because it spends the round trip the cache column was added to avoid.
-4. **The status is cached too**, which needs a migration adding `status_cache` to `pinned_issues`.
+5. **The status is cached too**, which needs a migration adding `status_cache` to `pinned_issues`.
    Without it a refreshed pin shows a status chip that disappears on the next load — the same data on
    the server rendering two different rows, which reads as a glitch rather than a policy. With it a
    pinned row and an assigned row read identically.
-5. **Deduplication is client-side.** An issue that is both pinned and assigned renders in the Pinned
+6. **Deduplication is client-side.** An issue that is both pinned and assigned renders in the Pinned
    card only, and `today.ts` drops it from its instance card. `/api/issues` is **not touched**: making
    the fan-out aware of pins couples two resources and puts #5's most carefully tested code back in
    play for no gain.
-6. **Unpinning gets no confirmation.** `time_entries` rows are keyed by `(instance_id, issue_key)` and
+7. **Unpinning gets no confirmation.** `time_entries` rows are keyed by `(instance_id, issue_key)` and
    have no foreign key to `pinned_issues`, so unpinning destroys nothing. #29 built `wd-confirm` for
    instance removal because that cascade *does* destroy logged time; reusing it here would train the
    user to click through a dialog that never guards anything.
@@ -81,8 +88,13 @@ as `internal/store/migrations/2026-08-20_100000_pin_status_cache.sql`, plus the 
 design of record's schema block so the two do not drift. `ALTER TABLE ... ADD COLUMN` needs no table
 rebuild and cannot cascade, unlike the split-URL migration.
 
-Both cache columns are nullable and both read as the empty string in Go. A pin created and never
-refreshed has a summary from its creation and no status.
+Both cache columns are nullable and both read as the empty string in Go. **In practice neither is ever
+empty:** `POST /api/pins` looks the issue up before storing it and writes both from that one response,
+so a pin has a summary and a status from the moment it exists. An empty `status_cache` is reachable
+only for a row written before this migration, and there are none — the table has never held a row. The
+columns stay nullable because the schema cannot express that and a rebuild to add a `CHECK` would
+cascade into `time_entries`, which is the same reason the split-URL migration left its own invariant to
+`validate`.
 
 ## The store — `internal/store/pins.go`
 
@@ -140,6 +152,40 @@ Status mapping is the client's existing one, unchanged: a 404 is `ErrNotFound`, 
 `ErrUnauthorized`, a 5xx or transport failure is `ErrUnreachable`. This is the client's first
 single-issue read; `SearchAssigned` is untouched.
 
+### Searching by title — `internal/jira/search.go`
+
+```go
+func (c *Client) SearchText(ctx context.Context, query string, limit int) ([]Issue, error)
+```
+
+It reuses `SearchAssigned`'s `POST /rest/api/3/search/jql` path, request struct and response struct —
+same `Fields: []string{"summary", "status"}`, same decoding — with a different JQL and **no paging**:
+one page of `limit`, because a type-ahead that walks 100 pages is a bug, not thoroughness.
+
+```
+summary ~ "<escaped>*" AND statusCategory != Done ORDER BY updated DESC
+```
+
+**The issue picker endpoint (`/rest/api/3/issue/picker`) was rejected**, despite being purpose-built
+for type-ahead: it returns no status, and `status_cache` needs one at pin time, so it would have cost a
+second round trip per pinned issue to learn what `search/jql` already returns in the first.
+
+Three properties of Jira's `~` operator that the implementation must respect, and that the UI copy has
+to be honest about:
+
+- **It matches word prefixes, not substrings.** `secur*` finds "security"; `curity*` finds nothing.
+- **A leading wildcard is rejected outright** by the endpoint, so `*curity` is not a workaround.
+- **`*` must sit inside the quotes**, and the quotes are JQL syntax rather than part of the query.
+
+`escapeJQL` therefore escapes `\` and `"` in that order and is the only thing standing between a typed
+`"` and a malformed query. It is worth its own table-driven test: a query of `He said "hi"` must reach
+Jira as one intact clause.
+
+**Key matching is deliberately not JQL.** `key = "NOSUCH-1"` is a query *error* when the project does
+not exist — Jira answers 400, not an empty result — so a key-shaped query cannot simply be ORed into
+the clause. The handler instead calls `Issue` for it, where a miss is `ErrNotFound` and costs nothing.
+That is the same call `POST /api/pins` already needs, so this adds no third Jira mechanism.
+
 ## The API — `internal/server/pins.go`
 
 ```
@@ -192,7 +238,7 @@ envelope has somewhere to grow.
 **Step 3 needs its own branch and cannot be delegated.** `instanceErrorFor` maps `jira.ErrNotFound` to
 `account_not_found` with a 502 and the message "the site answered but this account has no access to
 it" — correct for the `/myself` probe it was written for, and wrong to the point of misleading here,
-where a 404 means the user typed a key that does not exist. The branch comes first, and the rest of
+where a 404 means the key does not exist on that instance. The branch comes first, and the rest of
 the mapping is reused unchanged.
 
 The lookup's summary and status are what get stored, so a successful pin is cached from the moment it
@@ -218,6 +264,70 @@ Clients are resolved per instance, not per pin: two pins on one instance share o
 result, which also keeps `forInstance`'s first-use `api_base_url` repair from running twice
 concurrently on the same row.
 
+## The search — `internal/server/issue_search.go`
+
+```
+GET /api/issues/search?q=<text>
+```
+
+Its own file rather than more of `issues.go`: that file is #5's fan-out and its most carefully tested
+code, and the handoff's warning about `instances.go` growing across tickets applies here before it
+happens rather than after.
+
+```json
+{ "results": [
+    { "instanceId": 1, "instanceName": "Ridgeline", "key": "SHARED-40",
+      "summary": "Vendor security review", "status": "To Do",
+      "url": "https://ridgeline.atlassian.net/browse/SHARED-40" }
+  ],
+  "errors": [
+    { "instanceId": 2, "instanceName": "Personal",
+      "error": { "code": "instance_unreachable", "message": "the Jira site could not be reached" } }
+  ] }
+```
+
+**A flat `results` list with `errors` beside it**, rather than `/api/issues`'s per-instance grouping:
+the consumer is one combobox rendering one ordered list, and a grouped response would only be flattened
+in the browser. Both arrays are always present and never null.
+
+Per instance, concurrently:
+
+1. **If `q` is key-shaped** (`^[A-Za-z][A-Za-z0-9_]*-[0-9]+$`, case-folded to upper), `Issue(ctx, q)`.
+   A hit leads the results for that instance; `ErrNotFound` is discarded rather than recorded as an
+   error, because "no issue by that key here" is an ordinary outcome of typing.
+2. `SearchText(ctx, q, searchLimit)` with `searchLimit = 10`.
+3. Drop a text hit whose key equals the key hit, so an exact match is not listed twice.
+
+A `q` shorter than two characters answers `200` with both arrays empty and reaches no instance at all —
+the same floor the browser debounces to, enforced server-side so a hand-made request cannot fan a
+one-character query across every site.
+
+**Ordering is by instance, in the store's order, then Jira's `updated DESC` within each.** Merging by
+recency across instances was rejected for the reason #5 gives for its card-per-instance layout: it
+needs an `updated` field on `jira.Issue` that nothing else wants.
+
+### One fan-out, three callers
+
+There are now three places that run one goroutine per instance and record per-instance failures without
+cancelling siblings: assigned issues, the pin refresh, and this. The third is where copying it a second
+time stops being cheaper than naming it, so `issues.go` grows:
+
+```go
+func fanOutInstances[T any](ctx context.Context, instances []store.Instance,
+    timeout time.Duration, work func(context.Context, store.Instance) T) []T
+```
+
+— preallocated results by index, `errgroup` for `Wait` and its context only, every goroutine returning
+`nil`, each bounded by its own `context.WithTimeout`. The three callers keep their own DTO shapes and
+their own error mapping; only the concurrency moves.
+
+**This touches #5's most load-bearing test**, so its guard runs again against the extracted version:
+`TestGetIssuesKeepsWorkingInstancesWhenOneFails` keeps the delay on the healthy instance that makes the
+cancellation observable, and the extraction is not done until that test has been shown to fail when
+`fanOutInstances` is mutated to propagate the first error. #5's review found the zero-delay version
+green while the property was broken; re-proving it by mutation is the only thing that makes moving this
+code safe.
+
 ## The frontend
 
 ### `types.ts` and `api.ts`
@@ -234,10 +344,32 @@ export interface Pin {
   error: ApiErrorBody | null;
 }
 
+export interface IssueHit {
+  instanceId: number;
+  instanceName: string;
+  key: string;
+  summary: string;
+  status: string;
+  url: string;
+}
+export interface InstanceFailure {
+  instanceId: number;
+  instanceName: string;
+  error: ApiErrorBody;
+}
+export interface IssueSearchResponse { results: IssueHit[]; errors: InstanceFailure[]; }
+
 export function listPins(options?: { refresh?: boolean }): Promise<Pin[]>;
 export function createPin(instanceId: number, issueKey: string): Promise<Pin>;
 export function deletePin(id: number): Promise<void>;
+export function searchIssues(query: string, signal: AbortSignal): Promise<IssueSearchResponse>;
 ```
+
+`searchIssues` takes an `AbortSignal` and it is not optional. Type-ahead is the first place in this app
+where a second request can overtake the first, and the last response to arrive is not reliably the last
+one asked for; aborting the previous request is what stops a stale result painting over a fresh one.
+`request()` in `api.ts` gains a `signal` pass-through, and an `AbortError` is swallowed by the caller
+rather than rendered as a failure.
 
 `summary`, `status` and `url` are plain strings rather than optional, mirroring `Issue` — under
 `noUncheckedIndexedAccess` an optional field costs a guard at every use.
@@ -246,10 +378,18 @@ export function deletePin(id: number): Promise<void>;
 
 ```
 ┌─ Pinned ────────────────────────────────────────────────────┐
-│ Ridgeline · SHARED-12   Weekly standup      In Progress   ✕ │
-│ Personal  · MISC-3      Admin overhead                    ✕ │
-│                                                             │
-│ [ Pin an issue ]                                            │
+│ Ridgeline   SHARED-12   Weekly standup   In Progress [Unpin]│
+│ Personal    MISC-3      Admin overhead   Open        [Unpin]│
+│─────────────────────────────────────────────────────────────│
+│ Find an issue                                               │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ security                                                │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Ridgeline  SHARED-40  Vendor security review      To Do │ │
+│ │ Personal   MISC-15    Security questionnaire      Open  │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│ [ Cancel ]                                                  │
 └─────────────────────────────────────────────────────────────┘
 
 Assigned issues                                     [ Refresh ]
@@ -283,18 +423,45 @@ discarded — hence the wrapping div rather than a utility on the element.
 `` `${instanceId}:${key}` `` from the pins and filters each instance's issues through it. Because both
 fetches are independent, a failed `/api/pins` means no filtering rather than no issues.
 
-**The form** is hidden behind a "Pin an issue" button. Revealed, it holds an instance `<select>`
-populated by `listInstances()`, fetched when the form is first revealed and kept for the life of the
-view. **It must be the full instance list, not the names in the pins response**: those name only
-instances that already have a pin, so deriving the dropdown from them would make an instance
-unpinnable until it had a pin — and the empty state unpinnable altogether. The names in the response
-serve the rows, which is a different job.
+**The form** is hidden behind a "Pin an issue" button. Revealed, it is a single labelled combobox —
+"Find an issue" — and a Cancel button. There is no instance picker and no separate submit: **choosing a
+result is the act of pinning**, which is what one control instead of three buttons buys. `listInstances()`
+is not called at all.
 
-Submitting disables the button, and a rejection renders a `wd-alert` inside the card carrying the
-server's message: `pin_exists` and `issue_not_found` are both ordinary outcomes of typing, and both
-must say which one happened.
+Failures render a `wd-alert` inside the card carrying the server's message.
 
-**Unpinning** removes the row from the list region on success, with no reload and no confirmation.
+**Unpinning** removes the row from the list region on success, with no reload and no confirmation. The
+control is a secondary `wd-button` labelled **"Unpin"**, not an ✕: `wd-button` renders `textContent`
+only, so an icon would mean a new component, and Settings already establishes text buttons in row
+actions (Test / Edit / Remove). Matching that costs nothing and invents nothing.
+
+### `wd-combobox`
+
+The one genuinely new component, and the first `wd-*` with interaction logic rather than presentation.
+A native `<select>` cannot be searched, so this is a text input plus a listbox:
+
+```
+wd-combobox
+  input   role="combobox" aria-autocomplete="list" aria-expanded aria-controls
+          aria-activedescendant
+  ul      role="listbox" id
+    li > button  role="option" id aria-selected
+```
+
+Attributes in: `label`, `placeholder`, `disabled`. Out: a `select` `CustomEvent` carrying the chosen
+hit. It owns keyboard behaviour — **↓/↑** move the active option and wrap, **Enter** chooses it,
+**Escape** closes the form, **Tab** closes the popup — and it owns nothing about Jira: `today.ts` feeds
+it results and decides what choosing one means. The active option is tracked by index and mirrored into
+`aria-activedescendant`; focus never leaves the input, which is what makes the pattern work for a
+screen reader.
+
+**Debounce is 350ms and the floor is two characters**, both in the component. Each pause costs one Jira
+call per instance, so this is the difference between a search and a denial-of-service against the
+owner's own sites. The in-flight request is aborted when a new one starts.
+
+**Already-pinned issues appear but cannot be chosen** — rendered muted with a "Pinned" tag in place of
+the status, and `disabled`. This is what turns the duplicate case from an error you meet by typing into
+one you can see coming; `pin_exists` stays in the API as a race guard, not as a routine outcome.
 
 **Refresh refreshes both.** #5's button calls `listIssues()`; it now also calls
 `listPins({ refresh: true })`, and stays disabled until both settle. One button, both lists, because
@@ -303,11 +470,11 @@ two refresh buttons on one screen is a question the user should not have to answ
 **The states the Pinned card can be in:**
 
 - **No instances configured** — the card is not rendered at all. #5's "No Jira instances yet." state
-  takes over the whole content area, the Pinned card included, and a Pin form whose dropdown is empty
-  is a control with nothing to do. Because the two fetches are independent, an empty Pinned card can
-  paint first and be replaced when `/api/issues` answers; that is the one case where the card is
-  removed after being shown, and it is correct — with no instances there can be no pins either, since
-  `ON DELETE CASCADE` took them with the last instance.
+  takes over the whole content area, the Pinned card included, and a search that can only ever reach
+  zero instances is a control with nothing to do. Because the two fetches are independent, an empty
+  Pinned card can paint first and be replaced when `/api/issues` answers; that is the one case where the
+  card is removed after being shown, and it is correct — with no instances there can be no pins either,
+  since `ON DELETE CASCADE` took them with the last instance.
 - **No pins** — the card renders with a muted "Nothing pinned." and the Pin button.
 - **Loading** — a muted "Loading…" line in the list region, as #5 does.
 - **`/api/pins` failed outright** — one `wd-alert` in place of the list, with the Pin button hidden.
@@ -315,6 +482,25 @@ two refresh buttons on one screen is a question the user should not have to answ
   has nowhere to appear, which looks indistinguishable from the pin having failed.
 - **A pin's refresh failed** — the row renders its cached values with its error message beside them.
   The rest of the card is unaffected.
+
+**And the states the search itself can be in**, all inside the popup except the first:
+
+- **Under two characters** — no popup, and a muted line under the input: "Searches every instance. Two
+  characters to start." It states the scope, which is otherwise invisible once the instance picker is
+  gone.
+- **Searching** — a muted "Searching…" line. The previous results are replaced rather than left
+  stale, because a list that lags the query reads as a wrong answer.
+- **Results** — the list. Each option carries instance, key, summary and status **in the same order and
+  the same columns as the pinned row it will become**, so choosing one holds no surprise.
+- **No matches** — "No issues match “<query>”." Worth naming the query back: with word-prefix matching,
+  a fruitless search is usually a query problem rather than an empty Jira.
+- **Some instances failed** — the results that did arrive, plus a muted footer naming the instances that
+  did not: "Personal could not be searched." One instance being down must not blank the others, which is
+  the same property `fanOutInstances` exists to preserve.
+- **Every instance failed** — a `wd-alert` in the popup carrying the first error's message.
+- **Pinning** — the input is disabled and the popup closes while `POST /api/pins` is in flight. On
+  success the form collapses and the row appears; on failure the alert renders and the form stays open
+  with the query intact.
 
 ## Testing
 
@@ -336,9 +522,27 @@ rewrites both columns; deleting an instance takes its pins; `DeletePin` on a mis
   goroutine cancelled its sibling only after that sibling had already stored its result. It is proven
   by mutation, not by argument, and this ticket touches the fan-out pattern it guards.
 
-**Playwright**, in `.claude/e2e/tests/`: pinning an issue renders it in the Pinned card; pinning the
-same key twice shows the duplicate message rather than a second row; unpinning removes the row
-without a reload; a pinned issue that is also assigned appears once.
+**The Jira client.** `SearchText` sends the JQL the design names, with `summary`, `status` and the
+limit; `escapeJQL` is table-driven over a quote, a backslash, both, and neither; a query already
+containing `*` is not double-wildcarded. No paging: a response carrying a `nextPageToken` is not
+followed, asserted by failing the fake server on a second call.
+
+**The search handler.** A key-shaped query calls `Issue` and leads with the hit; a key-shaped query
+that misses discards `ErrNotFound` and still returns the text results; an exact hit also present in the
+text results appears once; a query under two characters answers 200 with empty arrays and makes **no**
+Jira request at all; one instance failing puts that instance in `errors` while the other's results are
+returned — again **with the healthy instance delayed**, which is the only version of that test that
+fails when the fan-out is broken.
+
+**`fanOutInstances`.** Its extraction is verified by re-running #5's guard against it and by mutating
+the helper to propagate the first error, which must turn that test red. A refactor that cannot be shown
+to break the test it was supposed to preserve has not been verified.
+
+**Playwright**, in `.claude/e2e/tests/`: typing two characters searches and renders matches from more
+than one instance; choosing one pins it and it appears in the Pinned card; an already-pinned issue
+appears in the results marked and cannot be chosen; ↓ and Enter pin without the mouse; unpinning removes
+the row without a reload; a pinned issue that is also assigned appears once. The e2e rig stubs Jira, so
+none of this reaches a real site.
 
 ## Out of scope
 
@@ -346,6 +550,9 @@ without a reload; a pinned issue that is also assigned appears once.
   duration field.
 - **Reordering pins.** They render oldest first.
 - **Pinning from an assigned row**, per decision 2.
+- **Searching by description, comment or reporter.** `SearchText` matches the summary only. Jira's
+  `text ~` would widen it to description and comments, which for a pin-by-title box returns matches the
+  user cannot see the reason for.
 - **A count of what an instance's removal destroys.** #29 left its warning static and noted counts as a
   later intake; pins make those counts non-zero for the first time, which makes the intake worth
   raising — but raising it is not doing it.
@@ -357,10 +564,23 @@ without a reload; a pinned issue that is also assigned appears once.
 | Criterion | Where it is met |
 |---|---|
 | `GET/POST/DELETE /api/pins` served and covered by handler tests | *The API*, *Testing* |
-| Pinning stores `summary_cache` so pins render without a Jira round trip | Decision 3; `GET` asserted to make no Jira call |
+| Pinning stores `summary_cache` so pins render without a Jira round trip | Decision 5; `GET` asserted to make no Jira call |
 | Pinning the same issue twice on one instance is rejected | `ErrPinExists` → 409 `pin_exists` |
-| Pinning a key that does not exist on that instance is rejected | `jira.ErrNotFound` → 404 `issue_not_found` |
+| Pinning a key that does not exist on that instance is rejected | `jira.ErrNotFound` → 404 `issue_not_found`, and see the note below |
 | Pins render in Today alongside assigned issues, visually distinguishable | The Pinned card, above and separate |
-| An issue both assigned and pinned appears once | Decision 5, client-side dedupe |
+| An issue both assigned and pinned appears once | Decision 6, client-side dedupe |
 | Unpinning removes it from the view without a reload | The list region, decision 6 |
 | A Playwright spec covers pinning, rendering and unpinning | *Testing* |
+
+**Two criteria changed meaning when the form became a search**, and both are met differently from how
+#6's issue body describes them:
+
+- **"Pinning an issue key that does not exist on that instance is rejected."** The UI no longer offers a
+  way to type a key that does not exist — you choose from results Jira returned. The rejection stays and
+  stays tested, because `POST /api/pins` is reachable without the UI and the issue may vanish between
+  the search and the pin. It is a server guard now, not a user-facing outcome.
+- **"Pinning the same issue twice on one instance is rejected."** Same: already-pinned issues are
+  visible but unselectable, so 409 `pin_exists` guards a race rather than a routine mistake.
+
+Neither is weakened — both are enforced and both carry a handler test. What changed is that a user has
+to work to reach them, which is the point.
