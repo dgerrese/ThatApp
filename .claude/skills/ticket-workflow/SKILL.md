@@ -22,38 +22,70 @@ with no issue behind them, on a branch named for the topic rather than an issue 
 The distinction is how the project is *run* versus how the product *works*. A spec describing push
 semantics needs a ticket; a change to this skill does not. When a change touches both, split it.
 
-## The eight statuses
+## The five statuses
 
-Status lives in a label. **Exactly one `status:*` label per issue, always.** The label is the
-source of truth — not a board, not a comment, not a checklist. It applies to closed issues too:
-`status:done` and `status:declined` are how a closed issue says which kind of closed it is.
+Status lives in a label, and **a `status:*` label describes open work only.** Exactly one while the
+issue is open; none once it is closed. The label is the source of truth for anything GitHub cannot
+already tell you — not a board, not a comment, not a checklist.
 
 | Status | Label | Who moves it | Meaning |
 |---|---|---|---|
 | Intake | `status:intake` | You create it here | A raw problem or idea, a few sentences. Nothing else happens yet. |
-| Refinement | `status:refinement` | **Owner only** | The intake was approved. Research and refine until nothing is fuzzy. |
-| Ready | `status:ready` | You, when refinement is genuinely finished | Acceptance criteria are complete and unambiguous. Work may start, and nobody has started it. |
+| Needs refinement | `status:needs-refinement` | **Owner only** | The intake was approved. Not yet refined; the acceptance criteria are still fuzzy. |
+| To do | `status:todo` | You, when refinement is genuinely finished | Acceptance criteria are complete and unambiguous. Work may start, and nobody has started it. |
 | In progress | `status:in-progress` | You, when the branch is cut | `issue-<n>-<slug>` exists. Someone is on it. |
-| Review | `status:review` | You, when the pull request is open | Implementation is done, pull request raised, awaiting the owner's review. |
-| Done | `status:done` | You, **only after the owner says it merged** | Finished. |
 | Blocked | `status:blocked` | You, immediately, from any status | A blocker exists. Work stops. |
-| Declined | `status:declined` | **Owner only** | The intake was rejected. Kept so the idea is not redrafted later. |
+
+### What GitHub says, so the labels do not
+
+Three former statuses were deleted on 2026-08-20 because each restated something GitHub already
+knew. Read these off the issue itself rather than reaching for a label:
+
+| Was | Read it from |
+|---|---|
+| `status:review` | An **open pull request** whose body says `Closes #<n>`. Opening the PR *is* the move to review — the two were always the same event. |
+| `status:done` | The issue is **closed with `COMPLETED`**, its pull request merged. |
+| `status:declined` | The issue is **closed with `NOT_PLANNED`** and labelled `wontfix`. |
+
+**A pull request closed without merging is the one gap**, because the issue is then left with no
+signal at all — it has happened once, on PR#27. Move the ticket back to `status:in-progress` by
+hand when that occurs.
+
+**On closing an issue, remove its `status:*` label.** A closed issue carrying `status:in-progress`
+is a lie, and the whole point of dropping `done` and `declined` was that GitHub already records
+which kind of closed it is.
+
+### Type: `bug` and `enhancement`
+
+A second, independent axis: **is this a defect or new capability?**
+
+| Label | Means |
+|---|---|
+| `bug` | The product misbehaves relative to its spec or its own intent. |
+| `enhancement` | New capability the product does not have yet. |
+
+Unlike status, type is **optional and at most one**. Plenty of tickets are neither — a refactor, a
+test-infrastructure change, a documentation ticket. Do not force one on for the sake of symmetry;
+an unlabelled issue is a legitimate answer.
 
 **Cutting the branch is what moves a ticket to `status:in-progress`.** The trigger is the branch
 existing — not the first line of implementation code, and not a judgement about how far the work has
 got. A ticket whose branch carries only a design and a plan is in progress. Move the label in the
-same breath as `git checkout -b`, so `status:ready` can be read as "untouched" without checking.
+same breath as `git checkout -b`, so `status:todo` can be read as "untouched" without checking.
 
-Opening the pull request is what moves a ticket to `status:review`, and it is the last move you
-make on it unaided.
+**Opening the pull request is the last thing you do to a ticket unaided.** It carries no label
+move any more — the open pull request is the review state. After that the ticket is the owner's
+until they say what happens next.
 
 ### Transitions you may never make yourself
 
-- **Intake → Refinement.** The owner approves an intake ticket. Create it, then stop and ask.
-- **Intake → Declined.** The owner declines ideas that are not wanted. Never pre-empt it.
-- **Review → Done.** Only when the owner states the pull request is approved and merged. A green
-  `make verify`, a passing CI run, an approving review, a closed pull request and a branch that
-  looks merged are none of them that signal. The owner saying so is the signal.
+- **Intake → Needs refinement.** The owner approves an intake ticket. Create it, then stop and ask.
+- **Declining an intake.** The owner closes it as `NOT_PLANNED` and labels it `wontfix`. Never
+  pre-empt it.
+- **Closing a finished ticket.** The merge is the owner's, and so is the close. A green
+  `make verify`, a passing CI run, an approving review and a branch that looks merged are none of
+  them that signal. Merging the pull request closes the issue through `Closes #<n>`; strip the
+  `status:*` label when it does.
 
 **Merging into `main` locally is forbidden outright** — a hard constraint in `CLAUDE.md`, not a
 preference. A branch reaches `main` through a pull request the owner merges and no other way, no
@@ -86,21 +118,29 @@ unblocked one that got there by moving the goalposts.
 gh issue create --label status:intake --title "..." --body "..."
 
 # Move a ticket (always remove the old label in the same call)
-gh issue edit <n> --remove-label status:refinement --add-label status:ready
-gh issue edit <n> --remove-label status:ready --add-label status:in-progress
-gh issue edit <n> --remove-label status:in-progress --add-label status:review
+gh issue edit <n> --remove-label status:needs-refinement --add-label status:todo
+gh issue edit <n> --remove-label status:todo --add-label status:in-progress
+
+# Closing: the label comes off, GitHub carries the outcome
+gh issue edit <n> --remove-label status:in-progress
+gh issue close <n> --reason "not planned" && gh issue edit <n> --add-label wontfix
+
+# Type, when it is genuinely one or the other
+gh issue edit <n> --add-label bug
 
 # See the board
-gh issue list --label status:ready
+gh issue list --label status:todo
 gh issue list --label status:in-progress        # what is actually being worked on
+gh pr list --state open                         # what is waiting on the owner
 gh issue list --state all --json number,title,labels
 
 # Comment when a status change needs explaining
 gh issue comment <n> --body "..."
 ```
 
-Never leave an issue with two `status:*` labels or none. If you find one in that state, say so
-rather than guessing which is right.
+Never leave an **open** issue with two `status:*` labels or none, and never leave a **closed** one
+carrying a `status:*` label at all. If you find an issue in either state, say so rather than
+guessing which is right.
 
 ## What each status actually involves
 
@@ -139,7 +179,7 @@ is not redrafted later.
    worktree gets its own images and volumes and rebuilds everything from cold. Invoke the skill,
    then apply this decision unless a ticket genuinely needs the isolation. Branch name:
    `issue-<n>-<short-slug>`. **Move the ticket to `status:in-progress` in the same breath as
-   creating the branch** — that is the trigger, and a branch that exists under `status:ready` is the
+   creating the branch** — that is the trigger, and a branch that exists under `status:todo` is the
    exact ambiguity the label was added to remove. *The worktree decision is due to flip* — see the
    handoff's "Still open".
 3. **`superpowers:writing-plans`** — turns the acceptance criteria into a plan under
@@ -154,11 +194,11 @@ is not redrafted later.
    and the failing output belongs in the task report; a task that cannot show it is not done.
 6. **`superpowers:requesting-code-review`** — between tasks and again before merge.
 7. **`superpowers:finishing-a-development-branch`** — verifies the suite, presents the integration
-   options, pushes and opens the pull request. Move the ticket to `status:review` in the same
-   breath, then stop.
+   options, pushes and opens the pull request. The ticket keeps `status:in-progress` — the open
+   pull request is the review state — so there is no label to move. Then stop.
 
 **One issue, one branch, one pull request.** The pull request body references the issue with
-`Closes #<n>`, and opening it is what puts the ticket into `status:review`.
+`Closes #<n>`, and the open pull request is what puts the ticket into review.
 
 **Use the skills' own prompt templates.** `subagent-driven-development` ships
 `implementer-prompt.md`, `task-reviewer-prompt.md` and `re-review-prompt.md`;
