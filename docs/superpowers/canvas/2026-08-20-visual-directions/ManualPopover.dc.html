@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;display=swap">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; }
+    .wd { font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; }
+    .tnum { font-variant-numeric: tabular-nums; }
+    .wd[data-mode="light"] {
+      --surface: oklch(0.975 0.006 70);
+      --raised: oklch(0.996 0.003 70);
+      --ink: oklch(0.20 0.008 70);
+      --ink-muted: oklch(0.48 0.008 70);
+      --ink-faint: oklch(0.62 0.007 70);
+      --edge: oklch(0.915 0.006 70);
+      --rail: oklch(0.215 0.018 55);
+      --rail-ink: oklch(0.965 0.004 70);
+      --rail-muted: oklch(0.68 0.012 60);
+      --rail-active: oklch(0.30 0.022 55);
+      --primary: oklch(0.52 0.19 330);
+      --primary-ink: oklch(0.99 0.004 70);
+      --primary-rail: oklch(0.66 0.19 330);
+      --primary-rail-ink: oklch(0.17 0.02 330);
+      --running: oklch(0.50 0.15 150);
+      --pending: oklch(0.52 0.13 75);
+      --failed: oklch(0.51 0.19 25);
+      --running-rail: oklch(0.74 0.15 150);
+      --pending-rail: oklch(0.80 0.13 85);
+      --failed-rail: oklch(0.72 0.17 25);
+      --state-ink: oklch(0.99 0.004 70);
+      --state-rail-ink: oklch(0.15 0.012 60);
+      --i1: oklch(0.60 0.13 265);
+      --i2: oklch(0.60 0.13 175);
+      --i1-rail: oklch(0.70 0.13 265);
+      --i2-rail: oklch(0.70 0.13 175);
+      --shadow: 0 1px 2px oklch(0.35 0.04 60 / 0.05), 0 10px 26px -14px oklch(0.35 0.04 60 / 0.20);
+    }
+    .wd[data-mode="dark"] {
+      --surface: oklch(0.165 0.008 60);
+      --raised: oklch(0.215 0.010 60);
+      --ink: oklch(0.955 0.004 70);
+      --ink-muted: oklch(0.70 0.010 65);
+      --ink-faint: oklch(0.55 0.010 65);
+      --edge: oklch(0.285 0.010 60);
+      --rail: oklch(0.125 0.008 55);
+      --rail-ink: oklch(0.955 0.004 70);
+      --rail-muted: oklch(0.64 0.012 60);
+      --rail-active: oklch(0.225 0.015 55);
+      --primary: oklch(0.70 0.17 330);
+      --primary-ink: oklch(0.16 0.02 330);
+      --primary-rail: oklch(0.70 0.17 330);
+      --primary-rail-ink: oklch(0.16 0.02 330);
+      --running: oklch(0.74 0.14 150);
+      --pending: oklch(0.80 0.12 85);
+      --failed: oklch(0.72 0.17 25);
+      --running-rail: oklch(0.74 0.15 150);
+      --pending-rail: oklch(0.80 0.13 85);
+      --failed-rail: oklch(0.72 0.17 25);
+      --state-ink: oklch(0.16 0.01 60);
+      --state-rail-ink: oklch(0.15 0.012 60);
+      --i1: oklch(0.72 0.12 265);
+      --i2: oklch(0.72 0.12 175);
+      --i1-rail: oklch(0.70 0.13 265);
+      --i2-rail: oklch(0.70 0.13 175);
+      --shadow: 0 1px 2px oklch(0 0 0 / 0.35), 0 10px 26px -14px oklch(0 0 0 / 0.6);
+    }
+    a { color: var(--primary); }
+    a:hover { color: var(--ink); }
+    .label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; }
+    .meta { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; }
+    .key { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-decoration: none; }
+  </style>
+</helmet>
+<div class="wd" data-mode="{{mode}}" style="width: 880px; min-height: 660px; background: var(--surface); color: var(--ink); padding: 38px">
+  <div style="border-radius: 16px; background: var(--raised); box-shadow: var(--shadow); padding: 2px 22px">
+        <div style="display: flex; align-items: center; gap: 18px; padding: 15px 0">
+          <a href="#" class="key tnum" style="width: 76px; flex-shrink: 0; color: var(--running)">RID-412</a>
+          <span style="flex: 1; min-width: 0; font-size: 15px; letter-spacing: -0.01em">Retry a worklog push that failed mid-fan-out</span>
+          <span style="flex-shrink: 0; font-size: 12px; color: var(--ink-muted)">In Progress</span>
+          <button aria-label="Show entries for this issue" aria-expanded="false" style="cursor: pointer; font: inherit; font-variant-numeric: tabular-nums; flex-shrink: 0; width: 82px; height: 38px; padding: 0 10px; text-align: right; border: none; border-radius: 9px; background: transparent; color: var(--running); font-size: 17px; font-weight: 700">01:12</button>
+          <button aria-label="Stop timer" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex-shrink: 0; border-radius: 999px; border: none; background: var(--running); color: var(--state-ink)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg></button>
+        </div>
+        <div style="height: 1px; background: var(--edge)"></div>
+        <div style="position: relative">
+        <div style="display: flex; align-items: center; gap: 18px; padding: 15px 0">
+          <a href="#" class="key tnum" style="width: 76px; flex-shrink: 0; color: var(--ink-muted)">RID-398</a>
+          <span style="flex: 1; min-width: 0; font-size: 15px; letter-spacing: -0.01em">Settings form keeps stale state on reuse</span>
+          <span style="flex-shrink: 0; font-size: 12px; color: var(--ink-muted)">In Review</span>
+          <button aria-label="Hide entries for this issue" aria-expanded="true" style="cursor: pointer; font: inherit; font-variant-numeric: tabular-nums; flex-shrink: 0; width: 82px; height: 38px; padding: 0 10px; text-align: right; border: none; border-radius: 9px; background: var(--surface); color: var(--ink); font-size: 17px; font-weight: 500">02:30</button>
+          <button aria-label="Start timer" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex-shrink: 0; border-radius: 999px; border: 1px solid var(--edge); background: transparent; color: var(--ink-muted)"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"></path></svg></button>
+        </div>
+        <div style="position: absolute; right: 0; top: 62px; width: 560px; z-index: 5; padding: 16px 18px; border-radius: 14px; background: var(--raised); border: 1px solid var(--edge); box-shadow: 0 18px 40px -18px oklch(0.35 0.04 60 / 0.45)">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px">
+            <span class="label" style="color: var(--ink-muted)">Entries today</span>
+            <span class="meta" style="color: var(--ink-muted)">02:30</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 9px 0">
+            <span class="tnum" style="flex-shrink: 0; width: 46px; font-size: 12px; color: var(--ink-muted)">09:15</span>
+            <span class="tnum" style="flex-shrink: 0; width: 52px; font-size: 14px; font-weight: 500">01:15</span>
+            <span style="flex: 1; min-width: 0; font-size: 14px; color: var(--ink-muted)">Reviewing the reconcile path</span>
+            <span style="flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-muted)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"></path></svg>In Jira</span>
+            <span style="display: flex; gap: 2px; flex-shrink: 0">
+              <button aria-label="Edit entry" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; background: transparent; color: var(--ink-faint)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z"></path><path d="m14.5 5.5 4 4"></path></svg></button>
+              <button aria-label="Delete entry" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; background: transparent; color: var(--ink-faint)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14"></path><path d="M9 7V5h6v2"></path><path d="M7 7l1 12h8l1-12"></path></svg></button>
+            </span>
+          </div>
+          <div style="height: 1px; background: var(--edge)"></div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 9px 0">
+            <span class="tnum" style="flex-shrink: 0; width: 46px; font-size: 12px; color: var(--ink-muted)">13:40</span>
+            <span class="tnum" style="flex-shrink: 0; width: 52px; font-size: 14px; font-weight: 500">01:15</span>
+            <span style="flex: 1; min-width: 0; font-size: 14px; color: var(--ink-muted)">Patching the row reuse test</span>
+            <span style="flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--pending)"><span style="width: 7px; height: 7px; border-radius: 999px; background: var(--pending)"></span>Not pushed</span>
+            <span style="display: flex; gap: 2px; flex-shrink: 0">
+              <button aria-label="Edit entry" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; background: transparent; color: var(--ink-faint)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z"></path><path d="m14.5 5.5 4 4"></path></svg></button>
+              <button aria-label="Delete entry" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; background: transparent; color: var(--ink-faint)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14"></path><path d="M9 7V5h6v2"></path><path d="M7 7l1 12h8l1-12"></path></svg></button>
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding-top: 12px; margin-top: 4px; border-top: 1px solid var(--edge)">
+            <input value="" placeholder="00:00" aria-label="Duration" style="font: inherit; font-variant-numeric: tabular-nums; width: 84px; height: 38px; text-align: center; padding: 0 10px; border-radius: 9px; border: 1px solid var(--edge); background: var(--raised); color: var(--ink); font-size: 15px">
+            <input value="" placeholder="What did you work on? (optional)" aria-label="Comment" style="font: inherit; flex: 1; min-width: 0; height: 38px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--edge); background: var(--raised); color: var(--ink); font-size: 14px">
+            <button style="font: inherit; cursor: pointer; flex-shrink: 0; height: 38px; padding: 0 18px; border: none; border-radius: 9px; background: var(--primary); color: var(--primary-ink); font-size: 14px; font-weight: 700">Add</button>
+          </div>
+        </div>
+      </div>
+        <div style="height: 1px; background: var(--edge)"></div>
+        <div style="display: flex; align-items: center; gap: 18px; padding: 15px 0">
+          <a href="#" class="key tnum" style="width: 76px; flex-shrink: 0; color: var(--ink-muted)">RID-355</a>
+          <span style="flex: 1; min-width: 0; font-size: 15px; letter-spacing: -0.01em">Timer survives a page reload</span>
+          <span style="flex-shrink: 0; font-size: 12px; color: var(--ink-muted)">To Do</span>
+          <button aria-label="Show entries for this issue" aria-expanded="false" style="cursor: pointer; font: inherit; font-variant-numeric: tabular-nums; flex-shrink: 0; width: 82px; height: 38px; padding: 0 10px; text-align: right; border: none; border-radius: 9px; background: transparent; color: var(--ink-muted); font-size: 17px; font-weight: 400">00:00</button>
+          <button aria-label="Start timer" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex-shrink: 0; border-radius: 999px; border: 1px solid var(--edge); background: transparent; color: var(--ink-muted)"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"></path></svg></button>
+        </div>
+        </div>
+  <div style="display: flex; gap: 34px; align-items: flex-end; margin-top: 26px; padding-left: 2px">
+      <div style="display: flex; flex-direction: column; gap: 7px; align-items: flex-start">
+        <span class="label" style="color: var(--ink-muted)">Rest</span>
+        <span style="display: inline-flex; padding: 4px; border-radius: 12px; background: var(--raised)">
+          <span style="display: inline-flex; align-items: center; justify-content: flex-end; width: 82px; height: 38px; padding: 0 10px; border-radius: 9px; background: transparent; font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums">02:30</span>
+        </span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 7px; align-items: flex-start">
+        <span class="label" style="color: var(--ink-muted)">Hover</span>
+        <span style="display: inline-flex; padding: 4px; border-radius: 12px; background: var(--raised)">
+          <span style="display: inline-flex; align-items: center; justify-content: flex-end; width: 82px; height: 38px; padding: 0 10px; border-radius: 9px; background: var(--surface); font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums">02:30</span>
+        </span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 7px; align-items: flex-start">
+        <span class="label" style="color: var(--ink-muted)">Focus</span>
+        <span style="display: inline-flex; padding: 4px; border-radius: 12px; background: var(--raised)">
+          <span style="outline: 2px solid var(--primary); outline-offset: 2px; display: inline-flex; align-items: center; justify-content: flex-end; width: 82px; height: 38px; padding: 0 10px; border-radius: 9px; background: var(--surface); font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums">02:30</span>
+        </span>
+      </div>
+      <span style="font-size: 13px; color: var(--ink-muted); max-width: 300px; padding-bottom: 9px">The number is the button. Nothing appears at rest, so the row stays quiet — the chip shows on hover and on keyboard focus.</span>
+    </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"mode":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":880,"height":660}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { mode: this.props.mode ?? 'light' };
+  }
+}
+</script>
+</body>
+</html>
