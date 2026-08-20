@@ -1,18 +1,21 @@
 import { expect, test } from "@playwright/test";
 
 test("the app shell boots and the bundle runs", async ({ page }) => {
+  // Today fetches on render, and the e2e stack shares the dev database, so this
+  // has to be stubbed or the fan-out reaches real Jira instances.
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
+
   await page.goto("/");
 
   await expect(page).toHaveTitle("Work Dashboard");
   await expect(page.getByRole("heading", { name: "Work Dashboard" })).toBeVisible();
 
-  // The shell ships an empty #view; only the router's placeholder render fills
-  // it in. Seeing this text proves the bundle parsed and ran. It does not prove
-  // the dynamic import() on /settings resolves, and it does not prove the
-  // backend is reachable — both are Task 13's to cover once Settings exists.
-  await expect(
-    page.getByText("Nothing here yet. Add a Jira instance to get started."),
-  ).toBeVisible();
+  // The shell ships an empty #view. Seeing Today's empty state proves the bundle
+  // parsed, "/" redirected, and the dynamic import() of a view resolved.
+  await expect(page).toHaveURL(/\/today$/);
+  await expect(page.getByText("No Jira instances yet.")).toBeVisible();
 });
 
 test("an unknown route still serves the app shell", async ({ page }) => {

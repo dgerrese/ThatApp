@@ -29,3 +29,23 @@ export interface ApiErrorBody {
   code: string;
   message: string;
 }
+
+export interface Issue {
+  key: string;
+  summary: string;
+  status: string;
+  /** Empty when the instance has no site URL, which leaves nothing to link to. */
+  url: string;
+}
+
+/** One instance's assigned issues, or the reason it has none. */
+export interface InstanceIssues {
+  id: number;
+  name: string;
+  issues: Issue[];
+  error: ApiErrorBody | null;
+}
+
+export interface IssuesResponse {
+  instances: InstanceIssues[];
+}

@@ -8,10 +8,21 @@ function bodyBackground(page: Page): Promise<string> {
   return page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 }
 
-// "/" has no registered route, so the router renders its placeholder and the
-// page needs no API stub. Themeing is a property of the shell, not of a view.
+/**
+ * "/" leads to Today, which fetches on render. Themeing is a property of the
+ * shell rather than of any view, so the list can be empty — but it has to be
+ * stubbed: the e2e stack shares the dev database, and an unstubbed Today would
+ * fan out to the real Jira instances configured in it.
+ */
+async function stubIssues(page: Page): Promise<void> {
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
+}
+
 test("follows a light OS when nothing is stored", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
+  await stubIssues(page);
   await page.goto("/");
 
   expect(await bodyBackground(page)).toBe("rgb(250, 250, 250)");
@@ -19,6 +30,7 @@ test("follows a light OS when nothing is stored", async ({ page }) => {
 
 test("follows a dark OS when nothing is stored", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
+  await stubIssues(page);
   await page.goto("/");
 
   expect(await bodyBackground(page)).toBe("rgb(10, 10, 10)");
@@ -27,6 +39,7 @@ test("follows a dark OS when nothing is stored", async ({ page }) => {
 test("a stored preference is applied before the bundle loads", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.addInitScript(() => localStorage.setItem("theme", "dark"));
+  await stubIssues(page);
   await page.goto("/");
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -42,6 +55,7 @@ test("unreadable storage still themes from the OS", async ({ page }) => {
       throw new Error("storage disabled");
     };
   });
+  await stubIssues(page);
   await page.goto("/");
 
   await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);

@@ -138,11 +138,14 @@ test("a rejected connection test reports the failure", async ({ page }) => {
 
 test("settings is reachable from the shell nav", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
   await page.goto("/");
 
-  // exact: true disambiguates from the placeholder's "Open Settings" link,
-  // which is also on screen at "/" and whose accessible name contains
-  // "Settings" as a substring.
+  // exact: true disambiguates from the "Open Settings" link in Today's
+  // no-instances state, which is on screen at "/" and whose accessible name
+  // contains "Settings" as a substring.
   await page.getByRole("link", { name: "Settings", exact: true }).click();
 
   await expect(page).toHaveURL(/\/settings$/);

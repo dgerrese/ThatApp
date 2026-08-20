@@ -242,7 +242,7 @@ func TestGetInstancesReturnsAnEmptyArrayNotNull(t *testing.T) {
 	}
 }
 
-func seedInstance(t *testing.T, db *store.Store, sealer *crypto.Sealer, site *httptest.Server) *store.Instance {
+func seedInstanceAtSite(t *testing.T, db *store.Store, sealer *crypto.Sealer, site *httptest.Server) *store.Instance {
 	t.Helper()
 
 	sealed, err := sealer.Seal("secret")
@@ -276,7 +276,7 @@ func TestPatchInstanceWithoutATokenKeepsTheStoredOne(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
 	pointAtSite(srv, site)
-	inst := seedInstance(t, db, sealer, site)
+	inst := seedInstanceAtSite(t, db, sealer, site)
 	before := inst.TokenEnc
 
 	rec := patchInstance(t, srv, inst.ID, `{
@@ -303,7 +303,7 @@ func TestPatchInstanceWithoutATokenKeepsTheStoredOne(t *testing.T) {
 func TestPatchInstanceVerifiesEvenWhenOnlyTheNameChanges(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	good := jiraSiteServer(t, http.StatusOK)
-	inst := seedInstance(t, db, sealer, good)
+	inst := seedInstanceAtSite(t, db, sealer, good)
 
 	// Jira now rejects the stored credential.
 	bad := jiraSiteServer(t, http.StatusUnauthorized)
@@ -346,7 +346,7 @@ func TestPatchInstanceRejectsAMissingID(t *testing.T) {
 func TestPatchInstanceRejectsAMalformedSiteURL(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
-	inst := seedInstance(t, db, sealer, site)
+	inst := seedInstanceAtSite(t, db, sealer, site)
 
 	rec := patchInstance(t, srv, inst.ID, `{"name":"Renamed","siteUrl":"not-a-url","email":"me@example.com"}`)
 
@@ -376,7 +376,7 @@ func TestPatchInstanceRejectsAMalformedSiteURL(t *testing.T) {
 func TestDeleteInstanceRemovesTheRow(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
-	inst := seedInstance(t, db, sealer, site)
+	inst := seedInstanceAtSite(t, db, sealer, site)
 
 	req := httptest.NewRequest(http.MethodDelete,
 		"/api/instances/"+strconv.FormatInt(inst.ID, 10), nil)
@@ -400,7 +400,7 @@ func TestDeleteInstanceRemovesTheRow(t *testing.T) {
 func TestDeleteInstanceWorksWithJiraUnreachable(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
-	inst := seedInstance(t, db, sealer, site)
+	inst := seedInstanceAtSite(t, db, sealer, site)
 	site.Close()
 
 	req := httptest.NewRequest(http.MethodDelete,
@@ -428,7 +428,7 @@ func TestConnectionTestReportsTheIdentity(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
 	pointAtSite(srv, site)
-	inst := seedInstance(t, db, sealer, site)
+	inst := seedInstanceAtSite(t, db, sealer, site)
 
 	rec := testConnection(t, srv, inst.ID)
 
@@ -453,7 +453,7 @@ func TestConnectionTestFailsWhenOnlyMyselfRejects(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusUnauthorized)
 	pointAtSite(srv, site)
-	inst := seedInstance(t, db, sealer, site)
+	inst := seedInstanceAtSite(t, db, sealer, site)
 
 	rec := testConnection(t, srv, inst.ID)
 
@@ -475,7 +475,7 @@ func TestConnectionTestDistinguishesUnreachableFromRejected(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusOK)
 	pointAtSite(srv, site)
-	inst := seedInstance(t, db, sealer, site)
+	inst := seedInstanceAtSite(t, db, sealer, site)
 	site.Close()
 
 	rec := testConnection(t, srv, inst.ID)
@@ -499,7 +499,7 @@ func TestConnectionTestReportsAccountNotFoundAsBadGateway(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusNotFound)
 	pointAtSite(srv, site)
-	inst := seedInstance(t, db, sealer, site)
+	inst := seedInstanceAtSite(t, db, sealer, site)
 
 	rec := testConnection(t, srv, inst.ID)
 
@@ -522,7 +522,7 @@ func TestConnectionTestHidesTheUnderlyingErrorOnAnUnmappedStatus(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	site := jiraSiteServer(t, http.StatusTooManyRequests)
 	pointAtSite(srv, site)
-	inst := seedInstance(t, db, sealer, site)
+	inst := seedInstanceAtSite(t, db, sealer, site)
 
 	rec := testConnection(t, srv, inst.ID)
 
