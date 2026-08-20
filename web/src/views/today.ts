@@ -2,6 +2,7 @@ import "../components/wd-alert";
 import "../components/wd-button";
 import "../components/wd-card";
 import "../components/wd-ticket-row";
+import { alignKeyColumn } from "../key-column";
 
 import { ApiError, listIssues } from "../api";
 import type { InstanceIssues, IssuesResponse } from "../types";
@@ -74,6 +75,12 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
 
   regions.header.hidden = false;
   regions.results.replaceChildren(...response.instances.map(instanceCard));
+
+  // After insertion, not before: a list outside the document has no layout, so
+  // every key in it would measure zero.
+  for (const list of regions.results.querySelectorAll<HTMLElement>("ul")) {
+    alignKeyColumn(list);
+  }
 }
 
 function instanceCard(group: InstanceIssues): HTMLElement {

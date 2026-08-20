@@ -122,12 +122,14 @@ a.wd-nav:hover {
 
 /* The issue key is a column, not a word. Fixing its width is what lines the
    summaries up down a card; without it every row starts its title at a
-   different x and the list reads as ragged. 76px holds the keys the design
-   drew with room to spare, and a longer key widens the column rather than
-   breaking the alignment for every other row. */
+   different x and the list reads as ragged. 76px is what the design drew, and
+   it is only the floor: web/src/key-column.ts measures each list and widens
+   --wd-key-col when that list's own keys need more, so one long key moves the
+   whole column instead of breaking rank with the rest of the list. Real data
+   reaches the floor immediately — a ten-character key already overruns it. */
 .wd-key {
   flex: none;
-  min-width: 76px;
+  min-width: var(--wd-key-col, 76px);
   font-size: var(--text-sm);
   font-weight: 700;
   letter-spacing: 0.03em;

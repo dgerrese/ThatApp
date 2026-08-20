@@ -250,8 +250,17 @@ Three parts on one baseline: the key, the summary, the status.
 
 **The key's column is what aligns the card.** Fixing its width is the whole reason every summary
 starts at the same x down a list; sized to its own text, each row begins its title wherever that
-key happened to end and the card reads as ragged. A key wider than the column widens its own row
-rather than clipping — one ragged row beats one unreadable key.
+key happened to end and the card reads as ragged.
+
+**76px is the floor, not the width.** The design drew it around seven-character examples, and real
+data passes it immediately — a ten-character key such as `RIDGE-5325` measures 78px. So each list
+measures its own keys and shares one column: a key wider than the floor moves the whole column
+rather than breaking rank with its neighbours, and a list of short keys keeps the drawn 76px instead
+of being padded to suit some other instance. Clipping the key is never the answer — it is the
+identifier the row exists to give you.
+
+Per list rather than per card or per app, because two instances with differently-shaped project keys
+are two lists: padding the short one to suit the long one spends width the summary needs.
 
 The summary is the only part that may shrink, and it must be allowed to: a flex item's floor is its
 min-content width, so without `min-width: 0` the truncation never engages and the status is pushed

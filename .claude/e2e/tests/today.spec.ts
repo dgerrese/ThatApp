@@ -281,8 +281,50 @@ test("summaries line up down the card whatever the key's length", async ({ page 
     }),
   );
 
-  // A-1 and ESS-35 both sit inside the 76px column, so their summaries share an
-  // edge. PLATFORM-4821 is deliberately wider than the column: it may push its
-  // own summary out, but it must never drag the others with it.
-  expect(lefts[0]).toBe(lefts[2]);
+  // PLATFORM-4821 is wider than the 76px the design drew, which is exactly the
+  // case that used to go ragged: the column is sized from the widest key in the
+  // list, so all three share an edge rather than two of them agreeing.
+  expect(new Set(lefts).size).toBe(1);
+});
+
+/**
+ * Each list carries its own column. Two instances whose project keys differ in
+ * length must not be forced to the same width — they are separate lists, and
+ * padding the short one to suit the long one wastes the space that the summary
+ * needs on a narrow viewport.
+ */
+test("each instance's list sizes its own key column", async ({ page }) => {
+  await stubIssues(page, [
+    group(1, "Short", [
+      { key: "A-1", summary: "One", status: "To Do", url: "https://w.atlassian.net/browse/A-1" },
+      { key: "A-2", summary: "Two", status: "To Do", url: "https://w.atlassian.net/browse/A-2" },
+    ]),
+    group(2, "Long", [
+      {
+        key: "PLATFORM-4821",
+        summary: "Three",
+        status: "To Do",
+        url: "https://w.atlassian.net/browse/PLATFORM-4821",
+      },
+      {
+        key: "PLATFORM-4822",
+        summary: "Four",
+        status: "To Do",
+        url: "https://w.atlassian.net/browse/PLATFORM-4822",
+      },
+    ]),
+  ]);
+  await page.goto("/today");
+  await expect(page.locator("wd-ticket-row")).toHaveCount(4);
+
+  const columns = await page
+    .locator("wd-card ul")
+    .evaluateAll((lists) =>
+      lists.map((list) => parseFloat((list as HTMLElement).style.getPropertyValue("--wd-key-col"))),
+    );
+
+  expect(columns).toHaveLength(2);
+  // The short list keeps the design's floor; the long one grows past it.
+  expect(columns[0]).toBe(76);
+  expect(columns[1]).toBeGreaterThan(76);
 });
