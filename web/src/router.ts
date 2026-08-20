@@ -9,6 +9,7 @@ interface View {
  */
 const routes: Record<string, () => Promise<View>> = {
   "/settings": () => import("./views/settings"),
+  "/today": () => import("./views/today"),
 };
 
 let mountPoint: HTMLElement | undefined;

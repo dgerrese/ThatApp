@@ -1,4 +1,10 @@
-import type { ApiErrorBody, ConnectionTest, Instance, InstanceDraft } from "./types";
+import type {
+  ApiErrorBody,
+  ConnectionTest,
+  Instance,
+  InstanceDraft,
+  IssuesResponse,
+} from "./types";
 
 /**
  * A failed API call. The code is what callers branch on: a rejected credential
@@ -77,4 +83,8 @@ export function deleteInstance(id: number): Promise<void> {
 
 export function testInstance(id: number): Promise<ConnectionTest> {
   return request<ConnectionTest>(`/api/instances/${id}/test`, { method: "POST" });
+}
+
+export function listIssues(): Promise<IssuesResponse> {
+  return request<IssuesResponse>("/api/issues");
 }
