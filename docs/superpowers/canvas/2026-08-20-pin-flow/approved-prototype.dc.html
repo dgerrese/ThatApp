@@ -1,0 +1,433 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; }
+    .wd {
+      --color-surface: light-dark(#fafafa, #0a0a0a);
+      --color-raised: light-dark(#ffffff, #171717);
+      --color-ink: light-dark(#171717, #f5f5f5);
+      --color-ink-muted: light-dark(#525252, #a3a3a3);
+      --color-edge: light-dark(#e5e5e5, #262626);
+      --color-accent: light-dark(#171717, #f5f5f5);
+      --color-accent-ink: light-dark(#ffffff, #0a0a0a);
+      --color-link: light-dark(#1d4ed8, #60a5fa);
+      --color-danger-tint: light-dark(#fef2f2, #450a0a);
+      --color-danger-edge: light-dark(#fca5a5, #7f1d1d);
+      --color-danger-ink: light-dark(#7f1d1d, #fecaca);
+      --font-sans: ui-sans-serif, system-ui, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    a { color: var(--color-link); }
+    a:hover { color: var(--color-link); }
+    .wd button { font: inherit; cursor: pointer; }
+    .wd button:disabled { cursor: not-allowed; opacity: 0.5; }
+    .wd input { font: inherit; color: inherit; background: var(--color-raised); }
+    .wd input:focus { border-color: var(--color-ink); outline: none; }
+    .wd input:disabled { cursor: not-allowed; opacity: 0.5; }
+    .wd .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+    .wd .btn-secondary:hover:not(:disabled) { background: var(--color-surface); }
+    .wd li + li { border-top: 1px solid var(--color-edge); }
+    .wd .opt { border: none; width: 100%; text-align: left; background: transparent; display: block; }
+    .wd .opt-on { background: var(--color-surface); }
+    .wd .opt:disabled { cursor: default; opacity: 1; }
+  </style>
+</helmet>
+<div class="wd" style="width: 768px; min-height: 700px; box-sizing: border-box; padding: 24px; background: var(--color-surface); color: var(--color-ink); font-family: var(--font-sans); color-scheme: {{scheme}};">
+
+  <div style="display: block; border-radius: 8px; border: 1px solid var(--color-edge); background: var(--color-raised); padding: 16px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);">
+
+    <h2 style="margin: 0 0 12px 0; font-size: 18px; line-height: 28px; font-weight: 500;">Pinned</h2>
+
+    <sc-if value="{{hasPins}}" hint-placeholder-val="{{ true }}">
+      <ul style="margin: 0; padding: 0; list-style: none;">
+        <sc-for list="{{pins}}" as="pin" hint-placeholder-count="2">
+          <li style="display: flex; align-items: center; gap: 12px;">
+            <span style="flex-shrink: 0; font-size: 14px; line-height: 20px; color: var(--color-ink-muted);">{{pin.instance}}</span>
+            <div style="flex: 1 1 0%; min-width: 0; display: flex; align-items: baseline; gap: 12px; padding-top: 12px; padding-bottom: 12px;">
+              <div style="display: flex; flex: 1 1 0%; align-items: baseline; justify-content: space-between; gap: 12px;">
+                <div style="display: flex; align-items: baseline; gap: 12px;">
+                  <a href="{{pin.url}}" target="_blank" rel="noopener" style="font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 500; text-decoration: underline;">{{pin.key}}</a>
+                  <span style="font-size: 14px; line-height: 20px;">{{pin.summary}}</span>
+                </div>
+                <span style="flex-shrink: 0; font-size: 12px; line-height: 16px; color: var(--color-ink-muted);">{{pin.status}}</span>
+              </div>
+            </div>
+            <button class="btn-secondary" type="button" onClick="{{pin.unpin}}" style="display: inline-flex; align-items: center; border-radius: 6px; padding: 6px 12px; font-size: 14px; line-height: 20px; font-weight: 500; background: var(--color-raised); color: var(--color-ink); border: 1px solid var(--color-edge);">Unpin</button>
+          </li>
+        </sc-for>
+      </ul>
+    </sc-if>
+
+    <sc-if value="{{isEmpty}}" hint-placeholder-val="{{ false }}">
+      <p style="margin: 0; font-size: 14px; line-height: 20px; color: var(--color-ink-muted);">Nothing pinned.</p>
+    </sc-if>
+
+    <sc-if value="{{formClosed}}" hint-placeholder-val="{{ true }}">
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-edge); padding-top: 12px;">
+        <button class="btn-secondary" type="button" onClick="{{openForm}}" style="display: inline-flex; align-items: center; border-radius: 6px; padding: 6px 12px; font-size: 14px; line-height: 20px; font-weight: 500; background: var(--color-raised); color: var(--color-ink); border: 1px solid var(--color-edge);">Pin an issue</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{formOpen}}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-edge); padding-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+
+        <div style="display: block;">
+          <label for="pin-search" style="display: block; margin-bottom: 4px; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--color-ink);">Find an issue</label>
+
+          <div style="position: relative;">
+            <input id="pin-search" type="text" role="combobox" aria-autocomplete="list" aria-controls="pin-results" aria-expanded="{{expanded}}" aria-activedescendant="{{activeId}}" autocomplete="off" placeholder="Search by key or title" value="{{query}}" disabled="{{pinning}}" ref="{{inputRef}}" onInput="{{typeQuery}}" onChange="{{typeQuery}}" onKeyDown="{{keyDown}}" style="width: 100%; box-sizing: border-box; border-radius: 6px; border: 1px solid var(--color-edge); padding: 6px 12px; font-size: 14px; line-height: 20px;">
+
+            <sc-if value="{{popupOpen}}" hint-placeholder-val="{{ true }}">
+              <div id="pin-results" role="listbox" style="position: absolute; z-index: 10; left: 0; right: 0; top: 38px; max-height: 244px; overflow-y: auto; border-radius: 6px; border: 1px solid var(--color-edge); background: var(--color-raised); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);">
+
+                <sc-if value="{{searching}}" hint-placeholder-val="{{ false }}">
+                  <p style="margin: 0; padding: 8px 12px; font-size: 14px; line-height: 20px; color: var(--color-ink-muted);">Searching…</p>
+                </sc-if>
+
+                <sc-if value="{{hasResults}}" hint-placeholder-val="{{ true }}">
+                  <ul style="margin: 0; padding: 0; list-style: none;">
+                    <sc-for list="{{results}}" as="hit" hint-placeholder-count="3">
+                      <li style="border: none;">
+                        <button class="opt {{hit.activeClass}}" type="button" role="option" id="{{hit.domId}}" aria-selected="{{hit.selected}}" disabled="{{hit.pinned}}" onClick="{{hit.choose}}" onMouseEnter="{{hit.hover}}" style="padding: 8px 12px; cursor: pointer;">
+                          <span style="display: flex; align-items: baseline; gap: 12px;">
+                            <span style="flex-shrink: 0; font-size: 14px; line-height: 20px; color: var(--color-ink-muted);">{{hit.instance}}</span>
+                            <span style="flex-shrink: 0; font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 500;">{{hit.key}}</span>
+                            <span style="flex: 1 1 0%; font-size: 14px; line-height: 20px; color: var(--color-ink);">{{hit.summary}}</span>
+                            <span style="flex-shrink: 0; font-size: 12px; line-height: 16px; color: var(--color-ink-muted);">{{hit.tail}}</span>
+                          </span>
+                        </button>
+                      </li>
+                    </sc-for>
+                  </ul>
+                </sc-if>
+
+                <sc-if value="{{noResults}}" hint-placeholder-val="{{ false }}">
+                  <p style="margin: 0; padding: 8px 12px; font-size: 14px; line-height: 20px; color: var(--color-ink-muted);">{{noResultsText}}</p>
+                </sc-if>
+
+                <sc-if value="{{hasPartialFailure}}" hint-placeholder-val="{{ false }}">
+                  <p style="margin: 0; border-top: 1px solid var(--color-edge); padding: 8px 12px; font-size: 12px; line-height: 16px; color: var(--color-ink-muted);">{{partialFailureText}}</p>
+                </sc-if>
+
+              </div>
+            </sc-if>
+          </div>
+
+          <sc-if value="{{showHint}}" hint-placeholder-val="{{ true }}">
+            <p style="margin: 4px 0 0 0; font-size: 12px; line-height: 16px; color: var(--color-ink-muted);">Searches every instance. Two characters to start.</p>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{hasError}}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="display: block; border-radius: 6px; border: 1px solid var(--color-danger-edge); background: var(--color-danger-tint); color: var(--color-danger-ink); padding: 8px 12px; font-size: 14px; line-height: 20px;">{{errorMessage}}</div>
+        </sc-if>
+
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-secondary" type="button" onClick="{{cancel}}" disabled="{{pinning}}" style="display: inline-flex; align-items: center; border-radius: 6px; padding: 6px 12px; font-size: 14px; line-height: 20px; font-weight: 500; background: var(--color-raised); color: var(--color-ink); border: 1px solid var(--color-edge);">Cancel</button>
+        </div>
+
+      </div>
+    </sc-if>
+
+  </div>
+
+  <div style="margin-top: 24px; display: flex; align-items: baseline; justify-content: space-between;">
+    <h2 style="margin: 0; font-size: 18px; line-height: 28px; font-weight: 500;">Assigned issues</h2>
+    <button class="btn-secondary" type="button" style="display: inline-flex; align-items: center; border-radius: 6px; padding: 6px 12px; font-size: 14px; line-height: 20px; font-weight: 500; background: var(--color-raised); color: var(--color-ink); border: 1px solid var(--color-edge);">Refresh</button>
+  </div>
+
+  <div style="margin-top: 16px; display: block; border-radius: 8px; border: 1px solid var(--color-edge); background: var(--color-raised); padding: 16px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);">
+    <h2 style="margin: 0 0 12px 0; font-size: 18px; line-height: 28px; font-weight: 500;">Ridgeline</h2>
+    <ul style="margin: 0; padding: 0; list-style: none;">
+      <sc-for list="{{assigned}}" as="row" hint-placeholder-count="2">
+        <li style="display: flex; align-items: baseline; gap: 12px; padding-top: 12px; padding-bottom: 12px;">
+          <div style="display: flex; flex: 1 1 0%; align-items: baseline; justify-content: space-between; gap: 12px;">
+            <div style="display: flex; align-items: baseline; gap: 12px;">
+              <a href="{{row.url}}" target="_blank" rel="noopener" style="font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 500; text-decoration: underline;">{{row.key}}</a>
+              <span style="font-size: 14px; line-height: 20px;">{{row.summary}}</span>
+            </div>
+            <span style="flex-shrink: 0; font-size: 12px; line-height: 16px; color: var(--color-ink-muted);">{{row.status}}</span>
+          </div>
+        </li>
+      </sc-for>
+    </ul>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"personalDown":{"editor":"boolean","default":false,"section":"Appearance"},"$preview":{"width":768,"height":700}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      pins: [
+        { id: 3, instanceId: 1, key: 'SHARED-12', summary: 'Weekly standup', status: 'In Progress' },
+        { id: 5, instanceId: 2, key: 'MISC-3', summary: 'Admin overhead', status: 'Open' }
+      ],
+      formOpen: false,
+      query: '',
+      results: [],
+      failed: [],
+      searching: false,
+      searched: false,
+      active: 0,
+      pinning: false,
+      error: '',
+      nextId: 6
+    };
+    this.timer = null;
+    this.wantFocus = false;
+  }
+
+  // Stands in for the instances and the issues GET /api/issues/search reaches.
+  catalogue() {
+    return {
+      1: {
+        name: 'Ridgeline',
+        site: 'https://ridgeline.atlassian.net',
+        issues: [
+          { key: 'SHARED-12', summary: 'Weekly standup', status: 'In Progress' },
+          { key: 'SHARED-40', summary: 'Vendor security review', status: 'To Do' },
+          { key: 'OPS-21', summary: 'Quarterly access review', status: 'To Do' },
+          { key: 'WORK-412', summary: 'Fix the CSV export encoding', status: 'In Progress' },
+          { key: 'WORK-388', summary: 'Upgrade the build image', status: 'In Review' }
+        ]
+      },
+      2: {
+        name: 'Personal',
+        site: 'https://personal.atlassian.net',
+        issues: [
+          { key: 'MISC-3', summary: 'Admin overhead', status: 'Open' },
+          { key: 'MISC-8', summary: 'Expenses and invoicing', status: 'Open' },
+          { key: 'MISC-15', summary: 'Security questionnaire', status: 'Open' }
+        ]
+      }
+    };
+  }
+
+  // Mirrors what the server does per instance: an exact key lookup when the
+  // query looks like a key, plus a prefix match on the summary. Jira's ~ is
+  // word-prefix, not substring, so this matches word starts only.
+  matches(issue, query) {
+    var q = query.toLowerCase();
+    if (issue.key.toLowerCase().indexOf(q) === 0) return true;
+
+    var words = issue.summary.toLowerCase().split(/[^a-z0-9]+/);
+    for (var i = 0; i < words.length; i++) {
+      if (words[i].indexOf(q) === 0 && words[i] !== '') return true;
+    }
+    return false;
+  }
+
+  openForm() {
+    this.wantFocus = true;
+    this.setState({ formOpen: true, query: '', results: [], failed: [], searched: false, active: 0, error: '' });
+  }
+
+  cancel() {
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    this.setState({ formOpen: false, query: '', results: [], failed: [], searched: false, active: 0, error: '' });
+  }
+
+  search(query) {
+    var self = this;
+    var trimmed = String(query || '').trim();
+
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+
+    if (trimmed.length < 2) {
+      this.setState({ results: [], failed: [], searching: false, searched: false, active: 0 });
+      return;
+    }
+
+    this.setState({ searching: true });
+
+    // The debounce the real combobox needs: one fan-out per pause, not per
+    // keystroke, because each search is a Jira call per instance.
+    this.timer = setTimeout(function () {
+      self.timer = null;
+
+      var catalogue = self.catalogue();
+      var hits = [];
+      var failed = [];
+
+      Object.keys(catalogue).forEach(function (id) {
+        var instance = catalogue[id];
+
+        // One instance failing must not blank the others, exactly as the
+        // assigned-issues fan-out already guarantees.
+        if (Number(id) === 2 && self.props.personalDown) {
+          failed.push(instance.name);
+          return;
+        }
+
+        instance.issues.forEach(function (issue) {
+          if (self.matches(issue, trimmed)) {
+            hits.push({
+              instanceId: Number(id),
+              instance: instance.name,
+              key: issue.key,
+              summary: issue.summary,
+              status: issue.status,
+              url: instance.site + '/browse/' + issue.key
+            });
+          }
+        });
+      });
+
+      self.setState({ results: hits, failed: failed, searching: false, searched: true, active: 0 });
+    }, 350);
+  }
+
+  selectable() {
+    var self = this;
+    return this.state.results.filter(function (hit) { return !self.isPinned(hit); });
+  }
+
+  isPinned(hit) {
+    return this.state.pins.some(function (pin) {
+      return pin.instanceId === hit.instanceId && pin.key === hit.key;
+    });
+  }
+
+  move(delta) {
+    var options = this.state.results;
+    if (options.length === 0) return;
+
+    var next = this.state.active + delta;
+    if (next < 0) next = options.length - 1;
+    if (next > options.length - 1) next = 0;
+    this.setState({ active: next });
+  }
+
+  choose(hit) {
+    var self = this;
+    if (this.isPinned(hit) || this.state.pinning) return;
+
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    this.setState({ pinning: true, query: hit.key, results: [], searched: false, error: '' });
+
+    // POST /api/pins looks the key up again server-side before storing it: the
+    // browser's summary is never what gets cached.
+    setTimeout(function () {
+      self.setState({
+        pins: self.state.pins.concat([{
+          id: self.state.nextId,
+          instanceId: hit.instanceId,
+          key: hit.key,
+          summary: hit.summary,
+          status: hit.status
+        }]),
+        nextId: self.state.nextId + 1,
+        pinning: false,
+        formOpen: false,
+        query: '',
+        error: ''
+      });
+    }, 600);
+  }
+
+  renderVals() {
+    var self = this;
+    var catalogue = this.catalogue();
+    var trimmed = this.state.query.trim();
+
+    var pins = this.state.pins.map(function (pin) {
+      var instance = catalogue[pin.instanceId];
+      return {
+        key: pin.key,
+        summary: pin.summary,
+        status: pin.status,
+        instance: instance.name,
+        url: instance.site + '/browse/' + pin.key,
+        unpin: function () {
+          self.setState({
+            pins: self.state.pins.filter(function (other) { return other.id !== pin.id; })
+          });
+        }
+      };
+    });
+
+    var results = this.state.results.map(function (hit, index) {
+      var pinned = self.isPinned(hit);
+      return {
+        instance: hit.instance,
+        key: hit.key,
+        summary: hit.summary,
+        tail: pinned ? 'Pinned' : hit.status,
+        pinned: pinned,
+        domId: 'pin-option-' + index,
+        selected: index === self.state.active ? 'true' : 'false',
+        activeClass: index === self.state.active ? 'opt-on' : '',
+        choose: function () { self.choose(hit); },
+        hover: function () { self.setState({ active: index }); }
+      };
+    });
+
+    var searching = this.state.searching;
+    var hasResults = !searching && results.length > 0;
+    var noResults = !searching && this.state.searched && results.length === 0;
+    var failed = this.state.failed;
+
+    return {
+      scheme: this.props.theme === 'dark' ? 'dark' : 'light',
+      pins: pins,
+      hasPins: pins.length > 0,
+      isEmpty: pins.length === 0,
+      formOpen: this.state.formOpen,
+      formClosed: !this.state.formOpen,
+      query: this.state.query,
+      pinning: this.state.pinning,
+      results: results,
+      searching: searching,
+      hasResults: hasResults,
+      noResults: noResults,
+      noResultsText: 'No issues match “' + trimmed + '”.',
+      hasPartialFailure: failed.length > 0 && !searching,
+      partialFailureText: failed.join(', ') + ' could not be searched.',
+      popupOpen: !this.state.pinning && (searching || hasResults || noResults),
+      showHint: !this.state.pinning && trimmed.length < 2,
+      expanded: (!this.state.pinning && (searching || hasResults || noResults)) ? 'true' : 'false',
+      activeId: hasResults ? 'pin-option-' + this.state.active : '',
+      hasError: this.state.error !== '',
+      errorMessage: this.state.error,
+      openForm: function () { self.openForm(); },
+      cancel: function () { self.cancel(); },
+      inputRef: function (element) {
+        if (element && self.wantFocus) {
+          self.wantFocus = false;
+          element.focus();
+        }
+      },
+      typeQuery: function (event) {
+        var value = event.target.value;
+        self.setState({ query: value });
+        self.search(value);
+      },
+      keyDown: function (event) {
+        if (event.key === 'ArrowDown') { event.preventDefault(); self.move(1); return; }
+        if (event.key === 'ArrowUp') { event.preventDefault(); self.move(-1); return; }
+        if (event.key === 'Escape') { event.preventDefault(); self.cancel(); return; }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          var hit = self.state.results[self.state.active];
+          if (hit) self.choose(hit);
+        }
+      },
+      assigned: [
+        { key: 'WORK-412', summary: 'Fix the CSV export encoding', status: 'In Progress', url: 'https://ridgeline.atlassian.net/browse/WORK-412' },
+        { key: 'WORK-388', summary: 'Upgrade the build image', status: 'In Review', url: 'https://ridgeline.atlassian.net/browse/WORK-388' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
