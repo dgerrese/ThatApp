@@ -147,24 +147,33 @@ an issue, a branch and a pull request. Changes to how the project is *run* — `
 `.claude/**`, process documents — need no issue and go in their own pull request; split a change
 that touches both.
 
-Tickets move through eight statuses, tracked by a single `status:*` label per issue — closed ones
-included, where the label records which kind of closed it is:
+Open tickets carry exactly one `status:*` label; closed ones carry none, because GitHub already
+records how an issue ended:
 
 ```
-intake → refinement → ready → in-progress → review → done
-   ↓                             ↓
-declined                      blocked (from anywhere)
+intake → needs-refinement → todo → in-progress → (open PR) → merged & closed
+   ↓                                   ↓
+closed as not planned,             blocked (from anywhere)
+labelled wontfix
 ```
+
+Review and done are **not labels**. An open pull request saying `Closes #<n>` is the review state,
+and a closed issue is the finished one — so the label comes off when the issue closes. A pull
+request closed *without* merging is the one gap: move the ticket back to `status:in-progress` by
+hand.
+
+`bug` and `enhancement` are a second, optional axis recording whether a ticket is a defect or new
+capability. At most one, and plenty of tickets are neither.
 
 **Cutting the branch is what moves a ticket to `status:in-progress`.** The trigger is the branch
 existing, not a judgement about how far the work has got: a ticket with `issue-<n>-<slug>` pushed is
-in progress even when that branch carries only a design and a plan. That makes `status:ready` mean
+in progress even when that branch carries only a design and a plan. That makes `status:todo` mean
 "nobody has started this" rather than "started or not, who knows".
 
-Three moves are the owner's alone: **intake → refinement** (approval), **intake → declined**, and
-**review → done** (the merge). A green `make verify`, a passing CI run and an approving review are
-not the merge signal — the owner saying so is. Create an intake ticket and stop; never approve your
-own.
+Two moves are the owner's alone: **intake → needs-refinement** (approval) and **declining an
+intake** (closing it as not planned). So is **the merge**, which is what finishes a ticket — a green
+`make verify`, a passing CI run and an approving review are not that signal; the owner saying so is.
+Create an intake ticket and stop; never approve your own.
 
 The merge is theirs in the literal sense too: **merging into `main` locally is forbidden**, per the
 hard constraint above. Finishing a branch means pushing it and opening a pull request — those are
