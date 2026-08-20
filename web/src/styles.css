@@ -120,6 +120,20 @@ a.wd-nav:hover {
   font-weight: 700;
 }
 
+/* The issue key is a column, not a word. Fixing its width is what lines the
+   summaries up down a card; without it every row starts its title at a
+   different x and the list reads as ragged. 76px holds the keys the design
+   drew with room to spare, and a longer key widens the column rather than
+   breaking the alignment for every other row. */
+.wd-key {
+  flex: none;
+  min-width: 76px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+}
+
 /* Figures that sit above one another have to align, or the column reads as
    ragged noise rather than as quantities. */
 .wd-tnum {

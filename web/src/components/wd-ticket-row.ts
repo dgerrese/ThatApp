@@ -6,6 +6,10 @@
  * carries tabular figures, so keys still align in a column, and a second family
  * loaded for four characters a row costs bytes the 14kB budget would notice.
  *
+ * That column is a fixed width rather than the key's own: it is what makes the
+ * summaries start at the same x down the whole card, which is the alignment the
+ * design draws.
+ *
  * Its own content lives in a wrapper the component owns and re-renders, rather
  * than in the host's children — the same shape wd-button uses — so that anything
  * a later ticket appends survives an attribute change.
@@ -65,7 +69,7 @@ export class WdTicketRow extends HTMLElement {
 
     if (url === "") {
       const span = document.createElement("span");
-      span.className = "text-ink-muted shrink-0 text-md font-bold tracking-[-0.01em]";
+      span.className = "wd-key wd-tnum text-ink-muted";
       span.textContent = key;
 
       return span;
@@ -76,7 +80,7 @@ export class WdTicketRow extends HTMLElement {
     link.target = "_blank";
     // Without noopener the opened page gets a window.opener handle back here.
     link.rel = "noopener";
-    link.className = "text-primary shrink-0 text-md font-bold tracking-[-0.01em] hover:underline";
+    link.className = "wd-key wd-tnum text-primary hover:underline";
     link.textContent = key;
 
     return link;
@@ -84,7 +88,7 @@ export class WdTicketRow extends HTMLElement {
 
   private summarySpan(): HTMLElement {
     const summary = document.createElement("span");
-    summary.className = "min-w-0 flex-1 truncate text-md";
+    summary.className = "min-w-0 flex-1 truncate text-lg";
     summary.textContent = this.getAttribute("summary") ?? "";
 
     return summary;

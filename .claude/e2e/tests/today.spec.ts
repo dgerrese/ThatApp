@@ -249,3 +249,40 @@ test("buttons say whether they can be clicked", async ({ page }) => {
   // The rail's Push has nothing to push yet, and says so the same way.
   await expect(page.locator("#rail-push")).toHaveCSS("cursor", "not-allowed");
 });
+
+/**
+ * The key is a column, not a word: fixing its width is what makes every summary
+ * in a card start at the same x. Without it each row begins its title wherever
+ * its own key happened to end, and the list reads as ragged.
+ *
+ * Geometry again rather than classes — the difference is entirely in layout.
+ */
+test("summaries line up down the card whatever the key's length", async ({ page }) => {
+  await stubIssues(page, [
+    group(1, "Work", [
+      { key: "A-1", summary: "Short key", status: "To Do", url: "https://w.atlassian.net/browse/A-1" },
+      {
+        key: "PLATFORM-4821",
+        summary: "Much longer key",
+        status: "To Do",
+        url: "https://w.atlassian.net/browse/PLATFORM-4821",
+      },
+      { key: "ESS-35", summary: "Middling key", status: "QA", url: "https://w.atlassian.net/browse/ESS-35" },
+    ]),
+  ]);
+  await page.goto("/today");
+  await expect(page.locator("wd-ticket-row")).toHaveCount(3);
+
+  const lefts = await page.locator("wd-ticket-row").evaluateAll((rows) =>
+    rows.map((row) => {
+      const key = row.querySelector(".wd-key") as HTMLElement;
+
+      return Math.round((key.nextElementSibling as HTMLElement).getBoundingClientRect().left);
+    }),
+  );
+
+  // A-1 and ESS-35 both sit inside the 76px column, so their summaries share an
+  // edge. PLATFORM-4821 is deliberately wider than the column: it may push its
+  // own summary out, but it must never drag the others with it.
+  expect(lefts[0]).toBe(lefts[2]);
+});

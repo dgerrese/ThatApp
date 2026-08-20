@@ -238,6 +238,25 @@ leaves it there. **Every button therefore sets `cursor-pointer` explicitly**, an
 says `not-allowed`. This is in `wd-button`'s base, so it is one decision rather than one per
 caller.
 
+## The ticket row
+
+Three parts on one baseline: the key, the summary, the status.
+
+| Part | Treatment |
+| --- | --- |
+| Key | A **76px column**, not a word — `--text-sm`, weight 700, `+0.03em`, tabular figures |
+| Summary | `--text-lg`, `min-width: 0`, truncating with an ellipsis |
+| Status | `--text-sm`, `--color-ink-muted`, never shrinking |
+
+**The key's column is what aligns the card.** Fixing its width is the whole reason every summary
+starts at the same x down a list; sized to its own text, each row begins its title wherever that
+key happened to end and the card reads as ragged. A key wider than the column widens its own row
+rather than clipping — one ragged row beats one unreadable key.
+
+The summary is the only part that may shrink, and it must be allowed to: a flex item's floor is its
+min-content width, so without `min-width: 0` the truncation never engages and the status is pushed
+out of the card entirely on a narrow viewport.
+
 ## The five screen states
 
 Each is an artboard; the reasoning is in `annotations.md`.
