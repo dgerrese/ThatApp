@@ -85,7 +85,7 @@ function renderPlaceholder(root: HTMLElement): void {
   const link = document.createElement("a");
   link.href = "/today";
   link.dataset["route"] = "";
-  link.className = "mt-4 inline-block font-medium text-link underline";
+  link.className = "text-primary mt-4 inline-block font-bold hover:underline";
   link.textContent = "Go to Today";
 
   root.append(paragraph, link);

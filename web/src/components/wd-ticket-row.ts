@@ -2,6 +2,10 @@
  * One issue: its key, its summary and its status. Light DOM, so #7 and #8 can
  * append a timer and a duration field to it without a slot.
  *
+ * The key is set in the body face rather than a monospace one. Space Grotesk
+ * carries tabular figures, so keys still align in a column, and a second family
+ * loaded for four characters a row costs bytes the 14kB budget would notice.
+ *
  * Its own content lives in a wrapper the component owns and re-renders, rather
  * than in the host's children — the same shape wd-button uses — so that anything
  * a later ticket appends survives an attribute change.
@@ -41,7 +45,7 @@ export class WdTicketRow extends HTMLElement {
     identity.append(this.keyLabel(url), this.summarySpan());
 
     const status = document.createElement("span");
-    status.className = "shrink-0 text-xs text-ink-muted";
+    status.className = "text-ink-muted shrink-0 text-sm";
     status.textContent = this.getAttribute("status") ?? "";
 
     body.replaceChildren(identity, status);
@@ -57,7 +61,7 @@ export class WdTicketRow extends HTMLElement {
 
     if (url === "") {
       const span = document.createElement("span");
-      span.className = "font-mono text-sm font-medium text-ink-muted";
+      span.className = "text-ink-muted shrink-0 text-md font-bold tracking-[-0.01em]";
       span.textContent = key;
 
       return span;
@@ -68,7 +72,7 @@ export class WdTicketRow extends HTMLElement {
     link.target = "_blank";
     // Without noopener the opened page gets a window.opener handle back here.
     link.rel = "noopener";
-    link.className = "font-mono text-sm font-medium text-link underline";
+    link.className = "text-primary shrink-0 text-md font-bold tracking-[-0.01em] hover:underline";
     link.textContent = key;
 
     return link;
@@ -76,7 +80,7 @@ export class WdTicketRow extends HTMLElement {
 
   private summarySpan(): HTMLElement {
     const summary = document.createElement("span");
-    summary.className = "text-sm";
+    summary.className = "min-w-0 flex-1 truncate text-md";
     summary.textContent = this.getAttribute("summary") ?? "";
 
     return summary;

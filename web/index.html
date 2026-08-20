@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Work Dashboard</title>
+    <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/app.css" />
     <script type="module" src="/app.js"></script>
     <script>
@@ -19,26 +20,64 @@
       } catch {}
     </script>
   </head>
-  <body class="bg-surface text-ink">
-    <main class="mx-auto max-w-3xl p-6">
-      <header class="mb-6 flex items-baseline justify-between">
-        <h1 class="text-2xl font-semibold">Work Dashboard</h1>
-        <nav class="flex gap-4">
+  <body class="bg-surface text-ink font-sans text-md tracking-[-0.011em]">
+    <div class="grid min-h-screen grid-cols-1 md:grid-cols-[216px_minmax(0,1fr)]">
+      <!--
+        The rail is the instrument, not a menu: the thing you glance at sits in
+        the same place whatever view you are on. It is dark in both themes and
+        does not invert.
+
+        Its regions render their resting state here and go live later — the day
+        total and the instance split in #7, the running timer in #8, the
+        unpushed count and Push in #9. Nothing shows a value that would be wrong
+        once the data exists: the total really is zero until time entries can be
+        written, and the split is absent because there is nothing to divide.
+      -->
+      <aside class="wd-rail bg-rail text-rail-ink flex flex-col gap-6 px-5 py-6">
+        <div class="text-primary-rail text-xs font-bold tracking-[0.16em] uppercase">
+          Work Dashboard
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <!-- #7 makes this the day's real total. -->
+          <div id="rail-total" class="wd-tnum text-hero leading-[0.88] font-bold tracking-[-0.035em]">
+            0h 00m
+          </div>
+          <!-- #7 adds the instance split beneath it: a bar, then a figure per instance. -->
+        </div>
+
+        <!-- #8 adds the running timer here, and #9 the unpushed count. -->
+
+        <!-- Disabled rather than hidden: a control that vanishes teaches nothing
+             about what it would have done. #9 makes it push. -->
+        <button
+          id="rail-push"
+          type="button"
+          disabled
+          class="bg-rail-active text-rail-muted w-full cursor-not-allowed rounded-[9px] px-3 py-2 text-base font-bold"
+        >
+          Push to Jira
+        </button>
+
+        <nav class="border-rail-active mt-auto flex flex-col gap-0.5 border-t pt-3">
           <a
             href="/today"
             data-route
-            class="text-ink-muted hover:text-ink text-sm font-medium underline"
+            class="text-rail-muted hover:text-rail-ink rounded-[7px] px-2.5 py-1.5 text-base font-medium"
             >Today</a
           >
           <a
             href="/settings"
             data-route
-            class="text-ink-muted hover:text-ink text-sm font-medium underline"
+            class="text-rail-muted hover:text-rail-ink rounded-[7px] px-2.5 py-1.5 text-base font-medium"
             >Settings</a
           >
         </nav>
-      </header>
-      <div id="view"></div>
-    </main>
+      </aside>
+
+      <main class="flex max-w-3xl flex-col gap-4 px-7 py-6">
+        <div id="view"></div>
+      </main>
+    </div>
   </body>
 </html>
