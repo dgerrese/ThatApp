@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;display=swap">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; }
+    .wd { font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; }
+    .tnum { font-variant-numeric: tabular-nums; }
+    .wd[data-mode="light"] {
+      --surface: oklch(0.975 0.006 70); --raised: oklch(0.996 0.003 70);
+      --ink: oklch(0.20 0.008 70); --ink-muted: oklch(0.48 0.008 70);
+      --edge: oklch(0.915 0.006 70);
+      --rail: oklch(0.215 0.018 55); --rail-ink: oklch(0.965 0.004 70);
+      --rail-muted: oklch(0.68 0.012 60); --rail-active: oklch(0.30 0.022 55);
+      --primary: oklch(0.52 0.19 330);
+      --primary-ink: oklch(0.99 0.004 70);
+      --primary-rail: oklch(0.66 0.19 330);
+      --primary-rail-ink: oklch(0.17 0.02 330);
+      --running: oklch(0.50 0.15 150);
+      --pending: oklch(0.52 0.13 75);
+      --failed: oklch(0.51 0.19 25);
+      --running-rail: oklch(0.74 0.15 150);
+      --pending-rail: oklch(0.80 0.13 85);
+      --failed-rail: oklch(0.72 0.17 25);
+      --state-ink: oklch(0.99 0.004 70);
+      --state-rail-ink: oklch(0.15 0.012 60);
+      --i1: oklch(0.60 0.13 265); --i2: oklch(0.60 0.13 175);
+      --i1-rail: oklch(0.70 0.13 265); --i2-rail: oklch(0.70 0.13 175);
+    }
+    .wd[data-mode="dark"] {
+      --surface: oklch(0.165 0.008 60); --raised: oklch(0.215 0.010 60);
+      --ink: oklch(0.955 0.004 70); --ink-muted: oklch(0.70 0.010 65);
+      --edge: oklch(0.285 0.010 60);
+      --rail: oklch(0.125 0.008 55); --rail-ink: oklch(0.955 0.004 70);
+      --rail-muted: oklch(0.64 0.012 60); --rail-active: oklch(0.225 0.015 55);
+      --primary: oklch(0.70 0.17 330);
+      --primary-ink: oklch(0.16 0.02 330);
+      --primary-rail: oklch(0.70 0.17 330);
+      --primary-rail-ink: oklch(0.16 0.02 330);
+      --running: oklch(0.74 0.14 150);
+      --pending: oklch(0.80 0.12 85);
+      --failed: oklch(0.72 0.17 25);
+      --running-rail: oklch(0.74 0.15 150);
+      --pending-rail: oklch(0.80 0.13 85);
+      --failed-rail: oklch(0.72 0.17 25);
+      --state-ink: oklch(0.16 0.01 60);
+      --state-rail-ink: oklch(0.15 0.012 60);
+      --i1: oklch(0.72 0.12 265); --i2: oklch(0.72 0.12 175);
+      --i1-rail: oklch(0.70 0.13 265); --i2-rail: oklch(0.70 0.13 175);
+    }
+    a { color: var(--primary); }
+    a:hover { color: var(--ink); }
+    .label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; }
+    .key { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-decoration: none; }
+    .cap { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; color: var(--ink-muted); }
+  </style>
+</helmet>
+<div class="wd" data-mode="{{mode}}" style="width: 216px; min-height: 620px; display: flex; background: var(--surface); color: var(--ink)">
+    <aside style="width: 216px; flex-shrink: 0; align-self: stretch; background: var(--rail); color: var(--rail-ink); display: flex; flex-direction: column; gap: 30px; padding: 24px 14px">
+      <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+        <span class="tnum" style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 9px; background: var(--primary-rail); color: var(--primary-rail-ink); font-size: 12px; font-weight: 700">wd</span>
+        <span style="font-size: 13px; font-weight: 700; letter-spacing: -0.01em">Work Dashboard</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px; padding: 0 8px">
+        <span class="label" style="color: var(--rail-muted)">Logged today</span>
+        <span class="tnum" style="font-size: 46px; line-height: 0.88; font-weight: 500; letter-spacing: -0.04em">5h 15m</span>
+        <div style="height: 1px; background: var(--rail-active)"></div>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="width: 7px; height: 7px; border-radius: 999px; background: var(--running-rail); flex-shrink: 0"></span>
+          <span class="key tnum" style="color: var(--running-rail)">RID-412</span>
+          <span class="tnum" style="font-size: 13px; font-weight: 700; color: var(--running-rail)">01:12</span>
+        </div>
+        <span style="font-size: 12px; color: var(--rail-muted)">4 entries not yet in Jira</span>
+        <button style="font: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 44px; margin-top: 2px; border: none; border-radius: 11px; background: var(--primary-rail); color: var(--primary-rail-ink); font-size: 14px; font-weight: 700; letter-spacing: -0.01em">
+          Push to Jira
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"></path><path d="m12 5.5 6.5 6.5-6.5 6.5"></path></svg>
+        </button>
+      </div>
+      <nav style="display: flex; flex-direction: column; gap: 2px">
+        <a href="#" style="display: flex; align-items: center; gap: 11px; height: 38px; padding: 0 10px; border-radius: 9px; text-decoration: none; font-size: 14px; font-weight: 700; background: var(--rail-active); color: var(--rail-ink)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>
+          Today
+        </a>
+        <a href="#" style="display: flex; align-items: center; gap: 11px; height: 38px; padding: 0 10px; border-radius: 9px; text-decoration: none; font-size: 14px; font-weight: 500; color: var(--rail-muted)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M9 5V3M15 5V3"></path></svg>
+          Week
+        </a>
+        <a href="#" style="display: flex; align-items: center; gap: 11px; height: 38px; padding: 0 10px; border-radius: 9px; text-decoration: none; font-size: 14px; font-weight: 500; color: var(--rail-muted)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M18 6l-1.5 1.5M7.5 16.5 6 18M18 18l-1.5-1.5M7.5 7.5 6 6"></path></svg>
+          Settings
+        </a>
+      </nav>
+      <div style="display: flex; flex-direction: column; gap: 11px; padding: 0 10px">
+        <span class="label" style="color: var(--rail-muted)">Today by instance</span>
+        <div style="display: flex; gap: 3px; height: 7px">
+          <span style="flex: 267; background: var(--i1-rail); border-radius: 999px"></span>
+          <span style="flex: 48; background: var(--i2-rail); border-radius: 999px"></span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <div style="display: flex; align-items: center; gap: 9px; font-size: 13px">
+            <span style="width: 7px; height: 7px; border-radius: 999px; background: var(--i1-rail); flex-shrink: 0"></span><span style="flex: 1">Ridgeline</span><span class="tnum" style="font-weight: 700">4h 27m</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 9px; font-size: 13px">
+            <span style="width: 7px; height: 7px; border-radius: 999px; background: var(--i2-rail); flex-shrink: 0"></span><span style="flex: 1">Northwind</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--failed-rail)" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="flex-shrink: 0"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5.5M12 16.5h.01"></path></svg><span class="tnum" style="font-weight: 700">0h 48m</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"mode":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":216,"height":620}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { mode: this.props.mode ?? 'light' };
+  }
+}
+</script>
+</body>
+</html>

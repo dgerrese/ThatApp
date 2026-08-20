@@ -1,0 +1,463 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Baseline — as it ships",
+      "x": 0,
+      "y": 0,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "Paper.dc.html",
+      "title": "A · Paper",
+      "x": 1200,
+      "y": 0,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "Rail.dc.html",
+      "title": "B · Rail",
+      "x": 2400,
+      "y": 0,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "Focus.dc.html",
+      "title": "C · Focus",
+      "x": 3600,
+      "y": 0,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "Hybrid.dc.html",
+      "title": "D · Hybrid — B's rail, C's character, A's cards",
+      "x": 1800,
+      "y": 1120,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "RailList.dc.html",
+      "title": "R1 · The list (today)",
+      "page": "page-2",
+      "x": 0,
+      "y": 0,
+      "w": 216,
+      "h": 620
+    },
+    {
+      "file": "RailStrip.dc.html",
+      "title": "R2 · Health strip",
+      "page": "page-2",
+      "x": 300,
+      "y": 0,
+      "w": 216,
+      "h": 620
+    },
+    {
+      "file": "RailSplit.dc.html",
+      "title": "R3 · Where the day went",
+      "page": "page-2",
+      "x": 600,
+      "y": 0,
+      "w": 216,
+      "h": 620
+    },
+    {
+      "file": "RailSilent.dc.html",
+      "title": "R4 · Silent unless broken",
+      "page": "page-2",
+      "x": 900,
+      "y": 0,
+      "w": 484,
+      "h": 620
+    },
+    {
+      "file": "RailSplitTotal.dc.html",
+      "title": "R3a · Split + total row",
+      "page": "page-2",
+      "x": 1480,
+      "y": 0,
+      "w": 216,
+      "h": 620
+    },
+    {
+      "file": "RailSplitMerged.dc.html",
+      "title": "R3b · Total heads the split",
+      "page": "page-2",
+      "x": 1780,
+      "y": 0,
+      "w": 216,
+      "h": 620
+    },
+    {
+      "file": "ManualExpand.dc.html",
+      "title": "M1 · Row opens in place",
+      "page": "page-3",
+      "x": 0,
+      "y": 0,
+      "w": 880,
+      "h": 560
+    },
+    {
+      "file": "ManualPopover.dc.html",
+      "title": "M2 · Popover",
+      "page": "page-3",
+      "x": 960,
+      "y": 0,
+      "w": 880,
+      "h": 660
+    },
+    {
+      "file": "ManualQuick.dc.html",
+      "title": "M3 · Type into the row",
+      "page": "page-3",
+      "x": 1920,
+      "y": 0,
+      "w": 880,
+      "h": 300
+    },
+    {
+      "file": "StateFirstRun.dc.html",
+      "title": "S1 · First run",
+      "page": "page-4",
+      "x": 0,
+      "y": 0,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "StateLoading.dc.html",
+      "title": "S2 · Loading",
+      "page": "page-4",
+      "x": 1180,
+      "y": 0,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "StateNothingLogged.dc.html",
+      "title": "S3 · Nothing logged",
+      "page": "page-4",
+      "x": 2360,
+      "y": 0,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "StateAllPushed.dc.html",
+      "title": "S4 · All pushed",
+      "page": "page-4",
+      "x": 3540,
+      "y": 0,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "StatePartialFailure.dc.html",
+      "title": "S5 · Partial failure",
+      "page": "page-4",
+      "x": 4720,
+      "y": 0,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "Mobile.dc.html",
+      "title": "Mobile · Today",
+      "page": "page-4",
+      "x": 5900,
+      "y": 0,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "PaletteInk.dc.html",
+      "title": "P1 · Ink primary",
+      "page": "page-5",
+      "x": 0,
+      "y": 0,
+      "w": 880,
+      "h": 640
+    },
+    {
+      "file": "PaletteMagenta.dc.html",
+      "title": "P2 · Magenta primary",
+      "page": "page-5",
+      "x": 960,
+      "y": 0,
+      "w": 880,
+      "h": 640
+    },
+    {
+      "file": "PaletteVermillion.dc.html",
+      "title": "P3 · Vermillion primary",
+      "page": "page-5",
+      "x": 1920,
+      "y": 0,
+      "w": 880,
+      "h": 640
+    },
+    {
+      "file": "ManualDialog.dc.html",
+      "title": "M4 · Dialog (desktop)",
+      "page": "page-3",
+      "x": 0,
+      "y": 760,
+      "w": 1100,
+      "h": 940
+    },
+    {
+      "file": "MobileSheet.dc.html",
+      "title": "M4 · Sheet (phone)",
+      "page": "page-3",
+      "x": 1180,
+      "y": 760,
+      "w": 390,
+      "h": 844
+    }
+  ],
+  "annotations": [
+    {
+      "id": "baseline",
+      "x": 10,
+      "y": -250,
+      "w": 360,
+      "text": "BASELINE — what ships today\n\nRecreated from web/index.html, wd-card, wd-button, wd-alert and wd-ticket-row: stock zinc tokens, system-ui, three type sizes, near-black accent.\n\nHere so the three directions are judged against the real thing, not a memory of it. Flip any board's Mode chip to see dark.\n\nIt shows less than the others because it IS less — no timers, no day total, no push. Those land in tickets 7–9."
+    },
+    {
+      "id": "paper",
+      "x": 1210,
+      "y": -250,
+      "w": 360,
+      "text": "A · PAPER — warm, editorial, unhurried\n\nInstrument Serif over Instrument Sans on a warm off-white. Borderless cards floating on soft tinted shadow, 28px rhythm, the day's total set big in serif. One terracotta accent, one green for a running timer.\n\nWHY: you look at this thing all day. It reads as a notebook rather than a console, and the serif total makes \"how much have I done\" the loudest thing on screen.\n\nCOST: the least dense of the three. The Week grid — 7 columns of numbers — is where this direction has to prove itself, and generous rhythm is exactly what a grid cannot afford."
+    },
+    {
+      "id": "rail",
+      "x": 2410,
+      "y": -250,
+      "w": 360,
+      "text": "B · RAIL — structured, product-like\n\nA dark left rail carries nav AND the instance list, so \"which instances do I have and is one broken\" is answered before you read anything. Each instance owns a hue at fixed lightness and chroma; that dot repeats on every row, in the Week grid, and in Settings. Manrope + JetBrains Mono, pill statuses, tabular figures.\n\nWHY: the one direction whose colour does a job. Multi-instance is this app's whole premise and today nothing on screen encodes it.\n\nCOST: the most chrome, and a 232px rail is a real bite out of a phone (ticket 13). The hue system is also a commitment — it has to survive a fifth instance."
+    },
+    {
+      "id": "focus",
+      "x": 3610,
+      "y": -250,
+      "w": 360,
+      "text": "C · FOCUS — chrome-free, big type\n\nNo cards, no shadows, no boxes. Hairline rules, a 104px running total, and a single vermillion used ONLY for what is live and what is unpushed. Space Grotesk throughout at tight tracking.\n\nWHY: the least to build and the least to maintain — it is mostly type and rules, which is a real virtue under a 14kB budget and vanilla JS. Scales to the Week grid better than either other option.\n\nCOST: austere. Errors get a rule and red text instead of a tinted box, which is quieter than a failed instance probably deserves. Also the most exposed — with no chrome to hide behind, every spacing mistake shows."
+    },
+    {
+      "id": "hybrid",
+      "x": 2960,
+      "y": 1120,
+      "w": 380,
+      "text": "D · HYBRID — the one to react to\n\nRail from B, character from C, ticket list from A.\n\nWHAT CHANGED FROM B: the rail was dull because it was a menu. Here it is the instrument — it carries the day's total at 46px, the running timer, the unpushed count and the Push button, so the thing you glance at is always in the same place whatever view you are on. Nav drops below it.\n\nWHAT CHANGED FROM C: Space Grotesk, tight tracking and tabular figures carry over. C's single accent has since been SPLIT — magenta is the primary, and running, pending and failed each have their own tone. See the Palette split page.\n\nWHAT CHANGED FROM A: the rows sit on borderless cards with a soft warm shadow, so each section is a distinct object and the rows have room to breathe — without A's serif or its cost in density.\n\nOPEN: whether the per-instance hues earn their place next to a single-accent rule. They are currently identity only (7px dots), never state."
+    },
+    {
+      "id": "r1",
+      "page": "page-2",
+      "x": 0,
+      "y": -330,
+      "w": 260,
+      "text": "R1 · THE LIST — what D has now\n\nNames, a count, a health icon. Your objection stands: on Today every one of those facts is already on screen below. Four rail rows to restate the content area.\n\nIt does earn its keep on Week and Settings, where there are no per-instance cards."
+    },
+    {
+      "id": "r2",
+      "page": "page-2",
+      "x": 300,
+      "y": -330,
+      "w": 260,
+      "text": "R2 · HEALTH STRIP — the overview, minus the duplication\n\nDots for identity, one line of state. It answers the only question the list answered that the content does not: \"is something wrong?\" — in two lines instead of a section.\n\nKeeps your instance colours. Loses the per-instance issue counts, which the cards below already give you."
+    },
+    {
+      "id": "r3",
+      "page": "page-2",
+      "x": 600,
+      "y": -330,
+      "w": 260,
+      "text": "R3 · WHERE THE DAY WENT — my pick\n\nStops duplicating the list and shows something genuinely absent from the content area: today's time SPLIT by instance, as a bar and two figures. The section headers below give per-section subtotals, but nothing anywhere compares instances.\n\nIt also sits directly under the 5h 15m, so the rail reads top to bottom as one thought: how much, then where. Health still shows — Northwind carries the warning.\n\nCOST: one more thing to compute, and it is the only variant that needs data the current API does not return grouped this way."
+    },
+    {
+      "id": "r4",
+      "page": "page-2",
+      "x": 900,
+      "y": -330,
+      "w": 340,
+      "text": "R4 · SILENT UNLESS BROKEN — zero redundancy\n\nBoth states shown, because that is the only way to judge it. When everything is reachable the rail says nothing about instances at all; a failure raises one line.\n\nThe most honest answer to \"it is redundant\" — it removes the redundancy completely. But it also removes the quick overview you said you wanted: healthy looks identical to having no instances configured, and you cannot tell at a glance how many you have."
+    },
+    {
+      "id": "r3a",
+      "page": "page-2",
+      "x": 1480,
+      "y": -330,
+      "w": 260,
+      "text": "R3a · SPLIT + TOTAL ROW — the literal reading\n\nThe block becomes a self-contained ledger: two instances, a rule, Total  5h 15m. Reads correctly on its own and you never have to connect it to anything above it.\n\nCOST: 5h 15m now appears twice in a 216px column, forty pixels apart. Two identical numbers that close together invite the reader to look for a difference between them."
+    },
+    {
+      "id": "r3b",
+      "page": "page-2",
+      "x": 1780,
+      "y": -330,
+      "w": 260,
+      "text": "R3b · TOTAL HEADS THE SPLIT — my pick, and what D now uses\n\nThe 46px figure was ALREADY the combined total; this just stops treating it as something separate. Total, then the bar, then the two instances — one block, read top to bottom, no number repeated.\n\nIt also shortens the rail: the standalone instance section is gone entirely, because the split already carries both identity and health.\n\nCOST: the total is 46px and the parts are 13px, so the breakdown reads as a footnote to the total rather than as a table of equals. That is the correct emphasis for a glance, but it is a choice."
+    },
+    {
+      "id": "m-why",
+      "page": "page-3",
+      "x": 0,
+      "y": -400,
+      "w": 380,
+      "text": "WHY THIS IS NOT JUST AN INPUT\n\ntime_entries has no uniqueness on (instance, issue, day) — a ticket holds SEVERAL entries in a day, each with its own started_at, comment and push state. The 02:30 on a row is a sum.\n\nSo typing over 02:30 has no defined meaning: which of the two entries did you just change? And ticket 10 (Edit after push) has to reach individual entries to update or delete their worklogs by id.\n\nWhatever we pick has to expose the entries, not just accept a number. All three below show the same ticket: 01:15 already in Jira, 01:15 not yet pushed."
+    },
+    {
+      "id": "m1",
+      "page": "page-3",
+      "x": 420,
+      "y": -400,
+      "w": 380,
+      "text": "M1 · ROW OPENS IN PLACE — my pick\n\nThe duration becomes a disclosure. Opening it reveals the day's entries for that ticket, each with its start time, comment, push state and edit/delete, plus one add form at the foot.\n\nOne affordance covers ticket 7 (add), 9 (which entries did not make it) and 10 (edit/delete after push). No overlay, so it behaves the same on the phone in ticket 13 — it just pushes the card taller.\n\nCOST: the card reflows when you open a row. With several rows open the list gets long, so it probably wants one-open-at-a-time."
+    },
+    {
+      "id": "m2",
+      "page": "page-3",
+      "x": 960,
+      "y": -400,
+      "w": 380,
+      "text": "M2 · POPOVER — superseded by M4 below\n\nKept as the record. Its trigger stands: the duration is a real <button> with aria-expanded, and the chip appears on hover and focus only.\n\nWhat did not stand is the popover itself. It needed dismissal, focus trapping, collision handling and a separate phone layout — four problems the dialog does not have."
+    },
+    {
+      "id": "m3",
+      "page": "page-3",
+      "x": 1920,
+      "y": -400,
+      "w": 380,
+      "text": "M3 · TYPE INTO THE ROW — fastest, incomplete\n\nThe duration cell is an input. Type 00:30, press enter, and it ADDS an entry rather than overwriting the sum — the hint spells that out, because without it the interaction is genuinely ambiguous.\n\nUnbeatable for the common case: log half an hour to a ticket without opening anything.\n\nCOST: it cannot show you the entries, so it cannot serve ticket 9 or 10 on its own. This is a companion to M1, not a rival — worth having BOTH, with the input for speed and the disclosure for everything else."
+    },
+    {
+      "id": "s1",
+      "page": "page-4",
+      "x": 0,
+      "y": -360,
+      "w": 300,
+      "text": "S1 · FIRST RUN — no instances configured\n\nThe rail still exists and still reads 0h 00m, because time is LOCAL: the day total comes from SQLite, not from Jira. Only the split has nothing to say.\n\nPush is present but disabled rather than hidden — a control that vanishes teaches you nothing about what it would have done."
+    },
+    {
+      "id": "s2",
+      "page": "page-4",
+      "x": 1180,
+      "y": -360,
+      "w": 300,
+      "text": "S2 · LOADING — and this one falls out of the architecture\n\nThe rail is FULLY LIVE while the issue list is still empty. Time entries, timers and pins are local; only the assigned-issue fan-out is remote. So the total, the split and the running timer paint instantly.\n\nThe Pinned card paints too — #6 caches summary and status precisely so pins survive a slow or dead instance. Only the instance cards are skeletons, and they still carry their names, which come from the local instances table."
+    },
+    {
+      "id": "s3",
+      "page": "page-4",
+      "x": 2360,
+      "y": -360,
+      "w": 300,
+      "text": "S3 · NOTHING LOGGED YET — the start of a day\n\nEvery timer at 00:00 in the faint tone, both subtotals 0h 00m, no split bar (there is nothing to divide), Push disabled.\n\nThis is the state that tests the format rule hardest: five 00:00s down the column and a 0h 00m hero. Worth checking it reads as calm rather than broken."
+    },
+    {
+      "id": "s4",
+      "page": "page-4",
+      "x": 3540,
+      "y": -360,
+      "w": 300,
+      "text": "S4 · ALL PUSHED — end of day, everything in Jira\n\nNothing is running and nothing is unpushed, so green, amber and red all leave the screen at once. Only the magenta primary remains, on the wordmark and the Push button — identity, not state.\n\nA list with no state colour in it means you are done.\n\nNorthwind loses its warning here and the split shows both instances plainly."
+    },
+    {
+      "id": "s5",
+      "page": "page-4",
+      "x": 4720,
+      "y": -360,
+      "w": 340,
+      "text": "S5 · PARTIAL PUSH FAILURE — the state that matters most\n\nThe design of record calls this out by name: a push is not transactional, each entry succeeds or fails alone, and the UI must show which ones did not make it. So: a banner with the count, per-row markers, a rail line, and Push becomes Retry 2.\n\nNote the rows say \"1 of 2 failed\" — a row is a SUM, so it can be partly through. Open the row to see which entry.\n\nSETTLED: failure has its own tone. Amber marks an entry that is merely still local; red marks one Jira rejected. The triangle and the words stay, so the difference never rests on colour alone."
+    },
+    {
+      "id": "mob",
+      "page": "page-4",
+      "x": 5900,
+      "y": -360,
+      "w": 320,
+      "text": "MOBILE · TODAY — 390 x 844, Android (ticket 13)\n\nThe rail cannot survive at 216px on a phone, so it unfolds: the readout becomes a header block in the same dark tone, and nav drops to a bottom tab bar where a thumb can reach it.\n\nRows restack — summary first, then key and status beneath — so the summary gets the width it needs. Timer buttons are 44px, the floor for touch.\n\nNO FAKE CHROME: no drawn status bar and no drawn keyboard. The real ones render on top of this, and painting our own would show doubled.\n\nThis is one SCREEN, not the whole document: the list runs past the bottom edge and scrolls, with the header and tab bar staying put.\n\nThe manual-entry sheet is now drawn — see M4 on the Manual entry page."
+    },
+    {
+      "id": "pal-why",
+      "page": "page-5",
+      "x": 0,
+      "y": -420,
+      "w": 380,
+      "text": "THE SPLIT YOU ASKED FOR\n\nVermillion was doing two jobs — brand AND state — which is exactly why failure had to borrow a triangle instead of a colour.\n\nAll three options below split the same way and keep the same state ramp:\n\nRUNNING — green 150, the live timer only\nNOT PUSHED — amber 85, entries still local\nFAILED — red 25, Jira rejected it\nINSTANCES — 265 and 175, identity, never state\n\nCHOSEN: P2, magenta 330. It is applied across every board on the other pages — P1 and P3 stay here as the record of the choice.\n\nEach board shows the same four rows and the three entry chips, so the states sit side by side. Flip the Mode chip — the rail keeps lighter variants of each tone so they hold up on the dark ground."
+    },
+    {
+      "id": "p1",
+      "page": "page-5",
+      "x": 420,
+      "y": -420,
+      "w": 300,
+      "text": "P1 · INK PRIMARY\n\nThe primary carries no hue at all — near-black on light, near-white on dark, white on the rail. Every colour on screen then means something: green is running, amber is pending, red is failed.\n\nIt also echoes where you started: the shipped app's --color-accent is already ink.\n\nCOST: no brand colour. The character has to come from the type and the dark rail, which it largely already does."
+    },
+    {
+      "id": "p2",
+      "page": "page-5",
+      "x": 960,
+      "y": -420,
+      "w": 300,
+      "text": "P2 · MAGENTA PRIMARY — CHOSEN\n\nHue 330 — 55 degrees from failed, and clear of both instance hues (265, 175) and of running (150) and pending (85). Nothing on screen can be mistaken for anything else.\n\nNow live on all 16 design boards. The roles it split apart:\n\nPRIMARY magenta — wordmark, Push, links, focus rings\nRUNNING green — the live timer and its stop button\nPENDING amber — entries still local\nFAILED red — the retry banner, failed chips, unreachable instances\n\nEach has a lighter -rail variant for the dark ground, and those are used ONLY inside the rail or the mobile header."
+    },
+    {
+      "id": "p3",
+      "page": "page-5",
+      "x": 1920,
+      "y": -420,
+      "w": 300,
+      "text": "P3 · VERMILLION STAYS PRIMARY\n\nKeeps exactly the look you approved. The Push button and wordmark stay as they are, and failure takes red 25.\n\nCOST, AND IT IS THE REASON I RANK IT LAST: primary 30 and failed 25 are five degrees apart. Look at the Push button next to the Retry button on this board — they are nearly the same colour, which is the exact confusion the split was meant to remove."
+    },
+    {
+      "id": "m4",
+      "page": "page-3",
+      "x": 0,
+      "y": 400,
+      "w": 400,
+      "text": "M4 · DIALOG — one component, two anchorings\n\nCentred on the desktop, anchored to the bottom edge on the phone. Same markup, same content, one CSS difference — which is exactly why this beats the popover: M2 was quietly two designs.\n\nIT ALSO DELETES THE OPEN LIST. wd-confirm already wraps a native <dialog> and calls showModal(), and its own comment names what that supplies: focus trap, inert background, top layer, Esc dismissal, and focus returning to whatever opened it. Four of the five things left open for M2 are simply not our problem.\n\nTHE FIFTH IS ALREADY DECIDED TOO. wd-confirm deliberately does NOT dismiss on backdrop click — <dialog> has no such behaviour, Esc is the safe exit, and adding it means hit-testing by hand. Same rule here.\n\nONE TRAP WORTH CARRYING OVER: Preflight's `* { margin: 0 }` is author origin and beats the UA's `dialog { margin: auto }`, so a dialog lands top-left in Firefox and Chromium unless margin is set explicitly. wd-confirm.ts carries that note; this design needs it too."
+    },
+    {
+      "id": "m4m",
+      "page": "page-3",
+      "x": 1180,
+      "y": 400,
+      "w": 340,
+      "text": "M4 · SHEET — the same dialog on the phone\n\nAnchored to the bottom, rounded on the top corners, with a grab handle. The form stacks and every control goes to 46px, above the 44px touch floor. Padding uses env(safe-area-inset-bottom) so it clears the gesture bar rather than guessing at it.\n\nIt covers the tab bar on purpose — it is modal, so nav should not be reachable underneath.\n\nNO FAKE CHROME, as on the other phone board: the real keyboard will push this up when the duration field takes focus, and drawing one would show doubled."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-3"
+  },
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Directions"
+    },
+    {
+      "id": "page-2",
+      "name": "Rail options"
+    },
+    {
+      "id": "page-3",
+      "name": "Manual entry"
+    },
+    {
+      "id": "page-4",
+      "name": "States & mobile"
+    },
+    {
+      "id": "page-5",
+      "name": "Palette split"
+    }
+  ]
+}
