@@ -12,6 +12,13 @@ const routes: Record<string, () => Promise<View>> = {
   "/today": () => import("./views/today"),
 };
 
+/**
+ * "/" is not a view of its own. The rewrite uses replaceState rather than
+ * pushState: a pushed redirect leaves "/" in the history stack, so Back lands on
+ * it and is redirected forward again, trapping the user on Today.
+ */
+const redirects: Record<string, string> = { "/": "/today" };
+
 let mountPoint: HTMLElement | undefined;
 
 export function startRouter(root: HTMLElement): void {
@@ -48,6 +55,11 @@ async function renderCurrent(): Promise<void> {
   const root = mountPoint;
   if (!root) return;
 
+  const target = redirects[window.location.pathname];
+  if (target) {
+    window.history.replaceState({}, "", target);
+  }
+
   const load = routes[window.location.pathname];
   if (!load) {
     renderPlaceholder(root);
@@ -60,21 +72,21 @@ async function renderCurrent(): Promise<void> {
 }
 
 /**
- * Stands in for Today until #5 lands it. The server serves the app shell for any
- * unknown path, so this is what an unrouted URL reaches.
+ * The fallback for a path with no view. "/" now leads to Today, so reaching this
+ * means a genuinely unknown URL rather than the app's front door.
  */
 function renderPlaceholder(root: HTMLElement): void {
   root.replaceChildren();
 
   const paragraph = document.createElement("p");
   paragraph.className = "text-ink-muted";
-  paragraph.textContent = "Nothing here yet. Add a Jira instance to get started.";
+  paragraph.textContent = "There is nothing at this address.";
 
   const link = document.createElement("a");
-  link.href = "/settings";
+  link.href = "/today";
   link.dataset["route"] = "";
   link.className = "mt-4 inline-block font-medium text-link underline";
-  link.textContent = "Open Settings";
+  link.textContent = "Go to Today";
 
   root.append(paragraph, link);
 }

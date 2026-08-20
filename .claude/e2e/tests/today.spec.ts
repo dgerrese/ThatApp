@@ -141,3 +141,29 @@ test("a failed request shows the error and leaves Refresh usable", async ({ page
   await expect(page.getByText("could not read the stored instances")).toBeVisible();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
 });
+
+test("/ leads to Today and leaves no history trap", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
+
+  await page.goto("/");
+
+  await expect(page).toHaveURL(/\/today$/);
+  await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
+
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+
+  await page.goBack();
+
+  // replaceState, not pushState: "/" never entered the history stack, so Back
+  // lands on Today instead of on "/" redirecting forward again.
+  await expect(page).toHaveURL(/\/today$/);
+});
+
+test("an unknown path offers a way back to Today", async ({ page }) => {
+  await page.goto("/nowhere");
+
+  await expect(page.getByText("There is nothing at this address.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Go to Today" })).toBeVisible();
+});
