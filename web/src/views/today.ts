@@ -44,13 +44,13 @@ export async function render(root: HTMLElement): Promise<void> {
 
   const regions: Regions = { header, refresh, results };
   refresh.addEventListener("click", () => {
-    void load(regions);
+    void refreshResults(regions);
   });
 
-  await load(regions);
+  await refreshResults(regions);
 }
 
-async function load(regions: Regions): Promise<void> {
+async function refreshResults(regions: Regions): Promise<void> {
   regions.refresh.setAttribute("disabled", "");
 
   try {

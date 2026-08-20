@@ -38,7 +38,7 @@ export class WdTicketRow extends HTMLElement {
 
     const identity = document.createElement("div");
     identity.className = "flex items-baseline gap-3";
-    identity.append(this.keyLabel(url), this.summary());
+    identity.append(this.keyLabel(url), this.summarySpan());
 
     const status = document.createElement("span");
     status.className = "shrink-0 text-xs text-ink-muted";
@@ -74,7 +74,7 @@ export class WdTicketRow extends HTMLElement {
     return link;
   }
 
-  private summary(): HTMLElement {
+  private summarySpan(): HTMLElement {
     const summary = document.createElement("span");
     summary.className = "text-sm";
     summary.textContent = this.getAttribute("summary") ?? "";

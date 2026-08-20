@@ -135,7 +135,7 @@ func TestGetIssuesReturnsEveryInstancesIssues(t *testing.T) {
 // The criterion: one failing instance must not blank the list.
 func TestGetIssuesKeepsWorkingInstancesWhenOneFails(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
-	work := jiraSearchServer(t, "WORK", http.StatusOK, 0)
+	work := jiraSearchServer(t, "WORK", http.StatusOK, 150*time.Millisecond)
 	broken := jiraSearchServer(t, "PERS", http.StatusUnauthorized, 0)
 	seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", work.URL)
 	seedInstance(t, db, sealer, "Personal", "https://personal.atlassian.net", broken.URL)
