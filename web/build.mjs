@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { copyFileSync, watch as watchPath } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, watch as watchPath } from "node:fs";
 import * as esbuild from "esbuild";
 
 const watch = process.argv.includes("--watch");
@@ -12,6 +12,17 @@ const tailwindArgs = [
 ];
 
 const copyShell = () => copyFileSync("index.html", "dist/index.html");
+
+// Space Grotesk is served from our own origin: #12 makes this an offline PWA
+// and a font on someone else's host would not survive it. esbuild and Tailwind
+// only emit what they are given, so the files are copied rather than bundled;
+// //go:embed all:dist then carries them into the binary with no change there.
+const copyFonts = () => {
+  mkdirSync("dist/fonts", { recursive: true });
+  for (const file of readdirSync("fonts")) {
+    copyFileSync(`fonts/${file}`, `dist/fonts/${file}`);
+  }
+};
 
 const jsOptions = {
   entryPoints: ["src/main.ts"],
@@ -32,6 +43,7 @@ const jsOptions = {
 };
 
 copyShell();
+copyFonts();
 
 if (watch) {
   // Tailwind's own watcher rescans the @source globs, so a class added to

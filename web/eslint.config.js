@@ -5,6 +5,13 @@ import tsparser from "@typescript-eslint/parser";
 export default [
   js.configs.recommended,
   {
+    // Typed linting reads tsconfig, and the unit tests are outside its
+    // `include` — see the header of src/format.test.ts. Both exclusions are
+    // #51's to resolve; until then a file eslint cannot type-check is a file it
+    // should not pretend to.
+    ignores: ["src/**/*.test.ts"],
+  },
+  {
     files: ["src/**/*.ts"],
     languageOptions: {
       parser: tsparser,
