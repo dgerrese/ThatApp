@@ -22,7 +22,7 @@ with no issue behind them, on a branch named for the topic rather than an issue 
 The distinction is how the project is *run* versus how the product *works*. A spec describing push
 semantics needs a ticket; a change to this skill does not. When a change touches both, split it.
 
-## The seven statuses
+## The eight statuses
 
 Status lives in a label. **Exactly one `status:*` label per issue, always.** The label is the
 source of truth — not a board, not a comment, not a checklist. It applies to closed issues too:
@@ -32,11 +32,17 @@ source of truth — not a board, not a comment, not a checklist. It applies to c
 |---|---|---|---|
 | Intake | `status:intake` | You create it here | A raw problem or idea, a few sentences. Nothing else happens yet. |
 | Refinement | `status:refinement` | **Owner only** | The intake was approved. Research and refine until nothing is fuzzy. |
-| Ready | `status:ready` | You, when refinement is genuinely finished | Acceptance criteria are complete and unambiguous. Work may start. |
+| Ready | `status:ready` | You, when refinement is genuinely finished | Acceptance criteria are complete and unambiguous. Work may start, and nobody has started it. |
+| In progress | `status:in-progress` | You, when the branch is cut | `issue-<n>-<slug>` exists. Someone is on it. |
 | Review | `status:review` | You, when the pull request is open | Implementation is done, pull request raised, awaiting the owner's review. |
 | Done | `status:done` | You, **only after the owner says it merged** | Finished. |
 | Blocked | `status:blocked` | You, immediately, from any status | A blocker exists. Work stops. |
 | Declined | `status:declined` | **Owner only** | The intake was rejected. Kept so the idea is not redrafted later. |
+
+**Cutting the branch is what moves a ticket to `status:in-progress`.** The trigger is the branch
+existing — not the first line of implementation code, and not a judgement about how far the work has
+got. A ticket whose branch carries only a design and a plan is in progress. Move the label in the
+same breath as `git checkout -b`, so `status:ready` can be read as "untouched" without checking.
 
 Opening the pull request is what moves a ticket to `status:review`, and it is the last move you
 make on it unaided.
@@ -81,10 +87,12 @@ gh issue create --label status:intake --title "..." --body "..."
 
 # Move a ticket (always remove the old label in the same call)
 gh issue edit <n> --remove-label status:refinement --add-label status:ready
-gh issue edit <n> --remove-label status:ready --add-label status:review
+gh issue edit <n> --remove-label status:ready --add-label status:in-progress
+gh issue edit <n> --remove-label status:in-progress --add-label status:review
 
 # See the board
 gh issue list --label status:ready
+gh issue list --label status:in-progress        # what is actually being worked on
 gh issue list --state all --json number,title,labels
 
 # Comment when a status change needs explaining
@@ -105,7 +113,11 @@ questions with the owner. Finish by rewriting the issue body to hold the problem
 explicit acceptance criteria, and anything deliberately out of scope. Refinement is over when
 nothing about the ticket is still fuzzy — not when you have run out of patience with it.
 
-**Ready.** Work may begin. See the loop below.
+**Ready.** Work may begin, and nobody has begun it. See the loop below.
+
+**In progress.** The branch exists. Everything from cutting it to opening the pull request happens
+under this label — design, plan and implementation alike. A ticket sitting here with no commits for
+days is the signal it is meant to give: work was started and left.
 
 **Review.** The pull request is open and linked to the issue with `Closes #<n>`. Nothing further
 happens on the ticket until the owner responds.
@@ -117,7 +129,7 @@ happens on the ticket until the owner responds.
 **Declined.** The owner rejected the intake. The issue is closed and keeps the label, so the idea
 is not redrafted later.
 
-## The superpowers loop, inside "Ready"
+## The superpowers loop, from "Ready" to "Review"
 
 1. **`superpowers:brainstorming`** — before any code, when an issue needs design the spec does not
    already settle. Most tickets do not: the design of record answers them and the acceptance
@@ -126,7 +138,10 @@ is not redrafted later.
    repo: branch in place, no worktree.** Compose derives its project name from the directory, so a
    worktree gets its own images and volumes and rebuilds everything from cold. Invoke the skill,
    then apply this decision unless a ticket genuinely needs the isolation. Branch name:
-   `issue-<n>-<short-slug>`. *This decision is due to flip* — see the handoff's "Still open".
+   `issue-<n>-<short-slug>`. **Move the ticket to `status:in-progress` in the same breath as
+   creating the branch** — that is the trigger, and a branch that exists under `status:ready` is the
+   exact ambiguity the label was added to remove. *The worktree decision is due to flip* — see the
+   handoff's "Still open".
 3. **`superpowers:writing-plans`** — turns the acceptance criteria into a plan under
    `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into bite-sized tasks with exact file
    paths, complete code and verification steps. New plans and specs open with a **Date**,
