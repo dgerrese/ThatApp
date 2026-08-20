@@ -313,24 +313,33 @@ func (s *Server) handleTestInstance(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// writeInstanceError maps the errors a Jira round trip produces onto statuses.
-// Rejected credentials are the user's to fix in Settings; an unreachable site is
-// not a server fault, so neither is a 500.
-func writeInstanceError(w http.ResponseWriter, err error) {
+// instanceErrorFor maps the errors a Jira round trip produces onto a status, a
+// stable code and a message. Rejected credentials are the user's to fix in
+// Settings; an unreachable site is not a server fault, so neither is a 500.
+//
+// It returns the mapping rather than writing it, because the assigned-issues
+// fan-out embeds the same code and message in a response that is otherwise a
+// success.
+func instanceErrorFor(err error) (status int, code, message string) {
 	switch {
 	case errors.Is(err, atlassian.ErrTenantUnreadable):
-		writeError(w, http.StatusBadGateway, "tenant_unreadable",
-			"could not read the site's tenant info; check the site URL and that the site is reachable")
+		return http.StatusBadGateway, "tenant_unreadable",
+			"could not read the site's tenant info; check the site URL and that the site is reachable"
 	case errors.Is(err, jira.ErrUnauthorized):
-		writeError(w, http.StatusUnauthorized, "credentials_rejected",
-			"Jira rejected the email and API token")
+		return http.StatusUnauthorized, "credentials_rejected",
+			"Jira rejected the email and API token"
 	case errors.Is(err, jira.ErrNotFound):
-		writeError(w, http.StatusBadGateway, "account_not_found",
-			"the site answered but this account has no access to it; check the site URL and account email")
+		return http.StatusBadGateway, "account_not_found",
+			"the site answered but this account has no access to it; check the site URL and account email"
 	case errors.Is(err, jira.ErrUnreachable):
-		writeError(w, http.StatusBadGateway, "instance_unreachable", "the Jira site could not be reached")
+		return http.StatusBadGateway, "instance_unreachable", "the Jira site could not be reached"
 	default:
 		log.Printf("unexpected instance error: %v", err)
-		writeError(w, http.StatusInternalServerError, "unexpected", "an unexpected error occurred")
+		return http.StatusInternalServerError, "unexpected", "an unexpected error occurred"
 	}
+}
+
+func writeInstanceError(w http.ResponseWriter, err error) {
+	status, code, message := instanceErrorFor(err)
+	writeError(w, status, code, message)
 }

@@ -2,7 +2,10 @@ module github.com/dgerrese/work-dashboard
 
 go 1.26.5
 
-require modernc.org/sqlite v1.56.0
+require (
+	golang.org/x/sync v0.22.0
+	modernc.org/sqlite v1.56.0
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
