@@ -30,8 +30,8 @@ already tell you — not a board, not a comment, not a checklist.
 
 | Status | Label | Who moves it | Meaning |
 |---|---|---|---|
-| Intake | `status:intake` | You create it here | A raw problem or idea, a few sentences. Nothing else happens yet. |
-| Needs refinement | `status:needs-refinement` | **Owner only** | The intake was approved. Not yet refined; the acceptance criteria are still fuzzy. |
+| Intake | `status:intake` | You, for ideas **you** raise | A raw problem or idea, a few sentences. Nothing else happens yet. |
+| Needs refinement | `status:needs-refinement` | **Owner only** — except a ticket they asked for, which you create here directly | Approved, but not yet refined; the acceptance criteria are still fuzzy. |
 | To do | `status:todo` | You, when refinement is genuinely finished | Acceptance criteria are complete and unambiguous. Work may start, and nobody has started it. |
 | In progress | `status:in-progress` | You, when the branch is cut | `issue-<n>-<slug>` exists. Someone is on it. |
 | Blocked | `status:blocked` | You, immediately, from any status | A blocker exists. Work stops. |
@@ -80,6 +80,9 @@ until they say what happens next.
 ### Transitions you may never make yourself
 
 - **Intake → Needs refinement.** The owner approves an intake ticket. Create it, then stop and ask.
+  This governs *promotion*, not where a ticket enters. A ticket the owner asked for never sits in
+  intake at all — it is created at `status:needs-refinement`, because the asking was the approval.
+  What you may never do is promote an intake **you** raised.
 - **Declining an intake.** The owner closes it as `NOT_PLANNED` and labels it `wontfix`. Never
   pre-empt it.
 - **Closing a finished ticket.** The merge is the owner's, and so is the close. A green
@@ -114,8 +117,11 @@ unblocked one that got there by moving the goalposts.
 ## Commands
 
 ```shell
-# Create an intake ticket, then stop and wait for approval
+# An idea you raised: create at intake, then stop and wait for approval
 gh issue create --label status:intake --title "..." --body "..."
+
+# A ticket the owner asked for: skip intake, the asking was the approval
+gh issue create --label status:needs-refinement --title "..." --body "..."
 
 # Move a ticket (always remove the old label in the same call)
 gh issue edit <n> --remove-label status:needs-refinement --add-label status:todo
@@ -144,9 +150,10 @@ guessing which is right.
 
 ## What each status actually involves
 
-**Intake.** A short problem or idea statement. Do not research, do not design, do not estimate.
-Create it and stop. Discoveries made mid-ticket — a bug noticed in passing, a gap in the spec —
-belong here, not in the ticket you are working on.
+**Intake.** A short problem or idea statement, and **only for ideas you raise yourself**. Do not
+research, do not design, do not estimate. Create it and stop. Discoveries made mid-ticket — a bug
+noticed in passing, a gap in the spec — belong here, not in the ticket you are working on. A ticket
+the owner asked for does not pass through here; create it at `status:needs-refinement`.
 
 **Refinement.** Research properly: read the relevant code, check the design of record, resolve open
 questions with the owner. Finish by rewriting the issue body to hold the problem, the approach,

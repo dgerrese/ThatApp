@@ -151,6 +151,8 @@ Open tickets carry exactly one `status:*` label; closed ones carry none, because
 records how an issue ended:
 
 ```
+          (owner asks)
+                ↓
 intake → needs-refinement → todo → in-progress → (open PR) → merged & closed
    ↓                                   ↓
 closed as not planned,             blocked (from anywhere)
@@ -170,10 +172,14 @@ existing, not a judgement about how far the work has got: a ticket with `issue-<
 in progress even when that branch carries only a design and a plan. That makes `status:todo` mean
 "nobody has started this" rather than "started or not, who knows".
 
-Two moves are the owner's alone: **intake → needs-refinement** (approval) and **declining an
-intake** (closing it as not planned). So is **the merge**, which is what finishes a ticket — a green
-`make verify`, a passing CI run and an approving review are not that signal; the owner saying so is.
-Create an intake ticket and stop; never approve your own.
+**Intake is for tickets you raise yourself** — a problem noticed in passing, a gap in the spec.
+Those start at `status:intake` and stop there. **A ticket the owner asks for arrives already
+approved**, because the asking is the approval: create it at `status:needs-refinement` and skip
+intake altogether.
+
+Two moves are the owner's alone: **approving an intake** and **declining one** (closing it as not
+planned). So is **the merge**, which is what finishes a ticket — a green `make verify`, a passing CI
+run and an approving review are not that signal; the owner saying so is. Never approve your own.
 
 The merge is theirs in the literal sense too: **merging into `main` locally is forbidden**, per the
 hard constraint above. Finishing a branch means pushing it and opening a pull request — those are
