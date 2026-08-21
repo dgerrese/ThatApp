@@ -294,6 +294,157 @@ test("the keyboard pins the highlighted row, not just the first one", async ({ p
   await expect(page.getByText("Vendor security review")).toHaveCount(0);
 });
 
+test("↑ from the first option wraps to the last", async ({ page }) => {
+  const secondHit = {
+    instanceId: 2,
+    instanceName: "Personal",
+    key: "MISC-15",
+    summary: "Security questionnaire",
+    status: "Open",
+    url: "https://example.atlassian.net/browse/MISC-15",
+  };
+  await stubPins(page, [], [pin(9, "Personal", "MISC-15", "Security questionnaire")]);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, [sharedHit, secondHit]);
+  await page.route("**/api/pins", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    // A sign error in the wrap arithmetic would land on index 0 (SHARED-40)
+    // instead of wrapping backwards to the last option — this assertion is
+    // what would catch that, not the mere fact that Enter picks something.
+    expect(route.request().postDataJSON()).toEqual({ instanceId: 2, issueKey: "MISC-15" });
+    await route.fulfill({
+      status: 201,
+      json: pin(9, "Personal", "MISC-15", "Security questionnaire"),
+    });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  const box = page.getByRole("combobox", { name: "Find an issue" });
+  await box.fill("security");
+  await expect(page.getByRole("option")).toHaveCount(2);
+
+  await box.press("ArrowUp");
+  await box.press("Enter");
+
+  await expect(page.getByText("Security questionnaire")).toBeVisible();
+});
+
+test("↓ past the last option wraps to the first", async ({ page }) => {
+  const secondHit = {
+    instanceId: 2,
+    instanceName: "Personal",
+    key: "MISC-15",
+    summary: "Security questionnaire",
+    status: "Open",
+    url: "https://example.atlassian.net/browse/MISC-15",
+  };
+  await stubPins(page, [], [pin(9, "Ridgeline", "SHARED-40", "Vendor security review")]);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, [sharedHit, secondHit]);
+  await page.route("**/api/pins", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    // A clamp instead of a wrap (or an off-by-one) would leave the active
+    // index on the last option (MISC-15) rather than back at the first.
+    expect(route.request().postDataJSON()).toEqual({ instanceId: 1, issueKey: "SHARED-40" });
+    await route.fulfill({
+      status: 201,
+      json: pin(9, "Ridgeline", "SHARED-40", "Vendor security review"),
+    });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  const box = page.getByRole("combobox", { name: "Find an issue" });
+  await box.fill("security");
+  await expect(page.getByRole("option")).toHaveCount(2);
+
+  await box.press("ArrowDown");
+  await box.press("ArrowDown");
+  await box.press("Enter");
+
+  await expect(page.getByText("Vendor security review")).toBeVisible();
+});
+
+test("Escape closes the pin form", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  const box = page.getByRole("combobox", { name: "Find an issue" });
+  await expect(box).toBeVisible();
+
+  await box.press("Escape");
+
+  await expect(page.getByRole("combobox", { name: "Find an issue" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Pin an issue" })).toBeVisible();
+});
+
+// Options are real <button> elements; without tabIndex="-1" on each and a Tab
+// branch in onKeyDown, Tab from the input walks into the popup one option at a
+// time instead of leaving it — and since aria-activedescendant only means
+// anything while focus stays on the input, that silently breaks the pattern.
+test("Tab closes the popup and moves focus on, not into an option", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, [sharedHit]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  const box = page.getByRole("combobox", { name: "Find an issue" });
+  await box.fill("security");
+  await expect(page.getByRole("option")).toHaveCount(1);
+
+  await box.press("Tab");
+
+  await expect(page.getByRole("option")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
+});
+
+test("Cancel restores the Pin an issue button", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  await expect(page.getByRole("combobox", { name: "Find an issue" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(page.getByRole("combobox", { name: "Find an issue" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Pin an issue" })).toBeVisible();
+});
+
+// A pending debounce timer that outlives the form closing would fire on a
+// detached wd-combobox, dispatch wd-search anyway, and start an un-abortable
+// fan-out the user can no longer see — this is what disconnectedCallback's
+// clearTimeout (and close()'s) exists to prevent.
+test("Cancel within the debounce window makes no request", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  let searched = false;
+  await page.route("**/api/issues/search**", async (route) => {
+    searched = true;
+    await route.fulfill({ status: 200, json: { results: [], errors: [] } });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  await page.getByRole("combobox", { name: "Find an issue" }).fill("security");
+  // Well inside the 350ms debounce window: the timer it started has not fired.
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.waitForTimeout(500);
+
+  expect(searched).toBe(false);
+});
+
 test("rapid keystrokes are coalesced into a single search", async ({ page }) => {
   await stubPins(page, []);
   await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);

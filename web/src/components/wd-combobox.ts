@@ -18,7 +18,10 @@ export class WdCombobox extends HTMLElement {
   static readonly minQuery = 2;
 
   private input: HTMLInputElement | undefined;
-  private listbox: HTMLElement | undefined;
+  private popup: HTMLElement | undefined;
+  private list: HTMLUListElement | undefined;
+  private notice: HTMLElement | undefined;
+  private footnote: HTMLElement | undefined;
   private hint: HTMLElement | undefined;
   private results: IssueHit[] = [];
   private failures: InstanceFailure[] = [];
@@ -53,19 +56,35 @@ export class WdCombobox extends HTMLElement {
       "w-full rounded-md border border-edge px-3 py-1.5 text-sm " +
       "focus:border-ink focus:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
-    this.listbox = document.createElement("div");
-    this.listbox.id = "wd-combobox-listbox";
-    this.listbox.setAttribute("role", "listbox");
-    this.listbox.className =
+    // The scrollable, positioned popup. role="listbox" and its id live on the
+    // <ul> nested inside it, not on this element: "Searching…", the no-match
+    // notice and the failure footnote are not options, and a non-option child
+    // of role="listbox" sits outside that role's content model and may go
+    // unexposed to a screen reader.
+    this.popup = document.createElement("div");
+    this.popup.className =
       "absolute inset-x-0 top-10 z-10 max-h-60 overflow-y-auto rounded-md " +
       "border border-edge bg-raised shadow-lg";
-    this.listbox.hidden = true;
+    this.popup.hidden = true;
+
+    this.list = document.createElement("ul");
+    this.list.id = "wd-combobox-listbox";
+    this.list.setAttribute("role", "listbox");
+
+    this.notice = document.createElement("div");
+    this.notice.hidden = true;
+
+    this.footnote = document.createElement("p");
+    this.footnote.className = "border-t border-edge px-3 py-2 text-xs text-ink-muted";
+    this.footnote.hidden = true;
+
+    this.popup.append(this.list, this.notice, this.footnote);
 
     this.hint = document.createElement("p");
     this.hint.className = "mt-1 text-xs text-ink-muted";
     this.hint.textContent = "Searches every instance. Two characters to start.";
 
-    wrapper.append(this.input, this.listbox);
+    wrapper.append(this.input, this.popup);
     this.append(label, wrapper, this.hint);
 
     this.input.addEventListener("input", () => {
@@ -74,6 +93,13 @@ export class WdCombobox extends HTMLElement {
     this.input.addEventListener("keydown", (event) => {
       this.onKeyDown(event);
     });
+  }
+
+  /** A pending debounce timer outlives removal from the DOM unless cleared
+   *  here: otherwise it fires on a detached element, dispatches wd-search, and
+   *  today.ts starts a fan-out the user has no way left to see or abort. */
+  disconnectedCallback(): void {
+    window.clearTimeout(this.timer);
   }
 
   focusInput(): void {
@@ -127,7 +153,7 @@ export class WdCombobox extends HTMLElement {
 
     this.timer = window.setTimeout(() => {
       this.setSearching();
-      this.dispatchEvent(new CustomEvent<string>("search", { detail: query }));
+      this.dispatchEvent(new CustomEvent<string>("wd-search", { detail: query }));
     }, WdCombobox.debounceMs);
   }
 
@@ -149,20 +175,26 @@ export class WdCombobox extends HTMLElement {
     if (event.key === "Escape") {
       event.preventDefault();
       this.dispatchEvent(new CustomEvent("cancel"));
+      return;
+    }
+    if (event.key === "Tab") {
+      // No preventDefault: Tab must still move focus on. Only the popup closes.
+      this.close();
     }
   }
 
   private choose(hit: IssueHit): void {
     if (this.disabledKeys.has(`${hit.instanceId}:${hit.key}`)) return;
-    this.dispatchEvent(new CustomEvent<IssueHit>("select", { detail: hit }));
+    this.dispatchEvent(new CustomEvent<IssueHit>("wd-select", { detail: hit }));
   }
 
   private close(): void {
+    window.clearTimeout(this.timer);
     this.results = [];
     this.failures = [];
     this.searching = false;
     this.searched = false;
-    if (this.listbox) this.listbox.hidden = true;
+    if (this.popup) this.popup.hidden = true;
     this.input?.setAttribute("aria-expanded", "false");
     this.input?.removeAttribute("aria-activedescendant");
   }
@@ -176,15 +208,22 @@ export class WdCombobox extends HTMLElement {
   }
 
   private renderOptions(): void {
-    const listbox = this.listbox;
+    const popup = this.popup;
+    const list = this.list;
+    const notice = this.notice;
+    const footnote = this.footnote;
     const input = this.input;
-    if (!listbox || !input) return;
+    if (!popup || !list || !notice || !footnote || !input) return;
 
-    listbox.replaceChildren();
+    list.replaceChildren();
+    notice.replaceChildren();
+    notice.hidden = true;
+    footnote.hidden = true;
 
     if (this.searching) {
-      listbox.append(this.noticeLine("Searching…"));
-      listbox.hidden = false;
+      notice.append(this.noticeLine("Searching…"));
+      notice.hidden = false;
+      popup.hidden = false;
       input.setAttribute("aria-expanded", "true");
       input.removeAttribute("aria-activedescendant");
 
@@ -197,8 +236,9 @@ export class WdCombobox extends HTMLElement {
       const alert = document.createElement("wd-alert");
       alert.setAttribute("tone", "error");
       alert.setAttribute("message", this.failures[0]?.error.message ?? "The search failed.");
-      listbox.append(alert);
-      listbox.hidden = false;
+      notice.append(alert);
+      notice.hidden = false;
+      popup.hidden = false;
       input.setAttribute("aria-expanded", "true");
       input.removeAttribute("aria-activedescendant");
 
@@ -208,19 +248,24 @@ export class WdCombobox extends HTMLElement {
     if (this.searched && this.results.length === 0) {
       // The query is named back because a mistyped or over-narrow query is
       // usually why the list is empty, not because Jira itself has nothing.
-      listbox.append(this.noticeLine(`No issues match “${this.query}”.`));
-      listbox.hidden = false;
+      notice.append(this.noticeLine(`No issues match “${this.query}”.`));
+      notice.hidden = false;
+      popup.hidden = false;
       input.setAttribute("aria-expanded", "true");
       input.removeAttribute("aria-activedescendant");
 
       return;
     }
 
+    const items: HTMLLIElement[] = [];
     this.results.forEach((hit, index) => {
       const option = document.createElement("button");
       option.type = "button";
       option.id = `wd-combobox-option-${index}`;
       option.setAttribute("role", "option");
+      // Not part of the tab order: Tab must leave the popup by moving focus
+      // out of the input, not by walking into these buttons one at a time.
+      option.tabIndex = -1;
       const pinned = this.disabledKeys.has(`${hit.instanceId}:${hit.key}`);
       // aria-disabled rather than the disabled attribute: a disabled button is
       // skipped by a screen reader entirely, and "already pinned" is worth
@@ -253,21 +298,28 @@ export class WdCombobox extends HTMLElement {
       option.addEventListener("click", () => {
         this.choose(hit);
       });
-      listbox.append(option);
+
+      const item = document.createElement("li");
+      item.append(option);
+      items.push(item);
+      list.append(item);
     });
 
     if (this.failures.length > 0) {
-      const failed = document.createElement("p");
-      failed.className = "border-t border-edge px-3 py-2 text-xs text-ink-muted";
-      failed.textContent = `${this.failures.map((f) => f.instanceName).join(", ")} could not be searched.`;
-      listbox.append(failed);
+      footnote.textContent = `${this.failures.map((f) => f.instanceName).join(", ")} could not be searched.`;
+      footnote.hidden = false;
     }
 
     const open = this.results.length > 0 || this.failures.length > 0;
-    listbox.hidden = !open;
+    popup.hidden = !open;
     input.setAttribute("aria-expanded", open ? "true" : "false");
     if (open && this.results.length > 0) {
       input.setAttribute("aria-activedescendant", `wd-combobox-option-${this.active}`);
+      // Focus never leaves the input, so the browser will not scroll the
+      // active option into view on its own — and with up to searchLimit×N
+      // instances of results stacked in a max-h-60 popup, ↓ past the visible
+      // rows would otherwise move aria-activedescendant to a row nobody sees.
+      items[this.active]?.scrollIntoView({ block: "nearest" });
     } else {
       input.removeAttribute("aria-activedescendant");
     }

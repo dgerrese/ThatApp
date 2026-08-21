@@ -194,7 +194,7 @@ function showPinForm(regions: Regions): void {
   // slow first search can land after a fast second one and paint over it.
   let inFlight: AbortController | undefined;
 
-  combobox.addEventListener("search", (event) => {
+  combobox.addEventListener("wd-search", (event) => {
     const query = (event as CustomEvent<string>).detail;
     inFlight?.abort();
     const controller = new AbortController();
@@ -212,13 +212,8 @@ function showPinForm(regions: Regions): void {
       });
   });
 
-  combobox.addEventListener("select", (event) => {
-    // The input's native "select" event (text selection changing — fill()
-    // triggers it in some browsers) bubbles into this light-DOM element under
-    // the same name as wd-combobox's own CustomEvent("select", ...). Only the
-    // latter carries a detail and should be acted on.
-    if (!(event instanceof CustomEvent)) return;
-    const hit = event.detail as IssueHit;
+  combobox.addEventListener("wd-select", (event) => {
+    const hit = (event as CustomEvent<IssueHit>).detail;
     inFlight?.abort();
     alertSlot.replaceChildren();
     combobox.setBusy(true);
