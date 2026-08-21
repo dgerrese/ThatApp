@@ -174,7 +174,7 @@ export class WdCombobox extends HTMLElement {
     }
     if (event.key === "Escape") {
       event.preventDefault();
-      this.dispatchEvent(new CustomEvent("cancel"));
+      this.dispatchEvent(new CustomEvent("wd-cancel"));
       return;
     }
     if (event.key === "Tab") {

@@ -5,7 +5,7 @@ import "../components/wd-combobox";
 import "../components/wd-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
-import { ApiError, createPin, listIssues, listPins, searchIssues } from "../api";
+import { ApiError, createPin, deletePin, listIssues, listPins, searchIssues } from "../api";
 import type { WdCombobox } from "../components/wd-combobox";
 import type { InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
@@ -74,7 +74,7 @@ export async function render(root: HTMLElement): Promise<void> {
     lastIssues: null,
   };
   refresh.addEventListener("click", () => {
-    void refreshResults(regions);
+    void refreshEverything(regions);
   });
 
   // Independent on purpose: the Pinned card paints from the store alone and
@@ -94,6 +94,9 @@ export async function refreshPins(
   try {
     regions.pins = await listPins(options);
     renderPinnedList(regions, regions.pins);
+    // A no-op while a pin form is open: replacing pinnedForm's children here
+    // would tear down an in-progress search the moment Refresh's shared call
+    // reaches this branch — the same class of bug #29 paid to fix in Settings.
     showPinButton(regions);
   } catch (error) {
     regions.pins = [];
@@ -127,15 +130,13 @@ function renderPinnedList(regions: Regions, pins: Pin[]): void {
 
   const list = document.createElement("ul");
   list.className = "divide-y divide-edge";
-  // Unpinning is #6's Task 11; the control exists so its layout is settled but
-  // does nothing yet.
-  list.append(...pins.map((pin) => pinRow(pin, () => {})));
+  list.append(...pins.map((pin) => pinRow(pin, (row) => unpin(regions, pin, row))));
   regions.pinnedList.replaceChildren(list);
 
   alignKeyColumn(list);
 }
 
-export function pinRow(pin: Pin, onUnpin: () => void): HTMLElement {
+export function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
   const item = document.createElement("li");
   item.className = "flex items-center gap-3";
 
@@ -154,15 +155,61 @@ export function pinRow(pin: Pin, onUnpin: () => void): HTMLElement {
   row.setAttribute("url", pin.url);
   wrapper.append(row);
 
-  const unpin = button("Unpin", "secondary");
-  unpin.addEventListener("click", onUnpin);
+  item.append(instance, wrapper);
 
-  item.append(instance, wrapper, unpin);
+  // A failed refresh must never blank a row: summary and status above stay
+  // exactly as they were cached, and this is the only thing that changes.
+  if (pin.error) {
+    // text-failed, not a "danger" token: the palette's error colour is named
+    // failed (see wd-alert's TONES), and there is no --color-danger* in
+    // styles.css.
+    const failure = document.createElement("span");
+    failure.className = "shrink-0 text-xs text-failed";
+    failure.textContent = pin.error.message;
+    item.append(failure);
+  }
+
+  const control = button("Unpin", "secondary");
+  control.addEventListener("click", () => {
+    onUnpin(item);
+  });
+  item.append(control);
 
   return item;
 }
 
+/**
+ * Unpinning destroys nothing worth confirming: time_entries rows are keyed by
+ * (instance_id, issue_key) with no foreign key to pinned_issues, unlike #29's
+ * instance removal whose cascade does. So there is no confirmation dialog —
+ * only a disabled control while the request is in flight.
+ */
+function unpin(regions: Regions, pin: Pin, row: HTMLElement): void {
+  const control = row.querySelector("wd-button");
+  control?.setAttribute("disabled", "");
+
+  void deletePin(pin.id)
+    .then(async () => {
+      await refreshPins(regions);
+    })
+    .catch((error: unknown) => {
+      control?.removeAttribute("disabled");
+      regions.pinnedList.prepend(alertFor("error", messageOf(error)));
+    });
+}
+
+/** No-op while a pin form is open: called after every listPins(), including
+ *  the shared Refresh's, so replacing pinnedForm's children unconditionally
+ *  would tear down an in-progress search mid-typing. A deliberate close
+ *  (Cancel, Escape, a completed pin) goes through renderPinOpener directly
+ *  instead of this gate. */
 function showPinButton(regions: Regions): void {
+  if (regions.pinnedForm.querySelector("wd-combobox")) return;
+
+  renderPinOpener(regions);
+}
+
+function renderPinOpener(regions: Regions): void {
   const open = button("Pin an issue", "secondary");
   open.addEventListener("click", () => {
     showPinForm(regions);
@@ -220,7 +267,7 @@ function showPinForm(regions: Regions): void {
 
     void createPin(hit.instanceId, hit.key)
       .then(async () => {
-        showPinButton(regions);
+        renderPinOpener(regions);
         await refreshPins(regions);
       })
       .catch((error: unknown) => {
@@ -229,14 +276,14 @@ function showPinForm(regions: Regions): void {
       });
   });
 
-  combobox.addEventListener("cancel", () => {
+  combobox.addEventListener("wd-cancel", () => {
     inFlight?.abort();
-    showPinButton(regions);
+    renderPinOpener(regions);
   });
 
   cancel.addEventListener("click", () => {
     inFlight?.abort();
-    showPinButton(regions);
+    renderPinOpener(regions);
   });
 }
 
@@ -246,9 +293,11 @@ function pinnedKeysOf(regions: Regions): Set<string> {
   return new Set(currentPins(regions).map((pin) => `${pin.instanceId}:${pin.key}`));
 }
 
+/** Disabling and re-enabling regions.refresh is refreshEverything's job, not
+ *  this function's: the initial mount calls this alone, while the button is
+ *  still hidden, and the shared Refresh must stay disabled until the pins
+ *  call settles too. */
 async function refreshResults(regions: Regions): Promise<void> {
-  regions.refresh.setAttribute("disabled", "");
-
   try {
     // The cards already on screen stay put while this is in flight: a list that
     // blinks out and back is indistinguishable from one that broke.
@@ -258,6 +307,15 @@ async function refreshResults(regions: Regions): Promise<void> {
   } catch (error) {
     regions.header.hidden = false;
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
+  }
+}
+
+async function refreshEverything(regions: Regions): Promise<void> {
+  regions.refresh.setAttribute("disabled", "");
+  try {
+    // Settled rather than all: a failing pins refresh must not stop the assigned
+    // cards updating, and each already renders its own failure.
+    await Promise.allSettled([refreshResults(regions), refreshPins(regions, { refresh: true })]);
   } finally {
     regions.refresh.removeAttribute("disabled");
   }

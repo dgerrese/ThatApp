@@ -11,7 +11,12 @@ interface StubPin {
   error: { code: string; message: string } | null;
 }
 
-function pin(id: number, instanceName: string, key: string, summary: string): StubPin {
+function pin(
+  id: number,
+  instanceName: string,
+  key: string,
+  summary: string,
+): StubPin {
   return {
     id,
     instanceId: id,
@@ -33,7 +38,11 @@ function pin(id: number, instanceName: string, key: string, summary: string): St
  * all, `Math.min(calls, responses.length - 1)` would index at -1 and fulfil
  * with `json: undefined`.
  */
-async function stubPins(page: Page, first: StubPin[], ...rest: StubPin[][]): Promise<void> {
+async function stubPins(
+  page: Page,
+  first: StubPin[],
+  ...rest: StubPin[][]
+): Promise<void> {
   const responses = [first, ...rest];
   let calls = 0;
 
@@ -56,7 +65,9 @@ async function stubIssues(page: Page, groups: unknown[]): Promise<void> {
 
 test("pinned issues render above the assigned cards", async ({ page }) => {
   await stubPins(page, [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")]);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
 
   await page.goto("/today");
 
@@ -67,7 +78,9 @@ test("pinned issues render above the assigned cards", async ({ page }) => {
 
   // "Above" is a claim about document order, not just co-presence: compare the
   // Pinned card's top edge against the assigned-issues heading's.
-  const assignedHeading = page.getByRole("heading", { name: "Assigned issues" });
+  const assignedHeading = page.getByRole("heading", {
+    name: "Assigned issues",
+  });
   const pinnedBox = await card.boundingBox();
   const assignedBox = await assignedHeading.boundingBox();
   expect(pinnedBox).not.toBeNull();
@@ -77,7 +90,9 @@ test("pinned issues render above the assigned cards", async ({ page }) => {
 
 // Independent on purpose: the Pinned card must paint from /api/pins alone and
 // must not wait on the assigned-issues fan-out, which may be slow or hang.
-test("the pinned card paints before the assigned fan-out answers", async ({ page }) => {
+test("the pinned card paints before the assigned fan-out answers", async ({
+  page,
+}) => {
   await stubPins(page, [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")]);
   await page.route("**/api/issues", () => {
     // Never fulfilled: the fan-out hangs, and the Pinned card must not.
@@ -90,7 +105,9 @@ test("the pinned card paints before the assigned fan-out answers", async ({ page
   await expect(page.getByText("Loading…")).toBeVisible();
 });
 
-test("an issue that is both pinned and assigned appears once", async ({ page }) => {
+test("an issue that is both pinned and assigned appears once", async ({
+  page,
+}) => {
   await stubPins(page, [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")]);
   await stubIssues(page, [
     {
@@ -136,19 +153,26 @@ test("the pinned card renders when every instance fails", async ({ page }) => {
       id: 1,
       name: "Ridgeline",
       issues: [],
-      error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
+      error: {
+        code: "instance_unreachable",
+        message: "the Jira site could not be reached",
+      },
     },
   ]);
 
   await page.goto("/today");
 
   await expect(page.getByText("SHARED-12")).toBeVisible();
-  await expect(page.getByText("the Jira site could not be reached")).toBeVisible();
+  await expect(
+    page.getByText("the Jira site could not be reached"),
+  ).toBeVisible();
 });
 
 test("no pins shows nothing pinned", async ({ page }) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
 
   await page.goto("/today");
 
@@ -157,18 +181,28 @@ test("no pins shows nothing pinned", async ({ page }) => {
 
 // With no instances there can be no pins either — the cascade took them with the
 // last instance — so a Pinned card would be a control with nothing to do.
-test("no instances configured hides the pinned card entirely", async ({ page }) => {
+test("no instances configured hides the pinned card entirely", async ({
+  page,
+}) => {
   await stubPins(page, []);
   await stubIssues(page, []);
 
   await page.goto("/today");
 
   await expect(page.getByText("No Jira instances yet.")).toBeVisible();
-  await expect(page.locator("wd-card").filter({ hasText: "Pinned" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Pin an issue" })).toHaveCount(0);
+  await expect(
+    page.locator("wd-card").filter({ hasText: "Pinned" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Pin an issue" })).toHaveCount(
+    0,
+  );
 });
 
-async function stubSearch(page: Page, results: unknown[], errors: unknown[] = []): Promise<void> {
+async function stubSearch(
+  page: Page,
+  results: unknown[],
+  errors: unknown[] = [],
+): Promise<void> {
   await page.route("**/api/issues/search**", async (route) => {
     await route.fulfill({ status: 200, json: { results, errors } });
   });
@@ -183,9 +217,17 @@ const sharedHit = {
   url: "https://example.atlassian.net/browse/SHARED-40",
 };
 
-test("searching finds issues across instances and pinning one adds it", async ({ page }) => {
-  await stubPins(page, [], [pin(9, "Ridgeline", "SHARED-40", "Vendor security review")]);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+test("searching finds issues across instances and pinning one adds it", async ({
+  page,
+}) => {
+  await stubPins(
+    page,
+    [],
+    [pin(9, "Ridgeline", "SHARED-40", "Vendor security review")],
+  );
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   await stubSearch(page, [
     sharedHit,
     {
@@ -224,8 +266,12 @@ test("searching finds issues across instances and pinning one adds it", async ({
 });
 
 test("an already pinned issue cannot be chosen", async ({ page }) => {
-  await stubPins(page, [pin(1, "Ridgeline", "SHARED-40", "Vendor security review")]);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubPins(page, [
+    pin(1, "Ridgeline", "SHARED-40", "Vendor security review"),
+  ]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   await stubSearch(page, [{ ...sharedHit, instanceId: 1 }]);
   let posted = false;
   await page.route("**/api/pins", async (route) => {
@@ -254,7 +300,9 @@ test("an already pinned issue cannot be chosen", async ({ page }) => {
   expect(posted).toBe(false);
 });
 
-test("the keyboard pins the highlighted row, not just the first one", async ({ page }) => {
+test("the keyboard pins the highlighted row, not just the first one", async ({
+  page,
+}) => {
   const secondHit = {
     instanceId: 2,
     instanceName: "Personal",
@@ -263,8 +311,14 @@ test("the keyboard pins the highlighted row, not just the first one", async ({ p
     status: "Open",
     url: "https://example.atlassian.net/browse/MISC-15",
   };
-  await stubPins(page, [], [pin(9, "Personal", "MISC-15", "Security questionnaire")]);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubPins(
+    page,
+    [],
+    [pin(9, "Personal", "MISC-15", "Security questionnaire")],
+  );
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   await stubSearch(page, [sharedHit, secondHit]);
   await page.route("**/api/pins", async (route) => {
     if (route.request().method() !== "POST") {
@@ -274,7 +328,10 @@ test("the keyboard pins the highlighted row, not just the first one", async ({ p
     // Proves Enter acts on the row ↓ moved to, not on whichever row happened
     // to be first: a bug that always chose index 0 would pin SHARED-40 and
     // trip this assertion instead of quietly passing.
-    expect(route.request().postDataJSON()).toEqual({ instanceId: 2, issueKey: "MISC-15" });
+    expect(route.request().postDataJSON()).toEqual({
+      instanceId: 2,
+      issueKey: "MISC-15",
+    });
     await route.fulfill({
       status: 201,
       json: pin(9, "Personal", "MISC-15", "Security questionnaire"),
@@ -303,8 +360,14 @@ test("↑ from the first option wraps to the last", async ({ page }) => {
     status: "Open",
     url: "https://example.atlassian.net/browse/MISC-15",
   };
-  await stubPins(page, [], [pin(9, "Personal", "MISC-15", "Security questionnaire")]);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubPins(
+    page,
+    [],
+    [pin(9, "Personal", "MISC-15", "Security questionnaire")],
+  );
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   await stubSearch(page, [sharedHit, secondHit]);
   await page.route("**/api/pins", async (route) => {
     if (route.request().method() !== "POST") {
@@ -314,7 +377,10 @@ test("↑ from the first option wraps to the last", async ({ page }) => {
     // A sign error in the wrap arithmetic would land on index 0 (SHARED-40)
     // instead of wrapping backwards to the last option — this assertion is
     // what would catch that, not the mere fact that Enter picks something.
-    expect(route.request().postDataJSON()).toEqual({ instanceId: 2, issueKey: "MISC-15" });
+    expect(route.request().postDataJSON()).toEqual({
+      instanceId: 2,
+      issueKey: "MISC-15",
+    });
     await route.fulfill({
       status: 201,
       json: pin(9, "Personal", "MISC-15", "Security questionnaire"),
@@ -342,8 +408,14 @@ test("↓ past the last option wraps to the first", async ({ page }) => {
     status: "Open",
     url: "https://example.atlassian.net/browse/MISC-15",
   };
-  await stubPins(page, [], [pin(9, "Ridgeline", "SHARED-40", "Vendor security review")]);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubPins(
+    page,
+    [],
+    [pin(9, "Ridgeline", "SHARED-40", "Vendor security review")],
+  );
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   await stubSearch(page, [sharedHit, secondHit]);
   await page.route("**/api/pins", async (route) => {
     if (route.request().method() !== "POST") {
@@ -352,7 +424,10 @@ test("↓ past the last option wraps to the first", async ({ page }) => {
     }
     // A clamp instead of a wrap (or an off-by-one) would leave the active
     // index on the last option (MISC-15) rather than back at the first.
-    expect(route.request().postDataJSON()).toEqual({ instanceId: 1, issueKey: "SHARED-40" });
+    expect(route.request().postDataJSON()).toEqual({
+      instanceId: 1,
+      issueKey: "SHARED-40",
+    });
     await route.fulfill({
       status: 201,
       json: pin(9, "Ridgeline", "SHARED-40", "Vendor security review"),
@@ -374,7 +449,9 @@ test("↓ past the last option wraps to the first", async ({ page }) => {
 
 test("Escape closes the pin form", async ({ page }) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
 
   await page.goto("/today");
   await page.getByRole("button", { name: "Pin an issue" }).click();
@@ -383,17 +460,25 @@ test("Escape closes the pin form", async ({ page }) => {
 
   await box.press("Escape");
 
-  await expect(page.getByRole("combobox", { name: "Find an issue" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Pin an issue" })).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Find an issue" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Pin an issue" }),
+  ).toBeVisible();
 });
 
 // Options are real <button> elements; without tabIndex="-1" on each and a Tab
 // branch in onKeyDown, Tab from the input walks into the popup one option at a
 // time instead of leaving it — and since aria-activedescendant only means
 // anything while focus stays on the input, that silently breaks the pattern.
-test("Tab closes the popup and moves focus on, not into an option", async ({ page }) => {
+test("Tab closes the popup and moves focus on, not into an option", async ({
+  page,
+}) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   await stubSearch(page, [sharedHit]);
 
   await page.goto("/today");
@@ -410,16 +495,24 @@ test("Tab closes the popup and moves focus on, not into an option", async ({ pag
 
 test("Cancel restores the Pin an issue button", async ({ page }) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
 
   await page.goto("/today");
   await page.getByRole("button", { name: "Pin an issue" }).click();
-  await expect(page.getByRole("combobox", { name: "Find an issue" })).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Find an issue" }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Cancel" }).click();
 
-  await expect(page.getByRole("combobox", { name: "Find an issue" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Pin an issue" })).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Find an issue" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Pin an issue" }),
+  ).toBeVisible();
 });
 
 // A pending debounce timer that outlives the form closing would fire on a
@@ -428,7 +521,9 @@ test("Cancel restores the Pin an issue button", async ({ page }) => {
 // clearTimeout (and close()'s) exists to prevent.
 test("Cancel within the debounce window makes no request", async ({ page }) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   let searched = false;
   await page.route("**/api/issues/search**", async (route) => {
     searched = true;
@@ -445,13 +540,20 @@ test("Cancel within the debounce window makes no request", async ({ page }) => {
   expect(searched).toBe(false);
 });
 
-test("rapid keystrokes are coalesced into a single search", async ({ page }) => {
+test("rapid keystrokes are coalesced into a single search", async ({
+  page,
+}) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   let calls = 0;
   await page.route("**/api/issues/search**", async (route) => {
     calls += 1;
-    await route.fulfill({ status: 200, json: { results: [sharedHit], errors: [] } });
+    await route.fulfill({
+      status: 200,
+      json: { results: [sharedHit], errors: [] },
+    });
   });
 
   await page.goto("/today");
@@ -469,7 +571,9 @@ test("rapid keystrokes are coalesced into a single search", async ({ page }) => 
 
 test("a query under two characters searches nothing", async ({ page }) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   let searched = false;
   await page.route("**/api/issues/search**", async (route) => {
     searched = true;
@@ -485,9 +589,13 @@ test("a query under two characters searches nothing", async ({ page }) => {
   await expect(page.getByText("Two characters to start.")).toBeVisible();
 });
 
-test("a query with no matches says so and names the query back", async ({ page }) => {
+test("a query with no matches says so and names the query back", async ({
+  page,
+}) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
   await stubSearch(page, []);
 
   await page.goto("/today");
@@ -498,34 +606,58 @@ test("a query with no matches says so and names the query back", async ({ page }
   await expect(page.getByRole("option")).toHaveCount(0);
 });
 
-test("every instance failing shows an error rather than an empty list", async ({ page }) => {
+test("every instance failing shows an error rather than an empty list", async ({
+  page,
+}) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
-  await stubSearch(page, [], [
-    {
-      instanceId: 1,
-      instanceName: "Ridgeline",
-      error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
-    },
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
   ]);
+  await stubSearch(
+    page,
+    [],
+    [
+      {
+        instanceId: 1,
+        instanceName: "Ridgeline",
+        error: {
+          code: "instance_unreachable",
+          message: "the Jira site could not be reached",
+        },
+      },
+    ],
+  );
 
   await page.goto("/today");
   await page.getByRole("button", { name: "Pin an issue" }).click();
   await page.getByRole("combobox", { name: "Find an issue" }).fill("security");
 
-  await expect(page.getByText("the Jira site could not be reached")).toBeVisible();
+  await expect(
+    page.getByText("the Jira site could not be reached"),
+  ).toBeVisible();
 });
 
-test("an instance that cannot be searched is named beside the results", async ({ page }) => {
+test("an instance that cannot be searched is named beside the results", async ({
+  page,
+}) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
-  await stubSearch(page, [sharedHit], [
-    {
-      instanceId: 2,
-      instanceName: "Personal",
-      error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
-    },
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
   ]);
+  await stubSearch(
+    page,
+    [sharedHit],
+    [
+      {
+        instanceId: 2,
+        instanceName: "Personal",
+        error: {
+          code: "instance_unreachable",
+          message: "the Jira site could not be reached",
+        },
+      },
+    ],
+  );
 
   await page.goto("/today");
   await page.getByRole("button", { name: "Pin an issue" }).click();
@@ -540,9 +672,220 @@ test("an instance that cannot be searched is named beside the results", async ({
 // "Could not reach the dashboard server." — that guard is what this proves:
 // remove it and the superseded first search paints an outage message over a
 // second search that is still working correctly.
-test("a keystroke that supersedes a slow search never shows a network error", async ({ page }) => {
+test("unpinning removes the row without a reload", async ({ page }) => {
+  await stubPins(
+    page,
+    [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")],
+    [],
+  );
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
+  let deleteMethod: string | null = null;
+  await page.route("**/api/pins/1", async (route) => {
+    deleteMethod = route.request().method();
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.goto("/today");
+  await expect(page.getByText("SHARED-12")).toBeVisible();
+  // A reload would reset this; its survival is what proves the row's removal
+  // came from the DOM update, not a fresh page.
+  await page.evaluate(() => {
+    (window as unknown as { __wd_marker: boolean }).__wd_marker = true;
+  });
+
+  await page.getByRole("button", { name: "Unpin" }).click();
+
+  await expect(page.getByText("SHARED-12")).toHaveCount(0);
+  await expect(page.getByText("Nothing pinned.")).toBeVisible();
+  expect(deleteMethod).toBe("DELETE");
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __wd_marker?: boolean }).__wd_marker,
+    ),
+  ).toBe(true);
+});
+
+test("refresh updates the pinned card as well as the assigned one", async ({
+  page,
+}) => {
+  await stubPins(
+    page,
+    [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")],
+    [pin(1, "Ridgeline", "SHARED-12", "Renamed standup")],
+  );
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
+
+  await page.goto("/today");
+  await expect(page.getByText("Weekly standup")).toBeVisible();
+
+  await page.getByRole("button", { name: "Refresh" }).click();
+
+  await expect(page.getByText("Renamed standup")).toBeVisible();
+});
+
+// A test that only watches one request would pass against a button that
+// re-enables early — this is the case #6's report specifically calls out —
+// so the pins response is held open until the assigned response has already
+// resolved, and the button's disabled state is read in between.
+test("Refresh disables the button until both the pins and the assigned calls settle", async ({
+  page,
+}) => {
+  let issuesCalls = 0;
+  let pinsRefreshCalls = 0;
+  let issuesSettled = false;
+  let releasePins: (() => void) | undefined;
+  const pinsHeld = new Promise<void>((resolve) => {
+    releasePins = resolve;
+  });
+
+  await page.route("**/api/pins**", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("refresh") === "1") {
+      pinsRefreshCalls += 1;
+      await pinsHeld;
+      await route.fulfill({
+        status: 200,
+        json: [pin(1, "Ridgeline", "SHARED-12", "Renamed standup")],
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      json: [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")],
+    });
+  });
+  await page.route("**/api/issues", async (route) => {
+    issuesCalls += 1;
+    await route.fulfill({
+      status: 200,
+      json: {
+        instances: [{ id: 1, name: "Ridgeline", issues: [], error: null }],
+      },
+    });
+    issuesSettled = true;
+  });
+
+  await page.goto("/today");
+  await expect(page.getByText("Weekly standup")).toBeVisible();
+
+  const refresh = page.getByRole("button", { name: "Refresh" });
+  await refresh.click();
+  await expect(refresh).toBeDisabled();
+
+  // The assigned call has resolved (proven by issuesSettled) while the pins
+  // call is still deliberately held open — a button gated on refreshResults
+  // alone would already have re-enabled here.
+  await expect.poll(() => issuesSettled).toBe(true);
+  await expect(refresh).toBeDisabled();
+
+  releasePins?.();
+
+  await expect(page.getByText("Renamed standup")).toBeVisible();
+  await expect(refresh).toBeEnabled();
+  expect(pinsRefreshCalls).toBe(1);
+  // 2, not 1: one for the initial mount's independent fetch, one for Refresh's.
+  expect(issuesCalls).toBe(2);
+});
+
+test("a pin whose refresh failed keeps its cached values", async ({ page }) => {
+  const stale = pin(1, "Ridgeline", "SHARED-12", "Weekly standup");
+  const failed = {
+    ...stale,
+    error: {
+      code: "instance_unreachable",
+      message: "the Jira site could not be reached",
+    },
+  };
+  await stubPins(page, [stale], [failed]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Refresh" }).click();
+
+  await expect(page.getByText("Weekly standup")).toBeVisible();
+  await expect(
+    page.getByText("the Jira site could not be reached"),
+  ).toBeVisible();
+});
+
+test("a Refresh with the pin form open leaves the typed query intact", async ({
+  page,
+}) => {
+  await stubPins(page, [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
+  await stubSearch(page, [sharedHit]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  const box = page.getByRole("combobox", { name: "Find an issue" });
+  await box.fill("security");
+  await expect(page.getByRole("option")).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Refresh" }).click();
+  // The refresh landed (the assigned card's own re-render proves it), yet the
+  // form stayed up and the query the user typed is still in the box — a
+  // showPinButton that ran regardless would have torn the combobox away and
+  // this value would be gone.
+  await expect(
+    page.getByRole("combobox", { name: "Find an issue" }),
+  ).toHaveValue("security");
+  await expect(page.getByRole("option")).toHaveCount(1);
+});
+
+test("a newly-pinned key becomes un-choosable in an open popup", async ({
+  page,
+}) => {
+  // sharedHit's instanceId (1) must match the newly-added pin's, or the
+  // disabled-keys check the test is proving would never have anything to key
+  // against.
+  const newlyPinned = {
+    ...pin(9, "Ridgeline", "SHARED-40", "Vendor security review"),
+    instanceId: 1,
+  };
+  await stubPins(
+    page,
+    [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")],
+    [pin(1, "Ridgeline", "SHARED-12", "Weekly standup"), newlyPinned],
+  );
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
+  await stubSearch(page, [sharedHit]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  const box = page.getByRole("combobox", { name: "Find an issue" });
+  await box.fill("security");
+
+  const option = page.getByRole("option").first();
+  await expect(option).not.toContainText("Pinned");
+
+  // Someone else pins SHARED-40 elsewhere; this Refresh is what learns about it.
+  await page.getByRole("button", { name: "Refresh" }).click();
+
+  await expect(option).toContainText("Pinned");
+  await expect(option).toBeDisabled();
+});
+
+test("a keystroke that supersedes a slow search never shows a network error", async ({
+  page,
+}) => {
   await stubPins(page, []);
-  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+  ]);
 
   let calls = 0;
   await page.route("**/api/issues/search**", async (route) => {
@@ -553,10 +896,12 @@ test("a keystroke that supersedes a slow search never shows a network error", as
       // request well before it would otherwise resolve.
       await new Promise((resolve) => setTimeout(resolve, 800));
     }
-    await route.fulfill({ status: 200, json: { results: [sharedHit], errors: [] } }).catch(() => {
-      // The client already cancelled the underlying network request for the
-      // aborted first call; the route has nothing left to fulfil.
-    });
+    await route
+      .fulfill({ status: 200, json: { results: [sharedHit], errors: [] } })
+      .catch(() => {
+        // The client already cancelled the underlying network request for the
+        // aborted first call; the route has nothing left to fulfil.
+      });
   });
 
   await page.goto("/today");
@@ -568,5 +913,7 @@ test("a keystroke that supersedes a slow search never shows a network error", as
   await box.fill("security");
 
   await expect(page.getByRole("option")).toHaveCount(1);
-  await expect(page.getByText("Could not reach the dashboard server.")).toHaveCount(0);
+  await expect(
+    page.getByText("Could not reach the dashboard server."),
+  ).toHaveCount(0);
 });
