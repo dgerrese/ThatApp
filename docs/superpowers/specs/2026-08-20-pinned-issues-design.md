@@ -439,10 +439,14 @@ wd-combobox
     li > button  role="option" id aria-selected
 ```
 
-Attributes in: `label`, `placeholder`, `disabled`. Out: a `select` `CustomEvent` carrying the chosen
-hit. It owns keyboard behaviour — **↓/↑** move the active option and wrap, **Enter** chooses it,
-**Escape** closes the form, **Tab** closes the popup — and it owns nothing about Jira: `today.ts` feeds
-it results and decides what choosing one means. The active option is tracked by index and mirrored into
+Attributes in: `label`, `placeholder`, `disabled`. Out: `wd-search`, `wd-select` and `wd-cancel`
+`CustomEvent`s — `wd-select` carries the chosen hit. The `wd-` prefix is load-bearing, not decorative:
+an earlier `search`/`select` pairing collided with native events and crashed the app in Firefox, and
+`cancel` was renamed alongside them by the same argument even though no native `cancel` fires on a text
+input — closing the hazard by construction rather than by an argument that happens to hold today. It
+owns keyboard behaviour — **↓/↑** move the active option and wrap, **Enter** chooses it, **Escape**
+closes the form, **Tab** closes the popup — and it owns nothing about Jira: `today.ts` feeds it results
+and decides what choosing one means. The active option is tracked by index and mirrored into
 `aria-activedescendant`; focus never leaves the input, which is what makes the pattern work for a
 screen reader.
 
@@ -451,8 +455,11 @@ call per instance, so this is the difference between a search and a denial-of-se
 owner's own sites. The in-flight request is aborted when a new one starts.
 
 **Already-pinned issues appear but cannot be chosen** — rendered muted with a "Pinned" tag in place of
-the status, and `disabled`. This is what turns the duplicate case from an error you meet by typing into
-one you can see coming; `pin_exists` stays in the API as a race guard, not as a routine outcome.
+the status, and `aria-disabled`, not the `disabled` attribute: a disabled button is skipped by a screen
+reader entirely, and "already pinned" is worth announcing rather than hiding. `aria-disabled` does not
+stop a click or an Enter keypress on its own, so `choose()` is what actually refuses the pin. This turns
+the duplicate case from an error you meet by typing into one you can see coming; `pin_exists` stays in
+the API as a race guard, not as a routine outcome.
 
 **Refresh refreshes both.** #5's button calls `listIssues()`; it now also calls
 `listPins({ refresh: true })`, and stays disabled until both settle. One button, both lists, because
