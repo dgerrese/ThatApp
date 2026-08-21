@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,9 +16,9 @@ import (
 
 // pinDTO is one pin as the Pinned card needs it. InstanceName is joined in here
 // rather than resolved in the browser, which would be a round trip to answer a
-// question the server already had in hand. Error stays nil on this plain GET,
-// which reads the cache only and reaches no Jira instance; a later ticket that
-// adds a refresh path is what gives it a value.
+// question the server already had in hand. Error stays nil on a plain GET,
+// which reads the cache only and reaches no Jira instance; it is set per-row by
+// a refresh that could not reach that pin's instance or issue.
 type pinDTO struct {
 	ID           int64      `json:"id"`
 	InstanceID   int64      `json:"instanceId"`
@@ -43,7 +44,8 @@ func pinDTOFrom(pin store.Pin, inst store.Instance) pinDTO {
 
 // handleListPins answers with every pin from the store, joined with the
 // instance it belongs to. It reads two tables and calls no Jira client, so it
-// answers even when every configured instance is unreachable.
+// answers even when every configured instance is unreachable — unless
+// ?refresh=1 asks it to re-look-up every pin first.
 func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
 	pins, instances, ok := s.pinsWithInstances(w, r)
 	if !ok {
@@ -55,7 +57,61 @@ func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
 		dtos = append(dtos, pinDTOFrom(pin, instances[pin.InstanceID]))
 	}
 
+	if r.URL.Query().Get("refresh") == "1" {
+		s.refreshPins(r, dtos, pins, instances)
+	}
+
 	writeJSON(w, http.StatusOK, dtos)
+}
+
+// refreshPins re-reads every pin from Jira and rewrites its cache in place.
+//
+// The fan-out is over instances rather than pins: two pins on one site share a
+// client, which also keeps forInstance's first-use api_base_url repair from
+// running twice concurrently against the same row.
+//
+// It never returns an error. A per-pin failure is that pin's error field, and
+// the cached values it already had are left exactly as they were.
+func (s *Server) refreshPins(
+	r *http.Request, dtos []pinDTO, pins []store.Pin, instances map[int64]store.Instance,
+) {
+	byInstance := map[int64][]int{}
+	ordered := []store.Instance{}
+	for i, pin := range pins {
+		if _, seen := byInstance[pin.InstanceID]; !seen {
+			ordered = append(ordered, instances[pin.InstanceID])
+		}
+		byInstance[pin.InstanceID] = append(byInstance[pin.InstanceID], i)
+	}
+
+	fanOutInstances(r.Context(), ordered, issueFetchTimeout,
+		func(ctx context.Context, inst store.Instance) struct{} {
+			client, err := s.clients.forInstance(ctx, &inst)
+			if err != nil {
+				for _, i := range byInstance[inst.ID] {
+					dtos[i].Error = instanceErrorBody(err)
+				}
+
+				return struct{}{}
+			}
+
+			for _, i := range byInstance[inst.ID] {
+				issue, err := client.Issue(ctx, pins[i].IssueKey)
+				if err != nil {
+					dtos[i].Error = instanceErrorBody(err)
+					continue
+				}
+
+				dtos[i].Summary = issue.Summary
+				dtos[i].Status = issue.Status
+
+				if err := s.db.SetPinCache(r.Context(), pins[i].ID, issue.Summary, issue.Status); err != nil {
+					log.Printf("caching pin %d: %v", pins[i].ID, err)
+				}
+			}
+
+			return struct{}{}
+		})
 }
 
 // pinsWithInstances reads both tables and indexes the instances by id. A pin

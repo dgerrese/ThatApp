@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dgerrese/work-dashboard/internal/store"
 )
@@ -165,6 +166,124 @@ func jiraIssueServer(t *testing.T, summary, status string, code int) *httptest.S
 	t.Cleanup(srv.Close)
 
 	return srv
+}
+
+func jiraIssueServerWithDelay(
+	t *testing.T, summary, status string, code int, delay time.Duration,
+) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(delay)
+		if code != http.StatusOK {
+			w.WriteHeader(code)
+			return
+		}
+		_, _ = w.Write([]byte(`{"key":"SHARED-12","fields":{"summary":"` + summary +
+			`","status":{"name":"` + status + `"}}}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func TestRefreshRewritesTheCaches(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	jiraSrv := jiraIssueServer(t, "Renamed standup", "Done", http.StatusOK)
+	inst := seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", jiraSrv.URL)
+	if _, err := db.CreatePin(context.Background(), store.PinInput{
+		InstanceID: inst.ID, IssueKey: "SHARED-12",
+		SummaryCache: "Weekly standup", StatusCache: "In Progress",
+	}); err != nil {
+		t.Fatalf("creating the pin: %v", err)
+	}
+
+	rec, body := getPins(t, srv, "?refresh=1")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if body[0].Summary != "Renamed standup" || body[0].Status != "Done" {
+		t.Errorf("summary/status = %q/%q, want the refreshed values",
+			body[0].Summary, body[0].Status)
+	}
+
+	stored, err := db.Pins(context.Background())
+	if err != nil {
+		t.Fatalf("reading pins: %v", err)
+	}
+	if stored[0].SummaryCache != "Renamed standup" || stored[0].StatusCache != "Done" {
+		t.Errorf("stored caches = %q/%q; a refresh must persist, not just render",
+			stored[0].SummaryCache, stored[0].StatusCache)
+	}
+}
+
+// The property this endpoint shares with the assigned fan-out. The healthy
+// instance is DELAYED on purpose: with both at zero the failing goroutine
+// cancels its sibling only after that sibling has already stored its result,
+// and the test passes while the property is broken.
+func TestRefreshKeepsWorkingPinsWhenOneInstanceFails(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	slow := jiraIssueServerWithDelay(t, "Refreshed", "Done", http.StatusOK, 150*time.Millisecond)
+	broken := jiraIssueServer(t, "", "", http.StatusUnauthorized)
+	good := seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", slow.URL)
+	bad := seedInstance(t, db, sealer, "Personal", "https://personal.atlassian.net", broken.URL)
+	for _, seed := range []struct {
+		id  int64
+		key string
+	}{{good.ID, "SHARED-12"}, {bad.ID, "MISC-3"}} {
+		if _, err := db.CreatePin(context.Background(), store.PinInput{
+			InstanceID: seed.id, IssueKey: seed.key,
+			SummaryCache: "cached", StatusCache: "cached",
+		}); err != nil {
+			t.Fatalf("creating the pin %q: %v", seed.key, err)
+		}
+	}
+
+	rec, body := getPins(t, srv, "?refresh=1")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; one bad instance is data, not a failed request",
+			rec.Code, http.StatusOK)
+	}
+	if body[0].Summary != "Refreshed" {
+		t.Errorf("summary = %q, want Refreshed; a sibling's failure blanked it", body[0].Summary)
+	}
+	if body[1].Error == nil {
+		t.Fatal("the failed pin carries no error")
+	}
+	if body[1].Error.Code != "credentials_rejected" {
+		t.Errorf("code = %q, want credentials_rejected", body[1].Error.Code)
+	}
+	// A failed refresh must never destroy what was already known.
+	if body[1].Summary != "cached" {
+		t.Errorf("summary = %q, want the cached value kept", body[1].Summary)
+	}
+}
+
+// A pin whose issue was deleted in Jira stays pinned. Removing a user's pin
+// because a call said 404 is not this endpoint's decision to make.
+func TestRefreshDoesNotUnpinAMissingIssue(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	jiraSrv := jiraIssueServer(t, "", "", http.StatusNotFound)
+	inst := seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", jiraSrv.URL)
+	if _, err := db.CreatePin(context.Background(), store.PinInput{
+		InstanceID: inst.ID, IssueKey: "GONE-1", SummaryCache: "Was here", StatusCache: "Open",
+	}); err != nil {
+		t.Fatalf("creating the pin: %v", err)
+	}
+
+	_, body := getPins(t, srv, "?refresh=1")
+
+	if len(body) != 1 {
+		t.Fatalf("got %d pins, want the pin kept", len(body))
+	}
+	if body[0].Error == nil {
+		t.Error("the pin carries no error after a failed refresh")
+	}
+	if body[0].Summary != "Was here" {
+		t.Errorf("summary = %q, want the cached value kept", body[0].Summary)
+	}
 }
 
 func postPin(t *testing.T, srv *Server, body string) *httptest.ResponseRecorder {
