@@ -940,9 +940,11 @@ Temporarily break the helper: in `fanOutInstances`, change the goroutine body to
 
 			results[i] = work(callCtx, inst)
 
-			return ctx.Err() // deliberate break: cancels siblings
+			return errors.New("deliberate break: cancels siblings")
 		})
 ```
+
+(add `"errors"` to the imports for this temporary edit). Do **not** use `return ctx.Err()` here — it looks like a break but isn't one: `errgroup.WithContext`'s context is cancelled only by a non-nil return from one of its own goroutines (or by `Wait` returning), so at the point this line runs nothing has cancelled it yet and `ctx.Err()` is always nil. A goroutine "breaking" the group by returning the group's own not-yet-cancelled state is circular, and the mutation silently passes instead of failing.
 
 Run:
 
@@ -1769,7 +1771,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Prove the sibling guard bites here too**
 
-Temporarily change `refreshPins`'s callback to `return` an error path that cancels — the simplest break is to give `fanOutInstances` the mutation from Task 4 again — and confirm `TestRefreshKeepsWorkingPinsWhenOneInstanceFails` **fails**. Revert, and confirm it passes.
+Temporarily break `fanOutInstances` again, the same way Task 4 verified it: change the goroutine body's return to `return errors.New("deliberate break: cancels siblings")` (adding the `"errors"` import), not `return ctx.Err()` — the group's context is cancelled only by a non-nil return or by `Wait`, so a goroutine returning `ctx.Err()` is circular and always nil, and the mutation would silently pass instead of failing. Confirm `TestRefreshKeepsWorkingPinsWhenOneInstanceFails` **fails**. Revert, and confirm it passes.
 
 - [ ] **Step 6: Commit**
 
