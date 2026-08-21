@@ -81,6 +81,27 @@ func TestSearchUnderTwoCharactersReachesNoInstance(t *testing.T) {
 	}
 }
 
+// A single CJK glyph is one rune but three UTF-8 bytes; counting bytes would
+// clear the floor and fan this out to every instance, precisely what the floor
+// exists to stop.
+func TestSearchUnderTwoCharactersCountsRunesNotBytes(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	jiraSrv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		t.Errorf("a one-rune query reached Jira at %s", r.URL.Path)
+	}))
+	t.Cleanup(jiraSrv.Close)
+	seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", jiraSrv.URL)
+
+	rec, body := searchIssues(t, srv, "情")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if len(body.Results) != 0 || len(body.Errors) != 0 {
+		t.Errorf("body = %+v, want both arrays empty", body)
+	}
+}
+
 func TestSearchReportsAFailingInstanceBesideTheOthersResults(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
 	// Delayed on purpose: with both at zero the failing goroutine cancels its
@@ -121,7 +142,7 @@ func jiraSearchAndIssueServer(t *testing.T, issueStatus int) *httptest.Server {
 				`"status":{"name":"To Do"}}}`))
 		case r.URL.Path == "/rest/api/3/search/jql":
 			_, _ = w.Write([]byte(`{"issues":[{"key":"WORK-1","fields":{` +
-				`"summary":"Exact hit","status":{"name":"To Do"}}}]}`))
+				`"summary":"Text hit","status":{"name":"To Do"}}}]}`))
 		default:
 			t.Errorf("unexpected path %q", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -135,18 +156,32 @@ func jiraSearchAndIssueServer(t *testing.T, issueStatus int) *httptest.Server {
 // key = "..." is a JQL error when the project does not exist, so a key-shaped
 // query goes through the single-issue lookup instead, where a miss costs
 // nothing.
+//
+// The stub's issue and search endpoints return the same key with different
+// summaries ("Exact hit" vs "Text hit"), so this proves three things at once:
+// the key lookup actually ran (nothing else could produce "Exact hit"), it
+// leads its instance's results, and the dedupe kept that copy rather than the
+// text search's.
 func TestSearchListsAnExactKeyHitOnce(t *testing.T) {
-	srv, db, sealer := newServerWithStore(t)
-	jiraSrv := jiraSearchAndIssueServer(t, http.StatusOK)
-	seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", jiraSrv.URL)
+	for _, query := range []string{"WORK-1", "work-1"} {
+		t.Run(query, func(t *testing.T) {
+			srv, db, sealer := newServerWithStore(t)
+			jiraSrv := jiraSearchAndIssueServer(t, http.StatusOK)
+			seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", jiraSrv.URL)
 
-	_, body := searchIssues(t, srv, "WORK-1")
+			_, body := searchIssues(t, srv, query)
 
-	if len(body.Results) != 1 {
-		t.Fatalf("got %d results, want the exact hit listed once", len(body.Results))
-	}
-	if body.Results[0].Key != "WORK-1" {
-		t.Errorf("key = %q, want WORK-1", body.Results[0].Key)
+			if len(body.Results) != 1 {
+				t.Fatalf("got %d results, want the exact hit listed once", len(body.Results))
+			}
+			if body.Results[0].Key != "WORK-1" {
+				t.Errorf("key = %q, want WORK-1", body.Results[0].Key)
+			}
+			if body.Results[0].Summary != "Exact hit" {
+				t.Errorf("summary = %q, want the issue lookup's copy to lead and survive dedupe",
+					body.Results[0].Summary)
+			}
+		})
 	}
 }
 

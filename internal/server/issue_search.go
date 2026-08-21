@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/dgerrese/work-dashboard/internal/jira"
 	"github.com/dgerrese/work-dashboard/internal/store"
@@ -58,7 +59,7 @@ func (s *Server) handleSearchIssues(w http.ResponseWriter, r *http.Request) {
 	response := issueSearchResponseDTO{Results: []issueHitDTO{}, Errors: []instanceFailureDTO{}}
 
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	if len(query) < minSearchQuery {
+	if utf8.RuneCountInString(query) < minSearchQuery {
 		writeJSON(w, http.StatusOK, response)
 		return
 	}
