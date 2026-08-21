@@ -220,22 +220,45 @@ func TestSearchTextReturnsEmptyNotNil(t *testing.T) {
 }
 
 func TestSearchTextEscapesTheQueryIntoTheJQL(t *testing.T) {
-	var got struct {
-		JQL string `json:"jql"`
+	tests := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{
+			name:  "quotes and backslashes are escaped",
+			query: `say "hi"`,
+			want:  `summary ~ "say \"hi\"*" AND statusCategory != Done ORDER BY updated DESC`,
+		},
+		{
+			// A query already containing a wildcard must not be double-wildcarded:
+			// SearchText appends its own trailing `*`, and "secur**" is a 400 from
+			// Jira rather than a broader match.
+			name:  "a trailing wildcard the user already typed is not doubled",
+			query: `secur*`,
+			want:  `summary ~ "secur*" AND statusCategory != Done ORDER BY updated DESC`,
+		},
 	}
-	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
-			t.Errorf("decoding the request: %v", err)
-		}
-		_, _ = w.Write([]byte(`{"issues":[]}`))
-	})
 
-	if _, err := client.SearchText(context.Background(), `say "hi"`, 10); err != nil {
-		t.Fatalf("SearchText: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got struct {
+				JQL string `json:"jql"`
+			}
+			client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Errorf("decoding the request: %v", err)
+				}
+				_, _ = w.Write([]byte(`{"issues":[]}`))
+			})
 
-	want := `summary ~ "say \"hi\"*" AND statusCategory != Done ORDER BY updated DESC`
-	if got.JQL != want {
-		t.Errorf("jql = %q, want %q", got.JQL, want)
+			if _, err := client.SearchText(context.Background(), tt.query, 10); err != nil {
+				t.Fatalf("SearchText: %v", err)
+			}
+
+			if got.JQL != tt.want {
+				t.Errorf("jql = %q, want %q", got.JQL, tt.want)
+			}
+		})
 	}
 }

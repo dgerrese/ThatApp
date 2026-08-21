@@ -96,6 +96,14 @@ func escapeJQL(query string) string {
 	return strings.ReplaceAll(escaped, `"`, `\"`)
 }
 
+// stripTrailingWildcard drops any `*` a user already typed at the end of their
+// query. SearchText appends its own trailing `*` to build a prefix match, and
+// the right-hand side of JQL's `~` is Lucene syntax: a query of "secur*" left
+// alone would double-wildcard into "secur**", which Jira answers with a 400.
+func stripTrailingWildcard(query string) string {
+	return strings.TrimRight(query, "*")
+}
+
 // SearchText finds issues whose summary starts a word with query, most recently
 // updated first.
 //
@@ -108,7 +116,8 @@ func escapeJQL(query string) string {
 // second page is latency spent on results nobody scrolls to.
 func (c *Client) SearchText(ctx context.Context, query string, limit int) ([]Issue, error) {
 	jql := fmt.Sprintf(
-		`summary ~ "%s*" AND statusCategory != Done ORDER BY updated DESC`, escapeJQL(query))
+		`summary ~ "%s*" AND statusCategory != Done ORDER BY updated DESC`,
+		escapeJQL(stripTrailingWildcard(query)))
 
 	body := searchRequest{
 		JQL:        jql,

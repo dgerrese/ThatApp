@@ -98,7 +98,15 @@ func (s *Server) refreshPins(
 			for _, i := range byInstance[inst.ID] {
 				issue, err := client.Issue(ctx, pins[i].IssueKey)
 				if err != nil {
-					dtos[i].Error = instanceErrorBody(err)
+					// Before the shared mapping, which reads a 404 as a missing account.
+					if errors.Is(err, jira.ErrNotFound) {
+						dtos[i].Error = &errorBody{
+							Code:    "issue_not_found",
+							Message: "no issue with that key on this instance",
+						}
+					} else {
+						dtos[i].Error = instanceErrorBody(err)
+					}
 					continue
 				}
 

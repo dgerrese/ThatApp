@@ -294,7 +294,15 @@ func TestRefreshDoesNotUnpinAMissingIssue(t *testing.T) {
 		t.Fatalf("got %d pins, want the pin kept", len(body))
 	}
 	if body[0].Error == nil {
-		t.Error("the pin carries no error after a failed refresh")
+		t.Fatal("the pin carries no error after a failed refresh")
+	}
+	// A deleted or moved issue is a 404 from Jira, which the shared instance-error
+	// mapping reads as "no access to this account" — wrong to the point of
+	// misleading. This must agree with the POST /api/pins path, which already
+	// special-cases it.
+	if body[0].Error.Code != "issue_not_found" {
+		t.Errorf("error code = %q, want %q (not %q)",
+			body[0].Error.Code, "issue_not_found", "account_not_found")
 	}
 	if body[0].Summary != "Was here" {
 		t.Errorf("summary = %q, want the cached value kept", body[0].Summary)
