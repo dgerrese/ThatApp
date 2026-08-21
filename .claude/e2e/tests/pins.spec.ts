@@ -179,9 +179,10 @@ test("no instances configured hides the pinned card entirely", async ({ page }) 
   await expect(page.getByRole("button", { name: "Pin an issue" })).toHaveCount(0);
 });
 
-// A regression that painted every dot the same hue would leave every row
-// identifiable only by luck; reading the resolved --h back is what catches it,
-// since a class-based check would pass whether or not the property took effect.
+// A regression that painted every dot the same hue — or the transparent-dot
+// trap where --h reads correctly but the background never resolves at all —
+// would leave every row identifiable only by luck; reading the resolved paint
+// back is what catches both, where a class-based check would pass either way.
 test("two pinned instances render two different dot hues", async ({ page }) => {
   await stubPins(page, [
     pin(1, "Ridgeline", "SHARED-12", "Weekly standup", 0),
@@ -198,12 +199,18 @@ test("two pinned instances render two different dot hues", async ({ page }) => {
   const dots = card.getByRole("img");
   await expect(dots).toHaveCount(2);
 
-  const hues = await dots.evaluateAll((elements) =>
-    elements.map((element) => getComputedStyle(element).getPropertyValue("--h").trim()),
+  // The resolved paint, not --h: the transparent-dot trap
+  // (docs/superpowers/specs/2026-08-20-visual-design-language.md's "A trap this
+  // system sets") leaves --h reading correctly while every dot renders fully
+  // transparent with nothing in the console, and a 7x7 transparent box still
+  // has a non-empty bounding box, so toBeVisible would not have caught it either.
+  const colors = await dots.evaluateAll((elements) =>
+    elements.map((element) => getComputedStyle(element).backgroundColor),
   );
 
-  expect(hues[0]).not.toBe("");
-  expect(hues[0]).not.toBe(hues[1]);
+  expect(colors[0]).not.toBe("rgba(0, 0, 0, 0)");
+  expect(colors[1]).not.toBe("rgba(0, 0, 0, 0)");
+  expect(colors[0]).not.toBe(colors[1]);
 });
 
 async function stubSearch(page: Page, results: unknown[], errors: unknown[] = []): Promise<void> {

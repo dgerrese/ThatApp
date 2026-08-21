@@ -145,11 +145,13 @@ func (s *Server) pinsWithInstances(
 	}
 
 	byID := make(map[int64]store.Instance, len(instances))
-	for _, inst := range instances {
+	positions := make(map[int64]int, len(instances))
+	for i, inst := range instances {
 		byID[inst.ID] = inst
+		positions[inst.ID] = i
 	}
 
-	return pins, byID, instancePositions(instances), true
+	return pins, byID, positions, true
 }
 
 // pinIDFromPath reads the {id} wildcard, answering 400 for a non-numeric id
@@ -230,7 +232,17 @@ func (s *Server) handleCreatePin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "store_failed", "could not read the stored instances")
 		return
 	}
-	position := instancePositions(instances)[inst.ID]
+	position, ok := instancePositions(instances)[inst.ID]
+	if !ok {
+		// Unreachable in practice: inst was just read from the same store, in
+		// the same request, and the foreign key guarantees it is one of
+		// instances. Refusing outright is what stands between that and
+		// silently painting this pin with instance 0's hue.
+		log.Printf("instance %d missing from its own position index", inst.ID)
+		writeError(w, http.StatusInternalServerError, "store_failed", "could not place the instance")
+
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), issueFetchTimeout)
 	defer cancel()
