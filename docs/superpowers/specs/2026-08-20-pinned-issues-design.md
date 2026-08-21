@@ -13,8 +13,9 @@ The design of record settles the endpoint paths and the `pinned_issues` table an
 this ticket. #5 left it one question by name — pins span instances and the card-per-instance layout
 has no place for them — and this document answers it.
 
-**#6 builds on #5**, whose Today view is on `issue-5-assigned-issues` and in PR #38, unmerged at the
-time of writing. `issue-6-pinned-issues` is a **stacked pull request** on top of it; see *Branching*.
+**#6 builds on #5**, whose Today view was on `issue-5-assigned-issues` and in PR #38, unmerged when
+this was written. **#38 merged on 2026-08-20**, so the stacking this document planned for is moot;
+see *Branching*.
 
 ## Decisions taken in brainstorming
 
@@ -55,25 +56,15 @@ time of writing. `issue-6-pinned-issues` is a **stacked pull request** on top of
 
 ## Branching
 
-`issue-6-pinned-issues` is cut from `issue-5-assigned-issues`, not from `origin/main`, because
-`web/src/views/today.ts` exists only there. This is a deliberate exception to the handoff's "branch
-from `origin/main`" default and is recorded there.
+`issue-6-pinned-issues` was cut from `issue-5-assigned-issues`, not from `origin/main`, because
+`web/src/views/today.ts` existed only there — a deliberate exception to the handoff's "branch from
+`origin/main`" default, and the reason this document planned for GitHub's stacked pull requests.
 
-GitHub's **stacked pull requests** carry it: public preview since 2026-07-30, all repositories, no
-opt-in. When #6 is ready its pull request is opened with
-
-```shell
-gh stack link 38 issue-6-pinned-issues
-```
-
-which adopts PR #38 as the bottom layer and opens #6's on top of it, targeting
-`issue-5-assigned-issues`. `gh stack link` is the no-local-tracking entry point, which suits this
-repo's standing branch-in-place decision. Merging #38 then **rebases and retargets #6 onto `main` on
-GitHub's servers**, with no local rebase and no `--force-with-lease`.
-
-**Merging a stacked pull request lands every unmerged layer below it in one operation.** Merging #6's
-pull request would therefore merge #5 as well, moving two tickets to `status:done` in one action. That
-is the owner's to choose, and it is the reason it is written down here rather than discovered.
+**That is all settled now.** PR #38 merged on 2026-08-20 and PR #52 (#44, the visual design
+language) on 2026-08-21, and this branch was rebased onto `main` afterwards, carrying only its three
+documentation commits. #6's pull request is therefore an ordinary one against `main`, with no
+`gh stack link` and no bottom layer, and the "merging a stack lands every layer below it" hazard this
+section was written to record no longer applies.
 
 Nothing about this changes the hard constraints: one issue, one branch, one pull request, and every
 merge is the owner's, on GitHub, never local.

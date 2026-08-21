@@ -25,7 +25,7 @@
 - **Browser support is Firefox and Chromium.** Safari and WebKit are an explicit non-goal.
 - **Comments are few** and explain *why*, never what the next line does.
 - **Function names must let a reader predict the return value.** No bare `process`, `handle`, `build`.
-- **The branch is `issue-6-pinned-issues`, stacked on `issue-5-assigned-issues`.** Never merge to `main` locally.
+- **The branch is `issue-6-pinned-issues`, rebased onto `main` on 2026-08-21** once #5 (PR #38) and #44 (PR #52) had merged — nothing is stacked on anything any more. Never merge to `main` locally.
 - Verification gate: `make verify` (lint, tsc, Go tests) and `make test-e2e` (Playwright). Both must be green and their output pasted before the pull request.
 
 ## File structure
@@ -3192,19 +3192,12 @@ git commit -m "feat(web): unpin, and one Refresh for both lists"
 1. **Whole-branch review** — `superpowers:requesting-code-review` on the most capable tier, over the complete diff. **Not optional:** #5's branch had all three task reviews pass while its central property was unguarded, and only a cross-task read found it. Pay particular attention to Task 4's extraction, which moved code three endpoints depend on.
 2. **Fix wave, then a scoped re-review** of the fixes only.
 3. **`make verify` and `make test-e2e`**, both green, output pasted.
-4. **Open the pull request as a stacked one:**
+4. **Open the pull request.** #5 merged as PR #38 on 2026-08-20 and this branch is rebased onto
+   `main`, so there is nothing left to stack on — it is an ordinary pull request against `main`.
+   Its body references `Closes #6`. **No label move follows**: `status:review` was deleted on
+   2026-08-20, and the open pull request *is* the review state.
 
-```shell
-gh stack link 38 issue-6-pinned-issues
-```
-
-Body references `Closes #6`. Then move the ticket:
-
-```shell
-gh issue edit 6 --remove-label status:in-progress --add-label status:review
-```
-
-5. **Update the handoff** — `docs/superpowers/plans/2026-08-12-handoff.md` — with #6's state, the stacked-PR decision, and anything a later session should not have to rediscover. Do not push it separately; it rides the end-of-day batch.
+5. **Update the handoff** — `docs/superpowers/plans/2026-08-12-handoff.md` — with #6's state and anything a later session should not have to rediscover. Do not push it separately; it rides the end-of-day batch.
 6. **Delete this plan's SDD workspace**, as `subagent-driven-development` requires. Anything worth keeping goes into the handoff first.
 
 **Do not merge to `main` locally.** The pull request is the ending.
