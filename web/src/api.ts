@@ -32,7 +32,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: { "Content-Type": "application/json", ...init?.headers },
     });
-  } catch {
+  } catch (error) {
+    // A caller-initiated abort (type-ahead superseding its own previous
+    // request) is not a reachability failure. Rethrow it as-is so the caller
+    // can recognise its own AbortError instead of meeting a wrapped
+    // ApiError that reads exactly like a real outage.
+    if (init?.signal?.aborted) throw error;
     throw new ApiError(0, "network_error", "Could not reach the dashboard server.");
   }
 

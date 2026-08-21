@@ -167,3 +167,255 @@ test("no instances configured hides the pinned card entirely", async ({ page }) 
   await expect(page.locator("wd-card").filter({ hasText: "Pinned" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Pin an issue" })).toHaveCount(0);
 });
+
+async function stubSearch(page: Page, results: unknown[], errors: unknown[] = []): Promise<void> {
+  await page.route("**/api/issues/search**", async (route) => {
+    await route.fulfill({ status: 200, json: { results, errors } });
+  });
+}
+
+const sharedHit = {
+  instanceId: 1,
+  instanceName: "Ridgeline",
+  key: "SHARED-40",
+  summary: "Vendor security review",
+  status: "To Do",
+  url: "https://example.atlassian.net/browse/SHARED-40",
+};
+
+test("searching finds issues across instances and pinning one adds it", async ({ page }) => {
+  await stubPins(page, [], [pin(9, "Ridgeline", "SHARED-40", "Vendor security review")]);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, [
+    sharedHit,
+    {
+      instanceId: 2,
+      instanceName: "Personal",
+      key: "MISC-15",
+      summary: "Security questionnaire",
+      status: "Open",
+      url: "https://example.atlassian.net/browse/MISC-15",
+    },
+  ]);
+  await page.route("**/api/pins", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 201,
+      json: pin(9, "Ridgeline", "SHARED-40", "Vendor security review"),
+    });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  await page.getByRole("combobox", { name: "Find an issue" }).fill("security");
+
+  const options = page.getByRole("option");
+  await expect(options).toHaveCount(2);
+  await expect(options.first()).toContainText("SHARED-40");
+  await expect(options.nth(1)).toContainText("Personal");
+
+  await options.first().click();
+
+  await expect(page.getByRole("option")).toHaveCount(0);
+  await expect(page.getByText("Vendor security review")).toBeVisible();
+});
+
+test("an already pinned issue cannot be chosen", async ({ page }) => {
+  await stubPins(page, [pin(1, "Ridgeline", "SHARED-40", "Vendor security review")]);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, [{ ...sharedHit, instanceId: 1 }]);
+  let posted = false;
+  await page.route("**/api/pins", async (route) => {
+    if (route.request().method() === "POST") {
+      posted = true;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  await page.getByRole("combobox", { name: "Find an issue" }).fill("security");
+
+  const option = page.getByRole("option").first();
+  await expect(option).toContainText("Pinned");
+  await expect(option).toBeDisabled();
+
+  // aria-disabled (required so a screen reader still announces "Pinned" rather
+  // than skipping the option, unlike a native disabled attribute) does not stop
+  // a click event from reaching the DOM the way disabled does — so proving this
+  // option "cannot be chosen" needs a behavioural check, not just the visual
+  // one above. force: true bypasses Playwright's own actionability wait, which
+  // would otherwise refuse to click anything it considers disabled.
+  await option.click({ force: true });
+  await expect(page.getByRole("option")).toHaveCount(1);
+  expect(posted).toBe(false);
+});
+
+test("the keyboard pins the highlighted row, not just the first one", async ({ page }) => {
+  const secondHit = {
+    instanceId: 2,
+    instanceName: "Personal",
+    key: "MISC-15",
+    summary: "Security questionnaire",
+    status: "Open",
+    url: "https://example.atlassian.net/browse/MISC-15",
+  };
+  await stubPins(page, [], [pin(9, "Personal", "MISC-15", "Security questionnaire")]);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, [sharedHit, secondHit]);
+  await page.route("**/api/pins", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    // Proves Enter acts on the row ↓ moved to, not on whichever row happened
+    // to be first: a bug that always chose index 0 would pin SHARED-40 and
+    // trip this assertion instead of quietly passing.
+    expect(route.request().postDataJSON()).toEqual({ instanceId: 2, issueKey: "MISC-15" });
+    await route.fulfill({
+      status: 201,
+      json: pin(9, "Personal", "MISC-15", "Security questionnaire"),
+    });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  const box = page.getByRole("combobox", { name: "Find an issue" });
+  await box.fill("security");
+  await expect(page.getByRole("option")).toHaveCount(2);
+
+  await box.press("ArrowDown");
+  await box.press("Enter");
+
+  await expect(page.getByText("Security questionnaire")).toBeVisible();
+  await expect(page.getByText("Vendor security review")).toHaveCount(0);
+});
+
+test("rapid keystrokes are coalesced into a single search", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  let calls = 0;
+  await page.route("**/api/issues/search**", async (route) => {
+    calls += 1;
+    await route.fulfill({ status: 200, json: { results: [sharedHit], errors: [] } });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  const box = page.getByRole("combobox", { name: "Find an issue" });
+
+  // Each keystroke is 20ms apart — far under the 350ms debounce — so a correct
+  // implementation fires exactly one request after the last one, not one per
+  // keystroke.
+  await box.pressSequentially("security", { delay: 20 });
+  await expect(page.getByRole("option")).toHaveCount(1);
+
+  expect(calls).toBe(1);
+});
+
+test("a query under two characters searches nothing", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  let searched = false;
+  await page.route("**/api/issues/search**", async (route) => {
+    searched = true;
+    await route.fulfill({ status: 200, json: { results: [], errors: [] } });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  await page.getByRole("combobox", { name: "Find an issue" }).fill("s");
+  await page.waitForTimeout(600);
+
+  expect(searched).toBe(false);
+  await expect(page.getByText("Two characters to start.")).toBeVisible();
+});
+
+test("a query with no matches says so and names the query back", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, []);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  await page.getByRole("combobox", { name: "Find an issue" }).fill("zzz");
+
+  await expect(page.getByText("No issues match “zzz”.")).toBeVisible();
+  await expect(page.getByRole("option")).toHaveCount(0);
+});
+
+test("every instance failing shows an error rather than an empty list", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, [], [
+    {
+      instanceId: 1,
+      instanceName: "Ridgeline",
+      error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
+    },
+  ]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  await page.getByRole("combobox", { name: "Find an issue" }).fill("security");
+
+  await expect(page.getByText("the Jira site could not be reached")).toBeVisible();
+});
+
+test("an instance that cannot be searched is named beside the results", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, [sharedHit], [
+    {
+      instanceId: 2,
+      instanceName: "Personal",
+      error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
+    },
+  ]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  await page.getByRole("combobox", { name: "Find an issue" }).fill("security");
+
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await expect(page.getByText("Personal could not be searched.")).toBeVisible();
+});
+
+// A second keystroke aborts the first request's fetch. request()'s bare catch
+// in api.ts turns any thrown error, AbortError included, into a user-facing
+// "Could not reach the dashboard server." — that guard is what this proves:
+// remove it and the superseded first search paints an outage message over a
+// second search that is still working correctly.
+test("a keystroke that supersedes a slow search never shows a network error", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+
+  let calls = 0;
+  await page.route("**/api/issues/search**", async (route) => {
+    calls += 1;
+    const firstCall = calls === 1;
+    if (firstCall) {
+      // Long enough that the second keystroke's debounce fires and aborts this
+      // request well before it would otherwise resolve.
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+    await route.fulfill({ status: 200, json: { results: [sharedHit], errors: [] } }).catch(() => {
+      // The client already cancelled the underlying network request for the
+      // aborted first call; the route has nothing left to fulfil.
+    });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  const box = page.getByRole("combobox", { name: "Find an issue" });
+
+  await box.fill("se");
+  await expect(page.getByText("Searching…")).toBeVisible();
+  await box.fill("security");
+
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await expect(page.getByText("Could not reach the dashboard server.")).toHaveCount(0);
+});

@@ -1,11 +1,13 @@
 import "../components/wd-alert";
 import "../components/wd-button";
 import "../components/wd-card";
+import "../components/wd-combobox";
 import "../components/wd-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
-import { ApiError, listIssues, listPins } from "../api";
-import type { InstanceIssues, IssuesResponse, Pin } from "../types";
+import { ApiError, createPin, listIssues, listPins, searchIssues } from "../api";
+import type { WdCombobox } from "../components/wd-combobox";
+import type { InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
  * The regions that outlive a fetch, plus the two caches (pins, the last issues
@@ -92,7 +94,7 @@ export async function refreshPins(
   try {
     regions.pins = await listPins(options);
     renderPinnedList(regions, regions.pins);
-    regions.pinnedForm.replaceChildren(button("Pin an issue", "secondary"));
+    showPinButton(regions);
   } catch (error) {
     regions.pins = [];
     regions.pinnedList.replaceChildren(alertFor("error", messageOf(error)));
@@ -105,6 +107,12 @@ export async function refreshPins(
   if (regions.lastIssues) {
     renderResponse(regions, regions.lastIssues);
   }
+
+  // A pin form may already be open (e.g. this refresh followed a successful
+  // pin); its combobox must learn about the newly current pins rather than
+  // keep offering one that is now a duplicate.
+  const combobox = regions.pinnedForm.querySelector("wd-combobox") as WdCombobox | null;
+  combobox?.setDisabledKeys(pinnedKeysOf(regions));
 }
 
 function renderPinnedList(regions: Regions, pins: Pin[]): void {
@@ -152,6 +160,95 @@ export function pinRow(pin: Pin, onUnpin: () => void): HTMLElement {
   item.append(instance, wrapper, unpin);
 
   return item;
+}
+
+function showPinButton(regions: Regions): void {
+  const open = button("Pin an issue", "secondary");
+  open.addEventListener("click", () => {
+    showPinForm(regions);
+  });
+  regions.pinnedForm.className = "mt-3 border-t border-edge pt-3";
+  regions.pinnedForm.replaceChildren(open);
+}
+
+function showPinForm(regions: Regions): void {
+  const combobox = document.createElement("wd-combobox") as WdCombobox;
+  combobox.setAttribute("label", "Find an issue");
+  combobox.setAttribute("placeholder", "Search by key or title");
+
+  const alertSlot = document.createElement("div");
+  const actions = document.createElement("div");
+  actions.className = "flex gap-2";
+  const cancel = button("Cancel", "secondary");
+  actions.append(cancel);
+
+  regions.pinnedForm.className = "mt-3 space-y-3 border-t border-edge pt-3";
+  regions.pinnedForm.replaceChildren(combobox, alertSlot, actions);
+
+  // Set after insertion: connectedCallback builds the input, so there is nothing
+  // to focus before it runs.
+  combobox.focusInput();
+  combobox.setDisabledKeys(pinnedKeysOf(regions));
+
+  // One controller per form, replaced on each keystroke pause. Without this a
+  // slow first search can land after a fast second one and paint over it.
+  let inFlight: AbortController | undefined;
+
+  combobox.addEventListener("search", (event) => {
+    const query = (event as CustomEvent<string>).detail;
+    inFlight?.abort();
+    const controller = new AbortController();
+    inFlight = controller;
+
+    void searchIssues(query, controller.signal)
+      .then((response) => {
+        combobox.setResults(response.results, response.errors);
+      })
+      .catch((error: unknown) => {
+        // An abort is this code's own doing, not a failure to report.
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        combobox.setResults([], []);
+        alertSlot.replaceChildren(alertFor("error", messageOf(error)));
+      });
+  });
+
+  combobox.addEventListener("select", (event) => {
+    // The input's native "select" event (text selection changing — fill()
+    // triggers it in some browsers) bubbles into this light-DOM element under
+    // the same name as wd-combobox's own CustomEvent("select", ...). Only the
+    // latter carries a detail and should be acted on.
+    if (!(event instanceof CustomEvent)) return;
+    const hit = event.detail as IssueHit;
+    inFlight?.abort();
+    alertSlot.replaceChildren();
+    combobox.setBusy(true);
+
+    void createPin(hit.instanceId, hit.key)
+      .then(async () => {
+        showPinButton(regions);
+        await refreshPins(regions);
+      })
+      .catch((error: unknown) => {
+        combobox.setBusy(false);
+        alertSlot.replaceChildren(alertFor("error", messageOf(error)));
+      });
+  });
+
+  combobox.addEventListener("cancel", () => {
+    inFlight?.abort();
+    showPinButton(regions);
+  });
+
+  cancel.addEventListener("click", () => {
+    inFlight?.abort();
+    showPinButton(regions);
+  });
+}
+
+/** The keys the combobox must refuse, so a duplicate is visible rather than a
+ *  rejection the user only meets after choosing. */
+function pinnedKeysOf(regions: Regions): Set<string> {
+  return new Set(currentPins(regions).map((pin) => `${pin.instanceId}:${pin.key}`));
 }
 
 async function refreshResults(regions: Regions): Promise<void> {
