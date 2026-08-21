@@ -49,3 +49,34 @@ export interface InstanceIssues {
 export interface IssuesResponse {
   instances: InstanceIssues[];
 }
+
+export interface Pin {
+  id: number;
+  instanceId: number;
+  instanceName: string;
+  key: string;
+  summary: string;
+  status: string;
+  url: string;
+  error: ApiErrorBody | null;
+}
+
+export interface IssueHit {
+  instanceId: number;
+  instanceName: string;
+  key: string;
+  summary: string;
+  status: string;
+  url: string;
+}
+
+export interface InstanceFailure {
+  instanceId: number;
+  instanceName: string;
+  error: ApiErrorBody;
+}
+
+export interface IssueSearchResponse {
+  results: IssueHit[];
+  errors: InstanceFailure[];
+}

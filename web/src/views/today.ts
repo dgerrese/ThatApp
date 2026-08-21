@@ -4,23 +4,41 @@ import "../components/wd-card";
 import "../components/wd-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
-import { ApiError, listIssues } from "../api";
-import type { InstanceIssues, IssuesResponse } from "../types";
+import { ApiError, listIssues, listPins } from "../api";
+import type { InstanceIssues, IssuesResponse, Pin } from "../types";
 
 /**
- * The regions that outlive a fetch. They are threaded rather than held at module
- * scope: router.ts reuses one persistent mount point and has no navigation
- * cancellation, so module state would let a stale fetch write into a live view.
+ * The regions that outlive a fetch, plus the two caches (pins, the last issues
+ * response) needed to re-render them without a new request. All of it is
+ * threaded through this object rather than held at module scope: router.ts
+ * reuses one persistent mount point and has no navigation cancellation, so
+ * module state would let a stale fetch write into a live view.
  */
 interface Regions {
+  pinnedCard: HTMLElement;
+  pinnedList: HTMLElement;
+  pinnedForm: HTMLElement;
   header: HTMLElement;
   refresh: HTMLElement;
   results: HTMLElement;
+  pins: Pin[];
+  lastIssues: IssuesResponse | null;
 }
 
 export async function render(root: HTMLElement): Promise<void> {
   const container = document.createElement("div");
   container.className = "space-y-4";
+
+  const pinnedCard = document.createElement("wd-card");
+  pinnedCard.setAttribute("heading", "Pinned");
+
+  const pinnedList = document.createElement("div");
+  pinnedList.append(loadingLine());
+
+  const pinnedForm = document.createElement("div");
+  pinnedForm.className = "mt-3";
+
+  pinnedCard.append(pinnedList, pinnedForm);
 
   const header = document.createElement("div");
   header.className = "flex items-baseline justify-between";
@@ -40,15 +58,100 @@ export async function render(root: HTMLElement): Promise<void> {
   results.className = "space-y-4";
   results.append(loadingLine());
 
-  container.append(header, results);
+  container.append(pinnedCard, header, results);
   root.append(container);
 
-  const regions: Regions = { header, refresh, results };
+  const regions: Regions = {
+    pinnedCard,
+    pinnedList,
+    pinnedForm,
+    header,
+    refresh,
+    results,
+    pins: [],
+    lastIssues: null,
+  };
   refresh.addEventListener("click", () => {
     void refreshResults(regions);
   });
 
+  // Independent on purpose: the Pinned card paints from the store alone and
+  // must not wait on a fan-out that may be slow or failing.
+  void refreshPins(regions);
   await refreshResults(regions);
+}
+
+export function currentPins(regions: Regions): Pin[] {
+  return regions.pins;
+}
+
+export async function refreshPins(
+  regions: Regions,
+  options?: { refresh?: boolean },
+): Promise<void> {
+  try {
+    regions.pins = await listPins(options);
+    renderPinnedList(regions, regions.pins);
+    regions.pinnedForm.replaceChildren(button("Pin an issue", "secondary"));
+  } catch (error) {
+    regions.pins = [];
+    regions.pinnedList.replaceChildren(alertFor("error", messageOf(error)));
+    regions.pinnedForm.replaceChildren();
+  }
+
+  // The assigned cards may already be on screen from a fetch that finished
+  // first; re-render them from the cached response so the dedupe reflects the
+  // pins that just arrived, without asking the server again.
+  if (regions.lastIssues) {
+    renderResponse(regions, regions.lastIssues);
+  }
+}
+
+function renderPinnedList(regions: Regions, pins: Pin[]): void {
+  if (pins.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "text-sm text-ink-muted";
+    empty.textContent = "Nothing pinned.";
+    regions.pinnedList.replaceChildren(empty);
+
+    return;
+  }
+
+  const list = document.createElement("ul");
+  list.className = "divide-y divide-edge";
+  // Unpinning is #6's Task 11; the control exists so its layout is settled but
+  // does nothing yet.
+  list.append(...pins.map((pin) => pinRow(pin, () => {})));
+  regions.pinnedList.replaceChildren(list);
+
+  alignKeyColumn(list);
+}
+
+export function pinRow(pin: Pin, onUnpin: () => void): HTMLElement {
+  const item = document.createElement("li");
+  item.className = "flex items-center gap-3";
+
+  const instance = document.createElement("span");
+  instance.className = "shrink-0 text-sm text-ink-muted";
+  instance.textContent = pin.instanceName;
+
+  // wd-ticket-row sets its own className in connectedCallback, so a utility
+  // applied from outside would be discarded; the wrapper carries flex-1.
+  const wrapper = document.createElement("div");
+  wrapper.className = "min-w-0 flex-1";
+  const row = document.createElement("wd-ticket-row");
+  row.setAttribute("key", pin.key);
+  row.setAttribute("summary", pin.summary);
+  row.setAttribute("status", pin.status);
+  row.setAttribute("url", pin.url);
+  wrapper.append(row);
+
+  const unpin = button("Unpin", "secondary");
+  unpin.addEventListener("click", onUnpin);
+
+  item.append(instance, wrapper, unpin);
+
+  return item;
 }
 
 async function refreshResults(regions: Regions): Promise<void> {
@@ -57,7 +160,9 @@ async function refreshResults(regions: Regions): Promise<void> {
   try {
     // The cards already on screen stay put while this is in flight: a list that
     // blinks out and back is indistinguishable from one that broke.
-    renderResponse(regions, await listIssues());
+    const response = await listIssues();
+    regions.lastIssues = response;
+    renderResponse(regions, response);
   } catch (error) {
     regions.header.hidden = false;
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
@@ -68,13 +173,23 @@ async function refreshResults(regions: Regions): Promise<void> {
 
 function renderResponse(regions: Regions, response: IssuesResponse): void {
   if (response.instances.length === 0) {
+    // No instances means no pins either — the cascade took them with the last
+    // instance — so a Pinned card would be a control with nothing to do.
+    regions.pinnedCard.remove();
     regions.header.hidden = true;
     regions.results.replaceChildren(noInstances());
+
     return;
   }
 
+  if (!regions.pinnedCard.isConnected) {
+    regions.header.before(regions.pinnedCard);
+  }
+
   regions.header.hidden = false;
-  regions.results.replaceChildren(...response.instances.map(instanceCard));
+  regions.results.replaceChildren(
+    ...response.instances.map((group) => instanceCard(group, regions.pins)),
+  );
 
   // After insertion, not before: a list outside the document has no layout, so
   // every key in it would measure zero.
@@ -83,7 +198,7 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
   }
 }
 
-function instanceCard(group: InstanceIssues): HTMLElement {
+function instanceCard(group: InstanceIssues, pins: Pin[]): HTMLElement {
   const card = document.createElement("wd-card");
   // wd-card has no observedAttributes, so the heading must be set before the
   // element is inserted; changing it afterwards silently does nothing.
@@ -95,7 +210,10 @@ function instanceCard(group: InstanceIssues): HTMLElement {
     return card;
   }
 
-  if (group.issues.length === 0) {
+  const pinnedKeys = new Set(pins.map((pin) => `${pin.instanceId}:${pin.key}`));
+  const visible = group.issues.filter((issue) => !pinnedKeys.has(`${group.id}:${issue.key}`));
+
+  if (visible.length === 0) {
     const empty = document.createElement("p");
     empty.className = "text-sm text-ink-muted";
     empty.textContent = "No issues assigned.";
@@ -106,7 +224,7 @@ function instanceCard(group: InstanceIssues): HTMLElement {
 
   const list = document.createElement("ul");
   list.className = "divide-y divide-edge";
-  for (const issue of group.issues) {
+  for (const issue of visible) {
     const item = document.createElement("li");
     const row = document.createElement("wd-ticket-row");
     row.setAttribute("key", issue.key);
