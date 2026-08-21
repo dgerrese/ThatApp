@@ -43,9 +43,9 @@ func TestIssueReturnsSummaryAndStatus(t *testing.T) {
 // A key the user typed reaches the URL path. Left unescaped, a stray character
 // addresses a different resource.
 func TestIssueKeyIsEscapedIntoThePath(t *testing.T) {
-	var gotPath string
+	var gotEscaped string
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
+		gotEscaped = r.URL.EscapedPath()
 		_, _ = w.Write([]byte(`{"key":"A/B-1","fields":{"summary":"s","status":{"name":"n"}}}`))
 	})
 
@@ -53,8 +53,9 @@ func TestIssueKeyIsEscapedIntoThePath(t *testing.T) {
 		t.Fatalf("Issue: %v", err)
 	}
 
-	if gotPath != "/rest/api/3/issue/A/B-1" {
-		t.Errorf("path = %q; the slash must arrive escaped, not as a path separator", gotPath)
+	want := "/rest/api/3/issue/A%2FB-1"
+	if gotEscaped != want {
+		t.Errorf("escaped path = %s, want %s", gotEscaped, want)
 	}
 }
 
