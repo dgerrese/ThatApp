@@ -439,7 +439,9 @@ wd-combobox
     li > button  role="option" id aria-selected
 ```
 
-Attributes in: `label`, `placeholder`, `disabled`. Out: `wd-search`, `wd-select` and `wd-cancel`
+Attributes in: `label`, `placeholder`. A `setBusy(boolean)` method disables the input while a pin
+is in flight; there is no `disabled` attribute for a caller to set instead. Out: `wd-search`,
+`wd-select` and `wd-cancel`
 `CustomEvent`s — `wd-select` carries the chosen hit. The `wd-` prefix is load-bearing, not decorative:
 an earlier `search`/`select` pairing collided with native events and crashed the app in Firefox, and
 `cancel` was renamed alongside them by the same argument even though no native `cancel` fires on a text

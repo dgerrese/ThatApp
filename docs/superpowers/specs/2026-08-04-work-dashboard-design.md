@@ -194,6 +194,7 @@ DELETE  /api/instances/:id
 POST    /api/instances/:id/test          verify credentials against Jira
 
 GET     /api/issues                      assigned issues, all instances, fanned out
+GET     /api/issues/search?q=            issue search, all instances, fanned out
 
 GET     /api/pins
 POST    /api/pins

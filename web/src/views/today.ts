@@ -141,7 +141,7 @@ function renderPinnedList(regions: Regions, pins: Pin[]): void {
 
 function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
   const item = document.createElement("li");
-  item.className = "flex items-center gap-3";
+  item.className = "flex items-baseline gap-3";
 
   const instance = document.createElement("span");
   instance.className = "shrink-0 text-sm text-ink-muted";
@@ -376,7 +376,11 @@ function instanceCard(group: InstanceIssues, pins: Pin[]): HTMLElement {
   if (visible.length === 0) {
     const empty = document.createElement("p");
     empty.className = "text-sm text-ink-muted";
-    empty.textContent = "No issues assigned.";
+    // These are two different truths: an instance with nothing assigned, and
+    // one whose only assigned issues are all pinned above and so filtered out
+    // of this list. Saying "assigned" for the latter would be false, not terse.
+    empty.textContent =
+      group.issues.length === 0 ? "No issues assigned." : "All assigned issues are pinned above.";
     card.append(empty);
 
     return card;
