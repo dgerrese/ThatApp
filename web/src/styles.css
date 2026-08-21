@@ -2,34 +2,72 @@
 @source "../index.html";
 @source "./**/*.ts";
 
+/* Served from our own origin, never a font CDN: #12 makes this an offline PWA.
+   One file covers every weight the design uses — Space Grotesk is a variable
+   face and Google serves the same .woff2 for 400, 500 and 700. */
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-latin.woff2") format("woff2");
+}
+
+/* Every value below is transcribed from the approved design, not chosen here.
+   The source is docs/superpowers/canvas/2026-08-20-visual-directions/Hybrid.dc.html
+   and the rules that govern it are in
+   docs/superpowers/specs/2026-08-20-visual-design-language.md. */
 @theme {
-  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 
-  /* chrome */
-  --color-surface: light-dark(#fafafa, #0a0a0a);
-  --color-raised: light-dark(#ffffff, #171717);
-  --color-ink: light-dark(#171717, #f5f5f5);
-  --color-ink-muted: light-dark(#525252, #a3a3a3);
-  --color-edge: light-dark(#e5e5e5, #262626);
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 15px;
+  --text-xl: 17px;
+  --text-2xl: 30px;
+  --text-hero: 46px;
 
-  /* interactive */
-  --color-accent: light-dark(#171717, #f5f5f5);
-  --color-accent-ink: light-dark(#ffffff, #0a0a0a);
-  --color-link: light-dark(#1d4ed8, #60a5fa);
+  /* ground and ink */
+  --color-surface: light-dark(oklch(0.975 0.006 70), oklch(0.165 0.008 60));
+  --color-raised: light-dark(oklch(0.996 0.003 70), oklch(0.215 0.01 60));
+  --color-ink: light-dark(oklch(0.2 0.008 70), oklch(0.955 0.004 70));
+  --color-ink-muted: light-dark(oklch(0.48 0.008 70), oklch(0.7 0.01 65));
+  /* Icons and decorative marks only — 3.60:1 clears the non-text floor and
+     fails the 4.5:1 text floor. Words use ink or ink-muted. */
+  --color-ink-faint: light-dark(oklch(0.62 0.007 70), oklch(0.55 0.01 65));
+  --color-edge: light-dark(oklch(0.915 0.006 70), oklch(0.285 0.01 60));
 
-  /* tones */
-  --color-danger-tint: light-dark(#fef2f2, #450a0a);
-  --color-danger-edge: light-dark(#fca5a5, #7f1d1d);
-  --color-danger-ink: light-dark(#7f1d1d, #fecaca);
-  --color-danger-solid: light-dark(#dc2626, #dc2626);
-  --color-danger-solid-hover: light-dark(#b91c1c, #ef4444);
-  --color-danger-solid-ink: light-dark(#ffffff, #ffffff);
-  --color-success-tint: light-dark(#f0fdf4, #052e16);
-  --color-success-edge: light-dark(#86efac, #166534);
-  --color-success-ink: light-dark(#14532d, #bbf7d0);
-  --color-warning-tint: light-dark(#fffbeb, #451a03);
-  --color-warning-edge: light-dark(#fcd34d, #92400e);
-  --color-warning-ink: light-dark(#78350f, #fde68a);
+  /* the rail — dark in both themes, because it is the instrument */
+  --color-rail: light-dark(oklch(0.215 0.018 55), oklch(0.125 0.008 55));
+  --color-rail-ink: light-dark(oklch(0.965 0.004 70), oklch(0.955 0.004 70));
+  --color-rail-muted: light-dark(oklch(0.68 0.012 60), oklch(0.64 0.012 60));
+  --color-rail-active: light-dark(oklch(0.3 0.022 55), oklch(0.225 0.015 55));
+
+  /* Identity, never state: wordmark, Push, links, focus rings. */
+  --color-primary: light-dark(oklch(0.52 0.19 330), oklch(0.7 0.17 330));
+  --color-primary-ink: light-dark(oklch(0.99 0.004 70), oklch(0.16 0.02 330));
+
+  /* State, never identity. Amber is "not sent yet", red is "sent and refused" —
+     and neither ever carries the difference alone; the words stay. */
+  --color-running: light-dark(oklch(0.5 0.15 150), oklch(0.74 0.14 150));
+  --color-pending: light-dark(oklch(0.52 0.13 75), oklch(0.8 0.12 85));
+  --color-failed: light-dark(oklch(0.51 0.19 25), oklch(0.72 0.17 25));
+
+  /* Lighter variants, used only on the dark rail ground. */
+  --color-primary-rail: light-dark(oklch(0.66 0.19 330), oklch(0.7 0.17 330));
+  --color-primary-rail-ink: light-dark(oklch(0.17 0.02 330), oklch(0.16 0.02 330));
+  --color-running-rail: oklch(0.74 0.15 150);
+  --color-pending-rail: oklch(0.8 0.13 85);
+  --color-failed-rail: oklch(0.72 0.17 25);
+  --color-state-ink: light-dark(oklch(0.99 0.004 70), oklch(0.16 0.01 60));
+
+  /* Cards are borderless and sit on this instead. light-dark() takes colours,
+     not whole shadows, so it wraps each layer's colour rather than the lot. */
+  --shadow-card:
+    0 1px 2px light-dark(oklch(0.35 0.04 60 / 0.05), oklch(0 0 0 / 0.35)),
+    0 10px 26px -14px light-dark(oklch(0.35 0.04 60 / 0.2), oklch(0 0 0 / 0.6));
 }
 
 /* An absent data-theme attribute is the auto state, so a failed localStorage
@@ -42,4 +80,68 @@
 }
 [data-theme="dark"] {
   color-scheme: dark;
+}
+
+/* Instance identity. Lightness and chroma are fixed and only the hue moves, so
+   no instance reads as louder than another. --h is set per element from the
+   ramp in web/src/instance-hue.ts.
+
+   This is a rule rather than a --color-* token on purpose. A var() inside an
+   inherited custom property resolves where that property is *declared* — at
+   :root, where --h does not exist — so the token would compute to
+   guaranteed-invalid and every dot would render transparent with nothing in
+   the console. Written here, --h resolves against the element itself. */
+.wd-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 999px;
+  background: light-dark(oklch(0.6 0.13 var(--h)), oklch(0.72 0.12 var(--h)));
+}
+.wd-rail .wd-dot {
+  background: oklch(0.7 0.13 var(--h));
+}
+
+/* Where you are, shown by fill and weight rather than by colour alone. The
+   rail is the only place in the app with a persistent selected state, so this
+   is a rule rather than a utility repeated on every link. */
+.wd-nav {
+  color: var(--color-rail-muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+a.wd-nav:hover {
+  color: var(--color-rail-ink);
+}
+.wd-nav[aria-current="page"] {
+  background: var(--color-rail-active);
+  color: var(--color-rail-ink);
+  font-weight: 700;
+}
+
+/* The issue key is a column, not a word. Fixing its width is what lines the
+   summaries up down a card; without it every row starts its title at a
+   different x and the list reads as ragged. 76px is what the design drew, and
+   it is only the floor: web/src/key-column.ts measures each list and widens
+   --wd-key-col when that list's own keys need more, so one long key moves the
+   whole column instead of breaking rank with the rest of the list. Real data
+   reaches the floor immediately — a ten-character key already overruns it. */
+.wd-key {
+  flex: none;
+  min-width: var(--wd-key-col, 76px);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+}
+/* The link's affordance, since it no longer announces itself by colour. */
+a.wd-key:hover {
+  color: var(--color-ink);
+}
+
+/* Figures that sit above one another have to align, or the column reads as
+   ragged noise rather than as quantities. */
+.wd-tnum {
+  font-variant-numeric: tabular-nums;
 }

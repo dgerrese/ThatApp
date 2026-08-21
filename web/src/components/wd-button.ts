@@ -1,7 +1,9 @@
 const VARIANTS: Record<string, string> = {
-  primary: "bg-accent text-accent-ink hover:opacity-90",
-  secondary: "bg-raised text-ink border border-edge hover:bg-surface",
-  danger: "bg-danger-solid text-danger-solid-ink hover:bg-danger-solid-hover",
+  primary: "bg-primary text-primary-ink hover:opacity-90",
+  // A ghost, not an outlined box: the design keeps quiet actions quiet and
+  // spends its one loud colour on Push.
+  secondary: "text-ink-muted hover:bg-surface hover:text-ink",
+  danger: "bg-failed text-state-ink hover:opacity-90",
 };
 
 /**
@@ -37,8 +39,13 @@ export class WdButton extends HTMLElement {
     if (!button) return;
 
     const variant = this.getAttribute("variant") ?? "secondary";
+    // cursor-pointer is not redundant. A native <button> resolves to the
+    // default arrow, and Tailwind v4's Preflight deliberately leaves it that
+    // way, so without this every button in the app looks unclickable. The
+    // disabled variant outranks it on specificity, so a dead button still says
+    // so.
     const base =
-      "inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium " +
+      "inline-flex cursor-pointer items-center rounded-[9px] px-3 py-1.5 text-base font-bold " +
       "disabled:cursor-not-allowed disabled:opacity-50";
     button.className = `${base} ${VARIANTS[variant] ?? VARIANTS["secondary"] ?? ""}`;
     button.disabled = this.hasAttribute("disabled");

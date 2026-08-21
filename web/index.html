@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Work Dashboard</title>
+    <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/app.css" />
     <script type="module" src="/app.js"></script>
     <script>
@@ -19,26 +20,115 @@
       } catch {}
     </script>
   </head>
-  <body class="bg-surface text-ink">
-    <main class="mx-auto max-w-3xl p-6">
-      <header class="mb-6 flex items-baseline justify-between">
-        <h1 class="text-2xl font-semibold">Work Dashboard</h1>
-        <nav class="flex gap-4">
+  <body class="bg-surface text-ink font-sans text-md tracking-[-0.011em]">
+    <div class="grid min-h-screen grid-cols-1 md:grid-cols-[216px_minmax(0,1fr)]">
+      <!--
+        The rail is the instrument, not a menu: the thing you glance at sits in
+        the same place whatever view you are on. It is dark in both themes and
+        does not invert.
+
+        This is the first-run board rendered literally. Its regions go live
+        later — the total and the split in #7, the timer in #8, the unpushed
+        count and Push in #9 — and until then each states its resting condition
+        in words rather than vanishing. Nothing shows a value that would be
+        wrong once the data exists: with no time entries possible yet the total
+        really is zero, there really is nothing to split, no timer is running,
+        and there is nothing to push.
+      -->
+      <aside class="wd-rail bg-rail text-rail-ink flex flex-col gap-[30px] px-3.5 py-6">
+        <h1 class="text-primary-rail text-xs font-bold tracking-[0.16em] uppercase">
+          Work Dashboard
+        </h1>
+
+        <div class="flex flex-col gap-2">
+          <div id="rail-total" class="wd-tnum text-hero leading-[0.88] font-bold tracking-[-0.035em]">
+            0h 00m
+          </div>
+          <!-- #7 replaces this line with the split bar and a figure per instance. -->
+          <span id="rail-split" class="text-rail-muted text-base">Nothing to split yet</span>
+
+          <div class="bg-rail-active h-px"></div>
+
+          <!-- #8 makes this the running timer. -->
+          <div id="rail-timer" class="flex items-center gap-2">
+            <span class="bg-rail-active size-[7px] shrink-0 rounded-full"></span>
+            <span class="text-rail-muted text-base">No timer running</span>
+          </div>
+
+          <!-- #9 makes this the unpushed count, and the button push. -->
+          <span id="rail-unpushed" class="text-rail-muted text-sm">Nothing to push</span>
+
+          <!-- Disabled rather than hidden: a control that vanishes teaches
+               nothing about what it would have done. Outlined rather than
+               filled, so a dead control never wears the primary. -->
+          <button
+            id="rail-push"
+            type="button"
+            disabled
+            class="border-rail-active text-rail-muted text-md mt-0.5 inline-flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-[11px] border bg-transparent font-bold"
+          >
+            Push to Jira
+          </button>
+        </div>
+
+        <nav class="flex flex-col gap-0.5">
           <a
             href="/today"
             data-route
-            class="text-ink-muted hover:text-ink text-sm font-medium underline"
-            >Today</a
+            class="wd-nav text-md flex h-[38px] items-center gap-[11px] rounded-[9px] px-2.5"
           >
+            <svg
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.9" stroke-linecap="round" aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="8.5" />
+              <path d="M12 7.5V12l3 2" />
+            </svg>
+            Today
+          </a>
+
+          <!--
+            The rail carries three destinations in the design and Week is one of
+            them, so it is here rather than quietly dropped. #11 builds the view;
+            until then this is inert rather than a link to a dead address, on the
+            same reasoning that keeps Push visible and disabled.
+          -->
+          <span
+            class="wd-nav text-rail-muted text-md flex h-[38px] items-center gap-[11px] rounded-[9px] px-2.5 font-medium opacity-50"
+            aria-disabled="true"
+          >
+            <svg
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.9" stroke-linecap="round" aria-hidden="true"
+            >
+              <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+              <path d="M3.5 10h17M9 5V3M15 5V3" />
+            </svg>
+            Week
+          </span>
+
           <a
             href="/settings"
             data-route
-            class="text-ink-muted hover:text-ink text-sm font-medium underline"
-            >Settings</a
+            class="wd-nav text-md flex h-[38px] items-center gap-[11px] rounded-[9px] px-2.5"
           >
+            <svg
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.9" stroke-linecap="round" aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M18 6l-1.5 1.5M7.5 16.5 6 18M18 18l-1.5-1.5M7.5 7.5 6 6"
+              />
+            </svg>
+            Settings
+          </a>
         </nav>
-      </header>
-      <div id="view"></div>
-    </main>
+      </aside>
+
+      <main class="flex min-w-0 max-w-3xl flex-col gap-4 px-7 py-6">
+        <div id="view"></div>
+      </main>
+    </div>
   </body>
 </html>

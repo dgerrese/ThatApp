@@ -167,3 +167,164 @@ test("an unknown path offers a way back to Today", async ({ page }) => {
   await expect(page.getByText("There is nothing at this address.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Go to Today" })).toBeVisible();
 });
+
+/**
+ * A long summary must not push the status out of the card. It did: the row's
+ * inner boxes sized to their content, so the summary's truncation never
+ * engaged and the status left the card entirely on a narrow viewport.
+ *
+ * Asserted geometrically rather than by class, because the bug was invisible to
+ * every class-based check — the truncate utility was present and correct the
+ * whole time, and simply never had an effect.
+ */
+test("a long summary truncates instead of pushing the status out of the card", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stubIssues(page, [
+    group(1, "Work", [
+      {
+        key: "WORK-99999",
+        summary:
+          "A deliberately overlong summary that no narrow viewport could ever hope to lay out in full without truncating it somewhere",
+        status: "In Progress",
+        url: "https://work.atlassian.net/browse/WORK-99999",
+      },
+    ]),
+  ]);
+  await page.goto("/today");
+
+  const row = page.locator("wd-ticket-row").first();
+  await expect(row).toBeVisible();
+
+  const overflow = await row.evaluate((element) => {
+    const card = element.closest("wd-card") as HTMLElement;
+    const inner =
+      card.getBoundingClientRect().right - parseFloat(getComputedStyle(card).paddingRight);
+    const status = element.querySelector("span:last-child") as HTMLElement;
+
+    return status.getBoundingClientRect().right - inner;
+  });
+
+  expect(overflow).toBeLessThanOrEqual(0);
+
+  // And the page itself must not have grown a horizontal scrollbar.
+  const scrollsSideways = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  );
+  expect(scrollsSideways).toBe(false);
+});
+
+/**
+ * The rail shows where you are by fill and weight, and both read it from
+ * aria-current. Nothing set it until the router was taught to.
+ */
+test("the rail marks the view you are on", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.goto("/today");
+
+  await expect(page.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Settings" })).not.toHaveAttribute(
+    "aria-current",
+    /.*/,
+  );
+
+  await page.getByRole("link", { name: "Settings" }).click();
+
+  await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(page.getByRole("link", { name: "Today" })).not.toHaveAttribute("aria-current", /.*/);
+});
+
+/**
+ * A button has to look clickable. Tailwind v4's Preflight deliberately leaves
+ * <button> on the default arrow cursor, so this is not something the framework
+ * supplies — and nothing else in the suite would notice it missing.
+ */
+test("buttons say whether they can be clicked", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.goto("/today");
+
+  await expect(page.getByRole("button", { name: "Refresh" })).toHaveCSS("cursor", "pointer");
+  // The rail's Push has nothing to push yet, and says so the same way.
+  await expect(page.locator("#rail-push")).toHaveCSS("cursor", "not-allowed");
+});
+
+/**
+ * The key is a column, not a word: fixing its width is what makes every summary
+ * in a card start at the same x. Without it each row begins its title wherever
+ * its own key happened to end, and the list reads as ragged.
+ *
+ * Geometry again rather than classes — the difference is entirely in layout.
+ */
+test("summaries line up down the card whatever the key's length", async ({ page }) => {
+  await stubIssues(page, [
+    group(1, "Work", [
+      { key: "A-1", summary: "Short key", status: "To Do", url: "https://w.atlassian.net/browse/A-1" },
+      {
+        key: "PLATFORM-4821",
+        summary: "Much longer key",
+        status: "To Do",
+        url: "https://w.atlassian.net/browse/PLATFORM-4821",
+      },
+      { key: "ESS-35", summary: "Middling key", status: "QA", url: "https://w.atlassian.net/browse/ESS-35" },
+    ]),
+  ]);
+  await page.goto("/today");
+  await expect(page.locator("wd-ticket-row")).toHaveCount(3);
+
+  const lefts = await page.locator("wd-ticket-row").evaluateAll((rows) =>
+    rows.map((row) => {
+      const key = row.querySelector(".wd-key") as HTMLElement;
+
+      return Math.round((key.nextElementSibling as HTMLElement).getBoundingClientRect().left);
+    }),
+  );
+
+  // PLATFORM-4821 is wider than the 76px the design drew, which is exactly the
+  // case that used to go ragged: the column is sized from the widest key in the
+  // list, so all three share an edge rather than two of them agreeing.
+  expect(new Set(lefts).size).toBe(1);
+});
+
+/**
+ * Each list carries its own column. Two instances whose project keys differ in
+ * length must not be forced to the same width — they are separate lists, and
+ * padding the short one to suit the long one wastes the space that the summary
+ * needs on a narrow viewport.
+ */
+test("each instance's list sizes its own key column", async ({ page }) => {
+  await stubIssues(page, [
+    group(1, "Short", [
+      { key: "A-1", summary: "One", status: "To Do", url: "https://w.atlassian.net/browse/A-1" },
+      { key: "A-2", summary: "Two", status: "To Do", url: "https://w.atlassian.net/browse/A-2" },
+    ]),
+    group(2, "Long", [
+      {
+        key: "PLATFORM-4821",
+        summary: "Three",
+        status: "To Do",
+        url: "https://w.atlassian.net/browse/PLATFORM-4821",
+      },
+      {
+        key: "PLATFORM-4822",
+        summary: "Four",
+        status: "To Do",
+        url: "https://w.atlassian.net/browse/PLATFORM-4822",
+      },
+    ]),
+  ]);
+  await page.goto("/today");
+  await expect(page.locator("wd-ticket-row")).toHaveCount(4);
+
+  const columns = await page
+    .locator("wd-card ul")
+    .evaluateAll((lists) =>
+      lists.map((list) => parseFloat((list as HTMLElement).style.getPropertyValue("--wd-key-col"))),
+    );
+
+  expect(columns).toHaveLength(2);
+  // The short list keeps the design's floor; the long one grows past it.
+  expect(columns[0]).toBe(76);
+  expect(columns[1]).toBeGreaterThan(76);
+});
