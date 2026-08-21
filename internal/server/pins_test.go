@@ -32,12 +32,19 @@ func getPins(t *testing.T, srv *Server, query string) (*httptest.ResponseRecorde
 
 func TestGetPinsReadsTheStoreAndNamesTheInstance(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
-	inst := seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", "https://api.example")
+	first := seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", "https://api.example")
+	second := seedInstance(t, db, sealer, "Personal", "https://personal.atlassian.net", "https://api.example")
 	if _, err := db.CreatePin(context.Background(), store.PinInput{
-		InstanceID: inst.ID, IssueKey: "SHARED-12",
+		InstanceID: first.ID, IssueKey: "SHARED-12",
 		SummaryCache: "Weekly standup", StatusCache: "In Progress",
 	}); err != nil {
 		t.Fatalf("creating the pin: %v", err)
+	}
+	if _, err := db.CreatePin(context.Background(), store.PinInput{
+		InstanceID: second.ID, IssueKey: "MISC-3",
+		SummaryCache: "Admin overhead", StatusCache: "Open",
+	}); err != nil {
+		t.Fatalf("creating the second pin: %v", err)
 	}
 
 	rec, body := getPins(t, srv, "")
@@ -45,8 +52,8 @@ func TestGetPinsReadsTheStoreAndNamesTheInstance(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	if len(body) != 1 {
-		t.Fatalf("got %d pins, want 1", len(body))
+	if len(body) != 2 {
+		t.Fatalf("got %d pins, want 2", len(body))
 	}
 	pin := body[0]
 	if pin.InstanceName != "Work" {
@@ -61,6 +68,14 @@ func TestGetPinsReadsTheStoreAndNamesTheInstance(t *testing.T) {
 	}
 	if pin.Error != nil {
 		t.Errorf("error = %v on a plain GET, want nil", pin.Error)
+	}
+	// instanceHue.ts keys the dot's colour off this index; the browser must
+	// never have to fetch /api/instances to work it out.
+	if body[0].InstancePosition != 0 {
+		t.Errorf("instancePosition = %d, want 0 for the first-created instance", body[0].InstancePosition)
+	}
+	if body[1].InstancePosition != 1 {
+		t.Errorf("instancePosition = %d, want 1 for the second-created instance", body[1].InstancePosition)
 	}
 }
 

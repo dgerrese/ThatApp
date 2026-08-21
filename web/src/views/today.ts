@@ -7,6 +7,7 @@ import { alignKeyColumn } from "../key-column";
 
 import { ApiError, createPin, deletePin, listIssues, listPins, searchIssues } from "../api";
 import type { WdCombobox } from "../components/wd-combobox";
+import { paintInstanceDot } from "../instance-hue";
 import type { InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
@@ -143,9 +144,11 @@ function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
   const item = document.createElement("li");
   item.className = "flex items-baseline gap-3";
 
-  const instance = document.createElement("span");
-  instance.className = "shrink-0 text-sm text-ink-muted";
-  instance.textContent = pin.instanceName;
+  // A dot, not a name: a pinned row is one the user already recognises, so its
+  // hue alone carries identity — see the restyle decision recorded in
+  // docs/superpowers/specs/2026-08-20-pinned-issues-design.md's "The row" section.
+  const dot = document.createElement("span");
+  paintInstanceDot(dot, pin.instancePosition, pin.instanceName);
 
   // wd-ticket-row sets its own className in connectedCallback, so a utility
   // applied from outside would be discarded; the wrapper carries flex-1.
@@ -158,7 +161,7 @@ function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
   row.setAttribute("url", pin.url);
   wrapper.append(row);
 
-  item.append(instance, wrapper);
+  item.append(dot, wrapper);
 
   // A failed refresh must never blank a row: summary and status above stay
   // exactly as they were cached, and this is the only thing that changes.

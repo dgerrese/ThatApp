@@ -54,6 +54,8 @@ export interface Pin {
   id: number;
   instanceId: number;
   instanceName: string;
+  /** 0-based index into the instance list's created_at order — what instanceHue keys its dot off. */
+  instancePosition: number;
   key: string;
   summary: string;
   status: string;
@@ -64,6 +66,7 @@ export interface Pin {
 export interface IssueHit {
   instanceId: number;
   instanceName: string;
+  instancePosition: number;
   key: string;
   summary: string;
   status: string;

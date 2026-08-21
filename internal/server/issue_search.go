@@ -27,12 +27,13 @@ const minSearchQuery = 2
 var issueKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*-[0-9]+$`)
 
 type issueHitDTO struct {
-	InstanceID   int64  `json:"instanceId"`
-	InstanceName string `json:"instanceName"`
-	Key          string `json:"key"`
-	Summary      string `json:"summary"`
-	Status       string `json:"status"`
-	URL          string `json:"url"`
+	InstanceID       int64  `json:"instanceId"`
+	InstanceName     string `json:"instanceName"`
+	InstancePosition int    `json:"instancePosition"`
+	Key              string `json:"key"`
+	Summary          string `json:"summary"`
+	Status           string `json:"status"`
+	URL              string `json:"url"`
 }
 
 type instanceFailureDTO struct {
@@ -71,9 +72,10 @@ func (s *Server) handleSearchIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	positions := instancePositions(instances)
 	results := fanOutInstances(r.Context(), instances, issueFetchTimeout,
 		func(ctx context.Context, inst store.Instance) instanceSearchResult {
-			return s.searchOneInstance(ctx, inst, query)
+			return s.searchOneInstance(ctx, inst, query, positions[inst.ID])
 		})
 
 	for _, result := range results {
@@ -90,7 +92,7 @@ func (s *Server) handleSearchIssues(w http.ResponseWriter, r *http.Request) {
 // of the answer, and an error would cancel every sibling through the group's
 // context.
 func (s *Server) searchOneInstance(
-	ctx context.Context, inst store.Instance, query string,
+	ctx context.Context, inst store.Instance, query string, position int,
 ) instanceSearchResult {
 	fail := func(err error) instanceSearchResult {
 		return instanceSearchResult{failure: &instanceFailureDTO{
@@ -111,7 +113,7 @@ func (s *Server) searchOneInstance(
 		// A miss is an ordinary answer to "is this key here", not a failure.
 		if issue, err := client.Issue(ctx, key); err == nil {
 			exact = issue.Key
-			hits = append(hits, hitFrom(inst, *issue))
+			hits = append(hits, hitFrom(inst, *issue, position))
 		} else if !errors.Is(err, jira.ErrNotFound) {
 			return fail(err)
 		}
@@ -126,19 +128,20 @@ func (s *Server) searchOneInstance(
 		if issue.Key == exact {
 			continue
 		}
-		hits = append(hits, hitFrom(inst, issue))
+		hits = append(hits, hitFrom(inst, issue, position))
 	}
 
 	return instanceSearchResult{hits: hits}
 }
 
-func hitFrom(inst store.Instance, issue jira.Issue) issueHitDTO {
+func hitFrom(inst store.Instance, issue jira.Issue, position int) issueHitDTO {
 	return issueHitDTO{
-		InstanceID:   inst.ID,
-		InstanceName: inst.Name,
-		Key:          issue.Key,
-		Summary:      issue.Summary,
-		Status:       issue.Status,
-		URL:          browseURL(inst.SiteURL, issue.Key),
+		InstanceID:       inst.ID,
+		InstanceName:     inst.Name,
+		InstancePosition: position,
+		Key:              issue.Key,
+		Summary:          issue.Summary,
+		Status:           issue.Status,
+		URL:              browseURL(inst.SiteURL, issue.Key),
 	}
 }

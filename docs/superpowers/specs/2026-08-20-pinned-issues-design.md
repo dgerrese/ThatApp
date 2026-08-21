@@ -193,7 +193,7 @@ registered in `server.go` beside the existing routes, using the same `{id}` patt
 
 ```json
 [
-  { "id": 3, "instanceId": 1, "instanceName": "Ridgeline", "key": "SHARED-12",
+  { "id": 3, "instanceId": 1, "instanceName": "Ridgeline", "instancePosition": 0, "key": "SHARED-12",
     "summary": "Weekly standup", "status": "In Progress",
     "url": "https://ridgeline.atlassian.net/browse/SHARED-12", "error": null }
 ]
@@ -203,9 +203,12 @@ registered in `server.go` beside the existing routes, using the same `{id}` patt
 `/api/instances` is the shape to match; `/api/issues` wraps because it is a fan-out report whose
 envelope has somewhere to grow.
 
-- **`instanceName` is joined in by the handler** from the instances it already loads. The view renders
-  the name, and making the browser fetch `/api/instances` to resolve an id is a round trip to answer a
-  question the server had in hand.
+- **`instanceName` and `instancePosition` are joined in by the handler** from the instances it already
+  loads. The view renders the name, and making the browser fetch `/api/instances` to resolve an id is a
+  round trip to answer a question the server had in hand. `instancePosition` is that instance's 0-based
+  index into the same ordered slice `store.Instances` returns — `created_at` order — which is what
+  `instanceHue` in `web/src/instance-hue.ts` keys a row's dot colour off of; the browser has no other way
+  to learn it short of that same round trip.
 - **`url` is built server-side** by the existing `browseURL`, empty when the instance has no site URL —
   identical to `/api/issues`, so `wd-ticket-row` needs no new rule.
 - **`error` is non-null only on a refresh that failed**, and the pin still carries its cached summary
@@ -267,7 +270,7 @@ happens rather than after.
 
 ```json
 { "results": [
-    { "instanceId": 1, "instanceName": "Ridgeline", "key": "SHARED-40",
+    { "instanceId": 1, "instanceName": "Ridgeline", "instancePosition": 0, "key": "SHARED-40",
       "summary": "Vendor security review", "status": "To Do",
       "url": "https://ridgeline.atlassian.net/browse/SHARED-40" }
   ],
@@ -279,7 +282,9 @@ happens rather than after.
 
 **A flat `results` list with `errors` beside it**, rather than `/api/issues`'s per-instance grouping:
 the consumer is one combobox rendering one ordered list, and a grouped response would only be flattened
-in the browser. Both arrays are always present and never null.
+in the browser. Both arrays are always present and never null. Each hit carries `instancePosition` the
+same way `/api/pins` does — joined in from the same ordered `store.Instances` read this handler already
+does to build `instanceName`, not a second lookup.
 
 Per instance, concurrently:
 
@@ -328,6 +333,7 @@ export interface Pin {
   id: number;
   instanceId: number;
   instanceName: string;
+  instancePosition: number;
   key: string;
   summary: string;
   status: string;
@@ -338,6 +344,7 @@ export interface Pin {
 export interface IssueHit {
   instanceId: number;
   instanceName: string;
+  instancePosition: number;
   key: string;
   summary: string;
   status: string;
@@ -369,16 +376,16 @@ rather than rendered as a failure.
 
 ```
 ┌─ Pinned ────────────────────────────────────────────────────┐
-│ Ridgeline   SHARED-12   Weekly standup   In Progress [Unpin]│
-│ Personal    MISC-3      Admin overhead   Open        [Unpin]│
+│ ● SHARED-12   Weekly standup             In Progress [Unpin]│
+│ ● MISC-3      Admin overhead             Open        [Unpin]│
 │─────────────────────────────────────────────────────────────│
 │ Find an issue                                               │
 │ ┌─────────────────────────────────────────────────────────┐ │
 │ │ security                                                │ │
 │ └─────────────────────────────────────────────────────────┘ │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ Ridgeline  SHARED-40  Vendor security review      To Do │ │
-│ │ Personal   MISC-15    Security questionnaire      Open  │ │
+│ │ ● Ridgeline  SHARED-40  Vendor security review    To Do │ │
+│ │ ● Personal   MISC-15    Security questionnaire    Open  │ │
 │ └─────────────────────────────────────────────────────────┘ │
 │ [ Cancel ]                                                  │
 └─────────────────────────────────────────────────────────────┘
@@ -389,6 +396,9 @@ Assigned issues                                     [ Refresh ]
 │ WORK-412   Fix the CSV export encoding       In Progress    │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+The `●` is a coloured dot: on a pinned row it stands alone, on a search-result row it sits beside the
+instance name. That difference is deliberate, not a drafting inconsistency — see "A dot, not a name" below.
 
 The Pinned card is a `wd-card` above #5's heading row. Its heading is set before insertion, because
 `wd-card` has no `observedAttributes`.
@@ -404,11 +414,32 @@ paid to fix in Settings. The list region may be replaced wholesale, because it h
 reconciliation for rows with nothing to preserve is machinery guarding a case that does not exist.
 This is narrower than #5's parked note for #7, which is about the assigned rows and stays open.
 
-**The row is an `<li class="flex items-baseline gap-3">** holding a muted instance-name span, a
+**The row is an `<li class="flex items-baseline gap-3">** holding an instance dot, a
 `<div class="flex-1">` wrapping the `wd-ticket-row`, and the unpin `wd-button`. **`wd-ticket-row` is
 not modified**: #5 kept it free of anything instance-specific and that holds. It also sets its own
 `className` in `connectedCallback`, so a class applied from outside before insertion would be
 discarded — hence the wrapping div rather than a utility on the element.
+
+**A dot, not a name.** This row printed a muted instance-name span in what actually shipped for #6 —
+the prototype's older version, carried through eleven task reviews and a whole-branch review before
+being caught as a design-conformance defect. The approved restyle decided otherwise on 2026-08-20:
+*"A pinned row names its instance by coloured dot alone, replacing the instance name the prototype
+printed on every row. That returns the width to the summary. The dot carries the instance name to
+assistive tech, so identity never rests on hue alone"* — `docs/superpowers/canvas/2026-08-20-pin-flow/README.md`.
+`docs/superpowers/specs/2026-08-20-visual-design-language.md`'s "Instance identity" section (built for
+this ticket by #44) gives the same rule the general form: **a dot alone identifies an instance only
+where the reader already knows it** — a pinned row is exactly that case. The row's dot is
+`paintInstanceDot(element, pin.instancePosition, pin.instanceName)` from `web/src/instance-hue.ts`,
+which sets `--h` for the ramp's colour, and `title`, `role="img"` and `aria-label` for the name, so
+identity survives a monochrome screen.
+
+**The search-result row is a deliberate exception to that rule, not an oversight.** Per the same two
+sources: *"Search results keep the name beside the dot... results are scanned across instances you
+have not seen before, where a hue cannot disambiguate. Dot-alone earns its keep on rows you already
+recognise."* `wd-combobox`'s option row therefore keeps `hit.instanceName` as visible text **and**
+paints a dot before it from `hit.instancePosition` — see "Each option carries..." below, which this
+document previously described as matching the pinned row's columns exactly; it now differs by exactly
+this one dot-versus-name distinction.
 
 **Deduplication** happens where the response is rendered: `today.ts` builds a `Set` of
 `` `${instanceId}:${key}` `` from the pins and filters each instance's issues through it. Because both
@@ -490,8 +521,9 @@ two refresh buttons on one screen is a question the user should not have to answ
   gone.
 - **Searching** — a muted "Searching…" line. The previous results are replaced rather than left
   stale, because a list that lags the query reads as a wrong answer.
-- **Results** — the list. Each option carries instance, key, summary and status **in the same order and
-  the same columns as the pinned row it will become**, so choosing one holds no surprise.
+- **Results** — the list. Each option carries a dot, instance name, key, summary and status, in that
+  order — the key/summary/status columns match the pinned row it will become, plus the dot-and-name
+  pair a pinned row does not show; see "A dot, not a name" above for why the two rows diverge there.
 - **No matches** — "No issues match “<query>”." Worth naming the query back: with word-prefix matching,
   a fruitless search is usually a query problem rather than an empty Jira.
 - **Some instances failed** — the results that did arrive, plus a muted footer naming the instances that

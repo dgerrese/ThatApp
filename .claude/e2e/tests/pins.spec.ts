@@ -4,6 +4,7 @@ interface StubPin {
   id: number;
   instanceId: number;
   instanceName: string;
+  instancePosition: number;
   key: string;
   summary: string;
   status: string;
@@ -11,11 +12,18 @@ interface StubPin {
   error: { code: string; message: string } | null;
 }
 
-function pin(id: number, instanceName: string, key: string, summary: string): StubPin {
+function pin(
+  id: number,
+  instanceName: string,
+  key: string,
+  summary: string,
+  instancePosition = 0,
+): StubPin {
   return {
     id,
     instanceId: id,
     instanceName,
+    instancePosition,
     key,
     summary,
     status: "In Progress",
@@ -63,7 +71,10 @@ test("pinned issues render above the assigned cards", async ({ page }) => {
   const card = page.locator("wd-card").filter({ hasText: "Pinned" });
   await expect(card.getByText("SHARED-12")).toBeVisible();
   await expect(card.getByText("Weekly standup")).toBeVisible();
-  await expect(card.getByText("Ridgeline")).toBeVisible();
+  // A pinned row names its instance by dot alone (accessible via role="img"),
+  // not as visible row text — the restyle decision this branch shipped without.
+  await expect(card.getByRole("img", { name: "Ridgeline" })).toBeVisible();
+  await expect(card.getByText("Ridgeline", { exact: true })).toHaveCount(0);
 
   // "Above" is a claim about document order, not just co-presence: compare the
   // Pinned card's top edge against the assigned-issues heading's.
@@ -168,6 +179,33 @@ test("no instances configured hides the pinned card entirely", async ({ page }) 
   await expect(page.getByRole("button", { name: "Pin an issue" })).toHaveCount(0);
 });
 
+// A regression that painted every dot the same hue would leave every row
+// identifiable only by luck; reading the resolved --h back is what catches it,
+// since a class-based check would pass whether or not the property took effect.
+test("two pinned instances render two different dot hues", async ({ page }) => {
+  await stubPins(page, [
+    pin(1, "Ridgeline", "SHARED-12", "Weekly standup", 0),
+    pin(2, "Personal", "MISC-3", "Admin overhead", 1),
+  ]);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [], error: null },
+    { id: 2, name: "Personal", issues: [], error: null },
+  ]);
+
+  await page.goto("/today");
+
+  const card = page.locator("wd-card").filter({ hasText: "Pinned" });
+  const dots = card.getByRole("img");
+  await expect(dots).toHaveCount(2);
+
+  const hues = await dots.evaluateAll((elements) =>
+    elements.map((element) => getComputedStyle(element).getPropertyValue("--h").trim()),
+  );
+
+  expect(hues[0]).not.toBe("");
+  expect(hues[0]).not.toBe(hues[1]);
+});
+
 async function stubSearch(page: Page, results: unknown[], errors: unknown[] = []): Promise<void> {
   await page.route("**/api/issues/search**", async (route) => {
     await route.fulfill({ status: 200, json: { results, errors } });
@@ -177,11 +215,29 @@ async function stubSearch(page: Page, results: unknown[], errors: unknown[] = []
 const sharedHit = {
   instanceId: 1,
   instanceName: "Ridgeline",
+  instancePosition: 0,
   key: "SHARED-40",
   summary: "Vendor security review",
   status: "To Do",
   url: "https://example.atlassian.net/browse/SHARED-40",
 };
+
+// The deliberate divergence from the dot-alone rule: a search result is
+// scanned across instances the user has not necessarily seen before, where a
+// hue cannot disambiguate, so the name stays beside the dot.
+test("a search result shows the instance name and the dot", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+  await stubSearch(page, [sharedHit]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Pin an issue" }).click();
+  await page.getByRole("combobox", { name: "Find an issue" }).fill("security");
+
+  const option = page.getByRole("option").first();
+  await expect(option.getByRole("img", { name: "Ridgeline" })).toBeVisible();
+  await expect(option).toContainText("Ridgeline");
+});
 
 test("searching finds issues across instances and pinning one adds it", async ({ page }) => {
   await stubPins(page, [], [pin(9, "Ridgeline", "SHARED-40", "Vendor security review")]);
@@ -191,6 +247,7 @@ test("searching finds issues across instances and pinning one adds it", async ({
     {
       instanceId: 2,
       instanceName: "Personal",
+      instancePosition: 1,
       key: "MISC-15",
       summary: "Security questionnaire",
       status: "Open",
@@ -258,6 +315,7 @@ test("the keyboard pins the highlighted row, not just the first one", async ({ p
   const secondHit = {
     instanceId: 2,
     instanceName: "Personal",
+    instancePosition: 1,
     key: "MISC-15",
     summary: "Security questionnaire",
     status: "Open",
@@ -298,6 +356,7 @@ test("↑ from the first option wraps to the last", async ({ page }) => {
   const secondHit = {
     instanceId: 2,
     instanceName: "Personal",
+    instancePosition: 1,
     key: "MISC-15",
     summary: "Security questionnaire",
     status: "Open",
@@ -337,6 +396,7 @@ test("↓ past the last option wraps to the first", async ({ page }) => {
   const secondHit = {
     instanceId: 2,
     instanceName: "Personal",
+    instancePosition: 1,
     key: "MISC-15",
     summary: "Security questionnaire",
     status: "Open",

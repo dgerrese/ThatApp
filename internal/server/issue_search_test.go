@@ -51,6 +51,11 @@ func TestSearchReturnsHitsFromEveryInstance(t *testing.T) {
 	if body.Results[0].URL != "https://work.atlassian.net/browse/WORK-1" {
 		t.Errorf("url = %q, want the browse URL", body.Results[0].URL)
 	}
+	// The hue the browser paints a result's dot with keys off this index.
+	if body.Results[0].InstancePosition != 0 || body.Results[1].InstancePosition != 1 {
+		t.Errorf("instancePosition = %d/%d, want 0/1 matching created_at order",
+			body.Results[0].InstancePosition, body.Results[1].InstancePosition)
+	}
 	if len(body.Errors) != 0 {
 		t.Errorf("errors = %+v, want none", body.Errors)
 	}

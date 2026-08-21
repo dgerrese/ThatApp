@@ -1,5 +1,6 @@
 import "./wd-alert";
 
+import { paintInstanceDot } from "../instance-hue";
 import type { InstanceFailure, IssueHit } from "../types";
 
 /**
@@ -278,6 +279,13 @@ export class WdCombobox extends HTMLElement {
         (index === this.active ? "bg-surface " : "") +
         (pinned ? "text-ink-muted" : "");
 
+      // Dot and name both: unlike a pinned row, a search result is scanned
+      // across instances the user may not recognise yet, where a hue alone
+      // cannot disambiguate — the deliberate exception recorded alongside the
+      // dot-alone rule in docs/superpowers/specs/2026-08-20-pinned-issues-design.md.
+      const dot = document.createElement("span");
+      paintInstanceDot(dot, hit.instancePosition, hit.instanceName);
+
       const instance = document.createElement("span");
       instance.className = "shrink-0 text-sm text-ink-muted";
       instance.textContent = hit.instanceName;
@@ -294,7 +302,7 @@ export class WdCombobox extends HTMLElement {
       tail.className = "shrink-0 text-xs text-ink-muted";
       tail.textContent = pinned ? "Pinned" : hit.status;
 
-      option.append(instance, key, summary, tail);
+      option.append(dot, instance, key, summary, tail);
       option.addEventListener("click", () => {
         this.choose(hit);
       });

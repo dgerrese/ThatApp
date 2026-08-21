@@ -20,25 +20,27 @@ import (
 // which reads the cache only and reaches no Jira instance; it is set per-row by
 // a refresh that could not reach that pin's instance or issue.
 type pinDTO struct {
-	ID           int64      `json:"id"`
-	InstanceID   int64      `json:"instanceId"`
-	InstanceName string     `json:"instanceName"`
-	Key          string     `json:"key"`
-	Summary      string     `json:"summary"`
-	Status       string     `json:"status"`
-	URL          string     `json:"url"`
-	Error        *errorBody `json:"error"`
+	ID               int64      `json:"id"`
+	InstanceID       int64      `json:"instanceId"`
+	InstanceName     string     `json:"instanceName"`
+	InstancePosition int        `json:"instancePosition"`
+	Key              string     `json:"key"`
+	Summary          string     `json:"summary"`
+	Status           string     `json:"status"`
+	URL              string     `json:"url"`
+	Error            *errorBody `json:"error"`
 }
 
-func pinDTOFrom(pin store.Pin, inst store.Instance) pinDTO {
+func pinDTOFrom(pin store.Pin, inst store.Instance, position int) pinDTO {
 	return pinDTO{
-		ID:           pin.ID,
-		InstanceID:   pin.InstanceID,
-		InstanceName: inst.Name,
-		Key:          pin.IssueKey,
-		Summary:      pin.SummaryCache,
-		Status:       pin.StatusCache,
-		URL:          browseURL(inst.SiteURL, pin.IssueKey),
+		ID:               pin.ID,
+		InstanceID:       pin.InstanceID,
+		InstanceName:     inst.Name,
+		InstancePosition: position,
+		Key:              pin.IssueKey,
+		Summary:          pin.SummaryCache,
+		Status:           pin.StatusCache,
+		URL:              browseURL(inst.SiteURL, pin.IssueKey),
 	}
 }
 
@@ -47,14 +49,14 @@ func pinDTOFrom(pin store.Pin, inst store.Instance) pinDTO {
 // answers even when every configured instance is unreachable — unless
 // ?refresh=1 asks it to re-look-up every pin first.
 func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
-	pins, instances, ok := s.pinsWithInstances(w, r)
+	pins, instances, positions, ok := s.pinsWithInstances(w, r)
 	if !ok {
 		return
 	}
 
 	dtos := make([]pinDTO, 0, len(pins))
 	for _, pin := range pins {
-		dtos = append(dtos, pinDTOFrom(pin, instances[pin.InstanceID]))
+		dtos = append(dtos, pinDTOFrom(pin, instances[pin.InstanceID], positions[pin.InstanceID]))
 	}
 
 	if r.URL.Query().Get("refresh") == "1" {
@@ -122,23 +124,24 @@ func (s *Server) refreshPins(
 		})
 }
 
-// pinsWithInstances reads both tables and indexes the instances by id. A pin
-// whose instance is missing cannot exist — the foreign key cascades — so the
-// lookup is total.
+// pinsWithInstances reads both tables and indexes the instances by id, plus by
+// their 0-based position in that same read for pinDTO.InstancePosition. A pin
+// whose instance is missing cannot exist — the foreign key cascades — so both
+// lookups are total.
 func (s *Server) pinsWithInstances(
 	w http.ResponseWriter, r *http.Request,
-) ([]store.Pin, map[int64]store.Instance, bool) {
+) ([]store.Pin, map[int64]store.Instance, map[int64]int, bool) {
 	pins, err := s.db.Pins(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "store_failed", "could not read the stored pins")
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
 	instances, err := s.db.Instances(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "store_failed",
 			"could not read the stored instances")
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
 	byID := make(map[int64]store.Instance, len(instances))
@@ -146,7 +149,7 @@ func (s *Server) pinsWithInstances(
 		byID[inst.ID] = inst
 	}
 
-	return pins, byID, true
+	return pins, byID, instancePositions(instances), true
 }
 
 // pinIDFromPath reads the {id} wildcard, answering 400 for a non-numeric id
@@ -219,6 +222,16 @@ func (s *Server) handleCreatePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read before anything is stored, alongside the single-instance lookup
+	// above: a failure here must not report success after CreatePin has
+	// already written the row.
+	instances, err := s.db.Instances(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "store_failed", "could not read the stored instances")
+		return
+	}
+	position := instancePositions(instances)[inst.ID]
+
 	ctx, cancel := context.WithTimeout(r.Context(), issueFetchTimeout)
 	defer cancel()
 
@@ -258,5 +271,5 @@ func (s *Server) handleCreatePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, pinDTOFrom(*pin, *inst))
+	writeJSON(w, http.StatusCreated, pinDTOFrom(*pin, *inst, position))
 }
