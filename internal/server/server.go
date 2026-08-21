@@ -52,6 +52,10 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 	s.mux.HandleFunc("GET /api/pins", s.handleListPins)
 	s.mux.HandleFunc("POST /api/pins", s.handleCreatePin)
 	s.mux.HandleFunc("DELETE /api/pins/{id}", s.handleDeletePin)
+	s.mux.HandleFunc("GET /api/entries", s.handleListEntries)
+	s.mux.HandleFunc("POST /api/entries", s.handleCreateEntry)
+	s.mux.HandleFunc("PATCH /api/entries/{id}", s.handleUpdateEntry)
+	s.mux.HandleFunc("DELETE /api/entries/{id}", s.handleDeleteEntry)
 	s.mux.HandleFunc("/api/", handleAPINotFound)
 	s.mux.HandleFunc("/", s.handleAsset)
 

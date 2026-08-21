@@ -210,7 +210,7 @@ func (s *Store) UpdateEntry(
 		return nil, err
 	}
 
-	return s.entryByID(ctx, id)
+	return s.Entry(ctx, id)
 }
 
 // DeleteEntry removes logged time. A missing id yields an error wrapping
@@ -224,7 +224,12 @@ func (s *Store) DeleteEntry(ctx context.Context, id int64) error {
 	return errNoRowsIfUnaffected(result, "deleting entry", id)
 }
 
-func (s *Store) entryByID(ctx context.Context, id int64) (*Entry, error) {
+// Entry reads one entry by id. A missing id yields an error wrapping
+// sql.ErrNoRows. It exists for the partial PATCH: a request carrying only a
+// duration has to keep the stored comment, and UpdateEntry writes both. That
+// read-then-write is not atomic — see handleUpdateEntry on why the interleaving
+// is tolerated.
+func (s *Store) Entry(ctx context.Context, id int64) (*Entry, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT `+entryColumns+` FROM time_entries WHERE id = ?`, id)
 
