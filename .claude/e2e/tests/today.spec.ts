@@ -33,6 +33,15 @@ async function stubIssues(page: Page, ...responses: StubGroup[][]): Promise<void
   });
 }
 
+// Today now fetches /api/pins on every render too (#6's Task 9). This suite is
+// not about pins, so every test gets an empty answer here rather than each one
+// stubbing it, or — worse — relying on the dev store actually having none: a
+// stray pin would add a wd-ticket-row and a wd-card ul the geometry and count
+// assertions below never budgeted for.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+});
+
 function group(id: number, name: string, issues: StubIssue[]): StubGroup {
   return { id, name, issues, error: null };
 }
