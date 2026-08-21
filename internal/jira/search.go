@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // assignedJQL is deliberately bounded — /rest/api/3/search/jql rejects unbounded
@@ -84,4 +85,50 @@ func (c *Client) SearchAssigned(ctx context.Context) ([]Issue, error) {
 	}
 
 	return nil, fmt.Errorf("searching assigned issues: stopped after %d pages", maxSearchPages)
+}
+
+// escapeJQL makes a user's text safe inside a JQL string literal. Backslashes
+// go first: escaping them after the quotes would escape the backslashes this
+// function just added.
+func escapeJQL(query string) string {
+	escaped := strings.ReplaceAll(query, `\`, `\\`)
+
+	return strings.ReplaceAll(escaped, `"`, `\"`)
+}
+
+// SearchText finds issues whose summary starts a word with query, most recently
+// updated first.
+//
+// Three properties of Jira's ~ operator shape this and cannot be worked around
+// here: it matches word prefixes rather than substrings, a leading wildcard is
+// rejected by the endpoint outright, and the * belongs inside the quotes. So
+// "secur" finds "security" and "curity" finds nothing.
+//
+// Unlike SearchAssigned this does not page: it backs a type-ahead, where a
+// second page is latency spent on results nobody scrolls to.
+func (c *Client) SearchText(ctx context.Context, query string, limit int) ([]Issue, error) {
+	jql := fmt.Sprintf(
+		`summary ~ "%s*" AND statusCategory != Done ORDER BY updated DESC`, escapeJQL(query))
+
+	body := searchRequest{
+		JQL:        jql,
+		Fields:     []string{"summary", "status"},
+		MaxResults: limit,
+	}
+
+	var resp searchResponse
+	if err := c.do(ctx, http.MethodPost, "/rest/api/3/search/jql", nil, body, &resp); err != nil {
+		return nil, fmt.Errorf("searching for %q: %w", query, err)
+	}
+
+	issues := []Issue{}
+	for _, raw := range resp.Issues {
+		issues = append(issues, Issue{
+			Key:     raw.Key,
+			Summary: raw.Fields.Summary,
+			Status:  raw.Fields.Status.Name,
+		})
+	}
+
+	return issues, nil
 }
