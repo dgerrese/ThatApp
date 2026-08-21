@@ -129,7 +129,9 @@ already loads — the rail's split draws the same coloured dots #6 introduced, a
 is the same 0-based index into `store.Instances`'s `created_at` order.
 
 **Push state is deliberately absent.** Every entry in #7 is unpushed, and naming the derived state
-before #9 owns it would invent vocabulary the pushing ticket has to live with.
+before #9 owns it would invent vocabulary the pushing ticket has to live with. **The board does draw
+it** — an "In Jira" check and an amber "Not pushed" dot on each entry row — so its absence here is a
+deferral to #9 and not an oversight in reading the board. The entry row's layout leaves the slot.
 
 ### `GET`
 
@@ -201,17 +203,57 @@ Two components rather than the ticket's single `wd-time-entry.ts`: the control a
 that ticket's total for the day — `0:00` when there is none — with `aria-haspopup="dialog"`. It
 stays a button because #8 adds its start/stop control beside it.
 
+**The board draws that cell as a plain `<span>`**, and gives the row exactly one control — #8's play
+circle. Nothing about opening this dialog was ever drawn, so it was settled with the owner in the
+browser on 2026-08-21, in the app's own tokens and typeface, the way the duration control was
+settled. **The cell carries a "Log" hint**: 12px, uppercase, `--color-primary`, to the left of the
+figure, expanding from zero width on hover and on `:focus-visible`. It answers the one real weakness
+of an affordance that exists only on hover, and draws nothing permanent into the resting row.
+
+**The hint widens the button, so the summary re-truncates while it is out.** Measured, not reasoned:
+the top row's title reads "Retry a worklog push that faile…" at rest and "Retry a worklog push that
+f…" while hovered, and the status shifts left with it. Three arrangements that hold the row still
+were built and shown; the owner chose this one on 2026-08-21 knowing the cost. **That is a
+consequence, not a defect** — it is not to be "fixed" into a reserved-width variant without going
+back to the owner.
+
+**Two alternatives were rejected**, recorded so they are not re-proposed. A separate `+` button puts
+three controls at the row's right edge the moment #8 lands. Making the whole row the target cannot
+be a `<button>` at all — the row holds the key's link and will hold #8's play control, and a button
+may contain neither — so it would need `tabindex`, `role` and hand-written Enter/Space handling,
+which is the reimplementation `wd-button` and `wd-confirm` exist to avoid, on the most-used control
+in the app.
+
 **The modal follows `wd-confirm`**: a native `<dialog>` opened with `showModal()`, which supplies
 the focus trap, the inert background, the top layer, Esc dismissal and focus returning to the
 trigger. Its deliberate no-dismiss-on-backdrop rule carries over, and so does its trap — Preflight's
 `* { margin: 0 }` is author origin and beats the UA's `dialog { margin: auto }`, so the dialog lands
 top-left in both target browsers unless margin is set explicitly.
 
+**Its header is the board's**, and the earlier draft of this document omitted all of it: the summary
+as an `<h2>`, a muted `KEY · Instance · Status` line beneath, the ticket's total for the day at 22px
+on the right, and a round Close button — in a 560px card. Adopted unchanged.
+
 **Inside:** the day's entries for that one ticket, each showing its start time muted, its duration,
-its comment, and edit and delete. Editing is inline, one row at a time — the duration becomes a
-`wd-duration`, the comment an input, with Save and Cancel. The add form sits at the foot:
-`wd-duration`, an optional comment, "Add entry". Empty reads "Nothing logged against this ticket
-today."
+its comment, and edit and delete. Empty reads "Nothing logged against this ticket today."
+
+**The dialog holds exactly one duration control — the form at its foot** — and editing loads the
+entry into it. The alternative, turning the row itself into an editor, puts a second `wd-duration`
+on screen and gives one dialog two places to type. Settled with the owner on 2026-08-21 against
+three other arrangements.
+
+**In edit mode the field row does not change.** The mode is named on a line of its own — 11px
+uppercase, "Editing the 09:15 entry", with the dismissing `×` at that line's right end — leaving
+stepper, comment and one primary button exactly as they sit when adding. Measured: the comment field
+is 298px adding and 335px editing, the only arrangement tested where it *grows*, because "Save" is
+narrower than "Add entry". Every alternative put the mode or its Cancel inside the field row and cost
+the comment between 11px and 83px. **The cost is height, not width, and that is the point.**
+
+**Cancel stays visible.** Esc alone will not do: #29 added Cancel to Settings' edit mode precisely
+because it was missing, and the argument carries here unchanged.
+
+**The row being edited is the only one left undimmed**, which is what binds the foot form to a
+particular entry.
 
 **Deleting confirms**, per decision 6, through `wd-confirm`. That opens a modal `<dialog>` from
 inside a modal `<dialog>`: the top layer is a stack and both target browsers support it, but Esc
@@ -295,6 +337,10 @@ integer is the class of defect this project keeps finding.
 - After adding an entry on Today, **navigating to Settings still shows the right rail total** —
   which fails if anything about the rail is wired through the Today view.
 - **Pressing Refresh with the dialog open leaves it open** and its mid-edit state intact.
+- **The trigger opens from the keyboard** — Tab reaches the duration cell and Enter opens the
+  dialog, which is the property that made it a `<button>` rather than a clickable row.
+- **Editing binds the foot form to one entry**: pressing edit loads that entry's duration and
+  comment into the foot, Save posts a `PATCH` for that id, and Cancel leaves the entry unchanged.
 
 The parse rule is a pure function and the obvious first customer for
 [#51](https://github.com/dgerrese/work-dashboard/issues/51)'s frontend unit runner, which does not
@@ -323,14 +369,19 @@ exist yet. Until it does, it is covered through Playwright, and #51 should absor
 | Today shows the day's running total, updating without a reload | *The rail*, plus the Playwright assertions |
 | A Playwright spec covers picking a duration and seeing the day total change | *Testing* |
 
-**Three criteria changed meaning during brainstorming**, and the issue body should be corrected to
-match this document:
+**Three criteria changed meaning during brainstorming**, and the issue body was corrected to match
+this document on 2026-08-21, when the owner approved it:
 
 - **"…and it remains editable afterwards"** (of `started_at`) — it is not editable; decision 4.
 - **"The Today view shows the day's running total"** understates the scope: #44's spec assigns the
   rail's 46px total *and* the per-instance split to this ticket, and the rail is app-wide.
 - **"picker-style control"** survives, but it is a stepper you can type into rather than a set of
   fixed options, and it overrides the boards' plain text field.
+
+**Two criteria were added in the same edit**, both in this document's scope and neither in the
+original body: deleting an entry confirms through `wd-confirm` (decision 6, now a standing rule),
+and the API does not enforce the 15-minute grid (decision 8, pinned by a test so the tightening
+fails a gate rather than #8).
 
 ## Corrections to other documents
 
@@ -340,3 +391,17 @@ match this document:
 - The boards draw a plain `00:00` text field for duration in `ManualExpand.dc.html` and
   `ManualDialog.dc.html`. Superseded by *The duration control*; the canvas files are records of what
   was approved on 2026-08-20 and are not edited.
+
+## Diffed against the sources
+
+This document was diffed against `ManualDialog.dc.html` before it became binding, which is the rule
+#6 produced after two of its divergences reached a finished branch. Four gaps came out of it, and
+each is resolved above rather than left in the diff: the dialog's header and Close were on the board
+and missing here, and are adopted; the per-entry push chip is on the board and is deferred to #9 by
+argument; and the trigger and the editing affordance were in this document with **nothing drawn
+anywhere** — both were settled with the owner in the browser on 2026-08-21.
+
+**Designing the undrawn parts in the browser is the method, not an improvisation.** It is what
+settled the duration control on the same day, and both of #6's divergences were things nobody could
+see until they were built. Where this document specifies something the boards do not draw, that is
+where to look first.
