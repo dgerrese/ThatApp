@@ -83,25 +83,28 @@ export async function render(root: HTMLElement): Promise<void> {
   await refreshResults(regions);
 }
 
-export function currentPins(regions: Regions): Pin[] {
+function currentPins(regions: Regions): Pin[] {
   return regions.pins;
 }
 
-export async function refreshPins(
-  regions: Regions,
-  options?: { refresh?: boolean },
-): Promise<void> {
+async function refreshPins(regions: Regions, options?: { refresh?: boolean }): Promise<void> {
   try {
     regions.pins = await listPins(options);
     renderPinnedList(regions, regions.pins);
-    // A no-op while a pin form is open: replacing pinnedForm's children here
-    // would tear down an in-progress search the moment Refresh's shared call
-    // reaches this branch — the same class of bug #29 paid to fix in Settings.
-    showPinButton(regions);
+    // Gated: replacing pinnedForm's children here would tear down an
+    // in-progress search the moment Refresh's shared call reaches this branch
+    // — the same class of bug #29 paid to fix in Settings.
+    restorePinOpenerUnlessFormOpen(regions);
   } catch (error) {
     regions.pins = [];
     regions.pinnedList.replaceChildren(alertFor("error", messageOf(error)));
-    regions.pinnedForm.replaceChildren();
+    // Same gate as the success branch above: a failing refresh must not wipe
+    // an open form either. Unlike the success branch, a closed form stays
+    // closed rather than gaining a "Pin an issue" button — with the current
+    // pin list unknown, offering to pin is not a promise this can keep.
+    if (!formIsOpen(regions)) {
+      regions.pinnedForm.replaceChildren();
+    }
   }
 
   // The assigned cards may already be on screen from a fetch that finished
@@ -136,7 +139,7 @@ function renderPinnedList(regions: Regions, pins: Pin[]): void {
   alignKeyColumn(list);
 }
 
-export function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
+function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
   const item = document.createElement("li");
   item.className = "flex items-center gap-3";
 
@@ -162,8 +165,10 @@ export function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLEleme
   if (pin.error) {
     // text-failed, not a "danger" token: the palette's error colour is named
     // failed (see wd-alert's TONES), and there is no --color-danger* in
-    // styles.css.
+    // styles.css. role="status", matching wd-alert, so a screen reader
+    // announces the failure the same way it does the assigned card's.
     const failure = document.createElement("span");
+    failure.setAttribute("role", "status");
     failure.className = "shrink-0 text-xs text-failed";
     failure.textContent = pin.error.message;
     item.append(failure);
@@ -198,13 +203,18 @@ function unpin(regions: Regions, pin: Pin, row: HTMLElement): void {
     });
 }
 
-/** No-op while a pin form is open: called after every listPins(), including
- *  the shared Refresh's, so replacing pinnedForm's children unconditionally
- *  would tear down an in-progress search mid-typing. A deliberate close
+/** True while the pin form (its combobox) is on screen — the condition both
+ *  refreshPins branches must not disturb mid-typing. */
+function formIsOpen(regions: Regions): boolean {
+  return regions.pinnedForm.querySelector("wd-combobox") !== null;
+}
+
+/** Called after every listPins(), including the shared Refresh's, so it must
+ *  not disturb a form the user is still typing into. A deliberate close
  *  (Cancel, Escape, a completed pin) goes through renderPinOpener directly
  *  instead of this gate. */
-function showPinButton(regions: Regions): void {
-  if (regions.pinnedForm.querySelector("wd-combobox")) return;
+function restorePinOpenerUnlessFormOpen(regions: Regions): void {
+  if (formIsOpen(regions)) return;
 
   renderPinOpener(regions);
 }
