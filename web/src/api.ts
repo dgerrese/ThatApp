@@ -3,7 +3,9 @@ import type {
   ConnectionTest,
   Instance,
   InstanceDraft,
+  IssueSearchResponse,
   IssuesResponse,
+  Pin,
 } from "./types";
 
 /**
@@ -30,7 +32,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: { "Content-Type": "application/json", ...init?.headers },
     });
-  } catch {
+  } catch (error) {
+    // A caller-initiated abort (type-ahead superseding its own previous
+    // request) is not a reachability failure. Rethrow it as-is so the caller
+    // can recognise its own AbortError instead of meeting a wrapped
+    // ApiError that reads exactly like a real outage.
+    if (init?.signal?.aborted) throw error;
     throw new ApiError(0, "network_error", "Could not reach the dashboard server.");
   }
 
@@ -87,4 +94,31 @@ export function testInstance(id: number): Promise<ConnectionTest> {
 
 export function listIssues(): Promise<IssuesResponse> {
   return request<IssuesResponse>("/api/issues");
+}
+
+export function listPins(options?: { refresh?: boolean }): Promise<Pin[]> {
+  return request<Pin[]>(options?.refresh === true ? "/api/pins?refresh=1" : "/api/pins");
+}
+
+export function createPin(instanceId: number, issueKey: string): Promise<Pin> {
+  return request<Pin>("/api/pins", {
+    method: "POST",
+    body: JSON.stringify({ instanceId, issueKey }),
+  });
+}
+
+export function deletePin(id: number): Promise<void> {
+  return request<void>(`/api/pins/${id}`, { method: "DELETE" });
+}
+
+/**
+ * The signal is required rather than optional: type-ahead is the first place in
+ * this app where a second request can overtake the first, and the last response
+ * to arrive is not reliably the last one asked for.
+ */
+export function searchIssues(query: string, signal: AbortSignal): Promise<IssueSearchResponse> {
+  return request<IssueSearchResponse>(
+    `/api/issues/search?q=${encodeURIComponent(query)}`,
+    { signal },
+  );
 }

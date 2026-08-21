@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/dgerrese/work-dashboard/internal/store"
 )
 
@@ -53,21 +51,9 @@ func (s *Server) handleListIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Preallocated and written by index, so the response order is the store's
-	// order without a mutex and without sorting afterwards.
-	groups := make([]instanceIssuesDTO, len(instances))
-
-	// errgroup is here for Wait and its context, not for error propagation: every
-	// goroutine returns nil on purpose. The first failure must not cancel the
-	// others, so a failure is recorded in that instance's own slot instead.
-	group, ctx := errgroup.WithContext(r.Context())
-	for i, inst := range instances {
-		group.Go(func() error {
-			groups[i] = s.issuesForInstance(ctx, inst)
-			return nil
-		})
-	}
-	_ = group.Wait()
+	// fanOutInstances is why every goroutine returns nil rather than an error:
+	// see its comment for the reasoning.
+	groups := fanOutInstances(r.Context(), instances, issueFetchTimeout, s.issuesForInstance)
 
 	writeJSON(w, http.StatusOK, issuesResponseDTO{Instances: groups})
 }
@@ -77,9 +63,6 @@ func (s *Server) handleListIssues(w http.ResponseWriter, r *http.Request) {
 // cancel every sibling through the errgroup's context.
 func (s *Server) issuesForInstance(ctx context.Context, inst store.Instance) instanceIssuesDTO {
 	group := instanceIssuesDTO{ID: inst.ID, Name: inst.Name, Issues: []issueDTO{}}
-
-	ctx, cancel := context.WithTimeout(ctx, issueFetchTimeout)
-	defer cancel()
 
 	client, err := s.clients.forInstance(ctx, &inst)
 	if err != nil {

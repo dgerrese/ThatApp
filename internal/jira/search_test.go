@@ -148,3 +148,117 @@ func TestSearchAssignedReturnsEmptyNotNil(t *testing.T) {
 		t.Errorf("got %d issues, want 0", len(issues))
 	}
 }
+
+func TestSearchTextSendsAPrefixMatchOnSummary(t *testing.T) {
+	var got struct {
+		JQL        string   `json:"jql"`
+		Fields     []string `json:"fields"`
+		MaxResults int      `json:"maxResults"`
+	}
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decoding the request: %v", err)
+		}
+		_, _ = w.Write([]byte(`{"issues":[{"key":"SHARED-40","fields":{` +
+			`"summary":"Vendor security review","status":{"name":"To Do"}}}]}`))
+	})
+
+	issues, err := client.SearchText(context.Background(), "security", 10)
+	if err != nil {
+		t.Fatalf("SearchText: %v", err)
+	}
+	want := `summary ~ "security*" AND statusCategory != Done ORDER BY updated DESC`
+	if got.JQL != want {
+		t.Errorf("jql = %q, want %q", got.JQL, want)
+	}
+	if got.MaxResults != 10 {
+		t.Errorf("maxResults = %d, want 10", got.MaxResults)
+	}
+	if len(got.Fields) != 2 || got.Fields[0] != "summary" || got.Fields[1] != "status" {
+		t.Errorf("fields = %v, want [summary status]", got.Fields)
+	}
+	if len(issues) != 1 || issues[0].Key != "SHARED-40" {
+		t.Errorf("issues = %v, want one SHARED-40", issues)
+	}
+	if issues[0].Status != "To Do" {
+		t.Errorf("Status = %q, want To Do; the picker endpoint was rejected for lacking this",
+			issues[0].Status)
+	}
+}
+
+// A type-ahead that walks a hundred pages is a bug. One page, and a
+// nextPageToken in the response is deliberately not followed.
+func TestSearchTextDoesNotPage(t *testing.T) {
+	calls := 0
+	client := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		_, _ = w.Write([]byte(`{"issues":[{"key":"A-1","fields":{"summary":"s",` +
+			`"status":{"name":"n"}}}],"nextPageToken":"more"}`))
+	})
+
+	if _, err := client.SearchText(context.Background(), "security", 10); err != nil {
+		t.Fatalf("SearchText: %v", err)
+	}
+
+	if calls != 1 {
+		t.Errorf("made %d requests, want 1", calls)
+	}
+}
+
+func TestSearchTextReturnsEmptyNotNil(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"issues":[]}`))
+	})
+
+	issues, err := client.SearchText(context.Background(), "nothing", 10)
+	if err != nil {
+		t.Fatalf("SearchText: %v", err)
+	}
+	if issues == nil {
+		t.Error("SearchText returned nil, want an empty slice")
+	}
+}
+
+func TestSearchTextEscapesTheQueryIntoTheJQL(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{
+			name:  "quotes and backslashes are escaped",
+			query: `say "hi"`,
+			want:  `summary ~ "say \"hi\"*" AND statusCategory != Done ORDER BY updated DESC`,
+		},
+		{
+			// A query already containing a wildcard must not be double-wildcarded:
+			// SearchText appends its own trailing `*`, and "secur**" is a 400 from
+			// Jira rather than a broader match.
+			name:  "a trailing wildcard the user already typed is not doubled",
+			query: `secur*`,
+			want:  `summary ~ "secur*" AND statusCategory != Done ORDER BY updated DESC`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got struct {
+				JQL string `json:"jql"`
+			}
+			client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Errorf("decoding the request: %v", err)
+				}
+				_, _ = w.Write([]byte(`{"issues":[]}`))
+			})
+
+			if _, err := client.SearchText(context.Background(), tt.query, 10); err != nil {
+				t.Fatalf("SearchText: %v", err)
+			}
+
+			if got.JQL != tt.want {
+				t.Errorf("jql = %q, want %q", got.JQL, tt.want)
+			}
+		})
+	}
+}

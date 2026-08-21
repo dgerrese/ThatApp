@@ -49,3 +49,37 @@ export interface InstanceIssues {
 export interface IssuesResponse {
   instances: InstanceIssues[];
 }
+
+export interface Pin {
+  id: number;
+  instanceId: number;
+  instanceName: string;
+  /** 0-based index into the instance list's created_at order — what instanceHue keys its dot off. */
+  instancePosition: number;
+  key: string;
+  summary: string;
+  status: string;
+  url: string;
+  error: ApiErrorBody | null;
+}
+
+export interface IssueHit {
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  key: string;
+  summary: string;
+  status: string;
+  url: string;
+}
+
+export interface InstanceFailure {
+  instanceId: number;
+  instanceName: string;
+  error: ApiErrorBody;
+}
+
+export interface IssueSearchResponse {
+  results: IssueHit[];
+  errors: InstanceFailure[];
+}

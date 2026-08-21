@@ -98,6 +98,7 @@ CREATE TABLE pinned_issues (
   instance_id    INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
   issue_key      VARCHAR(20) NOT NULL,   -- ABC-123
   summary_cache  TEXT,                   -- so pins render without a Jira round trip
+  status_cache   TEXT,                   -- written with it, so a refresh survives a reload
   created_at     DATETIME NOT NULL,
   UNIQUE(instance_id, issue_key)
 );
@@ -193,6 +194,7 @@ DELETE  /api/instances/:id
 POST    /api/instances/:id/test          verify credentials against Jira
 
 GET     /api/issues                      assigned issues, all instances, fanned out
+GET     /api/issues/search?q=            issue search, all instances, fanned out
 
 GET     /api/pins
 POST    /api/pins
