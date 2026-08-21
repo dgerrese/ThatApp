@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -259,6 +260,20 @@ func TestRefreshKeepsWorkingPinsWhenOneInstanceFails(t *testing.T) {
 	if body[1].Summary != "cached" {
 		t.Errorf("summary = %q, want the cached value kept", body[1].Summary)
 	}
+
+	// The DTO alone cannot tell "left untouched" from "read before the refresh
+	// ran and never written back" — only the store proves the cache survived.
+	stored, err := db.Pins(context.Background())
+	if err != nil {
+		t.Fatalf("reading pins: %v", err)
+	}
+	if len(stored) != 2 {
+		t.Fatalf("stored pins = %d, want both kept", len(stored))
+	}
+	if stored[1].SummaryCache != "cached" || stored[1].StatusCache != "cached" {
+		t.Errorf("stored cache = %q/%q, want it untouched by a failed refresh",
+			stored[1].SummaryCache, stored[1].StatusCache)
+	}
 }
 
 // A pin whose issue was deleted in Jira stays pinned. Removing a user's pin
@@ -283,6 +298,65 @@ func TestRefreshDoesNotUnpinAMissingIssue(t *testing.T) {
 	}
 	if body[0].Summary != "Was here" {
 		t.Errorf("summary = %q, want the cached value kept", body[0].Summary)
+	}
+
+	// The response body is built from the pre-refresh store snapshot, so it
+	// cannot by itself prove nothing was unpinned — only reading the store
+	// back after the request can.
+	stored, err := db.Pins(context.Background())
+	if err != nil {
+		t.Fatalf("reading pins: %v", err)
+	}
+	if len(stored) != 1 {
+		t.Fatalf("stored pins = %d, want the pin kept", len(stored))
+	}
+	if stored[0].SummaryCache != "Was here" {
+		t.Errorf("stored cache = %q, want it untouched by a failed refresh", stored[0].SummaryCache)
+	}
+}
+
+// Two pins on one instance must resolve one client between them, not one each:
+// a second concurrent forInstance call on the same row races the first-use
+// api_base_url repair. A row with no api_base_url forces that repair to run,
+// so the tenant-info endpoint's hit count is the property's only witness — the
+// issue responses themselves would look identical either way.
+func TestRefreshSharesOneClientPerInstance(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	var tenantInfoHits int32
+	site := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/_edge/tenant_info":
+			atomic.AddInt32(&tenantInfoHits, 1)
+			_, _ = w.Write([]byte(`{"cloudId":"7c41e2b6"}`))
+		case strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/"):
+			_, _ = w.Write([]byte(`{"key":"SHARED-1","fields":{"summary":"Refreshed","status":{"name":"Done"}}}`))
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(site.Close)
+	pointAtSite(srv, site)
+
+	// apiBase left blank: forInstance must resolve it, which is what makes the
+	// hit count meaningful. seedInstance's own fake-Jira-URL pattern bypasses
+	// resolution entirely and would not exercise this path.
+	inst := seedInstance(t, db, sealer, "Work", site.URL, "")
+	for _, key := range []string{"SHARED-1", "SHARED-2"} {
+		if _, err := db.CreatePin(context.Background(), store.PinInput{
+			InstanceID: inst.ID, IssueKey: key, SummaryCache: "cached", StatusCache: "cached",
+		}); err != nil {
+			t.Fatalf("creating the pin %q: %v", key, err)
+		}
+	}
+
+	rec, _ := getPins(t, srv, "?refresh=1")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := atomic.LoadInt32(&tenantInfoHits); got != 1 {
+		t.Errorf("tenant_info hits = %d, want 1; two pins on one instance resolved it separately", got)
 	}
 }
 
