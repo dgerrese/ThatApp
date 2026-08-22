@@ -103,6 +103,14 @@
   background: oklch(0.7 0.13 var(--h));
 }
 
+/* The instance split's bar. Each segment wears the same hue as the dot beside
+   its figure, because it is the same identity — but it is sized by the time it
+   stands for, so the fixed 7px square of .wd-dot cannot be reused for it. */
+.wd-split-bar > span {
+  border-radius: 999px;
+  background: oklch(0.7 0.13 var(--h));
+}
+
 /* Where you are, shown by fill and weight rather than by colour alone. The
    rail is the only place in the app with a persistent selected state, so this
    is a rule rather than a utility repeated on every link. */
