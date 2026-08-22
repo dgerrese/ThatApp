@@ -1,6 +1,9 @@
 import type {
   ApiErrorBody,
   ConnectionTest,
+  Entry,
+  EntryDraft,
+  EntryEdit,
   Instance,
   InstanceDraft,
   IssueSearchResponse,
@@ -117,8 +120,37 @@ export function deletePin(id: number): Promise<void> {
  * to arrive is not reliably the last one asked for.
  */
 export function searchIssues(query: string, signal: AbortSignal): Promise<IssueSearchResponse> {
-  return request<IssueSearchResponse>(
-    `/api/issues/search?q=${encodeURIComponent(query)}`,
-    { signal },
-  );
+  return request<IssueSearchResponse>(`/api/issues/search?q=${encodeURIComponent(query)}`, {
+    signal,
+  });
+}
+
+/**
+ * Every entry in an inclusive range of local days, oldest first. Both bounds
+ * default to today resolved in WD_TIMEZONE, so the ordinary call is bare and
+ * the browser never computes a date — which is the whole reason the day
+ * boundary is the server's to decide.
+ */
+export function listEntries(range?: { from: string; to: string }): Promise<Entry[]> {
+  const query = range ? `?from=${range.from}&to=${range.to}` : "";
+
+  return request<Entry[]>(`/api/entries${query}`);
+}
+
+export function createEntry(draft: EntryDraft): Promise<Entry> {
+  return request<Entry>("/api/entries", {
+    method: "POST",
+    body: JSON.stringify(draft),
+  });
+}
+
+export function updateEntry(id: number, edit: EntryEdit): Promise<Entry> {
+  return request<Entry>(`/api/entries/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(edit),
+  });
+}
+
+export function deleteEntry(id: number): Promise<void> {
+  return request<void>(`/api/entries/${id}`, { method: "DELETE" });
 }
