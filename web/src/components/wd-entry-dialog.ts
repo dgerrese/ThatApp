@@ -108,6 +108,10 @@ export class WdEntryDialog extends HTMLElement {
     right.className = "flex shrink-0 items-center gap-3";
 
     const total = document.createElement("div");
+    // Named, like #rail-total: one dialog is open at a time, and the ticket's
+    // total and an entry's duration can read the same figure — which leaves
+    // nothing else to tell them apart.
+    total.id = "wd-entry-dialog-total";
     total.className = "wd-tnum text-[22px] leading-none font-bold tracking-[-0.02em]";
     total.textContent = totalFigure(0);
     this.total = total;
