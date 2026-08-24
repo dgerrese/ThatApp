@@ -86,3 +86,75 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(evictStaleCaches().then(() => self.clients.claim()));
 });
+
+// Chunk filenames carry esbuild's content hash (see build.mjs's chunkNames),
+// so a name that matches can never change meaning under it.
+function isHashedChunk(pathname: string): boolean {
+  return /^\/chunk-[^/]+\.js$/.test(pathname);
+}
+
+function isFontOrIcon(pathname: string): boolean {
+  return pathname.startsWith("/fonts/") || pathname.startsWith("/icons/");
+}
+
+// A cache-first entry is content-addressed or precached-and-static, so the
+// cache is trusted first and the network is only a fallback for whatever
+// was not (yet) precached.
+async function cacheFirst(request: Request): Promise<Response> {
+  const cache = await caches.open(SHELL_CACHE);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  if (response.ok) await cache.put(request, response.clone());
+  return response;
+}
+
+// index.html, app.css, app.js and navigations change in place, so the
+// network is the only source that is always right — see "The request
+// classes" in the design doc. cacheKey is passed separately from request
+// because a navigation's URL (e.g. /today) is never the cache's own key;
+// every navigation instead falls back to the one cached /index.html.
+async function networkFirst(request: Request, cacheKey: string): Promise<Response> {
+  const cache = await caches.open(SHELL_CACHE);
+  try {
+    const response = await fetch(request);
+    if (response.ok) await cache.put(cacheKey, response.clone());
+    return response;
+  } catch (err) {
+    const cached = await cache.match(cacheKey);
+    if (cached) return cached;
+    throw err;
+  }
+}
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirst(request, "/index.html"));
+    return;
+  }
+
+  const pathname = url.pathname;
+  if (pathname === "/index.html" || pathname === "/app.css" || pathname === "/app.js") {
+    event.respondWith(networkFirst(request, pathname));
+    return;
+  }
+
+  if (isHashedChunk(pathname) || isFontOrIcon(pathname)) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  // Everything else — /api/* above all — is left to the browser's own
+  // networking. Task 5 (#12) adds the two /api/ request classes here; until
+  // then this handler must not call respondWith() for them, both because the
+  // design forbids caching the app's own truth and because Playwright's
+  // page.route stubs for /api/* only work on requests the worker never
+  // claims.
+});

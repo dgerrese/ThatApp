@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 // "/" leads to Today, which fetches on render; the e2e stack shares the dev
 // database, so an unstubbed request would fan out to real Jira instances.
@@ -173,4 +173,104 @@ test("install rejects a precache entry that answers HTML under a .js name, leavi
 
   const remainingCaches = await page.evaluate(() => caches.keys());
   expect(remainingCaches).toEqual([]);
+});
+
+// The rail is static shell markup and the view container gets at least one
+// child synchronously — both today.ts and settings.ts append their DOM
+// before awaiting any fetch — so checking for content here does not depend
+// on /api/* succeeding, which task 4 deliberately leaves uncached.
+async function expectShellRendered(page: Page): Promise<void> {
+  await expect(page.locator(".wd-rail")).toBeVisible();
+  expect(await page.locator("#view > *").count()).toBeGreaterThan(0);
+}
+
+// Registering ANY Playwright route on a page — even one that never matches a
+// URL involved below, even later removed with unroute() — leaves that page's
+// CDP/BiDi session unable to reach its own service worker for a later
+// navigation made while context.setOffline(true) is active: the navigation
+// fails outright (net::ERR_FAILED on Chromium, NS_ERROR_OFFLINE on Firefox)
+// before the worker's fetch handler ever runs, confirmed by a direct A/B
+// probe (a sibling page with no route ever registered, same context, same
+// origin, succeeds every time). The service worker and its caches are scoped
+// to the origin, not the page, so a second, never-routed page in the same
+// context sees the same activated worker and the same precached shell
+// without registering or precaching anything itself. This is the shape 2
+// escape hatch from the brief's rig-hazard warning, aimed one layer deeper
+// than the page.route-stub-bypass it named: not "the worker steals traffic
+// page.route wants", but "page.route poisons a page's own future offline
+// navigations", which is why setOffline(true) is used here alongside a
+// second page instead of `serviceWorkers: 'block'`.
+async function newUnroutedPage(context: BrowserContext): Promise<Page> {
+  return context.newPage();
+}
+
+test("the shell survives a reload while offline", async ({ page, context }) => {
+  await stubIssues(page);
+  await page.goto("/today");
+  await waitForActivatedWorker(page);
+
+  await context.setOffline(true);
+
+  const shellPage = await newUnroutedPage(context);
+  await shellPage.goto("/today");
+
+  await expectShellRendered(shellPage);
+});
+
+test("today and settings each survive a full navigation while offline", async ({ page, context }) => {
+  await stubIssues(page);
+  await page.goto("/today");
+  await waitForActivatedWorker(page);
+
+  await context.setOffline(true);
+
+  // Real navigations (goto), not client-side routing: this exercises the
+  // worker's navigate-mode handler for two distinct URLs, both of which the
+  // server would answer with the SPA fallback if it were reachable — proving
+  // the cached /index.html stands in for either address, not just the one
+  // last loaded.
+  const shellPage = await newUnroutedPage(context);
+  await shellPage.goto("/today");
+  await expectShellRendered(shellPage);
+
+  await shellPage.goto("/settings");
+  await expectShellRendered(shellPage);
+});
+
+test("a rebuild's app.js is what the next load takes, not the cached one", async ({ page, context, browserName }) => {
+  // route.request().serviceWorker() — used below to prove the fulfilled
+  // response actually answered the worker's own fetch, not a request that
+  // slipped past it — is Chromium-only in Playwright (also the reason task
+  // 3's negative install test is Chromium-only). On Firefox, a route
+  // targeting a URL the active worker also fetches does not intercept the
+  // worker's attempt at all: the request reaches the real server untouched,
+  // which is a Playwright/Firefox routing gap, not a sw.ts defect — the same
+  // networkFirst code path is what task 4's offline tests already prove
+  // correct on both engines.
+  test.skip(browserName !== "chromium", "routing a URL the active worker fetches is unreliable in Firefox");
+
+  await stubIssues(page);
+  await page.goto("/today");
+  await waitForActivatedWorker(page);
+
+  // Simulates `go run -tags dev` serving a freshly rebuilt bundle: index.html
+  // is untouched, only what /app.js answers changes. If the worker cached
+  // app.js first, this reload would still run the old bundle and the marker
+  // below would never be set.
+  await context.route("**/app.js", (route) => {
+    if (!route.request().serviceWorker()) {
+      return route.continue();
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: "export {}; window.__wd_rebuilt = true;",
+    });
+  });
+
+  await page.reload();
+
+  expect(
+    await page.evaluate(() => (window as unknown as { __wd_rebuilt?: boolean }).__wd_rebuilt),
+  ).toBe(true);
 });
