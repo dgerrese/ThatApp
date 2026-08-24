@@ -37,22 +37,35 @@ Ground `oklch(0.215 0.018 55)` — `--color-rail`'s light value, the one surface
 does not invert. Stroke `oklch(0.66 0.19 330)` — `--color-primary-rail`. Corner radius 112/512, so
 the icon carries its own rounding at every size.
 
-**The SVG is the source of truth and the PNGs are generated from it.** Android needs raster icons
-and this repo has no image tooling on the host, but it already has a Chromium in the Playwright
-image, so a `make icons` target rasterises `web/icons/icon.svg` through that container. No new
-dependency, and the PNGs are regenerable when the mark changes rather than being artefacts nobody
-can reproduce.
+**The SVGs are the source and the PNGs are committed beside them.** Android needs raster icons, and
+generating them is a **one-off** — the mark changes only when the nav glyph changes, which is a
+design-language event rather than a development one. So there is no `make` target, no build step and
+no new dependency: three `convert` commands, recorded in `web/icons/README.md`, run when the mark
+changes and at no other time. Infrastructure that runs twice in an app's life is broken by the time
+it is needed.
+
+They run on the host, using its ImageMagick. **That is an exception the owner granted on 2026-08-24
+for this one-off, not a precedent** — `CLAUDE.md`'s "everything runs in Docker" stands for
+everything else, and the three commands carry that caveat where they are written down so a later
+reader does not treat them as licence or as a violation to correct.
 
 | File | Size | Purpose |
 | --- | --- | --- |
-| `icon.svg` | — | Source. Also the browser tab icon. |
+| `icon.svg` | — | Source. Also the browser tab icon, so it ships as well as generates. |
+| `icon-maskable.svg` | — | Source for the maskable variant, geometry pre-scaled to 72%. |
 | `icon-192.png` | 192 | The installability floor. |
 | `icon-512.png` | 512 | Splash and store surfaces. |
-| `icon-maskable-512.png` | 512 | `purpose: "maskable"` — the mark at 72%, full-bleed ground. |
+| `icon-maskable-512.png` | 512 | `purpose: "maskable"` — full-bleed ground. |
 
 The maskable variant is a separate file rather than a second `purpose` on the same one: a mark that
 fills its box is wrong under a circle mask, and one sized for a circle mask floats when shown
-unmasked.
+unmasked. Its geometry is pre-scaled rather than wrapped in a `transform` because the host has no
+`rsvg-convert`, so ImageMagick renders through its own renderer, and transforms are the part of it
+not to trust.
+
+**The icon files are authored in sRGB hex, not oklch** — `#201712` ground, `#d05fc8` stroke. An icon
+is read by OS shells, installers and rasterisers rather than by a CSS engine, so it is written in
+the form none of them can misread. `styles.css` stays oklch.
 
 `build.mjs` copies `web/icons/` into `dist/icons/` the way it already copies `web/fonts/`, for the
 same reason recorded in its comment — esbuild and Tailwind only emit what they are given.
@@ -72,10 +85,9 @@ same reason recorded in its comment — esbuild and Tailwind only emit what they
 | `background_color` | `#201712` | Matching, so the splash does not flash a light panel before a dark rail. |
 | `icons` | the three PNGs | With `sizes`, `type`, and `purpose` on the maskable one. |
 
-**The colours are hex, not `oklch()`.** Every other colour in this app is authored in oklch and
-`styles.css` stays that way; a manifest is parsed by installers and OS shells rather than by the
-CSS engine, and hex is the form none of them can misread. `#201712` is `oklch(0.215 0.018 55)`
-converted, and the implementation confirms it by rendering rather than trusting the arithmetic here.
+**The colours are hex for the same reason the icon is.** `#201712` is `oklch(0.215 0.018 55)` through
+the standard OKLab matrices, and the committed icons are rendered from that same hex, so the manifest
+colour and the artwork cannot drift apart.
 
 **`handleAsset` gains one special case:** `manifest.json` is served as `application/manifest+json`.
 Go's `ServeFileFS` types it from the extension and would say `application/json`, which browsers
@@ -193,6 +205,10 @@ and it will keep measuring it as later tickets grow the rail.
 - `manifest.json` is served as `application/manifest+json`.
 - `sw.js` is served as JavaScript and is not the `index.html` fallback wearing a `.js` name.
 - `/` stays under 14,336 bytes.
+- Each committed PNG decodes with `image/png` to exactly the dimensions `manifest.json` declares for
+  it. Cheap, stdlib-only, and it catches the real install-breaker — a manifest claiming 512 over a
+  192 file. It does **not** catch an edited SVG whose PNGs were never regenerated; nothing short of
+  rasterising on every build would, and that is the build step deliberately not taken.
 
 **Playwright** — the worker's behaviour, which only a browser can show:
 
