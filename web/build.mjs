@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
-import { copyFileSync, mkdirSync, readdirSync, watch as watchPath } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, watch as watchPath } from "node:fs";
+import { createHash } from "node:crypto";
 import * as esbuild from "esbuild";
 
 const watch = process.argv.includes("--watch");
@@ -52,6 +53,43 @@ const jsOptions = {
   minify: true,
   sourcemap: watch,
   target: ["es2022"],
+  // Read after the build to derive the worker's precache list and build id —
+  // see buildWorker().
+  metafile: true,
+};
+
+const workerOptions = {
+  entryPoints: ["src/sw.ts"],
+  outfile: "dist/sw.js",
+  bundle: true,
+  format: "iife",
+  splitting: false,
+  minify: true,
+  sourcemap: watch,
+  target: ["es2022"],
+};
+
+// Chunk filenames carry esbuild's own content hash, so the precache list and
+// the build id that names its caches (#12 tasks 3-4) are derived from the app
+// build's own outputs rather than hand-written, which would rot the first
+// time a view is added. Source maps are excluded: they are a dev aid, not an
+// asset the worker should own offline.
+const buildWorker = async (metafile) => {
+  const outputs = Object.keys(metafile.outputs)
+    .filter((file) => !file.endsWith(".map"))
+    .sort();
+  const hash = createHash("sha256");
+  for (const file of outputs) {
+    hash.update(readFileSync(file));
+  }
+
+  await esbuild.build({
+    ...workerOptions,
+    define: {
+      __WD_PRECACHE__: JSON.stringify(outputs.map((file) => `/${file.slice("dist/".length)}`)),
+      __WD_BUILD_ID__: JSON.stringify(hash.digest("hex").slice(0, 16)),
+    },
+  });
 };
 
 copyShell();
@@ -67,6 +105,8 @@ if (watch) {
   const css = spawn("npx", [...tailwindArgs, "--watch=always"], { stdio: "inherit" });
 
   const ctx = await esbuild.context(jsOptions);
+  const { metafile } = await ctx.rebuild();
+  await buildWorker(metafile);
   await ctx.watch();
 
   // Watch the directory rather than the file: editors that save by writing a
@@ -94,5 +134,6 @@ if (watch) {
   console.log("watching for changes");
 } else {
   execFileSync("npx", tailwindArgs, { stdio: "inherit" });
-  await esbuild.build(jsOptions);
+  const { metafile } = await esbuild.build(jsOptions);
+  await buildWorker(metafile);
 }

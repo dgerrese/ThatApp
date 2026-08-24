@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -27,6 +28,7 @@ func newTestServer() *server.Server {
 	assets := fstest.MapFS{
 		"index.html":    {Data: []byte("<!doctype html><title>shell</title>")},
 		"app.js":        {Data: []byte("console.log('app')")},
+		"sw.js":         {Data: []byte("self.addEventListener('install', () => {});")},
 		"manifest.json": {Data: []byte(`{"name":"Work Dashboard"}`)},
 	}
 	return server.New(cfg, assets, nil, nil)
@@ -104,6 +106,17 @@ func TestAssetContentTypes(t *testing.T) {
 				t.Errorf("Content-Type = %q, want %q", ct, tt.wantContentType)
 			}
 		})
+	}
+}
+
+func TestServiceWorkerIsServedAsJavaScript(t *testing.T) {
+	// handleAsset falls back to index.html for anything it cannot find, so this
+	// guards against /sw.js silently serving HTML under a .js name.
+	res := get(t, "/sw.js")
+	defer res.Body.Close()
+
+	if ct := res.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
+		t.Errorf("Content-Type = %q, want a JavaScript type", ct)
 	}
 }
 

@@ -8,6 +8,16 @@ import { defineConfig, devices } from "@playwright/test";
 // server. See the `app` service's network alias in docker-compose.yml.
 const baseURL = process.env.WD_BASE_URL ?? "http://wd-app:8080";
 
+// The service worker (#12) only registers in a secure context, and plain
+// http:// on a Compose service alias is not one — browsers special-case only
+// localhost/127.0.0.1. Each engine gets there differently: Firefox has a
+// per-hostname secure-context allowlist pref; Chromium's equivalent flag
+// (--unsafely-treat-insecure-origin-as-secure) is unreliable under headless
+// (microsoft/playwright#22944), so Chromium instead resolves "localhost" —
+// which it always treats as secure — to the real host and navigates there.
+const { hostname, port } = new URL(baseURL);
+const localhostURL = `http://localhost:${port}`;
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
@@ -20,7 +30,24 @@ export default defineConfig({
   },
   projects: [
     // Firefox first: it is the primary target.
-    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "firefox",
+      use: {
+        ...devices["Desktop Firefox"],
+        launchOptions: {
+          firefoxUserPrefs: { "dom.securecontext.allowlist": hostname },
+        },
+      },
+    },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: localhostURL,
+        launchOptions: {
+          args: [`--host-resolver-rules=MAP localhost ${hostname}`],
+        },
+      },
+    },
   ],
 });

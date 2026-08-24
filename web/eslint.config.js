@@ -15,7 +15,10 @@ export default [
     files: ["src/**/*.ts"],
     languageOptions: {
       parser: tsparser,
-      parserOptions: { project: "./tsconfig.json" },
+      // sw.ts is excluded from tsconfig.json and typed under tsconfig.worker.json
+      // instead (it needs the WebWorker lib, not DOM); an array project lets
+      // eslint find whichever one each file belongs to.
+      parserOptions: { project: ["./tsconfig.json", "./tsconfig.worker.json"] },
     },
     plugins: { "@typescript-eslint": tseslint },
     rules: {
