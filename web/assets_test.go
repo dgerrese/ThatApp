@@ -9,10 +9,6 @@ import (
 	"testing"
 )
 
-// maxIndexHTMLBytes is the TCP initial congestion window: a first response
-// under it needs no second round trip. See CLAUDE.md.
-const maxIndexHTMLBytes = 14336
-
 type manifestIcon struct {
 	Src   string `json:"src"`
 	Sizes string `json:"sizes"`
@@ -75,16 +71,5 @@ func TestManifestIconsMatchCommittedPNGDimensions(t *testing.T) {
 				t.Errorf("%s is %dx%d, manifest declares %s", path, cfg.Width, cfg.Height, icon.Sizes)
 			}
 		})
-	}
-}
-
-func TestIndexHTMLStaysUnderByteBudget(t *testing.T) {
-	info, err := os.Stat("index.html")
-	if err != nil {
-		t.Fatalf("stat index.html: %v", err)
-	}
-
-	if info.Size() >= maxIndexHTMLBytes {
-		t.Errorf("index.html is %d bytes, want fewer than %d", info.Size(), maxIndexHTMLBytes)
 	}
 }

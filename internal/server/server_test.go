@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -11,6 +12,10 @@ import (
 	"github.com/dgerrese/work-dashboard/internal/config"
 	"github.com/dgerrese/work-dashboard/internal/server"
 )
+
+// maxIndexHTMLBytes is the TCP initial congestion window: a first response
+// under it needs no second round trip. See CLAUDE.md.
+const maxIndexHTMLBytes = 14336
 
 func newTestServer() *server.Server {
 	cfg := &config.Config{
@@ -99,6 +104,37 @@ func TestAssetContentTypes(t *testing.T) {
 				t.Errorf("Content-Type = %q, want %q", ct, tt.wantContentType)
 			}
 		})
+	}
+}
+
+func TestServedIndexHTMLStaysUnderByteBudget(t *testing.T) {
+	// Reads the real shipped file rather than a fixture: a fixture would keep
+	// passing however large index.html actually grew. Served through the real
+	// handler too, so a future transform of the body would still be measured.
+	shipped, err := os.ReadFile("../../web/index.html")
+	if err != nil {
+		t.Fatalf("reading web/index.html: %v", err)
+	}
+
+	cfg := &config.Config{
+		Addr:     ":8080",
+		DBPath:   ":memory:",
+		Secret:   make([]byte, 32),
+		Location: time.UTC,
+	}
+	srv := server.New(cfg, fstest.MapFS{"index.html": {Data: shipped}}, nil, nil)
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	res := rec.Result()
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("reading response body: %v", err)
+	}
+	if len(body) >= maxIndexHTMLBytes {
+		t.Errorf("served index.html is %d bytes, want fewer than %d", len(body), maxIndexHTMLBytes)
 	}
 }
 
