@@ -1,0 +1,31 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Chosen" },
+    { "id": "page-2", "name": "Not chosen" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "title": "B · Clockface — chosen", "page": "page-1", "x": 0, "y": 0, "w": 560, "h": 1000 },
+    { "file": "Monogram.dc.html", "title": "A · Monogram", "page": "page-2", "x": 0, "y": 0, "w": 560, "h": 1000 },
+    { "file": "Split.dc.html", "title": "C · Split", "page": "page-2", "x": 640, "y": 0, "w": 560, "h": 1000 },
+    { "file": "Ring.dc.html", "title": "D · Ring", "page": "page-2", "x": 1280, "y": 0, "w": 560, "h": 1000 }
+  ],
+  "annotations": [
+    {
+      "id": "chosen",
+      "x": -320,
+      "y": 0,
+      "page": "page-1",
+      "w": 260,
+      "text": "Chosen 2026-08-24.\n\nThe mark is the Today nav glyph from web/index.html, scaled exactly into a 512 box: r 8.5 → 181, stroke 1.9 → 40.5, hands 12→4.5. Nothing about it is new artwork, which is the point — the home screen and the rail show the same object.\n\nGround oklch(0.215 0.018 55), stroke oklch(0.66 0.19 330), both lifted from web/src/styles.css."
+    },
+    {
+      "id": "not-chosen",
+      "x": -320,
+      "y": 0,
+      "page": "page-2",
+      "w": 260,
+      "text": "Considered and passed over on 2026-08-24. Kept so the choice is not re-argued from memory later.\n\nA · Monogram — needs its letterforms outlined to ship, and WD belongs to a hundred other apps.\nC · Split — the hues belong to whichever instances an install happens to have.\nD · Ring — an arc implies a daily target this app does not have."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}
