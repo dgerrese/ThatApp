@@ -12,13 +12,22 @@ Object.assign(self, { __WD_PRECACHE__, __WD_BUILD_ID__ });
 const SHELL_CACHE = `wd-shell-${__WD_BUILD_ID__}`;
 const DATA_CACHE = `wd-data-${__WD_BUILD_ID__}`;
 
-// The two extensions the design cares about: a mismatch here is what
-// handleAsset's index.html fallback would otherwise produce for a missing
-// chunk — 200 HTML wearing a .js or .css name. See "What it precaches" in
-// docs/superpowers/specs/2026-08-24-pwa-shell-design.md.
+// One row per extension the build ships. A mismatch here is what
+// handleAsset's index.html fallback would otherwise produce for anything
+// missing — chunk, manifest, font or icon alike — a 200 of HTML wearing that
+// extension's name. See "What it precaches" in
+// docs/superpowers/specs/2026-08-24-pwa-shell-design.md. Substrings, not
+// exact types, because http.ServeFileFS answers with a charset suffix on
+// text types (e.g. "text/css; charset=utf-8") and manifest.json is served as
+// "application/manifest+json", not "application/json".
 const EXTENSION_CONTENT_TYPES: Record<string, string> = {
   js: "javascript",
   css: "css",
+  html: "html",
+  json: "json",
+  woff2: "font",
+  svg: "svg",
+  png: "png",
 };
 
 function extensionOf(path: string): string {

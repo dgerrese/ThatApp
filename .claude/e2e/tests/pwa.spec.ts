@@ -53,8 +53,9 @@ test("the service worker registered by the app shell reaches activated", async (
 // activates has necessarily opened and populated both caches correctly.
 // This test asserts the cache contents directly and needs window.caches to
 // do it, so it is Chromium-only.
-test("activation leaves exactly the two current-build caches, with the shell holding the shipped files", async ({
+test("activation evicts stale caches and leaves exactly the two current-build ones, with the shell holding the shipped files", async ({
   page,
+  context,
   browserName,
 }) => {
   test.skip(
@@ -63,21 +64,48 @@ test("activation leaves exactly the two current-build caches, with the shell hol
   );
 
   await stubIssues(page);
+
+  // main.ts's own auto-registration on "load" would race the stale-cache
+  // seeding below — it must land before this page's worker installs and
+  // activates. Replacing the page's own bundle with a no-op removes that
+  // race; the worker's own precache fetch for /app.js is unaffected, since
+  // this stubs the URL for every requester, not just the page's <script>.
+  await context.route("**/app.js", (route) =>
+    route.fulfill({ status: 200, contentType: "application/javascript", body: "export {};" }),
+  );
+
   await page.goto("/");
+
+  // Caches a previous build would have left behind — evictStaleCaches must
+  // delete both, shell and data alike, not just leave them uncontested
+  // because nothing this test does happens to collide with the current
+  // build's own two names.
+  await page.evaluate(async () => {
+    await caches.open("wd-shell-stale");
+    await caches.open("wd-data-stale");
+  });
+
+  await page.evaluate(() => navigator.serviceWorker.register("/sw.js"));
   await waitForActivatedWorker(page);
 
   const { cacheNames, shellPaths } = await page.evaluate(async () => {
     const names = await caches.keys();
-    const shellName = names.find((name) => name.startsWith("wd-shell-"));
+    const shellName = names.find((name) => name.startsWith("wd-shell-") && name !== "wd-shell-stale");
     const paths = shellName
       ? (await (await caches.open(shellName)).keys()).map((request) => new URL(request.url).pathname)
       : [];
     return { cacheNames: names, shellPaths: paths };
   });
 
-  // Both cache names carry the same build id: they are the shell and data
-  // cache of one build, not leftovers from two.
+  // Named, not just counted: a count-only check would still pass if
+  // eviction deleted the wrong cache, or deleted nothing and something else
+  // happened to keep the total at two.
+  expect(cacheNames).not.toContain("wd-shell-stale");
+  expect(cacheNames).not.toContain("wd-data-stale");
   expect(cacheNames).toHaveLength(2);
+
+  // Both remaining cache names carry the same build id: they are the shell
+  // and data cache of one build, not leftovers from two.
   const buildIds = cacheNames.map((name) => name.replace(/^wd-(shell|data)-/, ""));
   expect(buildIds[0]).toBe(buildIds[1]);
   expect(cacheNames.some((name) => name.startsWith("wd-shell-"))).toBe(true);
