@@ -16,6 +16,8 @@ interface Recorder {
   posted: Record<string, unknown>[];
   patched: { id: number; body: Record<string, unknown> }[];
   deleted: number[];
+  /** Every GET answered, so a test can price a mutation in round trips. */
+  gets: number;
 }
 
 const DAY = "2026-08-22";
@@ -52,7 +54,7 @@ function entry(id: number, issueKey: string, seconds: number, options?: Partial<
  */
 async function stubEntries(page: Page, seed: StubEntry[] = []): Promise<Recorder> {
   const entries = [...seed];
-  const recorder: Recorder = { posted: [], patched: [], deleted: [] };
+  const recorder: Recorder = { posted: [], patched: [], deleted: [], gets: 0 };
   let nextId = 500;
   let nextHour = 10;
 
@@ -62,6 +64,7 @@ async function stubEntries(page: Page, seed: StubEntry[] = []): Promise<Recorder
 
     switch (request.method()) {
       case "GET":
+        recorder.gets += 1;
         await route.fulfill({ status: 200, json: entries });
 
         return;
@@ -420,6 +423,133 @@ test("the dialog shows only the ticket it was opened from", async ({ page }) => 
   await expect(dialog(page).getByText("someone else's row")).toHaveCount(0);
   // The rail still totals the whole day, which is the difference being tested.
   await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+});
+
+/**
+ * The colon the user typed carries structure. Stripping it first read "1:5" as
+ * the digits 15 — an hour typed, a quarter of it posted, and only the field's
+ * snap-back as a clue.
+ */
+test("an unpadded H:M means hours and minutes, not a digit string", async ({ page }) => {
+  const recorder = await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+  await typeDuration(page, "1:5");
+  await expect(durationField(page)).toHaveValue("1:00");
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+
+  await expect.poll(() => recorder.posted.length).toBe(1);
+  expect(recorder.posted[0]).toMatchObject({ seconds: 3600 });
+});
+
+/**
+ * The API deliberately accepts seconds off the 15-minute grid, and #8's timer
+ * will create them routinely. The field shows such an entry rounded for
+ * display, and a blur that re-read its own rounding would commit the snap —
+ * so merely tabbing through the field must not rewrite the duration.
+ */
+test("tabbing through the duration field does not rewrite a loaded entry", async ({ page }) => {
+  const recorder = await openToday(page, [entry(1, "WORK-412", 433)]);
+
+  await trigger(page, "WORK-412").click();
+  await dialog(page).getByRole("button", { name: "Edit the 09:15 entry" }).click();
+  await expect(durationField(page)).toHaveValue("0:07");
+
+  await durationField(page).focus();
+  await page.keyboard.press("Tab");
+  await dialog(page).getByRole("button", { name: "Save" }).click();
+
+  await expect.poll(() => recorder.patched.length).toBe(1);
+  expect(recorder.patched[0]?.body).toMatchObject({ seconds: 433 });
+});
+
+/**
+ * Stepping starts from the figure as typed, before the quarter-hour snap. A
+ * parse that snapped first turned 7 into 0:15 and then stepped clean past it
+ * to 0:30 — the step its own promise says lands on 0:15.
+ */
+test("the first step up from a typed figure lands on the next quarter hour", async ({ page }) => {
+  const recorder = await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+  await durationField(page).fill("7");
+  await durationField(page).press("ArrowUp");
+  await expect(durationField(page)).toHaveValue("0:15");
+
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+  await expect.poll(() => recorder.posted.length).toBe(1);
+  expect(recorder.posted[0]).toMatchObject({ seconds: 900 });
+});
+
+/**
+ * The dialog's trigger is what showModal() returns focus to on close. A save
+ * repaints every row's total, and a repaint that rebuilt the row would detach
+ * that button — closing the dialog would then drop a keyboard user at <body>,
+ * back to the top of the page.
+ */
+test("closing the dialog after a save returns focus to the row's trigger", async ({ page }) => {
+  await openToday(page);
+
+  const cell = trigger(page, "WORK-412");
+  await cell.click();
+  await typeDuration(page, "45");
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+  await expect(cell).toHaveText("Log0:45");
+
+  await page.keyboard.press("Escape");
+
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(cell).toBeFocused();
+});
+
+/**
+ * One save, one read. The dialog re-reads the day and the announcement carries
+ * that response to the rail and the row totals, so three consumers repaint
+ * from one request — which is also what keeps their figures agreeing.
+ */
+test("one save costs one read of the day", async ({ page }) => {
+  const recorder = await openToday(page);
+
+  // Boot costs two reads — the rail's and the row totals' — and opening the
+  // dialog a third. The claim under test is that the save adds exactly one.
+  await trigger(page, "WORK-412").click();
+  await typeDuration(page, "130");
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+  await expect(trigger(page, "WORK-412")).toHaveText("Log1:30");
+  expect(recorder.gets).toBe(4);
+});
+
+/**
+ * At boot the rail's regions hold index.html's hardcoded 0h 00m — a
+ * placeholder, not a figure. The refresh policy of leaving the regions alone
+ * on failure assumes they held a truth; for the first paint it must retry
+ * instead, or a container restart leaves a wrong-looks-real zero up all day.
+ */
+test("a failed first fetch retries until the rail holds a real figure", async ({ page }) => {
+  let failures = 0;
+  await page.route("**/api/entries**", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+
+      return;
+    }
+    // Both boot reads fail — the rail's and the row totals' — so whichever
+    // arrives first, the rail's own is among them.
+    if (failures < 2) {
+      failures += 1;
+      await route.abort();
+
+      return;
+    }
+    await route.fulfill({ status: 200, json: [entry(1, "WORK-412", 3600)] });
+  });
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [workIssue], error: null }]);
+  await page.goto("/today");
+
+  await expect(page.locator("#rail-total")).toHaveText("1h 00m", { timeout: 10_000 });
 });
 
 test("the split names every instance with time against it", async ({ page }) => {

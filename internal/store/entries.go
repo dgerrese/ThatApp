@@ -165,26 +165,6 @@ func (s *Store) EntriesForDay(ctx context.Context, from, to string) ([]Entry, er
 	return scanEntries(rows, fmt.Sprintf("reading entries from %s to %s", from, to))
 }
 
-// EntriesForIssueDay returns one issue's entries for one local day, oldest
-// first, which is the list the entry dialog shows. An issue with nothing logged
-// yields an empty slice, not nil.
-func (s *Store) EntriesForIssueDay(
-	ctx context.Context, instanceID int64, key, day string,
-) ([]Entry, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+entryColumns+`
-		   FROM time_entries
-		  WHERE instance_id = ? AND issue_key = ? AND day = ?
-		  ORDER BY started_at, id`, instanceID, key, day)
-	if err != nil {
-		return nil, fmt.Errorf("querying entries for %q on instance %d on %s: %w",
-			key, instanceID, day, err)
-	}
-
-	return scanEntries(rows,
-		fmt.Sprintf("reading entries for %q on instance %d on %s", key, instanceID, day))
-}
-
 // UpdateEntry rewrites an entry's duration and comment and returns the stored
 // row. Day and started_at are never touched — the start time is not editable,
 // and moving an entry between days would let the browser rewrite history the

@@ -22,26 +22,62 @@ const MAX_DIGITS = 4;
  * duration — no digits at all, more than four of them, or more than a day.
  * A refusal is a signal to restore the field, never to commit a guess.
  *
- * The last two digits are minutes and anything before them is hours, so `175`
- * is 1h75m and carries to 2h15m. The result lands on a quarter hour, except
- * that anything the user typed above zero keeps at least one step: rounding to
- * nearest would turn `7` into nothing, and a field that eats a keystroke reads
- * as broken rather than as strict.
+ * A typed colon splits hours from minutes wherever it sits, so `1:5` is 1h05m;
+ * without one, the last two digits are minutes and anything before them is
+ * hours, so `175` is 1h75m and carries to 2h15m. The result lands on a quarter
+ * hour, except that anything the user typed above zero keeps at least one
+ * step: rounding to nearest would turn `7` into nothing, and a field that eats
+ * a keystroke reads as broken rather than as strict.
  */
 export function secondsFromTyped(typed: string): number | null {
-  const digits = typed.replace(/\D/g, "");
-  if (digits.length === 0 || digits.length > MAX_DIGITS) return null;
-
-  const minutePart = digits.length <= 2 ? digits : digits.slice(-2);
-  const hourPart = digits.length <= 2 ? "0" : digits.slice(0, -2);
-
-  const typedMinutes = Number(hourPart) * MINUTES_PER_HOUR + Number(minutePart);
-  if (typedMinutes > MAX_MINUTES) return null;
+  const typedMinutes = minutesFromTyped(typed);
+  if (typedMinutes === null) return null;
 
   const stepped = Math.round(typedMinutes / STEP_MINUTES) * STEP_MINUTES;
   const minutes = typedMinutes > 0 ? Math.max(stepped, STEP_MINUTES) : 0;
 
   return minutes * SECONDS_PER_MINUTE;
+}
+
+/**
+ * Whole seconds exactly as typed, before the quarter-hour snap. This is what
+ * stepping starts from: snapping first turns a typed 7 into 0:15 and then
+ * steps clean past it, when the step's own promise is that 7 minutes goes up
+ * to 0:15.
+ */
+export function exactSecondsFromTyped(typed: string): number | null {
+  const typedMinutes = minutesFromTyped(typed);
+
+  return typedMinutes === null ? null : typedMinutes * SECONDS_PER_MINUTE;
+}
+
+/** The shared reading: total typed minutes, or `null` for a refusal. */
+function minutesFromTyped(typed: string): number | null {
+  const colon = typed.indexOf(":");
+  let hourPart: string;
+  let minutePart: string;
+
+  if (colon >= 0) {
+    // The colon is structure the user typed, so it decides the split before
+    // any digit counting does — stripping it first read "1:5" as 15 minutes.
+    hourPart = typed.slice(0, colon).replace(/\D/g, "");
+    minutePart = typed.slice(colon + 1).replace(/\D/g, "");
+    if (hourPart.length + minutePart.length === 0) return null;
+    if (hourPart.length + minutePart.length > MAX_DIGITS) return null;
+    // Three digits after a colon is no readable duration — "1:23:45" lands
+    // here once its second colon is stripped.
+    if (minutePart.length > 2) return null;
+  } else {
+    const digits = typed.replace(/\D/g, "");
+    if (digits.length === 0 || digits.length > MAX_DIGITS) return null;
+    minutePart = digits.length <= 2 ? digits : digits.slice(-2);
+    hourPart = digits.length <= 2 ? "0" : digits.slice(0, -2);
+  }
+
+  const typedMinutes =
+    Number(hourPart || "0") * MINUTES_PER_HOUR + Number(minutePart || "0");
+
+  return typedMinutes > MAX_MINUTES ? null : typedMinutes;
 }
 
 /**

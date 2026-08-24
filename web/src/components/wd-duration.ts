@@ -1,4 +1,4 @@
-import { fieldFigure, secondsFromTyped, steppedSeconds } from "../duration";
+import { exactSecondsFromTyped, fieldFigure, secondsFromTyped, steppedSeconds } from "../duration";
 
 /**
  * A duration you can step or type: `−`, a field, `+`, glued into one bordered
@@ -124,15 +124,32 @@ export class WdDuration extends HTMLElement {
     }
   }
 
-  /** Steps from the typed figure if one is readable, so `+` never discards it. */
+  /**
+   * Steps from the typed figure if one is readable, so `+` never discards it —
+   * and from its exact reading, not the snapped one: snapping a typed 7 to
+   * 0:15 first would step clean past the quarter hour the press should land on.
+   * An untouched field steps from the committed seconds themselves, which is
+   * what keeps a stored 7m13s going up to 0:15 rather than re-reading its own
+   * rounded display.
+   */
   private stepBy(direction: 1 | -1): void {
-    const typed = this.input ? secondsFromTyped(this.input.value) : null;
+    const input = this.input;
+    const typed =
+      input && input.value !== fieldFigure(this.committed)
+        ? exactSecondsFromTyped(input.value)
+        : null;
     this.seconds = steppedSeconds(typed ?? this.committed, direction);
   }
 
   private commitTyped(): void {
     const input = this.input;
     if (!input) return;
+
+    // An untouched field commits nothing. It shows the committed figure
+    // rounded for display, and re-reading that rounding would snap a non-grid
+    // entry — the API accepts them, and #8's timer will write them — to the
+    // grid on a mere Tab through the field.
+    if (input.value === fieldFigure(this.committed)) return;
 
     // A refusal restores the last good figure. Committing a guess is how a
     // control posts something nobody typed.

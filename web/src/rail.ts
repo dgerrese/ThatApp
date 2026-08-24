@@ -17,36 +17,81 @@ import type { Entry } from "./types";
  * resolved in WD_TIMEZONE, which is the only way the total agrees with the
  * end-of-day push when no browser is open to ask.
  */
+// The first retry after a failed boot read, doubling up to the cap. Short to
+// start with because the likely cause — the container still coming up — clears
+// in seconds.
+const FIRST_RETRY_MS = 1_000;
+const MAX_RETRY_MS = 30_000;
+
 export function startRail(): void {
   const total = document.querySelector<HTMLElement>("#rail-total");
   const split = document.querySelector<HTMLElement>("#rail-split");
   if (!total || !split) return;
 
-  const redraw = (): void => {
-    void refresh(total, split);
+  // Supersession, the same job searchIssues' AbortController does: a slow read
+  // must not land after a newer one — or after an announcement that carried
+  // the day directly — and paint stale totals back.
+  let epoch = 0;
+  let painted = false;
+  let retryTimer: number | undefined;
+  let retryDelay = FIRST_RETRY_MS;
+
+  const paint = (entries: Entry[]): void => {
+    painted = true;
+    retryDelay = FIRST_RETRY_MS;
+    total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
+    drawSplit(split, sliceByInstance(entries));
+  };
+
+  /**
+   * Once something real has been painted, a failure leaves both regions
+   * exactly as they were: the rail is glanced at rather than read, and a total
+   * that silently drops to zero because a request failed is the one wrong
+   * answer indistinguishable from a true one. Before the first paint that
+   * policy inverts — the regions hold index.html's hardcoded 0h 00m, a
+   * placeholder rather than a truth worth preserving — so a failed boot read
+   * retries until a real figure is up.
+   */
+  const refresh = async (): Promise<void> => {
+    const mine = ++epoch;
+    if (retryTimer !== undefined) {
+      clearTimeout(retryTimer);
+      retryTimer = undefined;
+    }
+
+    let entries: Entry[];
+    try {
+      entries = await listEntries();
+    } catch {
+      if (!painted && mine === epoch) {
+        retryTimer = window.setTimeout(() => {
+          retryTimer = undefined;
+          void refresh();
+        }, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, MAX_RETRY_MS);
+      }
+
+      return;
+    }
+    if (mine !== epoch) return;
+
+    paint(entries);
   };
 
   // No unsubscribe: the shell outlives every view, so this listener is meant to
   // last as long as the page does.
-  onEntriesChanged(redraw);
-  redraw();
-}
+  onEntriesChanged((entries) => {
+    if (entries) {
+      // The announcement carried the day, so there is nothing to fetch — and
+      // the epoch moves so any read still in flight cannot overwrite this.
+      epoch += 1;
+      paint(entries);
 
-/**
- * A failure leaves both regions exactly as they were. The rail is glanced at
- * rather than read, and a total that silently drops to zero because a request
- * failed is the one wrong answer indistinguishable from a true one.
- */
-async function refresh(total: HTMLElement, split: HTMLElement): Promise<void> {
-  let entries: Entry[];
-  try {
-    entries = await listEntries();
-  } catch {
-    return;
-  }
-
-  total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
-  drawSplit(split, sliceByInstance(entries));
+      return;
+    }
+    void refresh();
+  });
+  void refresh();
 }
 
 /** One instance's share of the day. */

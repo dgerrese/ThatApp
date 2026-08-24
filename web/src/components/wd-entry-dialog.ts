@@ -230,22 +230,29 @@ export class WdEntryDialog extends HTMLElement {
     return row;
   }
 
-  /** Re-reads the day and redraws everything that depends on it. */
-  private async reload(): Promise<void> {
+  /**
+   * Re-reads the day and redraws everything that depends on it, returning the
+   * whole day so a mutation can hand it to the announcement. Filtered here
+   * rather than asked for by issue: the rail and the row totals want the same
+   * response, and one read keeps every figure agreeing by construction rather
+   * than by three reads of one table.
+   */
+  private async reload(): Promise<Entry[] | null> {
     const ticket = this.ticket;
-    if (!ticket) return;
+    if (!ticket) return null;
 
     try {
       const entries = await listEntries();
-      // Filtered here rather than asked for by issue: the rail wants the same
-      // response, and one request keeps the dialog's total and the rail's
-      // agreeing by construction rather than by two reads of one table.
       this.entries = entries.filter(
         (entry) => entry.instanceId === ticket.instanceId && entry.issueKey === ticket.issueKey,
       );
       this.renderEntries();
+
+      return entries;
     } catch (error) {
       this.showFailure(error, "Could not read the time logged against this ticket.");
+
+      return null;
     }
   }
 
@@ -381,11 +388,13 @@ export class WdEntryDialog extends HTMLElement {
   }
 
   private async afterMutation(): Promise<void> {
-    await this.reload();
-    // After the reload, not before: the rail and the row totals re-read the day
-    // themselves, and announcing first would race them against a list this
-    // dialog has not finished redrawing.
-    announceEntriesChanged();
+    const day = await this.reload();
+    // The reload's response rides on the announcement, so the rail and the row
+    // totals repaint from the read this dialog already made instead of racing
+    // three of their own. A failed reload announces without it — the mutation
+    // itself succeeded, so the listeners fall back to reading the day
+    // themselves.
+    announceEntriesChanged(day ?? undefined);
   }
 
   private setBusy(busy: boolean): void {

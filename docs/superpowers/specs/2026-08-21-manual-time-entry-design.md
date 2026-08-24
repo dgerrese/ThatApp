@@ -73,13 +73,12 @@ type EntryInput struct {
 }
 
 func (s *Store) EntriesForDay(ctx context.Context, from, to string) ([]Entry, error)
-func (s *Store) EntriesForIssueDay(ctx context.Context, instanceID int64, key, day string) ([]Entry, error)
 func (s *Store) CreateEntry(ctx context.Context, in EntryInput) (*Entry, error)
 func (s *Store) UpdateEntry(ctx context.Context, id int64, seconds int, comment string) (*Entry, error)
 func (s *Store) DeleteEntry(ctx context.Context, id int64) error
 ```
 
-Both read paths return oldest first and an empty slice rather than nil, matching `Instances` and
+The read path returns oldest first and an empty slice rather than nil, matching `Instances` and
 `Pins`. `UpdateEntry` and `DeleteEntry` reuse `errNoRowsIfUnaffected`, so a missing id is
 `sql.ErrNoRows` rather than a silent success. `worklog_id` and `pushed_at` are read but never
 written here — push state stays derived, and #7 must not introduce a flag.
@@ -307,7 +306,7 @@ restore, and put both outputs in the task report.
 ### Store
 
 A round trip including an empty comment; `EntriesForDay` oldest-first and empty-not-nil;
-`EntriesForIssueDay` filtering by all three columns; `DeleteEntry` on a missing id as
+`DeleteEntry` on a missing id as
 `sql.ErrNoRows`; an instance's removal cascading to its entries. `UpdateEntry` is verified **by
 reading the row back**, asserting `seconds` and `comment` changed while `day` and `started_at` did
 not — #6's review found a test asserting against a snapshot taken before the code under test ran,
@@ -362,7 +361,7 @@ exist yet. Until it does, it is covered through Playwright, and #51 should absor
 | `day` resolved in `WD_TIMEZONE`, proven by a boundary test | *The day boundary*, and the two-zone table |
 | A new entry defaults `started_at` to creation time | *The day boundary* |
 | Zero or negative duration rejected with 400 | *`POST`*, rejection 3 |
-| Several entries per ticket per day, each with its own comment and start time | `EntriesForIssueDay`; the dialog lists them |
+| Several entries per ticket per day, each with its own comment and start time | the dialog filters `EntriesForDay`'s response and lists them |
 | `PATCH` updates `updated_at` | *`PATCH` and `DELETE`* |
 | Duration entered through a picker-style control, not a free-text field | *The duration control* |
 | The API takes integer seconds and parses no duration strings | *`POST`*; the browser parses |

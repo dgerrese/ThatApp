@@ -1,18 +1,8 @@
 import { fieldFigure } from "../duration";
-
-/**
- * What a row hands its view when the duration cell is pressed. The same shape
- * as wd-entry-dialog's EntryTicket, spelled out here rather than imported: a
- * row that imported the dialog to describe its own request would drag it into
- * every bundle a row appears in.
- */
-export interface LogTimeRequest {
-  instanceId: number;
-  instanceName: string;
-  issueKey: string;
-  summary: string;
-  status: string;
-}
+// A type-only import is erased at compile time (verbatimModuleSyntax makes
+// that a guarantee), so describing the request with the dialog's own shape
+// costs no bundle bytes and cannot drift from what openEntryDialog expects.
+import type { EntryTicket } from "./wd-entry-dialog";
 
 /** Prefixed, like every custom event this app raises — see entries-changed.ts. */
 export const LOG_TIME = "wd-log-time";
@@ -39,6 +29,8 @@ export class WdTicketRow extends HTMLElement {
   }
 
   private body: HTMLElement | undefined;
+  private trigger: HTMLButtonElement | undefined;
+  private figure: HTMLElement | undefined;
 
   connectedCallback(): void {
     this.className = "flex items-baseline gap-3 py-3";
@@ -51,10 +43,19 @@ export class WdTicketRow extends HTMLElement {
     this.render();
   }
 
-  attributeChangedCallback(): void {
-    if (this.body) {
-      this.render();
+  // `seconds` moves on every row whenever any entry changes, so it repaints
+  // the figure in place rather than rebuilding the body: a rebuild would
+  // detach the trigger showModal() holds as its focus-return target, dropping
+  // a keyboard user at <body> when the dialog that caused the change closes.
+  attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
+    if (!this.body || oldValue === newValue) return;
+
+    if (name === "seconds") {
+      this.paintSeconds();
+
+      return;
     }
+    this.render();
   }
 
   private render(): void {
@@ -94,8 +95,7 @@ export class WdTicketRow extends HTMLElement {
    * can start and stop.
    */
   private durationCell(): HTMLElement {
-    const seconds = Number(this.getAttribute("seconds") ?? "0");
-    const figure = fieldFigure(Number.isFinite(seconds) ? seconds : 0);
+    const figure = this.loggedFigure();
     const key = this.getAttribute("key") ?? "";
 
     const trigger = document.createElement("button");
@@ -132,8 +132,31 @@ export class WdTicketRow extends HTMLElement {
     trigger.addEventListener("click", () => {
       this.askForDialog();
     });
+    this.trigger = trigger;
+    this.figure = total;
 
     return trigger;
+  }
+
+  /** Today's logged time as the cell wears it, read off the attribute. */
+  private loggedFigure(): string {
+    const seconds = Number(this.getAttribute("seconds") ?? "0");
+
+    return fieldFigure(Number.isFinite(seconds) ? seconds : 0);
+  }
+
+  /** The in-place half of the `seconds` repaint: the figure and the name that speaks it. */
+  private paintSeconds(): void {
+    const trigger = this.trigger;
+    const figure = this.figure;
+    if (!trigger || !figure) return;
+
+    const logged = this.loggedFigure();
+    figure.textContent = logged;
+    trigger.setAttribute(
+      "aria-label",
+      `Log time against ${this.getAttribute("key") ?? ""}, ${logged} today`,
+    );
   }
 
   /**
@@ -143,7 +166,7 @@ export class WdTicketRow extends HTMLElement {
    */
   private askForDialog(): void {
     this.dispatchEvent(
-      new CustomEvent<LogTimeRequest>(LOG_TIME, {
+      new CustomEvent<EntryTicket>(LOG_TIME, {
         bubbles: true,
         detail: {
           instanceId: Number(this.getAttribute("instance-id") ?? "0"),

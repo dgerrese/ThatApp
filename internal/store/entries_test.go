@@ -57,10 +57,9 @@ func TestCreateEntryRoundTrips(t *testing.T) {
 					created.CreatedAt, created.UpdatedAt)
 			}
 
-			stored, err := s.EntriesForIssueDay(
-				context.Background(), inst.ID, "RIDGE-4929", day)
+			stored, err := s.EntriesForDay(context.Background(), day, day)
 			if err != nil {
-				t.Fatalf("EntriesForIssueDay() returned error: %v", err)
+				t.Fatalf("EntriesForDay() returned error: %v", err)
 			}
 			if len(stored) != 1 {
 				t.Fatalf("got %d entries, want 1", len(stored))
@@ -265,112 +264,14 @@ func TestEntriesForDayBoundsAreInclusive(t *testing.T) {
 // [] and the rail sums an empty list instead of reading null.
 func TestReadPathsReturnAnEmptySliceNotNil(t *testing.T) {
 	s := openTestStore(t)
-	inst := createTestInstance(t, s)
-	ctx := context.Background()
+	createTestInstance(t, s)
 
-	forDay, err := s.EntriesForDay(ctx, "2026-08-21", "2026-08-21")
+	forDay, err := s.EntriesForDay(context.Background(), "2026-08-21", "2026-08-21")
 	if err != nil {
 		t.Fatalf("EntriesForDay() returned error: %v", err)
 	}
 	if forDay == nil {
 		t.Error("EntriesForDay() = nil, want an empty slice")
-	}
-
-	forIssue, err := s.EntriesForIssueDay(ctx, inst.ID, "RIDGE-1", "2026-08-21")
-	if err != nil {
-		t.Fatalf("EntriesForIssueDay() returned error: %v", err)
-	}
-	if forIssue == nil {
-		t.Error("EntriesForIssueDay() = nil, want an empty slice")
-	}
-}
-
-// Each case differs from the wanted row in exactly one column, so dropping any
-// one of the three predicates fails a case.
-func TestEntriesForIssueDayFiltersOnAllThreeColumns(t *testing.T) {
-	s := openTestStore(t)
-	ctx := context.Background()
-	first := createTestInstance(t, s)
-	second, err := s.CreateInstance(ctx, InstanceInput{
-		Name: "Second", SiteURL: "https://second.atlassian.net",
-		Email: "a@b.c", TokenEnc: []byte("sealed"),
-	})
-	if err != nil {
-		t.Fatalf("creating the second instance: %v", err)
-	}
-
-	started := time.Date(2026, 8, 21, 9, 0, 0, 0, time.UTC)
-	createTestEntry(t, s, EntryInput{
-		InstanceID: first.ID, IssueKey: "RIDGE-1", Day: "2026-08-21",
-		StartedAt: started, Seconds: 900, Comment: "wanted",
-	})
-	createTestEntry(t, s, EntryInput{
-		InstanceID: second.ID, IssueKey: "RIDGE-1", Day: "2026-08-21",
-		StartedAt: started, Seconds: 900, Comment: "other instance",
-	})
-	createTestEntry(t, s, EntryInput{
-		InstanceID: first.ID, IssueKey: "RIDGE-2", Day: "2026-08-21",
-		StartedAt: started, Seconds: 900, Comment: "other key",
-	})
-	createTestEntry(t, s, EntryInput{
-		InstanceID: first.ID, IssueKey: "RIDGE-1", Day: "2026-08-20",
-		StartedAt: started, Seconds: 900, Comment: "other day",
-	})
-
-	entries, err := s.EntriesForIssueDay(ctx, first.ID, "RIDGE-1", "2026-08-21")
-	if err != nil {
-		t.Fatalf("EntriesForIssueDay() returned error: %v", err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("got %d entries, want 1", len(entries))
-	}
-	if entries[0].Comment != "wanted" {
-		t.Errorf("Comment = %q, want wanted", entries[0].Comment)
-	}
-}
-
-// Mixed offsets, so this list guards the UTC normalisation on its own rather
-// than leaning on the range read's test: a started_at persisted with its
-// original offset would compare "01:00+02:00" as later than "00:15Z" in a text
-// column. Three of them, inserted middle-first, because two can be ordered
-// correctly by id alone in one direction or the other.
-func TestEntriesForIssueDayReturnsOldestFirst(t *testing.T) {
-	s := openTestStore(t)
-	inst := createTestInstance(t, s)
-
-	amsterdam := time.FixedZone("CEST", 2*60*60)
-	early := time.Date(2026, 8, 21, 1, 0, 0, 0, amsterdam) // 2026-08-20T23:00:00Z
-	middle := time.Date(2026, 8, 21, 0, 15, 0, 0, time.UTC)
-	late := time.Date(2026, 8, 21, 3, 0, 0, 0, amsterdam) // 2026-08-21T01:00:00Z
-
-	for _, fixture := range []struct {
-		comment string
-		started time.Time
-	}{
-		{"middle", middle},
-		{"late", late},
-		{"early", early},
-	} {
-		createTestEntry(t, s, EntryInput{
-			InstanceID: inst.ID, IssueKey: "RIDGE-1", Day: "2026-08-21",
-			StartedAt: fixture.started, Seconds: 900, Comment: fixture.comment,
-		})
-	}
-
-	entries, err := s.EntriesForIssueDay(
-		context.Background(), inst.ID, "RIDGE-1", "2026-08-21")
-	if err != nil {
-		t.Fatalf("EntriesForIssueDay() returned error: %v", err)
-	}
-
-	want := []string{"early", "middle", "late"}
-	if len(entries) != len(want) {
-		t.Fatalf("got %d entries, want %d", len(entries), len(want))
-	}
-	for i, comment := range want {
-		if entries[i].Comment != comment {
-			t.Errorf("entries[%d] = %q, want %q", i, entries[i].Comment, comment)
-		}
 	}
 }
 
@@ -496,10 +397,9 @@ func TestUpdateEntryLeavesPushStateAlone(t *testing.T) {
 		t.Fatalf("UpdateEntry() returned error: %v", err)
 	}
 
-	entries, err := s.EntriesForIssueDay(
-		context.Background(), inst.ID, "RIDGE-1", "2026-08-21")
+	entries, err := s.EntriesForDay(context.Background(), "2026-08-21", "2026-08-21")
 	if err != nil {
-		t.Fatalf("EntriesForIssueDay() returned error: %v", err)
+		t.Fatalf("EntriesForDay() returned error: %v", err)
 	}
 	if len(entries) != 1 {
 		t.Fatalf("got %d entries, want 1", len(entries))

@@ -14,7 +14,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { fieldFigure, secondsFromTyped, steppedSeconds } from "./duration.ts";
+import {
+  exactSecondsFromTyped,
+  fieldFigure,
+  secondsFromTyped,
+  steppedSeconds,
+} from "./duration.ts";
 
 /**
  * The table in the design is the specification, reproduced here in the units
@@ -69,6 +74,45 @@ test("everything else rounds to the nearest quarter hour", () => {
 
   for (const [typed, want] of cases) {
     assert.equal(secondsFromTyped(typed), want, `secondsFromTyped(${JSON.stringify(typed)})`);
+  }
+});
+
+/**
+ * A typed colon is structure, not noise: what follows it is minutes however
+ * many digits either side carries. Stripping it first read "1:5" as 15 minutes
+ * — an hour typed and a quarter of it logged.
+ */
+test("a colon splits hours from minutes even unpadded", () => {
+  const cases: [string, number | null][] = [
+    ["1:5", 3600], // 1h05m, rounded down to the hour by the grid
+    ["1:75", 8100], // minutes past sixty still carry into hours
+    ["2:", 7200], // a bare hour
+    [":45", 2700], // bare minutes
+    ["24:00", 86400],
+    ["24:01", null], // past a day is refused in this spelling too
+  ];
+
+  for (const [typed, want] of cases) {
+    assert.equal(secondsFromTyped(typed), want, `secondsFromTyped(${JSON.stringify(typed)})`);
+  }
+});
+
+/**
+ * What stepping starts from: the typed figure before the snap, so the first
+ * press of + from a typed 7 lands on 0:15 rather than snapping to 0:15 first
+ * and stepping clean past it.
+ */
+test("the exact reading carries no snap", () => {
+  const cases: [string, number | null][] = [
+    ["7", 420],
+    ["1:5", 3900],
+    ["0", 0],
+    ["abc", null],
+    ["12345", null],
+  ];
+
+  for (const [typed, want] of cases) {
+    assert.equal(exactSecondsFromTyped(typed), want, `exactSecondsFromTyped(${JSON.stringify(typed)})`);
   }
 });
 

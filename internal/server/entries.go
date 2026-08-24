@@ -63,6 +63,11 @@ func (s *Server) entryDTOFrom(entry store.Entry, inst store.Instance, position i
 // 0-based position in that same created_at order. An entry whose instance is
 // missing cannot exist — the foreign key cascades — so both lookups are total
 // for a stored entry, and POST uses the id lookup to answer instance_not_found.
+//
+// Totality holds only when the instances are read before the entries: an
+// instance deleted between the two reads has cascaded its entries out of the
+// later read, where the other order would join those entries against a map
+// that no longer holds their instance.
 func (s *Server) instanceIndex(
 	w http.ResponseWriter, r *http.Request,
 ) (map[int64]store.Instance, map[int64]int, bool) {
@@ -102,14 +107,15 @@ func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries, err := s.db.EntriesForDay(r.Context(), from, to)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "store_failed", "could not read the logged time")
+	// Instances first — see instanceIndex on why this order is load-bearing.
+	instances, positions, ok := s.instanceIndex(w, r)
+	if !ok {
 		return
 	}
 
-	instances, positions, ok := s.instanceIndex(w, r)
-	if !ok {
+	entries, err := s.db.EntriesForDay(r.Context(), from, to)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "store_failed", "could not read the logged time")
 		return
 	}
 

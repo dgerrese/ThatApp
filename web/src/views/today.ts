@@ -15,12 +15,12 @@ import {
   searchIssues,
 } from "../api";
 import type { WdCombobox } from "../components/wd-combobox";
+import type { EntryTicket } from "../components/wd-entry-dialog";
 import { openEntryDialog } from "../components/wd-entry-dialog";
-import type { LogTimeRequest } from "../components/wd-ticket-row";
 import { LOG_TIME } from "../components/wd-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
 import { paintInstanceDot } from "../instance-hue";
-import type { InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
+import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
  * The regions that outlive a fetch, plus the two caches (pins, the last issues
@@ -40,6 +40,8 @@ interface Regions {
   lastIssues: IssuesResponse | null;
   /** Today's logged seconds per row, keyed by instance and issue. */
   totals: Map<string, number>;
+  /** Bumped per totals refresh, so a slow read cannot overwrite a newer one. */
+  totalsEpoch: number;
 }
 
 export async function render(root: HTMLElement): Promise<void> {
@@ -88,6 +90,7 @@ export async function render(root: HTMLElement): Promise<void> {
     pins: [],
     lastIssues: null,
     totals: new Map(),
+    totalsEpoch: 0,
   };
   refresh.addEventListener("click", () => {
     void refreshEverything(regions);
@@ -97,20 +100,20 @@ export async function render(root: HTMLElement): Promise<void> {
   // dialog should live. The host is the view root: Today re-renders its lists
   // wholesale, so a dialog nested in a row would be destroyed mid-edit.
   container.addEventListener(LOG_TIME, (event) => {
-    const request = (event as CustomEvent<LogTimeRequest>).detail;
+    const request = (event as CustomEvent<EntryTicket>).detail;
     openEntryDialog(root, request);
   });
 
   // The listener is on document, which outlives this view — the router unmounts
   // by replacing the root's children and offers no hook to unsubscribe from. So
   // it retires itself the first time it wakes up detached.
-  const stopListening = onEntriesChanged(() => {
+  const stopListening = onEntriesChanged((entries) => {
     if (!container.isConnected) {
       stopListening();
 
       return;
     }
-    void refreshTotals(regions);
+    void refreshTotals(regions, entries);
   });
 
   // Independent on purpose: the Pinned card paints from the store alone and
@@ -121,7 +124,9 @@ export async function render(root: HTMLElement): Promise<void> {
 }
 
 /**
- * Re-reads today's logged time and repaints every row's duration cell.
+ * Repaints every row's duration cell from today's logged time — the list the
+ * announcement carried when it carried one, a read of its own otherwise (the
+ * mount, and the fallback for an announcer whose own read failed).
  *
  * The rows are found in the DOM rather than re-rendered: a re-render would
  * throw away the pin form mid-search and the assigned cards mid-scroll to
@@ -131,12 +136,17 @@ export async function render(root: HTMLElement): Promise<void> {
  * what was logged should keep saying what it last knew rather than claim zero,
  * which is the one wrong answer that looks like a real one.
  */
-async function refreshTotals(regions: Regions): Promise<void> {
-  let entries;
-  try {
-    entries = await listEntries();
-  } catch {
-    return;
+async function refreshTotals(regions: Regions, fresh?: Entry[]): Promise<void> {
+  const mine = ++regions.totalsEpoch;
+
+  let entries = fresh;
+  if (!entries) {
+    try {
+      entries = await listEntries();
+    } catch {
+      return;
+    }
+    if (mine !== regions.totalsEpoch) return;
   }
 
   regions.totals = new Map();
