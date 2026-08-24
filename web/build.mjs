@@ -12,7 +12,14 @@ const tailwindArgs = [
   "--minify",
 ];
 
-const copyShell = () => copyFileSync("index.html", "dist/index.html");
+// Each copy* returns the dist/ paths it wrote: buildWorker() unions them with
+// esbuild's own metafile outputs, because a precache list or a build id built
+// from the metafile alone would never see these files — see the request-class
+// table in docs/superpowers/specs/2026-08-24-pwa-shell-design.md.
+const copyShell = () => {
+  copyFileSync("index.html", "dist/index.html");
+  return ["dist/index.html"];
+};
 
 // Space Grotesk is served from our own origin: #12 makes this an offline PWA
 // and a font on someone else's host would not survive it. esbuild and Tailwind
@@ -20,22 +27,28 @@ const copyShell = () => copyFileSync("index.html", "dist/index.html");
 // //go:embed all:dist then carries them into the binary with no change there.
 const copyFonts = () => {
   mkdirSync("dist/fonts", { recursive: true });
-  for (const file of readdirSync("fonts")) {
+  return readdirSync("fonts").map((file) => {
     copyFileSync(`fonts/${file}`, `dist/fonts/${file}`);
-  }
+    return `dist/fonts/${file}`;
+  });
 };
 
 // The committed PNGs and SVGs in web/icons/ are pre-rendered, not built — see
 // web/icons/README.md. README.md itself is source-only and stays out of dist/.
 const copyIcons = () => {
   mkdirSync("dist/icons", { recursive: true });
-  for (const file of readdirSync("icons")) {
-    if (file === "README.md") continue;
-    copyFileSync(`icons/${file}`, `dist/icons/${file}`);
-  }
+  return readdirSync("icons")
+    .filter((file) => file !== "README.md")
+    .map((file) => {
+      copyFileSync(`icons/${file}`, `dist/icons/${file}`);
+      return `dist/icons/${file}`;
+    });
 };
 
-const copyManifest = () => copyFileSync("manifest.json", "dist/manifest.json");
+const copyManifest = () => {
+  copyFileSync("manifest.json", "dist/manifest.json");
+  return ["dist/manifest.json"];
+};
 
 const jsOptions = {
   entryPoints: ["src/main.ts"],
@@ -70,14 +83,20 @@ const workerOptions = {
 };
 
 // Chunk filenames carry esbuild's own content hash, so the precache list and
-// the build id that names its caches (#12 tasks 3-4) are derived from the app
-// build's own outputs rather than hand-written, which would rot the first
-// time a view is added. Source maps are excluded: they are a dev aid, not an
-// asset the worker should own offline.
-const buildWorker = async (metafile) => {
-  const outputs = Object.keys(metafile.outputs)
-    .filter((file) => !file.endsWith(".map"))
-    .sort();
+// the build id that names its caches (#12 tasks 3-4) are derived from what
+// actually shipped rather than hand-written, which would rot the first time a
+// view is added. metafile.outputs covers esbuild's own emissions (app.js, the
+// chunks); assetPaths covers everything copied or written outside esbuild
+// (the shell, app.css, fonts, icons, the manifest) — the request-class table
+// in docs/superpowers/specs/2026-08-24-pwa-shell-design.md needs both cached.
+// Source maps are excluded: a dev aid, not an asset the worker should own
+// offline. Sorted before hashing so the id depends only on content, not on
+// filesystem or metafile enumeration order.
+const buildWorker = async (metafile, assetPaths) => {
+  const outputs = [
+    ...Object.keys(metafile.outputs).filter((file) => !file.endsWith(".map")),
+    ...assetPaths,
+  ].sort();
   const hash = createHash("sha256");
   for (const file of outputs) {
     hash.update(readFileSync(file));
@@ -92,21 +111,32 @@ const buildWorker = async (metafile) => {
   });
 };
 
-copyShell();
-copyFonts();
-copyIcons();
-copyManifest();
+const assetPaths = [...copyShell(), ...copyFonts(), ...copyIcons(), ...copyManifest(), "dist/app.css"];
 
 if (watch) {
+  // One blocking pass before handing off to the watcher below: buildWorker()
+  // now reads dist/app.css too, and without this it does not exist yet when
+  // esbuild's own initial build fires the rebuild-worker plugin.
+  execFileSync("npx", tailwindArgs, { stdio: "inherit" });
+
   // Tailwind's own watcher rescans the @source globs, so a class added to
   // index.html or a .ts file rebuilds app.css. `always` is required because
   // plain --watch quits the moment stdin reaches EOF, which it does immediately
   // in a container started by `docker compose up`.
   const css = spawn("npx", [...tailwindArgs, "--watch=always"], { stdio: "inherit" });
 
-  const ctx = await esbuild.context(jsOptions);
-  const { metafile } = await ctx.rebuild();
-  await buildWorker(metafile);
+  // esbuild's own watcher rebuilds the app on every source edit; without this
+  // hook the worker was only ever built once, at startup, and dist/sw.js
+  // would name superseded chunk hashes from the first dev edit onward.
+  const rebuildWorkerPlugin = {
+    name: "rebuild-worker",
+    setup(build) {
+      build.onEnd((result) => {
+        if (result.metafile) return buildWorker(result.metafile, assetPaths);
+      });
+    },
+  };
+  const ctx = await esbuild.context({ ...jsOptions, plugins: [rebuildWorkerPlugin] });
   await ctx.watch();
 
   // Watch the directory rather than the file: editors that save by writing a
@@ -135,5 +165,5 @@ if (watch) {
 } else {
   execFileSync("npx", tailwindArgs, { stdio: "inherit" });
   const { metafile } = await esbuild.build(jsOptions);
-  await buildWorker(metafile);
+  await buildWorker(metafile, assetPaths);
 }
