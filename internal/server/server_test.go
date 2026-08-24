@@ -20,8 +20,9 @@ func newTestServer() *server.Server {
 		Location: time.UTC,
 	}
 	assets := fstest.MapFS{
-		"index.html": {Data: []byte("<!doctype html><title>shell</title>")},
-		"app.js":     {Data: []byte("console.log('app')")},
+		"index.html":    {Data: []byte("<!doctype html><title>shell</title>")},
+		"app.js":        {Data: []byte("console.log('app')")},
+		"manifest.json": {Data: []byte(`{"name":"Work Dashboard"}`)},
 	}
 	return server.New(cfg, assets, nil, nil)
 }
@@ -78,6 +79,26 @@ func TestAssetIsServedFromFS(t *testing.T) {
 	body, _ := io.ReadAll(res.Body)
 	if got := string(body); got != "console.log('app')" {
 		t.Errorf("body = %q, want the app.js contents", got)
+	}
+}
+
+func TestAssetContentTypes(t *testing.T) {
+	tests := []struct {
+		path            string
+		wantContentType string
+	}{
+		{"/manifest.json", "application/manifest+json"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			res := get(t, tt.path)
+			defer res.Body.Close()
+
+			if ct := res.Header.Get("Content-Type"); ct != tt.wantContentType {
+				t.Errorf("Content-Type = %q, want %q", ct, tt.wantContentType)
+			}
+		})
 	}
 }
 

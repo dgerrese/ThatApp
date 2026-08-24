@@ -24,6 +24,18 @@ const copyFonts = () => {
   }
 };
 
+// The committed PNGs and SVGs in web/icons/ are pre-rendered, not built — see
+// web/icons/README.md. README.md itself is source-only and stays out of dist/.
+const copyIcons = () => {
+  mkdirSync("dist/icons", { recursive: true });
+  for (const file of readdirSync("icons")) {
+    if (file === "README.md") continue;
+    copyFileSync(`icons/${file}`, `dist/icons/${file}`);
+  }
+};
+
+const copyManifest = () => copyFileSync("manifest.json", "dist/manifest.json");
+
 const jsOptions = {
   entryPoints: ["src/main.ts"],
   // outdir, not outfile: code splitting emits chunks alongside the entry, and
@@ -44,6 +56,8 @@ const jsOptions = {
 
 copyShell();
 copyFonts();
+copyIcons();
+copyManifest();
 
 if (watch) {
   // Tailwind's own watcher rescans the @source globs, so a class added to
