@@ -87,8 +87,8 @@ async function precacheShell(): Promise<void> {
 // Old shells and old data caches alike are evicted — a shell from a new
 // build must never render a body cached from an old response shape, see
 // "Updating" in the design doc. The current build's data cache is opened
-// here, empty, so it exists from activation onward for #12's task 5 to
-// write into.
+// here, empty, so a deployment starts with no last-known Jira data rather
+// than with data whose shape predates the code reading it.
 async function evictStaleCaches(): Promise<void> {
   const names = await caches.keys();
   await Promise.all(
@@ -170,6 +170,50 @@ async function networkFirst(request: Request, cacheKey: string): Promise<Respons
   }
 }
 
+// The two read-only Jira lists, and nothing else. /api/issues/search is a
+// live question rather than a list, and everything under /api/instances or
+// /api/entries is the app's own truth — see "The request classes" in
+// docs/superpowers/specs/2026-08-24-pwa-shell-design.md.
+function isCachedJiraRead(pathname: string): boolean {
+  return pathname === "/api/issues" || pathname === "/api/pins";
+}
+
+// The header is stamped when the entry is stored, so a body off the wire never
+// carries it and a body out of the cache always does. That is the whole signal
+// a view gets: navigator.onLine reports "online" for a captive portal and for a
+// server that is simply stopped, while this answers the question actually being
+// asked — did this body come off the wire, and if not, how old is it.
+function withCachedAtHeader(response: Response, storedAt: Date): Response {
+  const headers = new Headers(response.headers);
+  headers.set("X-WD-Cached-At", storedAt.toISOString());
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+// Jira data is already stale by the time it arrives, so a last-known copy is
+// worth keeping — but only ever behind a network attempt, and only ever
+// labelled. The cache key is the pathname rather than the request: Today's
+// Refresh asks for /api/pins?refresh=1, which tells the server to re-poll Jira
+// rather than naming a different list, so both spellings share one stored copy
+// and a refresh made while the server is unreachable falls back to it.
+async function networkFirstJiraRead(request: Request, cacheKey: string): Promise<Response> {
+  const cache = await caches.open(DATA_CACHE);
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      await cache.put(cacheKey, withCachedAtHeader(response.clone(), new Date()));
+    }
+    return response;
+  } catch (err) {
+    const cached = await cache.match(cacheKey);
+    if (cached) return cached;
+    throw err;
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
@@ -179,15 +223,25 @@ self.addEventListener("fetch", (event) => {
 
   const pathname = url.pathname;
 
-  // Never claimed, never cached — including a top-level navigation to
-  // /api/health, the ordinary way to check the server is up. It names no file,
-  // so isAppRoute below would otherwise take it for a view and answer it from
-  // the shell cache whenever the server is unreachable. Task 5 (#12) adds the
-  // two /api/ request classes; until then this handler must not call
-  // respondWith() for anything under /api/, both because the design forbids
-  // caching the app's own truth and because Playwright's page.route stubs for
-  // /api/* only work on requests the worker never claims.
-  if (pathname.startsWith("/api/")) return;
+  // The two Jira lists keep a last-known copy; everything else under /api/ is
+  // fetched and never cached, on any method. Entries, pushes, instances and
+  // connection tests are computed from SQLite on this machine, so a cached copy
+  // of one would be a lie about the owner's own work — and the derived push
+  // state must never render from anything but a live read. Leaving them
+  // unclaimed is also what keeps a top-level navigation to /api/health working:
+  // it names no file, so isAppRoute below would otherwise take it for a view
+  // and answer it from the shell cache whenever the server is unreachable.
+  //
+  // Writes never reach this branch at all — the method guard above returns
+  // first — which is what makes "never cached" true on any method, and why no
+  // write is ever queued for a later replay. An offline write fails, and the
+  // owner makes it again.
+  if (pathname.startsWith("/api/")) {
+    if (isCachedJiraRead(pathname)) {
+      event.respondWith(networkFirstJiraRead(request, pathname));
+    }
+    return;
+  }
 
   // request.mode says nothing about what was asked for, so the mode alone is
   // not enough to claim a request for the shell: an icon, a font or the

@@ -1,7 +1,22 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
-// "/" leads to Today, which fetches on render; the e2e stack shares the dev
-// database, so an unstubbed request would fan out to real Jira instances.
+// This is the one suite whose subject is the worker, so it undoes the rig's
+// default block — see the comment on `serviceWorkers` in playwright.config.ts
+// for what that default is protecting every other spec from.
+test.use({ serviceWorkers: "allow" });
+
+// Today fetches issues on render; the e2e stack shares the dev database, so an
+// unstubbed request would fan out to the owner's real Jira instances.
+//
+// page.route, deliberately, even though the worker now claims /api/issues and a
+// page route never sees a request the worker makes. Every test here reads Today
+// before the worker controls the page — registration happens on load and claims
+// after that — so the page's own request is the one being stubbed. Raising this
+// to context.route would cover the worker too on Chromium, and would break the
+// offline-navigation tests on both engines: a context-level route costs any
+// later page in the context its ability to reach its worker for a navigation
+// (see the note above those tests). The one test that reloads Today with the
+// worker in control stubs at the context level itself.
 async function stubIssues(page: Page): Promise<void> {
   await page.route("**/api/issues", (route) =>
     route.fulfill({ status: 200, json: { instances: [] } }),
@@ -32,6 +47,25 @@ function waitForActivatedWorker(page: Page): Promise<void> {
             });
           })
           .catch(reject);
+      }),
+  );
+}
+
+/**
+ * Resolves once this page's own requests actually go through the worker.
+ * Reaching "activated" is not the same thing: clients.claim() has to land, and
+ * every assertion about a request class is an assertion about a request the
+ * page makes while controlled.
+ */
+function waitForControllingWorker(page: Page): Promise<void> {
+  return page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        if (navigator.serviceWorker.controller) {
+          resolve();
+          return;
+        }
+        navigator.serviceWorker.addEventListener("controllerchange", () => resolve(), { once: true });
       }),
   );
 }
@@ -187,9 +221,13 @@ async function expectShellRendered(page: Page): Promise<void> {
 // Two things about context.setOffline(true) decide how every test below is
 // written.
 //
-// It does reach the worker's own fetches as well as the page's, on both engines,
-// so the network arm of networkFirst really does fail and the cache arm really
-// is what answers.
+// It reaches the worker's own fetches on Chromium, so there the network arm of
+// networkFirst really does fail and the cache arm really is what answers. It
+// does NOT reach them on Firefox: measured while adding #12 task 5, an offline
+// read of a path the worker claims comes back with a Date header seconds newer
+// than the read before it, which only a live response can carry. So on Firefox
+// an offline assertion shows that a request the worker does *not* claim fails,
+// and cannot show what the worker serves from cache.
 //
 // It does not reach either browser's own HTTP cache. A URL some page in the
 // context already fetched can still be answered from there, worker or no worker,
@@ -274,7 +312,8 @@ test("a navigation to a path that names a file is never answered with the app sh
   await expect(cold.locator(".wd-rail")).toHaveCount(0);
 });
 
-test("a navigation to an /api/ path is never claimed by the worker", async ({ page, context }) => {
+test("a navigation to an /api/ path is never answered with the app shell", async ({ page, context }) => {
+  await stubIssues(page);
   await page.goto("/today");
   await waitForActivatedWorker(page);
 
@@ -287,9 +326,9 @@ test("a navigation to an /api/ path is never claimed by the worker", async ({ pa
   // An /api/ address nothing has fetched, so the browser's own HTTP cache has no
   // copy to answer with: offline this navigation must simply fail. The app shell
   // coming back under an /api/ address is what claiming every navigate-mode
-  // request produces, since an endpoint name has no extension either. Task 5
-  // (#12) adds the /api/ request classes; until then the worker must not call
-  // respondWith() for anything under /api/ at all.
+  // request produces, since an endpoint name has no extension either. The two
+  // Jira reads are the only /api/ paths the worker claims at all, and this is
+  // not one of them.
   const cold = await context.newPage();
   await cold.goto("/api/no-such-endpoint").catch(() => undefined);
   await expect(cold.locator(".wd-rail")).toHaveCount(0);
@@ -307,7 +346,12 @@ test("a rebuild's app.js is what the next load takes, not the cached one", async
   // correct on both engines.
   test.skip(browserName !== "chromium", "routing a URL the active worker fetches is unreliable in Firefox");
 
-  await stubIssues(page);
+  // The reload below happens with the worker in control, so Today's own
+  // /api/issues request comes from the worker and a page route would not see
+  // it. Chromium is the one engine where a context route does.
+  await context.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
   await page.goto("/today");
   await waitForActivatedWorker(page);
 
@@ -430,4 +474,214 @@ test("a cache-first miss answered by the SPA fallback is served but never cached
     return cached ? "cached" : "not cached";
   });
   expect(cachedUnderTheChunkName).toBe("not cached");
+});
+
+// ---------------------------------------------------------------------------
+// The two /api/ request classes.
+//
+// What each engine can show here was measured, not assumed. Under
+// context.setOffline(true) Firefox keeps letting the *worker's own* fetch
+// reach the server: an offline read of a path the worker claims comes back
+// with a Date header seconds newer than the one before it, so the network arm
+// never fails and the cache fallback is never taken. Routing does not reach a
+// Firefox worker's fetch either (see the rebuild test above). Between them
+// that leaves no way to make the worker's network attempt fail on Firefox, so
+// every assertion about serving from cache is Chromium-only — stated here
+// rather than left to look like coverage this rig does not have.
+//
+// What Firefox does show is the class boundary: because its worker's fetch
+// still succeeds offline, a path the worker claims answers 200 while a path it
+// does not claim fails outright. That is exactly the fourth class, and the last
+// two tests assert it on both engines.
+
+async function readThroughWorker(
+  page: Page,
+  url: string,
+): Promise<{ status: number; body: string; stamp: string | null }> {
+  return page.evaluate(async (target) => {
+    const response = await fetch(target);
+    return {
+      status: response.status,
+      body: await response.text(),
+      stamp: response.headers.get("X-WD-Cached-At"),
+    };
+  }, url);
+}
+
+const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+test("the pinned issues come back from cache, stamped with when they were stored, once the server is unreachable", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "a Firefox worker's own fetch cannot be made to fail in this rig — see above");
+
+  // Settings, not Today: Settings reads only /api/instances, so nothing here
+  // needs the assigned-issues list stubbed. And GET /api/pins without refresh=1
+  // answers from SQLite alone (handleListPins), so letting it reach the real
+  // server contacts no Jira instance.
+  await page.goto("/settings");
+  await waitForActivatedWorker(page);
+  await waitForControllingWorker(page);
+
+  const live = await readThroughWorker(page, "/api/pins");
+  expect(live.status).toBe(200);
+  // A body off the wire is the current truth and must never be marked stale.
+  // Task 6 reads this header to decide, so its absence carries as much as its
+  // presence does.
+  expect(live.stamp).toBeNull();
+
+  await context.setOffline(true);
+
+  const offline = await readThroughWorker(page, "/api/pins");
+  expect(offline.status).toBe(200);
+  expect(offline.body).toBe(live.body);
+  // Nothing but the worker can produce this header, so the browser's own HTTP
+  // cache — which offline emulation does not reach — cannot stand in for it.
+  expect(offline.stamp).toMatch(ISO_UTC);
+
+  // Today's Refresh asks for /api/pins?refresh=1. That query tells the server to
+  // re-poll Jira; it does not name a different list. Nothing has ever fetched
+  // this spelling, so only a cache keyed on the path can answer it, and a
+  // refresh made with the server unreachable must fall back to the same copy
+  // rather than finding nothing of its own.
+  const refreshed = await readThroughWorker(page, "/api/pins?refresh=1");
+  expect(refreshed.body).toBe(live.body);
+  expect(refreshed.stamp).toBe(offline.stamp);
+});
+
+test("the assigned issues come back from cache, stamped, once the server is unreachable", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "a Firefox worker's own fetch cannot be made to fail in this rig — see above");
+
+  // The stub is what keeps this off the owner's real Jira instances, and
+  // changing what it answers is what stands in for the server's own moods: a
+  // context route reaches the worker's own fetch on Chromium, which is the
+  // whole reason this test is Chromium-only twice over.
+  let serverIs: "healthy" | "erroring" | "gone" = "healthy";
+  await context.route("**/api/issues", async (route) => {
+    if (serverIs === "gone") {
+      await route.abort("failed");
+      return;
+    }
+    if (serverIs === "erroring") {
+      await route.fulfill({ status: 500, json: { code: "internal", message: "boom" } });
+      return;
+    }
+    await route.fulfill({ status: 200, json: { instances: [{ instanceId: 1, issues: [] }] } });
+  });
+
+  await page.goto("/settings");
+  await waitForActivatedWorker(page);
+  await waitForControllingWorker(page);
+
+  const live = await readThroughWorker(page, "/api/issues");
+  expect(live.status).toBe(200);
+  expect(live.stamp).toBeNull();
+
+  // A 500 is an answer, not a lost connection: it is handed straight back,
+  // unstamped, and must not overwrite the last body that was actually a list.
+  serverIs = "erroring";
+  const errored = await readThroughWorker(page, "/api/issues");
+  expect(errored.status).toBe(500);
+  expect(errored.stamp).toBeNull();
+
+  serverIs = "gone";
+  const offline = await readThroughWorker(page, "/api/issues");
+  expect(offline.status).toBe(200);
+  expect(offline.body).toBe(live.body);
+  expect(offline.stamp).toMatch(ISO_UTC);
+});
+
+test("an /api/ read outside the two Jira lists is never answered from cache", async ({ page, context }) => {
+  await page.goto("/settings");
+  await waitForActivatedWorker(page);
+  await waitForControllingWorker(page);
+
+  // A successful online read of both classes, so whatever the worker was ever
+  // going to store for either, it has stored by now.
+  const instances = await readThroughWorker(page, "/api/instances");
+  expect(instances.status).toBe(200);
+  expect(instances.stamp).toBeNull();
+  expect((await readThroughWorker(page, "/api/pins")).status).toBe(200);
+
+  await context.setOffline(true);
+
+  // Spelled with a query nothing has ever fetched, so the browser's own HTTP
+  // cache has no entry to answer with — and since the worker's data cache is
+  // keyed on the path, this spelling would still find the entry if
+  // /api/instances had been stored. It has to fail.
+  const denied = await page.evaluate(() =>
+    fetch("/api/instances?cold=1")
+      .then((response) => `resolved ${response.status}`)
+      .catch(() => "rejected"),
+  );
+  expect(denied).toBe("rejected");
+
+  // The same page, the same moment, still gets its Jira list: what separates
+  // the two is the request class, not the state of the connection.
+  expect((await readThroughWorker(page, "/api/pins")).status).toBe(200);
+});
+
+test("a write attempted with the server unreachable fails and is never replayed once it is back", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/settings");
+  await waitForActivatedWorker(page);
+  await waitForControllingWorker(page);
+
+  // Stocks the data cache with a Jira list first. It is not what this test is
+  // about — it is what would let a worker that mistook a write for a read
+  // answer the POST below with a body instead of failing, so without it the
+  // test cannot tell a correct worker from one that never checked the method.
+  expect((await readThroughWorker(page, "/api/pins")).status).toBe(200);
+
+  let writesSeen = 0;
+  // Registered before the blanket abort, so it is what matches once the abort
+  // is lifted. It fulfils rather than continuing: a replay that did happen must
+  // be counted here and must never reach the owner's real database.
+  await context.route("**/api/pins", async (route) => {
+    if (route.request().method() === "POST") {
+      writesSeen += 1;
+      await route.fulfill({ status: 201, json: { id: 1 } });
+      return;
+    }
+    await route.fallback();
+  });
+
+  const abortEverything = (route: Route): Promise<void> => route.abort("failed");
+  await context.route("**/*", abortEverything);
+
+  const attempt = await page.evaluate(() =>
+    fetch("/api/pins", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instanceId: 1, issueKey: "WD-1" }),
+    })
+      .then((response) => `resolved ${response.status}`)
+      .catch(() => "rejected"),
+  );
+
+  // Not "resolved 202": a worker that took the write to replay later would have
+  // to answer the caller with something, and the view would report a save that
+  // never happened. Failing is the contract — api.ts turns this into
+  // ApiError(0, "network_error") and the view already says so.
+  expect(attempt).toBe("rejected");
+  expect(writesSeen).toBe(0);
+
+  await context.unroute("**/*", abortEverything);
+
+  // A reload with the connection back is the fullest chance a queue could ask
+  // for: the document reloads through the worker, main.ts runs again, and the
+  // worker sees a fresh client.
+  await page.reload();
+  await waitForControllingWorker(page);
+  expect(await page.evaluate(() => fetch("/api/health").then((response) => response.text()))).toContain("ok");
+
+  expect(writesSeen).toBe(0);
 });

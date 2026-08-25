@@ -27,6 +27,17 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "retain-on-failure",
+    // A request a service worker claims is invisible to page.route, and to
+    // context.route on every engine but Chromium — Playwright intercepts a
+    // worker's own fetches there and nowhere else. So from the moment sw.ts
+    // began claiming /api/issues and /api/pins (#12 task 5), a stub of either
+    // path would be silently bypassed on a controlled page and the request
+    // would reach the real server, which shares the dev database and fans out
+    // to the owner's Jira instances. Blocking registration by default keeps
+    // every spec's stubs authoritative and its failures honest; pwa.spec.ts,
+    // the one suite that is about the worker, opts back in with
+    // test.use({ serviceWorkers: "allow" }).
+    serviceWorkers: "block",
   },
   projects: [
     // Firefox first: it is the primary target.
