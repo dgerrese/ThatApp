@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page, type Route } from "@playwright/test";
 
 // This is the one suite whose subject is the worker, so it undoes the rig's
 // default block — see the comment on `serviceWorkers` in playwright.config.ts
@@ -8,17 +8,22 @@ test.use({ serviceWorkers: "allow" });
 // Today fetches issues on render; the e2e stack shares the dev database, so an
 // unstubbed request would fan out to the owner's real Jira instances.
 //
-// page.route, deliberately, even though the worker now claims /api/issues and a
-// page route never sees a request the worker makes. Every test here reads Today
-// before the worker controls the page — registration happens on load and claims
-// after that — so the page's own request is the one being stubbed. Raising this
-// to context.route would cover the worker too on Chromium, and would break the
-// offline-navigation tests on both engines: a context-level route costs any
-// later page in the context its ability to reach its worker for a navigation
-// (see the note above those tests). The one test that reloads Today with the
-// worker in control stubs at the context level itself.
-async function stubIssues(page: Page): Promise<void> {
-  await page.route("**/api/issues", (route) =>
+// Which level to stub at is not a style choice here. A page route never sees a
+// request the worker makes, and the worker now claims /api/issues — a context
+// route does see it, on Chromium. So a test that never opens a second page
+// stubs at the context level, and its stub holds whoever the request comes
+// from rather than resting on the page winning a race with registration.
+//
+// A test that does open a second page has to stay page-level: a context-level
+// route costs any later page in the context its ability to reach its worker for
+// a navigation (see the note above the offline-navigation tests), which is the
+// one thing those tests exist to show. Two things keep those off real Jira.
+// Their first page reads Today exactly once, during the load that registration
+// only begins at the end of, so the request being stubbed is the page's own.
+// And their second page — the controlled one, whose requests no route on
+// Firefox can reach — never renders Today at all.
+async function stubIssues(target: Page | BrowserContext): Promise<void> {
+  await target.route("**/api/issues", (route) =>
     route.fulfill({ status: 200, json: { instances: [] } }),
   );
 }
@@ -70,8 +75,8 @@ function waitForControllingWorker(page: Page): Promise<void> {
   );
 }
 
-test("the service worker registered by the app shell reaches activated", async ({ page }) => {
-  await stubIssues(page);
+test("the service worker registered by the app shell reaches activated", async ({ page, context }) => {
+  await stubIssues(context);
   await page.goto("/");
 
   await waitForActivatedWorker(page);
@@ -97,7 +102,7 @@ test("activation evicts stale caches and leaves exactly the two current-build on
     "window.caches throws SecurityError in this rig's Firefox — see comment above",
   );
 
-  await stubIssues(page);
+  await stubIssues(context);
 
   // main.ts's own auto-registration on "load" would race the stale-cache
   // seeding below — it must land before this page's worker installs and
@@ -168,7 +173,7 @@ test("install rejects a precache entry that answers HTML under a .js name, leavi
     "request.serviceWorker() — needed to target only the worker's own fetch — is Chromium-only in Playwright",
   );
 
-  await stubIssues(page);
+  await stubIssues(context);
 
   await context.route("**/app.js", async (route) => {
     if (route.request().serviceWorker()) {
@@ -246,8 +251,7 @@ async function expectShellRendered(page: Page): Promise<void> {
 // green in an earlier revision was reloading /today, which the browser's own
 // HTTP cache could still answer. Aborting every route instead of going offline
 // does reach the worker's own fetches, and that is Chromium-only in Playwright —
-// the same limitation the two tests below are skipped for. The worker's
-// navigate branch is exercised on Firefox by the cold-navigation test above.
+// the same limitation the two tests below are skipped for.
 test("a same-page reload with the server unreachable re-serves the cached shell", async ({
   page,
   context,
@@ -255,7 +259,7 @@ test("a same-page reload with the server unreachable re-serves the cached shell"
 }) => {
   test.skip(browserName !== "chromium", "aborting the worker's own fetches is Chromium-only — see comment above");
 
-  await stubIssues(page);
+  await stubIssues(context);
   await page.goto("/today");
   await waitForActivatedWorker(page);
 
@@ -286,11 +290,21 @@ test("a cold navigation to settings renders the shell while offline", async ({ p
   // HTTP cache entry for it and no network. Real navigations, not client-side
   // routing, so this exercises the worker for two distinct URLs and proves the
   // one cached /index.html stands in for either address.
+  //
+  // The second address is /week and not /today, and that is not arbitrary. This
+  // page is worker-controlled from its first byte, so a Today render here would
+  // put GET /api/issues in the worker's hands — and a request the worker makes
+  // is invisible to page.route on both engines and to context.route on Firefox,
+  // where setOffline does not reach it either. It would go out live, to a server
+  // sharing the dev database, and fan out to the owner's real Jira instances.
+  // /week has no view in this build, so the router renders its placeholder and
+  // fetches nothing, while still being a second real navigation to an address
+  // nothing has ever requested — which is all this test needs of it.
   const cold = await context.newPage();
   await cold.goto("/settings");
   await expectShellRendered(cold);
 
-  await cold.goto("/today");
+  await cold.goto("/week");
   await expectShellRendered(cold);
 });
 
@@ -349,9 +363,7 @@ test("a rebuild's app.js is what the next load takes, not the cached one", async
   // The reload below happens with the worker in control, so Today's own
   // /api/issues request comes from the worker and a page route would not see
   // it. Chromium is the one engine where a context route does.
-  await context.route("**/api/issues", (route) =>
-    route.fulfill({ status: 200, json: { instances: [] } }),
-  );
+  await stubIssues(context);
   await page.goto("/today");
   await waitForActivatedWorker(page);
 
@@ -386,7 +398,7 @@ test("a runtime response whose content type contradicts its path is served but n
   // the active worker itself fetches is unreliable in Firefox.
   test.skip(browserName !== "chromium", "routing a URL the active worker fetches is unreliable in Firefox");
 
-  await stubIssues(page);
+  await stubIssues(context);
   await page.goto("/today");
   await waitForActivatedWorker(page);
 
@@ -446,13 +458,17 @@ test("a plain fetch of index.html leaves the shell cache usable for navigations"
   await expectShellRendered(cold);
 });
 
-test("a cache-first miss answered by the SPA fallback is served but never cached", async ({ page, browserName }) => {
+test("a cache-first miss answered by the SPA fallback is served but never cached", async ({
+  page,
+  context,
+  browserName,
+}) => {
   test.skip(
     browserName !== "chromium",
     "window.caches throws SecurityError in this rig's Firefox — see the comment above the eviction test",
   );
 
-  await stubIssues(page);
+  await stubIssues(context);
   await page.goto("/today");
   await waitForActivatedWorker(page);
 

@@ -86,9 +86,11 @@ async function precacheShell(): Promise<void> {
 
 // Old shells and old data caches alike are evicted — a shell from a new
 // build must never render a body cached from an old response shape, see
-// "Updating" in the design doc. The current build's data cache is opened
-// here, empty, so a deployment starts with no last-known Jira data rather
-// than with data whose shape predates the code reading it.
+// "Updating" in the design doc. Deleting by name is also what leaves a
+// deployment with no last-known Jira data: the previous build's data cache is
+// named for its own build id, so it goes with the rest. Opening the current
+// one here only brings its creation forward from the first Jira read that
+// stores anything, so both of a build's caches exist from activation on.
 async function evictStaleCaches(): Promise<void> {
   const names = await caches.keys();
   await Promise.all(
