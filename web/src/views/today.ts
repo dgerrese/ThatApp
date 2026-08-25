@@ -40,6 +40,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   container.className = "space-y-4";
 
   const stale = document.createElement("div");
+  // Hidden while empty, not merely childless: the container's space-y-4 gives
+  // every non-last child a bottom margin, so an empty box here would open the
+  // view with 16px of dead space above the Pinned card. A display:none box
+  // contributes none.
+  stale.hidden = true;
 
   const pinnedCard = document.createElement("wd-card");
   pinnedCard.setAttribute("heading", "Pinned");
@@ -378,6 +383,7 @@ function renderCombinedStale(regions: Regions): void {
 
   if (moments.length === 0) {
     regions.stale.replaceChildren();
+    regions.stale.hidden = true;
     return;
   }
 
@@ -385,6 +391,7 @@ function renderCombinedStale(regions: Regions): void {
   regions.stale.replaceChildren(
     alertFor("warning", `Showing what was here at ${clockTime(oldest)} — no connection to the server.`),
   );
+  regions.stale.hidden = false;
 }
 
 async function refreshEverything(regions: Regions): Promise<void> {

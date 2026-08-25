@@ -277,7 +277,18 @@ test("a same-page reload with the server unreachable re-serves the cached shell"
   await expectShellRendered(page);
 });
 
-test("a cold navigation to settings renders the shell while offline", async ({ page, context }) => {
+test("a cold navigation to settings renders the shell while offline", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  // Firefox's worker keeps reaching the live server under setOffline, so the
+  // shell would come back off the network there and this test's green would say
+  // nothing about the cache — coverage its name claims. Cold navigation to
+  // /settings and /week over a reachable server is settings.spec.ts's and
+  // smoke.spec.ts's job, on both engines.
+  test.skip(browserName !== "chromium", "only Chromium honours setOffline for the worker's own fetch — see above");
+
   await stubIssues(page);
   await page.goto("/today");
   await waitForActivatedWorker(page);
@@ -533,10 +544,28 @@ test("the pinned issues come back from cache, stamped with when they were stored
 }) => {
   test.skip(browserName !== "chromium", "a Firefox worker's own fetch cannot be made to fail in this rig — see above");
 
+  // The stub is what keeps this off the owner's real Jira instances, and
+  // changing what it answers is what stands in for the server going away.
+  // ?refresh=1 below is the one spelling of GET /api/pins that makes the server
+  // fan out to every pinned issue's instance, and a request the worker makes is
+  // invisible to page.route — so nothing weaker than a context route on the
+  // path may stand between this test and the real thing. A URL predicate rather
+  // than a glob because a glob is matched against the whole URL, query string
+  // included, and would miss the refresh spelling.
+  let serverIsGone = false;
+  await context.route(
+    (url) => url.pathname === "/api/pins",
+    async (route) => {
+      if (serverIsGone) {
+        await route.abort("failed");
+        return;
+      }
+      await route.fulfill({ status: 200, json: [{ id: 1, key: "WORK-1" }] });
+    },
+  );
+
   // Settings, not Today: Settings reads only /api/instances, so nothing here
-  // needs the assigned-issues list stubbed. And GET /api/pins without refresh=1
-  // answers from SQLite alone (handleListPins), so letting it reach the real
-  // server contacts no Jira instance.
+  // needs the assigned-issues list stubbed.
   await page.goto("/settings");
   await waitForActivatedWorker(page);
   await waitForControllingWorker(page);
@@ -548,13 +577,13 @@ test("the pinned issues come back from cache, stamped with when they were stored
   // presence does.
   expect(live.stamp).toBeNull();
 
-  await context.setOffline(true);
+  serverIsGone = true;
 
   const offline = await readThroughWorker(page, "/api/pins");
   expect(offline.status).toBe(200);
   expect(offline.body).toBe(live.body);
-  // Nothing but the worker can produce this header, so the browser's own HTTP
-  // cache — which offline emulation does not reach — cannot stand in for it.
+  // Nothing but the worker can produce this header, so neither the stub nor the
+  // browser's own HTTP cache can stand in for it.
   expect(offline.stamp).toMatch(ISO_UTC);
 
   // Today's Refresh asks for /api/pins?refresh=1. That query tells the server to

@@ -10,6 +10,10 @@ export type Teardown = () => void;
  * window, while it is still the view on screen, where the router cannot
  * unwire it yet. Calling this as soon as the thing needing cleanup exists
  * closes that window instead of merely narrowing it.
+ *
+ * Call it once per resource. Registrations compose rather than replace: a view
+ * that hands over a timer and then a listener gets both unwired, in the order
+ * it registered them.
  */
 export type RegisterTeardown = (teardown: Teardown) => void;
 
@@ -35,9 +39,9 @@ const routes: Record<string, () => Promise<View>> = {
 const redirects: Record<string, string> = { "/": "/today" };
 
 let mountPoint: HTMLElement | undefined;
-// The one view currently mounted's own cleanup, if it registered any — called
-// right before the next view replaces it, so a listener a torn-down view left
-// on `window` never fires again.
+// Every cleanup the mounted view registered, composed into one — called right
+// before the next view replaces it, so a listener a torn-down view left on
+// `window` never fires again.
 let teardownCurrentView: Teardown | undefined;
 // Bumped once per renderCurrent() call, so a registerTeardown closure can
 // tell whether the navigation it belongs to is still the one on screen — see
@@ -99,7 +103,11 @@ async function renderCurrent(): Promise<void> {
       teardown();
       return;
     }
-    teardownCurrentView = teardown;
+    const previous = teardownCurrentView;
+    teardownCurrentView = () => {
+      previous?.();
+      teardown();
+    };
   };
 
   const load = routes[window.location.pathname];

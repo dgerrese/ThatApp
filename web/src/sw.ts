@@ -203,6 +203,11 @@ function withCachedAtHeader(response: Response, storedAt: Date): Response {
 // and a refresh made while the server is unreachable falls back to it.
 async function networkFirstJiraRead(request: Request, cacheKey: string): Promise<Response> {
   const cache = await caches.open(DATA_CACHE);
+  // The `put` sits inside the same try as the fetch, so a rejection from it —
+  // storage quota exhausted is the realistic one — is caught by a `catch` that
+  // means "the network failed" and answers with the stale stamped copy while
+  // the server is perfectly reachable. Hoisting the `put` out of the try is the
+  // fix whenever this is next opened.
   try {
     const response = await fetch(request);
     if (response.ok) {
