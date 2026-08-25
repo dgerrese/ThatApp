@@ -53,7 +53,11 @@ async function requestWithMeta<T>(path: string, init?: RequestInit): Promise<Cac
   }
 
   const cachedAtHeader = response.headers.get("X-WD-Cached-At");
-  const cachedAt = cachedAtHeader === null ? null : new Date(cachedAtHeader);
+  const parsedCachedAt = cachedAtHeader === null ? null : new Date(cachedAtHeader);
+  // A present-but-unparseable header must not become a truthy Invalid Date:
+  // unreachable while the worker is the only producer (it always writes
+  // toISOString()), but the view trusts this value without re-checking it.
+  const cachedAt = parsedCachedAt && Number.isNaN(parsedCachedAt.getTime()) ? null : parsedCachedAt;
 
   if (response.status === 204) {
     return { value: undefined as T, cachedAt };

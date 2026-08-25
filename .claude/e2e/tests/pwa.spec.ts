@@ -613,6 +613,76 @@ test("the assigned issues come back from cache, stamped, once the server is unre
   expect(offline.stamp).toMatch(ISO_UTC);
 });
 
+// Task 7's own coverage: the same server-unreachable/cache-fallback mechanism
+// the two tests above prove at the fetch level, now proven at the view level
+// — the warning names a time and clears on "online" with no reload. Chromium
+// -only for the same reason: only there can the worker's own /api/issues
+// fetch be made to fail.
+test("the assigned-issues warning names a time while the server is unreachable, and clears on 'online' without a reload", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "a Firefox worker's own fetch cannot be made to fail in this rig — see above");
+
+  let serverIs: "healthy" | "gone" = "healthy";
+  await context.route("**/api/issues", async (route) => {
+    if (serverIs === "gone") {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      json: {
+        instances: [
+          {
+            id: 1,
+            name: "Work",
+            issues: [
+              { key: "WD-1", summary: "Ship it", status: "In Progress", url: "https://example.test/WD-1" },
+            ],
+            error: null,
+          },
+        ],
+      },
+    });
+  });
+
+  // The first load's own /api/issues request can land before clients.claim()
+  // takes effect, in which case the worker never sees it and nothing is
+  // cached — the same reason the fetch-level tests above wait for a
+  // controlling worker before making the request they need cached. A reload
+  // once the worker already controls the page is what guarantees this one
+  // goes through it.
+  await page.goto("/today");
+  await waitForActivatedWorker(page);
+  await waitForControllingWorker(page);
+  await page.reload();
+  await waitForControllingWorker(page);
+
+  await expect(page.getByText("Ship it")).toBeVisible();
+  const warning = page.getByText(/Showing what was here at \d{2}:\d{2} — no connection to the server\./);
+  await expect(warning).toBeHidden();
+
+  // A further reload takes /api/issues back through the worker's
+  // network-first fetch, which now fails and falls back to the cache the
+  // live load above populated.
+  serverIs = "gone";
+  await page.reload();
+  await waitForControllingWorker(page);
+
+  await expect(page.getByText("Ship it")).toBeVisible();
+  await expect(warning).toBeVisible();
+
+  // The server recovering, plus the same event the browser itself fires: this
+  // is what proves the view's own "online" listener re-runs the refresh,
+  // rather than a manual reload standing in for it.
+  serverIs = "healthy";
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+
+  await expect(warning).toBeHidden();
+});
+
 test("an /api/ read outside the two Jira lists is never answered from cache", async ({ page, context }) => {
   await page.goto("/settings");
   await waitForActivatedWorker(page);

@@ -43,3 +43,12 @@ export function totalFigure(seconds: number): string {
 
   return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
+
+/**
+ * A moment on the clock, local to the browser, as `HH:MM` — `14:32`. For
+ * "showing what was here at", not for a duration, so it takes a `Date`
+ * rather than seconds and carries no negative-time guard.
+ */
+export function clockTime(date: Date): string {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}

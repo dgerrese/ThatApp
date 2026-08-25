@@ -7,6 +7,7 @@ import { alignKeyColumn } from "../key-column";
 
 import { ApiError, createPin, deletePin, listIssues, listPins, searchIssues } from "../api";
 import type { WdCombobox } from "../components/wd-combobox";
+import { clockTime } from "../format";
 import { paintInstanceDot } from "../instance-hue";
 import type { InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
@@ -19,21 +20,25 @@ import type { InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
  */
 interface Regions {
   pinnedCard: HTMLElement;
+  pinnedStale: HTMLElement;
   pinnedList: HTMLElement;
   pinnedForm: HTMLElement;
   header: HTMLElement;
   refresh: HTMLElement;
+  resultsStale: HTMLElement;
   results: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
 }
 
-export async function render(root: HTMLElement): Promise<void> {
+export async function render(root: HTMLElement): Promise<() => void> {
   const container = document.createElement("div");
   container.className = "space-y-4";
 
   const pinnedCard = document.createElement("wd-card");
   pinnedCard.setAttribute("heading", "Pinned");
+
+  const pinnedStale = document.createElement("div");
 
   const pinnedList = document.createElement("div");
   pinnedList.append(loadingLine());
@@ -41,7 +46,7 @@ export async function render(root: HTMLElement): Promise<void> {
   const pinnedForm = document.createElement("div");
   pinnedForm.className = "mt-3";
 
-  pinnedCard.append(pinnedList, pinnedForm);
+  pinnedCard.append(pinnedStale, pinnedList, pinnedForm);
 
   const header = document.createElement("div");
   header.className = "flex items-baseline justify-between";
@@ -57,19 +62,23 @@ export async function render(root: HTMLElement): Promise<void> {
   // no instances configured it stays hidden for good.
   header.hidden = true;
 
+  const resultsStale = document.createElement("div");
+
   const results = document.createElement("div");
   results.className = "space-y-4";
   results.append(loadingLine());
 
-  container.append(pinnedCard, header, results);
+  container.append(pinnedCard, header, resultsStale, results);
   root.append(container);
 
   const regions: Regions = {
     pinnedCard,
+    pinnedStale,
     pinnedList,
     pinnedForm,
     header,
     refresh,
+    resultsStale,
     results,
     pins: [],
     lastIssues: null,
@@ -78,10 +87,22 @@ export async function render(root: HTMLElement): Promise<void> {
     void refreshEverything(regions);
   });
 
+  // navigator.onLine is not trustworthy (a captive portal reports "online"),
+  // but the "online" event firing is still the right moment to try again —
+  // the fetch itself, not the event, decides whether the stale banner clears.
+  const handleOnline = (): void => {
+    void refreshEverything(regions);
+  };
+  window.addEventListener("online", handleOnline);
+
   // Independent on purpose: the Pinned card paints from the store alone and
   // must not wait on a fan-out that may be slow or failing.
   void refreshPins(regions);
   await refreshResults(regions);
+
+  return () => {
+    window.removeEventListener("online", handleOnline);
+  };
 }
 
 function currentPins(regions: Regions): Pin[] {
@@ -90,14 +111,17 @@ function currentPins(regions: Regions): Pin[] {
 
 async function refreshPins(regions: Regions, options?: { refresh?: boolean }): Promise<void> {
   try {
-    regions.pins = (await listPins(options)).value;
+    const { value: pins, cachedAt } = await listPins(options);
+    regions.pins = pins;
     renderPinnedList(regions, regions.pins);
+    renderStaleAlert(regions.pinnedStale, cachedAt);
     // Gated: replacing pinnedForm's children here would tear down an
     // in-progress search the moment Refresh's shared call reaches this branch
     // — the same class of bug #29 paid to fix in Settings.
     restorePinOpenerUnlessFormOpen(regions);
   } catch (error) {
     regions.pins = [];
+    renderStaleAlert(regions.pinnedStale, null);
     regions.pinnedList.replaceChildren(alertFor("error", messageOf(error)));
     // Same gate as the success branch above: a failing refresh must not wipe
     // an open form either. Unlike the success branch, a closed form stays
@@ -314,13 +338,32 @@ async function refreshResults(regions: Regions): Promise<void> {
   try {
     // The cards already on screen stay put while this is in flight: a list that
     // blinks out and back is indistinguishable from one that broke.
-    const { value: response } = await listIssues();
+    const { value: response, cachedAt } = await listIssues();
     regions.lastIssues = response;
+    renderStaleAlert(regions.resultsStale, cachedAt);
     renderResponse(regions, response);
   } catch (error) {
     regions.header.hidden = false;
+    renderStaleAlert(regions.resultsStale, null);
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
   }
+}
+
+/**
+ * `cachedAt` is set exactly when the worker served this response from cache
+ * (task 6's `Cached<T>`) — that is the whole freshness signal, not
+ * `navigator.onLine`. Clearing on `null` is what lets a later fetch that
+ * really does reach the server make the banner disappear on its own.
+ */
+function renderStaleAlert(slot: HTMLElement, cachedAt: Date | null): void {
+  if (!cachedAt) {
+    slot.replaceChildren();
+    return;
+  }
+
+  slot.replaceChildren(
+    alertFor("warning", `Showing what was here at ${clockTime(cachedAt)} — no connection to the server.`),
+  );
 }
 
 async function refreshEverything(regions: Regions): Promise<void> {

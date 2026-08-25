@@ -21,7 +21,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { timerFigure, totalFigure } from "./format.ts";
+import { clockTime, timerFigure, totalFigure } from "./format.ts";
 
 test("a timer is always HH:MM", () => {
   const cases: [number, string][] = [
@@ -61,5 +61,19 @@ test("a total is always Nh Nm", () => {
 test("a total never carries a colon", () => {
   for (const seconds of [0, 59, 60, 3599, 3600, 18900, 359999]) {
     assert.ok(!totalFigure(seconds).includes(":"), `totalFigure(${seconds}) grew a colon`);
+  }
+});
+
+test("a clock time is always zero-padded HH:MM, local to the Date given", () => {
+  const cases: [Date, string][] = [
+    [new Date(2026, 0, 1, 14, 32), "14:32"],
+    [new Date(2026, 0, 1, 0, 5), "00:05"],
+    [new Date(2026, 0, 1, 9, 0), "09:00"],
+    [new Date(2026, 0, 1, 23, 59), "23:59"],
+    [new Date(2026, 0, 1, 0, 0), "00:00"],
+  ];
+
+  for (const [date, want] of cases) {
+    assert.equal(clockTime(date), want, `clockTime(${date.toISOString()})`);
   }
 });

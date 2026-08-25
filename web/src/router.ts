@@ -1,5 +1,9 @@
+/** A view's own cleanup — e.g. an event listener it registered on `window`
+ *  that must not outlive it. */
+type Teardown = () => void;
+
 interface View {
-  render(root: HTMLElement): Promise<void>;
+  render(root: HTMLElement): Promise<void | Teardown>;
 }
 
 /**
@@ -20,6 +24,10 @@ const routes: Record<string, () => Promise<View>> = {
 const redirects: Record<string, string> = { "/": "/today" };
 
 let mountPoint: HTMLElement | undefined;
+// The one view currently mounted's own cleanup, if it registered any — called
+// right before the next view replaces it, so a listener a torn-down view left
+// on `window` never fires again.
+let teardownCurrentView: Teardown | undefined;
 
 export function startRouter(root: HTMLElement): void {
   mountPoint = root;
@@ -62,6 +70,9 @@ async function renderCurrent(): Promise<void> {
 
   markActiveRoute();
 
+  teardownCurrentView?.();
+  teardownCurrentView = undefined;
+
   const load = routes[window.location.pathname];
   if (!load) {
     renderPlaceholder(root);
@@ -70,7 +81,7 @@ async function renderCurrent(): Promise<void> {
 
   const view = await load();
   root.replaceChildren();
-  await view.render(root);
+  teardownCurrentView = (await view.render(root)) ?? undefined;
 }
 
 /**
