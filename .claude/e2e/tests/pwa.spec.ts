@@ -680,7 +680,13 @@ test("the assigned-issues warning names a time while the server is unreachable, 
   serverIs = "healthy";
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
 
+  // Both assertions, not just the warning: refreshResults' catch branch also
+  // clears the warning on a genuine failure (today.ts's error path), so
+  // "hidden" alone cannot tell a real recovery from a fetch that threw and
+  // wiped the list along with it. The list surviving is what pins this to the
+  // success path specifically.
   await expect(warning).toBeHidden();
+  await expect(page.getByText("Ship it")).toBeVisible();
 });
 
 test("an /api/ read outside the two Jira lists is never answered from cache", async ({ page, context }) => {

@@ -64,7 +64,7 @@ test("a total never carries a colon", () => {
   }
 });
 
-test("a clock time is always zero-padded HH:MM, local to the Date given", () => {
+test("a clock time is always zero-padded HH:MM", () => {
   const cases: [Date, string][] = [
     [new Date(2026, 0, 1, 14, 32), "14:32"],
     [new Date(2026, 0, 1, 0, 5), "00:05"],
@@ -75,5 +75,30 @@ test("a clock time is always zero-padded HH:MM, local to the Date given", () => 
 
   for (const [date, want] of cases) {
     assert.equal(clockTime(date), want, `clockTime(${date.toISOString()})`);
+  }
+});
+
+/**
+ * The case above builds and reads its Dates from the same local components,
+ * so it cannot tell `getHours`/`getMinutes` apart from `getUTCHours`/
+ * `getUTCMinutes` — and the container this runs in (`node:26-alpine`, no
+ * `TZ`) is UTC, so the two would also agree there by accident. Pinning a zone
+ * with a real, known offset from a fixed UTC instant is what makes "local to
+ * the browser" an assertion this test can actually fail on.
+ */
+test("a clock time reads the zone it runs in, not UTC", () => {
+  const originalTz = process.env["TZ"];
+  process.env["TZ"] = "Europe/Amsterdam";
+
+  try {
+    // 13:32 UTC in January is 14:32 CET (UTC+1, outside any DST window) —
+    // getUTCHours() would read back "13:32" here instead.
+    assert.equal(clockTime(new Date("2026-01-15T13:32:00Z")), "14:32");
+  } finally {
+    if (originalTz === undefined) {
+      delete process.env["TZ"];
+    } else {
+      process.env["TZ"] = originalTz;
+    }
   }
 });

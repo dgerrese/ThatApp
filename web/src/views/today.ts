@@ -9,6 +9,7 @@ import { ApiError, createPin, deletePin, listIssues, listPins, searchIssues } fr
 import type { WdCombobox } from "../components/wd-combobox";
 import { clockTime } from "../format";
 import { paintInstanceDot } from "../instance-hue";
+import type { RegisterTeardown } from "../router";
 import type { InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
@@ -20,25 +21,28 @@ import type { InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
  */
 interface Regions {
   pinnedCard: HTMLElement;
-  pinnedStale: HTMLElement;
   pinnedList: HTMLElement;
   pinnedForm: HTMLElement;
   header: HTMLElement;
   refresh: HTMLElement;
-  resultsStale: HTMLElement;
   results: HTMLElement;
+  /** One banner above both lists, per the design spec's singular "the
+   *  warning" — not one per list. See renderCombinedStale. */
+  stale: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
+  pinsCachedAt: Date | null;
+  issuesCachedAt: Date | null;
 }
 
-export async function render(root: HTMLElement): Promise<() => void> {
+export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   const container = document.createElement("div");
   container.className = "space-y-4";
 
+  const stale = document.createElement("div");
+
   const pinnedCard = document.createElement("wd-card");
   pinnedCard.setAttribute("heading", "Pinned");
-
-  const pinnedStale = document.createElement("div");
 
   const pinnedList = document.createElement("div");
   pinnedList.append(loadingLine());
@@ -46,7 +50,7 @@ export async function render(root: HTMLElement): Promise<() => void> {
   const pinnedForm = document.createElement("div");
   pinnedForm.className = "mt-3";
 
-  pinnedCard.append(pinnedStale, pinnedList, pinnedForm);
+  pinnedCard.append(pinnedList, pinnedForm);
 
   const header = document.createElement("div");
   header.className = "flex items-baseline justify-between";
@@ -62,26 +66,25 @@ export async function render(root: HTMLElement): Promise<() => void> {
   // no instances configured it stays hidden for good.
   header.hidden = true;
 
-  const resultsStale = document.createElement("div");
-
   const results = document.createElement("div");
   results.className = "space-y-4";
   results.append(loadingLine());
 
-  container.append(pinnedCard, header, resultsStale, results);
+  container.append(stale, pinnedCard, header, results);
   root.append(container);
 
   const regions: Regions = {
     pinnedCard,
-    pinnedStale,
     pinnedList,
     pinnedForm,
     header,
     refresh,
-    resultsStale,
     results,
+    stale,
     pins: [],
     lastIssues: null,
+    pinsCachedAt: null,
+    issuesCachedAt: null,
   };
   refresh.addEventListener("click", () => {
     void refreshEverything(regions);
@@ -94,15 +97,17 @@ export async function render(root: HTMLElement): Promise<() => void> {
     void refreshEverything(regions);
   };
   window.addEventListener("online", handleOnline);
+  // Registered now, not after the fan-out below resolves: the router can
+  // only unwire a listener it already knows about, and a navigation away
+  // while refreshResults is still in flight must find this here.
+  registerTeardown(() => {
+    window.removeEventListener("online", handleOnline);
+  });
 
   // Independent on purpose: the Pinned card paints from the store alone and
   // must not wait on a fan-out that may be slow or failing.
   void refreshPins(regions);
   await refreshResults(regions);
-
-  return () => {
-    window.removeEventListener("online", handleOnline);
-  };
 }
 
 function currentPins(regions: Regions): Pin[] {
@@ -113,15 +118,15 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
   try {
     const { value: pins, cachedAt } = await listPins(options);
     regions.pins = pins;
+    regions.pinsCachedAt = cachedAt;
     renderPinnedList(regions, regions.pins);
-    renderStaleAlert(regions.pinnedStale, cachedAt);
     // Gated: replacing pinnedForm's children here would tear down an
     // in-progress search the moment Refresh's shared call reaches this branch
     // — the same class of bug #29 paid to fix in Settings.
     restorePinOpenerUnlessFormOpen(regions);
   } catch (error) {
     regions.pins = [];
-    renderStaleAlert(regions.pinnedStale, null);
+    regions.pinsCachedAt = null;
     regions.pinnedList.replaceChildren(alertFor("error", messageOf(error)));
     // Same gate as the success branch above: a failing refresh must not wipe
     // an open form either. Unlike the success branch, a closed form stays
@@ -131,6 +136,8 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
       regions.pinnedForm.replaceChildren();
     }
   }
+
+  renderCombinedStale(regions);
 
   // The assigned cards may already be on screen from a fetch that finished
   // first; re-render them from the cached response so the dedupe reflects the
@@ -340,29 +347,43 @@ async function refreshResults(regions: Regions): Promise<void> {
     // blinks out and back is indistinguishable from one that broke.
     const { value: response, cachedAt } = await listIssues();
     regions.lastIssues = response;
-    renderStaleAlert(regions.resultsStale, cachedAt);
+    regions.issuesCachedAt = cachedAt;
     renderResponse(regions, response);
   } catch (error) {
     regions.header.hidden = false;
-    renderStaleAlert(regions.resultsStale, null);
+    regions.issuesCachedAt = null;
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
   }
+
+  renderCombinedStale(regions);
 }
 
 /**
- * `cachedAt` is set exactly when the worker served this response from cache
+ * The one warning both lists share (Ruling 11: the design spec's acceptance
+ * line names a single "the warning" above both, not one per list — and the
+ * two would fail together in practice anyway, since they hit the same
+ * server). Visible when either list is stale, naming the older of the two
+ * moments — never a shorter outage than the data on screen has actually
+ * been sitting for.
+ *
+ * `cachedAt` is set exactly when the worker served that response from cache
  * (task 6's `Cached<T>`) — that is the whole freshness signal, not
- * `navigator.onLine`. Clearing on `null` is what lets a later fetch that
- * really does reach the server make the banner disappear on its own.
+ * `navigator.onLine`. Both fields settling to `null` (a live fetch for each)
+ * is what lets this clear itself with no manual reload.
  */
-function renderStaleAlert(slot: HTMLElement, cachedAt: Date | null): void {
-  if (!cachedAt) {
-    slot.replaceChildren();
+function renderCombinedStale(regions: Regions): void {
+  const moments = [regions.pinsCachedAt, regions.issuesCachedAt].filter(
+    (moment): moment is Date => moment !== null,
+  );
+
+  if (moments.length === 0) {
+    regions.stale.replaceChildren();
     return;
   }
 
-  slot.replaceChildren(
-    alertFor("warning", `Showing what was here at ${clockTime(cachedAt)} — no connection to the server.`),
+  const oldest = moments.reduce((older, moment) => (moment.getTime() < older.getTime() ? moment : older));
+  regions.stale.replaceChildren(
+    alertFor("warning", `Showing what was here at ${clockTime(oldest)} — no connection to the server.`),
   );
 }
 

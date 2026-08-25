@@ -178,6 +178,42 @@ test("an unknown path offers a way back to Today", async ({ page }) => {
 });
 
 /**
+ * Today registers an "online" listener that re-runs its refresh (task 7).
+ * router.ts's teardown hook is what is supposed to remove it once Today is
+ * no longer the mounted view — this proves that actually happens, rather
+ * than trusting the router's own reading of its own code. Deleting either
+ * side of the hook (today.ts's registerTeardown call, or router.ts's call to
+ * it before the next view mounts) leaves every other suite green; this is
+ * the one test that would fail.
+ */
+test("navigating away from Today removes its 'online' listener, so reconnecting elsewhere refetches nothing", async ({
+  page,
+}) => {
+  let issuesCalls = 0;
+  await page.route("**/api/issues", async (route) => {
+    issuesCalls += 1;
+    await route.fulfill({ status: 200, json: { instances: [group(1, "Work", [workIssue])] } });
+  });
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
+
+  await page.goto("/today");
+  await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
+  expect(issuesCalls).toBe(1);
+
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+
+  // No positive signal exists for "nothing happened" — a leaked listener's
+  // refetch would land well inside this window, the same margin
+  // pins.spec.ts's own debounce-silence tests give a timer that must not fire.
+  await page.waitForTimeout(500);
+
+  expect(issuesCalls).toBe(1);
+});
+
+/**
  * A long summary must not push the status out of the card. It did: the row's
  * inner boxes sized to their content, so the summary's truncation never
  * engaged and the status left the card entirely on a narrow viewport.

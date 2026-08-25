@@ -1,9 +1,20 @@
 /** A view's own cleanup — e.g. an event listener it registered on `window`
  *  that must not outlive it. */
-type Teardown = () => void;
+export type Teardown = () => void;
+
+/**
+ * What a view calls, any time during its own `render` — synchronously or
+ * after its own async work — to hand the router its cleanup. Registration-
+ * based rather than a value `render` returns: a returned teardown is only
+ * known once the whole `render` (fan-out included) resolves, which leaves a
+ * window, while it is still the view on screen, where the router cannot
+ * unwire it yet. Calling this as soon as the thing needing cleanup exists
+ * closes that window instead of merely narrowing it.
+ */
+export type RegisterTeardown = (teardown: Teardown) => void;
 
 interface View {
-  render(root: HTMLElement): Promise<void | Teardown>;
+  render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void>;
 }
 
 /**
@@ -28,6 +39,10 @@ let mountPoint: HTMLElement | undefined;
 // right before the next view replaces it, so a listener a torn-down view left
 // on `window` never fires again.
 let teardownCurrentView: Teardown | undefined;
+// Bumped once per renderCurrent() call, so a registerTeardown closure can
+// tell whether the navigation it belongs to is still the one on screen — see
+// registerTeardown below.
+let navigationId = 0;
 
 export function startRouter(root: HTMLElement): void {
   mountPoint = root;
@@ -73,6 +88,20 @@ async function renderCurrent(): Promise<void> {
   teardownCurrentView?.();
   teardownCurrentView = undefined;
 
+  const thisNavigation = ++navigationId;
+  // A registration arriving after a later navigation has already started
+  // (the view awaited something and lost a race with the next click) must
+  // tear itself down immediately rather than overwrite the view now on
+  // screen — the bug a return-based hook had, since nothing could run
+  // between "render resolved" and "the value gets stored".
+  const registerTeardown: RegisterTeardown = (teardown) => {
+    if (thisNavigation !== navigationId) {
+      teardown();
+      return;
+    }
+    teardownCurrentView = teardown;
+  };
+
   const load = routes[window.location.pathname];
   if (!load) {
     renderPlaceholder(root);
@@ -81,7 +110,7 @@ async function renderCurrent(): Promise<void> {
 
   const view = await load();
   root.replaceChildren();
-  teardownCurrentView = (await view.render(root)) ?? undefined;
+  await view.render(root, registerTeardown);
 }
 
 /**
