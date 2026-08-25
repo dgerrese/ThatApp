@@ -128,11 +128,16 @@ if (watch) {
   // esbuild's own watcher rebuilds the app on every source edit; without this
   // hook the worker was only ever built once, at startup, and dist/sw.js
   // would name superseded chunk hashes from the first dev edit onward.
+  // lastMetafile is captured here and reused below by the sw.ts-only watch,
+  // which has no app rebuild of its own to hand buildWorker a fresh one.
+  let lastMetafile;
   const rebuildWorkerPlugin = {
     name: "rebuild-worker",
     setup(build) {
       build.onEnd((result) => {
-        if (result.metafile) return buildWorker(result.metafile, assetPaths);
+        if (!result.metafile) return undefined;
+        lastMetafile = result.metafile;
+        return buildWorker(result.metafile, assetPaths);
       });
     },
   };
@@ -151,6 +156,24 @@ if (watch) {
       } catch (err) {
         console.error(`copying index.html into dist/ failed: ${err.message}`);
       }
+    }, 50);
+  });
+
+  // sw.ts is bundled on its own (see workerOptions), not part of main.ts's
+  // dependency graph, so the esbuild watcher above never rebuilds it — a
+  // sw.ts-only edit under a long-running `make up` left dist/sw.js stale
+  // indefinitely (found the hard way in #12 task 4: hours of a Playwright
+  // rig behaving as if the worker had no fetch handler, because it still
+  // didn't). Same directory-not-file watch reasoning as index.html's, above.
+  let pendingWorker;
+  watchPath("src", (_event, filename) => {
+    if (filename !== "sw.ts") return;
+    clearTimeout(pendingWorker);
+    pendingWorker = setTimeout(() => {
+      if (!lastMetafile) return;
+      buildWorker(lastMetafile, assetPaths).catch((err) => {
+        console.error(`rebuilding sw.ts failed: ${err.message}`);
+      });
     }, 50);
   });
 

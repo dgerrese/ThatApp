@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 // "/" leads to Today, which fetches on render; the e2e stack shares the dev
 // database, so an unstubbed request would fan out to real Jira instances.
@@ -184,57 +184,115 @@ async function expectShellRendered(page: Page): Promise<void> {
   expect(await page.locator("#view > *").count()).toBeGreaterThan(0);
 }
 
-// Registering ANY Playwright route on a page — even one that never matches a
-// URL involved below, even later removed with unroute() — leaves that page's
-// CDP/BiDi session unable to reach its own service worker for a later
-// navigation made while context.setOffline(true) is active: the navigation
-// fails outright (net::ERR_FAILED on Chromium, NS_ERROR_OFFLINE on Firefox)
-// before the worker's fetch handler ever runs, confirmed by a direct A/B
-// probe (a sibling page with no route ever registered, same context, same
-// origin, succeeds every time). The service worker and its caches are scoped
-// to the origin, not the page, so a second, never-routed page in the same
-// context sees the same activated worker and the same precached shell
-// without registering or precaching anything itself. This is the shape 2
-// escape hatch from the brief's rig-hazard warning, aimed one layer deeper
-// than the page.route-stub-bypass it named: not "the worker steals traffic
-// page.route wants", but "page.route poisons a page's own future offline
-// navigations", which is why setOffline(true) is used here alongside a
-// second page instead of `serviceWorkers: 'block'`.
-async function newUnroutedPage(context: BrowserContext): Promise<Page> {
-  return context.newPage();
-}
+// Two things about context.setOffline(true) decide how every test below is
+// written.
+//
+// It does reach the worker's own fetches as well as the page's, on both engines,
+// so the network arm of networkFirst really does fail and the cache arm really
+// is what answers.
+//
+// It does not reach either browser's own HTTP cache. A URL some page in the
+// context already fetched can still be answered from there, worker or no worker,
+// so going offline and revisiting a warm URL proves nothing about sw.ts. Every
+// assertion below is therefore either about a URL nothing in its context has
+// fetched, or about *what* came back rather than that anything came back at all.
 
-test("the shell survives a reload while offline", async ({ page, context }) => {
+// A reload is its own code path — a fresh page that goto()s is not the same
+// thing as a page reloading the document it is already showing — and it is the
+// one the spec's "the shell survives a reload while offline" describes.
+//
+// It is Chromium-only, and not for want of trying. page.reload() under
+// context.setOffline(true) never reaches the worker on either engine: the
+// navigation is failed before the fetch handler is dispatched, which shows up as
+// NS_ERROR_OFFLINE on Firefox and ERR_FAILED on Chromium. What made it look
+// green in an earlier revision was reloading /today, which the browser's own
+// HTTP cache could still answer. Aborting every route instead of going offline
+// does reach the worker's own fetches, and that is Chromium-only in Playwright —
+// the same limitation the two tests below are skipped for. The worker's
+// navigate branch is exercised on Firefox by the cold-navigation test above.
+test("a same-page reload with the server unreachable re-serves the cached shell", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "aborting the worker's own fetches is Chromium-only — see comment above");
+
   await stubIssues(page);
   await page.goto("/today");
   await waitForActivatedWorker(page);
 
-  await context.setOffline(true);
+  // Routed client-side to Settings before the server goes away: the address
+  // changes but nothing fetches /settings, so there is no HTTP cache entry for
+  // the reload below to be answered from and the worker is the only thing that
+  // can serve it. exact: true disambiguates from Today's own "Open Settings"
+  // link, on screen in the no-instances state stubIssues produces.
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
 
-  const shellPage = await newUnroutedPage(context);
-  await shellPage.goto("/today");
+  await context.route("**/*", (route) => route.abort("failed"));
+  await page.reload();
 
-  await expectShellRendered(shellPage);
+  await expectShellRendered(page);
 });
 
-test("today and settings each survive a full navigation while offline", async ({ page, context }) => {
+test("a cold navigation to settings renders the shell while offline", async ({ page, context }) => {
   await stubIssues(page);
   await page.goto("/today");
   await waitForActivatedWorker(page);
 
   await context.setOffline(true);
 
-  // Real navigations (goto), not client-side routing: this exercises the
-  // worker's navigate-mode handler for two distinct URLs, both of which the
-  // server would answer with the SPA fallback if it were reachable — proving
-  // the cached /index.html stands in for either address, not just the one
-  // last loaded.
-  const shellPage = await newUnroutedPage(context);
-  await shellPage.goto("/today");
-  await expectShellRendered(shellPage);
+  // Settings first, on a page that has never been to it and in a context where
+  // nothing has fetched it — deliberately the order an earlier revision of this
+  // test avoided. Nothing but the worker can answer /settings here: there is no
+  // HTTP cache entry for it and no network. Real navigations, not client-side
+  // routing, so this exercises the worker for two distinct URLs and proves the
+  // one cached /index.html stands in for either address.
+  const cold = await context.newPage();
+  await cold.goto("/settings");
+  await expectShellRendered(cold);
 
-  await shellPage.goto("/settings");
-  await expectShellRendered(shellPage);
+  await cold.goto("/today");
+  await expectShellRendered(cold);
+});
+
+test("a navigation to a path that names a file is never answered with the app shell", async ({ page, context }) => {
+  await stubIssues(page);
+  await page.goto("/today");
+  await waitForActivatedWorker(page);
+
+  await context.setOffline(true);
+
+  // manifest.json, sw.js and a stale chunk all reduce to this once the worker has
+  // had its say: a navigation naming a file nothing claims, which offline simply
+  // fails. The app shell must never come back under such an address, and that is
+  // exactly what claiming every navigate-mode request produces. A name nothing
+  // has ever requested, so the browser's own HTTP cache has no copy to answer
+  // with and only the worker's behaviour decides the outcome.
+  const cold = await context.newPage();
+  await cold.goto("/a-file-this-build-never-shipped.png").catch(() => undefined);
+  await expect(cold.locator(".wd-rail")).toHaveCount(0);
+});
+
+test("a navigation to an /api/ path is never claimed by the worker", async ({ page, context }) => {
+  await page.goto("/today");
+  await waitForActivatedWorker(page);
+
+  // The ordinary way to check the server is up, and it still works.
+  await page.goto("/api/health");
+  expect(await page.evaluate(() => document.body.textContent)).toContain("ok");
+
+  await context.setOffline(true);
+
+  // An /api/ address nothing has fetched, so the browser's own HTTP cache has no
+  // copy to answer with: offline this navigation must simply fail. The app shell
+  // coming back under an /api/ address is what claiming every navigate-mode
+  // request produces, since an endpoint name has no extension either. Task 5
+  // (#12) adds the /api/ request classes; until then the worker must not call
+  // respondWith() for anything under /api/ at all.
+  const cold = await context.newPage();
+  await cold.goto("/api/no-such-endpoint").catch(() => undefined);
+  await expect(cold.locator(".wd-rail")).toHaveCount(0);
 });
 
 test("a rebuild's app.js is what the next load takes, not the cached one", async ({ page, context, browserName }) => {
@@ -273,4 +331,103 @@ test("a rebuild's app.js is what the next load takes, not the cached one", async
   expect(
     await page.evaluate(() => (window as unknown as { __wd_rebuilt?: boolean }).__wd_rebuilt),
   ).toBe(true);
+});
+
+test("a runtime response whose content type contradicts its path is served but never cached", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  // Same Chromium-only constraint as the rebuild test above: routing a URL
+  // the active worker itself fetches is unreliable in Firefox.
+  test.skip(browserName !== "chromium", "routing a URL the active worker fetches is unreliable in Firefox");
+
+  await stubIssues(page);
+  await page.goto("/today");
+  await waitForActivatedWorker(page);
+
+  // The exact shape handleAsset's SPA fallback produces for a chunk or
+  // unhashed file gone missing mid-rebuild: 200, but the wrong Content-Type
+  // for the path asked for. install already refuses to cache this
+  // (precacheShell, sw.ts); this proves the runtime path refuses too.
+  await context.route("**/app.js", (route) => {
+    if (!route.request().serviceWorker()) {
+      return route.continue();
+    }
+    return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>lie</title>" });
+  });
+
+  // A direct fetch, not a reload: the lying response is still served as-is
+  // to whoever asked for it (only the cache write is guarded), so this
+  // would break a page that loaded it as a script — the assertion below
+  // only needs the response body, not a working page.
+  const served = await page.evaluate(async () => (await fetch("/app.js")).text());
+  expect(served).toContain("lie");
+
+  const cacheKeptTheGoodCopy = await page.evaluate(async () => {
+    const shellName = (await caches.keys()).find((name) => name.startsWith("wd-shell-"));
+    if (!shellName) return false;
+    const cached = await (await caches.open(shellName)).match("/app.js");
+    if (!cached) return false;
+    return !(await cached.text()).includes("lie");
+  });
+  expect(cacheKeptTheGoodCopy).toBe(true);
+});
+
+test("a plain fetch of index.html leaves the shell cache usable for navigations", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "only Chromium refuses a redirected response for a navigation — see withoutRedirectHistory in sw.ts",
+  );
+
+  await stubIssues(page);
+  await page.goto("/today");
+  await waitForActivatedWorker(page);
+
+  // handleAsset redirects /index.html to ./, so this response arrives with its
+  // redirected flag set, and networkFirst writes it straight to the one entry
+  // every offline navigation falls back to. A worker may not answer a
+  // navigation with a redirected response, so storing one here breaks the whole
+  // offline fallback — and it breaks it nowhere near the fetch that did it.
+  await page.evaluate(() => fetch("/index.html").then((response) => response.text()));
+
+  await context.route("**/*", (route) => route.abort("failed"));
+
+  const cold = await context.newPage();
+  await cold.goto("/settings");
+  await expectShellRendered(cold);
+});
+
+test("a cache-first miss answered by the SPA fallback is served but never cached", async ({ page, browserName }) => {
+  test.skip(
+    browserName !== "chromium",
+    "window.caches throws SecurityError in this rig's Firefox — see the comment above the eviction test",
+  );
+
+  await stubIssues(page);
+  await page.goto("/today");
+  await waitForActivatedWorker(page);
+
+  // No such chunk was ever built, so handleAsset answers it with index.html —
+  // 200, text/html, under a .js name. This is the real fallback, not a routed
+  // stub: it is exactly what a chunk request lands in during a dev rebuild
+  // window, and it is the lie install already refuses to precache.
+  const served = await page.evaluate(async () => {
+    const response = await fetch("/chunk-0000000000000000.js");
+    return { status: response.status, contentType: response.headers.get("Content-Type") ?? "" };
+  });
+  expect(served.status).toBe(200);
+  expect(served.contentType).toContain("html");
+
+  const cachedUnderTheChunkName = await page.evaluate(async () => {
+    const shellName = (await caches.keys()).find((name) => name.startsWith("wd-shell-"));
+    if (!shellName) return "no shell cache";
+    const cached = await (await caches.open(shellName)).match("/chunk-0000000000000000.js");
+    return cached ? "cached" : "not cached";
+  });
+  expect(cachedUnderTheChunkName).toBe("not cached");
 });

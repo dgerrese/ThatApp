@@ -40,6 +40,24 @@ function answersAsExpectedType(path: string, contentType: string | null): boolea
   return expected === undefined || (contentType ?? "").toLowerCase().includes(expected);
 }
 
+// A worker may not answer a *navigation* with a response whose redirected flag
+// is set — the browser rejects it outright ("the service worker navigation
+// response redirected flag is set"). Go's http.ServeFileFS redirects any path
+// ending in /index.html to ./, so the precache fetch for /index.html — the one
+// entry every offline navigation falls back to — comes back redirected, and
+// caching it as-is makes the entire offline fallback fail. Chromium enforces
+// the rule and the navigation dies with ERR_FAILED; Firefox does not, which is
+// what let this hide as a rig quirk. Re-wrapping loses nothing: status,
+// headers and body are carried over, only the redirect history is dropped.
+function withoutRedirectHistory(response: Response): Response {
+  if (!response.redirected) return response;
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
 // Fetches every precache entry and rejects the whole install if one answers
 // the wrong Content-Type, rather than caching a lie that would only surface
 // later as a syntax error in a view that used to work. A rejected install
@@ -57,7 +75,7 @@ async function precacheShell(): Promise<void> {
             `refusing to precache ${path}: answered ${response.status} ${contentType ?? "(no content-type)"}`,
           );
         }
-        await cache.put(path, response);
+        await cache.put(path, withoutRedirectHistory(response));
       }),
     );
   } catch (err) {
@@ -97,16 +115,35 @@ function isFontOrIcon(pathname: string): boolean {
   return pathname.startsWith("/fonts/") || pathname.startsWith("/icons/");
 }
 
+// /today, /settings, / and any unknown path — the addresses handleAsset
+// answers with the app shell. Every file this build ships carries an
+// extension (.html, .css, .js, .woff2, .png, .svg, .json, and sw.js), and no
+// view's address has one, so naming a file is what separates "a navigation to
+// a view" from "someone opened an asset in its own tab". Only the first may
+// be answered from the /index.html the shell cache holds.
+function isAppRoute(pathname: string): boolean {
+  return !/\.[^/]+$/.test(pathname);
+}
+
 // A cache-first entry is content-addressed or precached-and-static, so the
 // cache is trusted first and the network is only a fallback for whatever
-// was not (yet) precached.
+// was not (yet) precached. Guarded by the same content-type check install
+// uses (see EXTENSION_CONTENT_TYPES above): a lying response is still
+// returned to the caller, but never written into the cache, for the same
+// reason precacheShell refuses to cache one — handleAsset answers any
+// missing path with a 200 of index.html, and a runtime request can land in
+// that window (a dev rebuild not yet finished writing dist/) just as easily
+// as an install-time one can.
 async function cacheFirst(request: Request): Promise<Response> {
   const cache = await caches.open(SHELL_CACHE);
   const cached = await cache.match(request);
   if (cached) return cached;
 
   const response = await fetch(request);
-  if (response.ok) await cache.put(request, response.clone());
+  const pathname = new URL(request.url).pathname;
+  if (response.ok && answersAsExpectedType(pathname, response.headers.get("Content-Type"))) {
+    await cache.put(request, withoutRedirectHistory(response.clone()));
+  }
   return response;
 }
 
@@ -114,12 +151,17 @@ async function cacheFirst(request: Request): Promise<Response> {
 // network is the only source that is always right — see "The request
 // classes" in the design doc. cacheKey is passed separately from request
 // because a navigation's URL (e.g. /today) is never the cache's own key;
-// every navigation instead falls back to the one cached /index.html.
+// every navigation instead falls back to the one cached /index.html. The
+// content-type check is against cacheKey, not request's own URL, for the
+// same reason: a navigation's response is checked as if it were index.html,
+// which is the type it is actually stored — and served back — as.
 async function networkFirst(request: Request, cacheKey: string): Promise<Response> {
   const cache = await caches.open(SHELL_CACHE);
   try {
     const response = await fetch(request);
-    if (response.ok) await cache.put(cacheKey, response.clone());
+    if (response.ok && answersAsExpectedType(cacheKey, response.headers.get("Content-Type"))) {
+      await cache.put(cacheKey, withoutRedirectHistory(response.clone()));
+    }
     return response;
   } catch (err) {
     const cached = await cache.match(cacheKey);
@@ -135,12 +177,27 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (request.mode === "navigate") {
+  const pathname = url.pathname;
+
+  // Never claimed, never cached — including a top-level navigation to
+  // /api/health, the ordinary way to check the server is up. It names no file,
+  // so isAppRoute below would otherwise take it for a view and answer it from
+  // the shell cache whenever the server is unreachable. Task 5 (#12) adds the
+  // two /api/ request classes; until then this handler must not call
+  // respondWith() for anything under /api/, both because the design forbids
+  // caching the app's own truth and because Playwright's page.route stubs for
+  // /api/* only work on requests the worker never claims.
+  if (pathname.startsWith("/api/")) return;
+
+  // request.mode says nothing about what was asked for, so the mode alone is
+  // not enough to claim a request for the shell: an icon, a font or the
+  // manifest opened in its own tab is a navigation too, and answering one from
+  // the /index.html the shell cache holds serves HTML under a .png address.
+  if (request.mode === "navigate" && isAppRoute(pathname)) {
     event.respondWith(networkFirst(request, "/index.html"));
     return;
   }
 
-  const pathname = url.pathname;
   if (pathname === "/index.html" || pathname === "/app.css" || pathname === "/app.js") {
     event.respondWith(networkFirst(request, pathname));
     return;
@@ -151,10 +208,5 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Everything else — /api/* above all — is left to the browser's own
-  // networking. Task 5 (#12) adds the two /api/ request classes here; until
-  // then this handler must not call respondWith() for them, both because the
-  // design forbids caching the app's own truth and because Playwright's
-  // page.route stubs for /api/* only work on requests the worker never
-  // claims.
+  // Everything else falls through to the browser's own networking.
 });
