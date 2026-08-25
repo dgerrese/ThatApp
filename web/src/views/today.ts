@@ -90,7 +90,7 @@ function currentPins(regions: Regions): Pin[] {
 
 async function refreshPins(regions: Regions, options?: { refresh?: boolean }): Promise<void> {
   try {
-    regions.pins = await listPins(options);
+    regions.pins = (await listPins(options)).value;
     renderPinnedList(regions, regions.pins);
     // Gated: replacing pinnedForm's children here would tear down an
     // in-progress search the moment Refresh's shared call reaches this branch
@@ -314,7 +314,7 @@ async function refreshResults(regions: Regions): Promise<void> {
   try {
     // The cards already on screen stay put while this is in flight: a list that
     // blinks out and back is indistinguishable from one that broke.
-    const response = await listIssues();
+    const { value: response } = await listIssues();
     regions.lastIssues = response;
     renderResponse(regions, response);
   } catch (error) {
