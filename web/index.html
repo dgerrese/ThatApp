@@ -44,8 +44,12 @@
           <div id="rail-total" class="wd-tnum text-hero leading-[0.88] font-bold tracking-[-0.035em]">
             0h 00m
           </div>
-          <!-- #7 replaces this line with the split bar and a figure per instance. -->
-          <span id="rail-split" class="text-rail-muted text-base">Nothing to split yet</span>
+          <!-- #7 fills this with the split bar and a figure per instance. The
+               resting line is inside it rather than replaced by it, so the bar
+               is absent — not zero width — until there is something to divide. -->
+          <div id="rail-split" class="flex flex-col gap-3">
+            <span class="text-rail-muted text-base">Nothing to split yet</span>
+          </div>
 
           <div class="bg-rail-active h-px"></div>
 

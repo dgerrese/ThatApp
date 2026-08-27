@@ -1,5 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// Pinned rows carry #7's duration cell now, and its figure comes from here.
+// Stubbed for the same reason the pin and issue routes are: the e2e stack
+// shares the dev database.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+});
+
 interface StubPin {
   id: number;
   instanceId: number;

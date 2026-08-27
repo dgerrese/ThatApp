@@ -5,10 +5,22 @@ import "../components/wd-combobox";
 import "../components/wd-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
-import { ApiError, createPin, deletePin, listIssues, listPins, searchIssues } from "../api";
+import {
+  ApiError,
+  createPin,
+  deletePin,
+  listEntries,
+  listIssues,
+  listPins,
+  searchIssues,
+} from "../api";
 import type { WdCombobox } from "../components/wd-combobox";
+import type { EntryTicket } from "../components/wd-entry-dialog";
+import { openEntryDialog } from "../components/wd-entry-dialog";
+import { LOG_TIME } from "../components/wd-ticket-row";
+import { onEntriesChanged } from "../entries-changed";
 import { paintInstanceDot } from "../instance-hue";
-import type { InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
+import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
  * The regions that outlive a fetch, plus the two caches (pins, the last issues
@@ -26,6 +38,10 @@ interface Regions {
   results: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
+  /** Today's logged seconds per row, keyed by instance and issue. */
+  totals: Map<string, number>;
+  /** Bumped per totals refresh, so a slow read cannot overwrite a newer one. */
+  totalsEpoch: number;
 }
 
 export async function render(root: HTMLElement): Promise<void> {
@@ -73,15 +89,86 @@ export async function render(root: HTMLElement): Promise<void> {
     results,
     pins: [],
     lastIssues: null,
+    totals: new Map(),
+    totalsEpoch: 0,
   };
   refresh.addEventListener("click", () => {
     void refreshEverything(regions);
   });
 
+  // Caught here rather than in the row, which knows its ticket but not where a
+  // dialog should live. The host is the view root: Today re-renders its lists
+  // wholesale, so a dialog nested in a row would be destroyed mid-edit.
+  container.addEventListener(LOG_TIME, (event) => {
+    const request = (event as CustomEvent<EntryTicket>).detail;
+    openEntryDialog(root, request);
+  });
+
+  // The listener is on document, which outlives this view — the router unmounts
+  // by replacing the root's children and offers no hook to unsubscribe from. So
+  // it retires itself the first time it wakes up detached.
+  const stopListening = onEntriesChanged((entries) => {
+    if (!container.isConnected) {
+      stopListening();
+
+      return;
+    }
+    void refreshTotals(regions, entries);
+  });
+
   // Independent on purpose: the Pinned card paints from the store alone and
   // must not wait on a fan-out that may be slow or failing.
   void refreshPins(regions);
+  void refreshTotals(regions);
   await refreshResults(regions);
+}
+
+/**
+ * Repaints every row's duration cell from today's logged time — the list the
+ * announcement carried when it carried one, a read of its own otherwise (the
+ * mount, and the fallback for an announcer whose own read failed).
+ *
+ * The rows are found in the DOM rather than re-rendered: a re-render would
+ * throw away the pin form mid-search and the assigned cards mid-scroll to
+ * change one number on each row.
+ *
+ * A failure leaves the last known totals on screen. A row that cannot be told
+ * what was logged should keep saying what it last knew rather than claim zero,
+ * which is the one wrong answer that looks like a real one.
+ */
+async function refreshTotals(regions: Regions, fresh?: Entry[]): Promise<void> {
+  const mine = ++regions.totalsEpoch;
+
+  let entries = fresh;
+  if (!entries) {
+    try {
+      entries = await listEntries();
+    } catch {
+      return;
+    }
+    if (mine !== regions.totalsEpoch) return;
+  }
+
+  regions.totals = new Map();
+  for (const entry of entries) {
+    const id = totalKey(entry.instanceId, entry.issueKey);
+    regions.totals.set(id, (regions.totals.get(id) ?? 0) + entry.seconds);
+  }
+
+  paintTotals(regions);
+}
+
+function totalKey(instanceId: number, issueKey: string): string {
+  return `${instanceId}:${issueKey}`;
+}
+
+/** Writes the totals onto whatever rows are on screen right now. */
+function paintTotals(regions: Regions): void {
+  for (const row of document.querySelectorAll("wd-ticket-row")) {
+    const instanceId = Number(row.getAttribute("instance-id") ?? "0");
+    const issueKey = row.getAttribute("key") ?? "";
+    row.setAttribute("seconds", String(regions.totals.get(totalKey(instanceId, issueKey)) ?? 0));
+  }
 }
 
 function currentPins(regions: Regions): Pin[] {
@@ -138,6 +225,11 @@ function renderPinnedList(regions: Regions, pins: Pin[]): void {
   regions.pinnedList.replaceChildren(list);
 
   alignKeyColumn(list);
+  // Rows are built without a total and given one here, from what was last read.
+  // Rendering is not the only thing that reaches this list — a pin, an unpin
+  // and a Refresh all rebuild it — and every one of them would otherwise put
+  // 0:00 back on a ticket with time against it.
+  paintTotals(regions);
 }
 
 function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
@@ -159,6 +251,11 @@ function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
   row.setAttribute("summary", pin.summary);
   row.setAttribute("status", pin.status);
   row.setAttribute("url", pin.url);
+  // The duration cell needs both: the id to log against, the name to head the
+  // dialog. A pinned row draws a dot instead of a name, so the name is carried
+  // here rather than read back off the row.
+  row.setAttribute("instance-id", String(pin.instanceId));
+  row.setAttribute("instance-name", pin.instanceName);
   wrapper.append(row);
 
   item.append(dot, wrapper);
@@ -359,6 +456,8 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
   for (const list of regions.results.querySelectorAll<HTMLElement>("ul")) {
     alignKeyColumn(list);
   }
+
+  paintTotals(regions);
 }
 
 function instanceCard(group: InstanceIssues, pins: Pin[]): HTMLElement {
@@ -398,6 +497,8 @@ function instanceCard(group: InstanceIssues, pins: Pin[]): HTMLElement {
     row.setAttribute("summary", issue.summary);
     row.setAttribute("status", issue.status);
     row.setAttribute("url", issue.url);
+    row.setAttribute("instance-id", String(group.id));
+    row.setAttribute("instance-name", group.name);
     item.append(row);
     list.append(item);
   }

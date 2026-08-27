@@ -236,8 +236,12 @@ older `GET /rest/api/3/search`, so the search endpoint must be verified; and wor
 v3 are Atlassian Document Format, not plain strings.
 
 The `started` field on a worklog is required by Jira, which is why `time_entries.started_at`
-exists. Timer entries record the real start. Manual entries default to the time the entry was
-created and remain editable.
+exists. Timer entries record the real start. Manual entries are stamped with the moment the entry
+was created — **and are not editable**, which is the half of this paragraph #7 corrected. The
+server stamps `day` and `started_at` from one reading of its own clock and accepts neither from the
+browser, so `PATCH /api/entries/{id}` carries `seconds` and `comment` and nothing else. Letting a
+client set `started_at` would let it file work into a day its own start time contradicts, which is
+the disagreement `WD_TIMEZONE` exists to prevent.
 
 ## Frontend
 

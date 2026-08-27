@@ -1,5 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// #7 made the rail's total and split live. These tests assert the rail's
+// resting state, which is only resting while nothing is logged — and the
+// e2e stack shares the dev database.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+});
+
 /**
  * Computed colours rather than class names: a spec asserting classes would pass
  * against a stylesheet that never loaded.
@@ -166,9 +173,11 @@ test("the rail stays dark in both themes", async ({ page }) => {
   await expect(page.locator("aside")).toHaveCSS("background-color", "oklch(0.125 0.008 55)");
 });
 
-// Every rail region renders its resting state until #7-#9 make it live. Push is
-// present and disabled rather than absent, and the total is a total: the format
-// rule says a figure you cannot start or stop carries no colon.
+// The rail's remaining resting regions, until #8 and #9 make them live. #7 made
+// the total live, so it is a real figure here rather than a placeholder — and
+// with nothing logged it reads 0h 00m either way. Push is present and disabled
+// rather than absent, and the total is a total: the format rule says a figure
+// you cannot start or stop carries no colon.
 test("the rail renders its resting state", async ({ page }) => {
   await openSettings(page);
 
