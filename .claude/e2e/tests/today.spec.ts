@@ -40,6 +40,11 @@ async function stubIssues(page: Page, ...responses: StubGroup[][]): Promise<void
 // assertions below never budgeted for.
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+  // #7 put a duration cell on every row and made the rail's total live, both
+  // fed by this endpoint. The e2e stack shares the dev database, so without
+  // this a single entry logged by hand would move every figure these tests
+  // measure — the same reason pins are stubbed above.
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
 });
 
 function group(id: number, name: string, issues: StubIssue[]): StubGroup {

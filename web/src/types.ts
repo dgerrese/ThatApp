@@ -83,3 +83,43 @@ export interface IssueSearchResponse {
   results: IssueHit[];
   errors: InstanceFailure[];
 }
+
+/**
+ * One logged entry, as the dialog and the rail read it. `day` and `startedAt`
+ * are stamped by the server and never sent by the browser, which is what keeps
+ * the day boundary answerable in WD_TIMEZONE with no browser open.
+ *
+ * `startedAt` is RFC 3339 already converted to that zone — read the wall clock
+ * out of the string rather than through Date, which would re-convert it to
+ * whatever zone this browser happens to be in.
+ */
+export interface Entry {
+  id: number;
+  instanceId: number;
+  instanceName: string;
+  /** 0-based index into the instance list's created_at order — what instanceHue keys its dot off. */
+  instancePosition: number;
+  issueKey: string;
+  day: string;
+  startedAt: string;
+  seconds: number;
+  comment: string;
+}
+
+/** The fields a create sends. The server stamps the rest. */
+export interface EntryDraft {
+  instanceId: number;
+  issueKey: string;
+  seconds: number;
+  comment: string;
+}
+
+/**
+ * The fields an edit sends. Both optional, because the API tells an absent
+ * field from a cleared one: an omitted comment keeps what is stored, and an
+ * empty string erases it. `startedAt` is not here and never will be.
+ */
+export interface EntryEdit {
+  seconds?: number;
+  comment?: string;
+}

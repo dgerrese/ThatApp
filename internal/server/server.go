@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/dgerrese/work-dashboard/internal/config"
 	"github.com/dgerrese/work-dashboard/internal/crypto"
@@ -21,6 +22,10 @@ type Server struct {
 	sealer  *crypto.Sealer
 	clients *instanceClients
 	mux     *http.ServeMux
+	// now reads the wall clock. Tests replace it to place a request at a
+	// chosen instant, which is the only way to prove which local day an entry
+	// lands on when cfg.Location is hours away from the machine's clock.
+	now func() time.Time
 }
 
 // New builds a Server that serves its static files from assets. Production
@@ -32,6 +37,7 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 		db:     db,
 		sealer: sealer,
 		mux:    http.NewServeMux(),
+		now:    time.Now,
 	}
 	s.clients = newInstanceClients(db, sealer)
 
@@ -46,6 +52,10 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 	s.mux.HandleFunc("GET /api/pins", s.handleListPins)
 	s.mux.HandleFunc("POST /api/pins", s.handleCreatePin)
 	s.mux.HandleFunc("DELETE /api/pins/{id}", s.handleDeletePin)
+	s.mux.HandleFunc("GET /api/entries", s.handleListEntries)
+	s.mux.HandleFunc("POST /api/entries", s.handleCreateEntry)
+	s.mux.HandleFunc("PATCH /api/entries/{id}", s.handleUpdateEntry)
+	s.mux.HandleFunc("DELETE /api/entries/{id}", s.handleDeleteEntry)
 	s.mux.HandleFunc("/api/", handleAPINotFound)
 	s.mux.HandleFunc("/", s.handleAsset)
 
