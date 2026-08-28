@@ -15,5 +15,5 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "build.mjs"],
-  "exclude": ["src/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts", "src/sw.ts"]
 }

@@ -90,7 +90,8 @@ hue, failure had to borrow a triangle to be distinguishable at all.
 **Running** is the live timer and its stop control, and nothing else. **Not pushed** marks an entry
 still local. **Failed** marks one Jira rejected, and an unreachable instance.
 
-Amber and red are deliberately different things: amber says *not yet sent*, red says *sent and
+Amber and red are deliberately different things: amber says *warning* — an entry not yet sent is
+one instance, data the shell is showing from cache while offline is another — red says *sent and
 refused*. **Neither ever rests on colour alone** — the triangle and the words stay, so the
 distinction survives a monochrome screen and a red-green deficiency both.
 
@@ -285,8 +286,10 @@ Each is an artboard; the reasoning is in `annotations.md`.
   carry their names, which come from the local `instances` table.
 - **Nothing logged** — every timer `00:00`, both subtotals `0h 00m`, no split bar, Push disabled.
   This is the state that tests the format rule hardest: a column of `00:00` under a `0h 00m` hero.
-- **All pushed** — nothing running and nothing unpushed, so green, amber and red all leave the screen
-  at once. Only the magenta remains, on the wordmark and Push. **A list with no state colour in it
+- **All pushed** — nothing running, nothing unpushed and nothing shown from cache, so green, amber
+  and red all leave the screen at once. Only the magenta remains, on the wordmark and Push. Amber's
+  absence now vouches for two things, not one — every entry has gone and every list on screen is
+  live, not a stale copy — because both share the one tone. **A list with no state colour in it
   means you are done.**
 - **Partial push failure** — the state the design of record calls out by name. A push is not
   transactional; each entry succeeds or fails alone. A banner with the count, per-row markers, a rail

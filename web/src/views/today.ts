@@ -19,7 +19,9 @@ import type { EntryTicket } from "../components/wd-entry-dialog";
 import { openEntryDialog } from "../components/wd-entry-dialog";
 import { LOG_TIME } from "../components/wd-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
+import { clockTime } from "../format";
 import { paintInstanceDot } from "../instance-hue";
+import type { RegisterTeardown } from "../router";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
@@ -36,17 +38,29 @@ interface Regions {
   header: HTMLElement;
   refresh: HTMLElement;
   results: HTMLElement;
+  /** One banner above both lists, per the design spec's singular "the
+   *  warning" — not one per list. See renderCombinedStale. */
+  stale: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
+  pinsCachedAt: Date | null;
+  issuesCachedAt: Date | null;
   /** Today's logged seconds per row, keyed by instance and issue. */
   totals: Map<string, number>;
   /** Bumped per totals refresh, so a slow read cannot overwrite a newer one. */
   totalsEpoch: number;
 }
 
-export async function render(root: HTMLElement): Promise<void> {
+export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   const container = document.createElement("div");
   container.className = "space-y-4";
+
+  const stale = document.createElement("div");
+  // Hidden while empty, not merely childless: the container's space-y-4 gives
+  // every non-last child a bottom margin, so an empty box here would open the
+  // view with 16px of dead space above the Pinned card. A display:none box
+  // contributes none.
+  stale.hidden = true;
 
   const pinnedCard = document.createElement("wd-card");
   pinnedCard.setAttribute("heading", "Pinned");
@@ -77,7 +91,7 @@ export async function render(root: HTMLElement): Promise<void> {
   results.className = "space-y-4";
   results.append(loadingLine());
 
-  container.append(pinnedCard, header, results);
+  container.append(stale, pinnedCard, header, results);
   root.append(container);
 
   const regions: Regions = {
@@ -87,13 +101,30 @@ export async function render(root: HTMLElement): Promise<void> {
     header,
     refresh,
     results,
+    stale,
     pins: [],
     lastIssues: null,
+    pinsCachedAt: null,
+    issuesCachedAt: null,
     totals: new Map(),
     totalsEpoch: 0,
   };
   refresh.addEventListener("click", () => {
     void refreshEverything(regions);
+  });
+
+  // navigator.onLine is not trustworthy (a captive portal reports "online"),
+  // but the "online" event firing is still the right moment to try again —
+  // the fetch itself, not the event, decides whether the stale banner clears.
+  const handleOnline = (): void => {
+    void refreshEverything(regions);
+  };
+  window.addEventListener("online", handleOnline);
+  // Registered now, not after the fan-out below resolves: the router can
+  // only unwire a listener it already knows about, and a navigation away
+  // while refreshResults is still in flight must find this here.
+  registerTeardown(() => {
+    window.removeEventListener("online", handleOnline);
   });
 
   // Caught here rather than in the row, which knows its ticket but not where a
@@ -104,17 +135,14 @@ export async function render(root: HTMLElement): Promise<void> {
     openEntryDialog(root, request);
   });
 
-  // The listener is on document, which outlives this view — the router unmounts
-  // by replacing the root's children and offers no hook to unsubscribe from. So
-  // it retires itself the first time it wakes up detached.
+  // The listener is on document, which outlives this view. It used to retire
+  // itself on the first wake-up that found the view detached, because the
+  // router had no unsubscribe hook; this ticket added one, and it runs before
+  // the next view mounts — so the detached wake-up cannot happen at all.
   const stopListening = onEntriesChanged((entries) => {
-    if (!container.isConnected) {
-      stopListening();
-
-      return;
-    }
     void refreshTotals(regions, entries);
   });
+  registerTeardown(stopListening);
 
   // Independent on purpose: the Pinned card paints from the store alone and
   // must not wait on a fan-out that may be slow or failing.
@@ -177,7 +205,9 @@ function currentPins(regions: Regions): Pin[] {
 
 async function refreshPins(regions: Regions, options?: { refresh?: boolean }): Promise<void> {
   try {
-    regions.pins = await listPins(options);
+    const { value: pins, cachedAt } = await listPins(options);
+    regions.pins = pins;
+    regions.pinsCachedAt = cachedAt;
     renderPinnedList(regions, regions.pins);
     // Gated: replacing pinnedForm's children here would tear down an
     // in-progress search the moment Refresh's shared call reaches this branch
@@ -185,6 +215,7 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
     restorePinOpenerUnlessFormOpen(regions);
   } catch (error) {
     regions.pins = [];
+    regions.pinsCachedAt = null;
     regions.pinnedList.replaceChildren(alertFor("error", messageOf(error)));
     // Same gate as the success branch above: a failing refresh must not wipe
     // an open form either. Unlike the success branch, a closed form stays
@@ -194,6 +225,8 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
       regions.pinnedForm.replaceChildren();
     }
   }
+
+  renderCombinedStale(regions);
 
   // The assigned cards may already be on screen from a fetch that finished
   // first; re-render them from the cached response so the dedupe reflects the
@@ -411,13 +444,48 @@ async function refreshResults(regions: Regions): Promise<void> {
   try {
     // The cards already on screen stay put while this is in flight: a list that
     // blinks out and back is indistinguishable from one that broke.
-    const response = await listIssues();
+    const { value: response, cachedAt } = await listIssues();
     regions.lastIssues = response;
+    regions.issuesCachedAt = cachedAt;
     renderResponse(regions, response);
   } catch (error) {
     regions.header.hidden = false;
+    regions.issuesCachedAt = null;
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
   }
+
+  renderCombinedStale(regions);
+}
+
+/**
+ * The one warning both lists share (Ruling 11: the design spec's acceptance
+ * line names a single "the warning" above both, not one per list — and the
+ * two would fail together in practice anyway, since they hit the same
+ * server). Visible when either list is stale, naming the older of the two
+ * moments — never a shorter outage than the data on screen has actually
+ * been sitting for.
+ *
+ * `cachedAt` is set exactly when the worker served that response from cache
+ * (task 6's `Cached<T>`) — that is the whole freshness signal, not
+ * `navigator.onLine`. Both fields settling to `null` (a live fetch for each)
+ * is what lets this clear itself with no manual reload.
+ */
+function renderCombinedStale(regions: Regions): void {
+  const moments = [regions.pinsCachedAt, regions.issuesCachedAt].filter(
+    (moment): moment is Date => moment !== null,
+  );
+
+  if (moments.length === 0) {
+    regions.stale.replaceChildren();
+    regions.stale.hidden = true;
+    return;
+  }
+
+  const oldest = moments.reduce((older, moment) => (moment.getTime() < older.getTime() ? moment : older));
+  regions.stale.replaceChildren(
+    alertFor("warning", `Showing what was here at ${clockTime(oldest)} — no connection to the server.`),
+  );
+  regions.stale.hidden = false;
 }
 
 async function refreshEverything(regions: Regions): Promise<void> {

@@ -90,5 +90,10 @@ func (s *Server) handleAsset(w http.ResponseWriter, r *http.Request) {
 		name = "index.html"
 	}
 
+	// ServeFileFS types manifest.json as application/json from its extension;
+	// it is a web app manifest, and browsers key on the more specific type.
+	if name == "manifest.json" {
+		w.Header().Set("Content-Type", "application/manifest+json")
+	}
 	http.ServeFileFS(w, r, s.assets, name)
 }

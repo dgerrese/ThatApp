@@ -1,5 +1,24 @@
+/** A view's own cleanup — e.g. an event listener it registered on `window`
+ *  that must not outlive it. */
+export type Teardown = () => void;
+
+/**
+ * What a view calls, any time during its own `render` — synchronously or
+ * after its own async work — to hand the router its cleanup. Registration-
+ * based rather than a value `render` returns: a returned teardown is only
+ * known once the whole `render` (fan-out included) resolves, which leaves a
+ * window, while it is still the view on screen, where the router cannot
+ * unwire it yet. Calling this as soon as the thing needing cleanup exists
+ * closes that window instead of merely narrowing it.
+ *
+ * Call it once per resource. Registrations compose rather than replace: a view
+ * that hands over a timer and then a listener gets both unwired, in the order
+ * it registered them.
+ */
+export type RegisterTeardown = (teardown: Teardown) => void;
+
 interface View {
-  render(root: HTMLElement): Promise<void>;
+  render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void>;
 }
 
 /**
@@ -20,6 +39,14 @@ const routes: Record<string, () => Promise<View>> = {
 const redirects: Record<string, string> = { "/": "/today" };
 
 let mountPoint: HTMLElement | undefined;
+// Every cleanup the mounted view registered, composed into one — called right
+// before the next view replaces it, so a listener a torn-down view left on
+// `window` never fires again.
+let teardownCurrentView: Teardown | undefined;
+// Bumped once per renderCurrent() call, so a registerTeardown closure can
+// tell whether the navigation it belongs to is still the one on screen — see
+// registerTeardown below.
+let navigationId = 0;
 
 export function startRouter(root: HTMLElement): void {
   mountPoint = root;
@@ -62,6 +89,27 @@ async function renderCurrent(): Promise<void> {
 
   markActiveRoute();
 
+  teardownCurrentView?.();
+  teardownCurrentView = undefined;
+
+  const thisNavigation = ++navigationId;
+  // A registration arriving after a later navigation has already started
+  // (the view awaited something and lost a race with the next click) must
+  // tear itself down immediately rather than overwrite the view now on
+  // screen — the bug a return-based hook had, since nothing could run
+  // between "render resolved" and "the value gets stored".
+  const registerTeardown: RegisterTeardown = (teardown) => {
+    if (thisNavigation !== navigationId) {
+      teardown();
+      return;
+    }
+    const previous = teardownCurrentView;
+    teardownCurrentView = () => {
+      previous?.();
+      teardown();
+    };
+  };
+
   const load = routes[window.location.pathname];
   if (!load) {
     renderPlaceholder(root);
@@ -70,7 +118,7 @@ async function renderCurrent(): Promise<void> {
 
   const view = await load();
   root.replaceChildren();
-  await view.render(root);
+  await view.render(root, registerTeardown);
 }
 
 /**

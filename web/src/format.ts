@@ -43,3 +43,18 @@ export function totalFigure(seconds: number): string {
 
   return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
+
+/**
+ * A moment on the clock, local to the browser, as `HH:MM` — `14:32`. For
+ * "showing what was here at", not for a duration, so it takes a `Date`
+ * rather than seconds and carries no negative-time guard.
+ *
+ * Browser-local is deliberate here and only here: this names a moment the
+ * viewer just lived through, so their own clock is the right one. Nothing that
+ * decides which *day* an entry belongs to may follow it — that is resolved
+ * against WD_TIMEZONE on the server, which must agree with the end-of-day push
+ * and the weekly rollup even when no browser is open.
+ */
+export function clockTime(date: Date): string {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}

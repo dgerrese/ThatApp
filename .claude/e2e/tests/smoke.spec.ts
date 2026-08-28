@@ -26,3 +26,26 @@ test("an unknown route still serves the app shell", async ({ page }) => {
   expect(response?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Work Dashboard" })).toBeVisible();
 });
+
+// Every stub in every spec but pwa.spec.ts rests on this. A request a service
+// worker claims never reaches page.route, and sw.ts claims GET /api/issues and
+// GET /api/pins (#12 task 5) — so a worker registering here would send those two
+// to the real server, which shares the dev database and fans out to the owner's
+// real Jira instances. playwright.config.ts blocks registration for exactly that
+// reason; this is the standing check that the block is honoured, on both
+// engines, on every run, rather than a claim measured once and taken on trust.
+test("no service worker registers in a spec that has not opted back in", async ({ page }) => {
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
+
+  await page.goto("/");
+
+  // main.ts registers on the window load event, which goto() has already waited
+  // for, so the attempt is in flight by the time this runs. Polled rather than
+  // read once: blocked, the count is zero on the first probe and this returns
+  // immediately; unblocked, it goes to one and never comes back.
+  await expect
+    .poll(() => page.evaluate(() => navigator.serviceWorker.getRegistrations().then((all) => all.length)))
+    .toBe(0);
+});

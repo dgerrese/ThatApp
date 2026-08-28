@@ -21,7 +21,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { timerFigure, totalFigure } from "./format.ts";
+import { clockTime, timerFigure, totalFigure } from "./format.ts";
 
 test("a timer is always HH:MM", () => {
   const cases: [number, string][] = [
@@ -61,5 +61,44 @@ test("a total is always Nh Nm", () => {
 test("a total never carries a colon", () => {
   for (const seconds of [0, 59, 60, 3599, 3600, 18900, 359999]) {
     assert.ok(!totalFigure(seconds).includes(":"), `totalFigure(${seconds}) grew a colon`);
+  }
+});
+
+test("a clock time is always zero-padded HH:MM", () => {
+  const cases: [Date, string][] = [
+    [new Date(2026, 0, 1, 14, 32), "14:32"],
+    [new Date(2026, 0, 1, 0, 5), "00:05"],
+    [new Date(2026, 0, 1, 9, 0), "09:00"],
+    [new Date(2026, 0, 1, 23, 59), "23:59"],
+    [new Date(2026, 0, 1, 0, 0), "00:00"],
+  ];
+
+  for (const [date, want] of cases) {
+    assert.equal(clockTime(date), want, `clockTime(${date.toISOString()})`);
+  }
+});
+
+/**
+ * The case above builds and reads its Dates from the same local components,
+ * so it cannot tell `getHours`/`getMinutes` apart from `getUTCHours`/
+ * `getUTCMinutes` — and the container this runs in (`node:26-alpine`, no
+ * `TZ`) is UTC, so the two would also agree there by accident. Pinning a zone
+ * with a real, known offset from a fixed UTC instant is what makes "local to
+ * the browser" an assertion this test can actually fail on.
+ */
+test("a clock time reads the zone it runs in, not UTC", () => {
+  const originalTz = process.env["TZ"];
+  process.env["TZ"] = "Europe/Amsterdam";
+
+  try {
+    // 13:32 UTC in January is 14:32 CET (UTC+1, outside any DST window) —
+    // getUTCHours() would read back "13:32" here instead.
+    assert.equal(clockTime(new Date("2026-01-15T13:32:00Z")), "14:32");
+  } finally {
+    if (originalTz === undefined) {
+      delete process.env["TZ"];
+    } else {
+      process.env["TZ"] = originalTz;
+    }
   }
 });

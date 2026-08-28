@@ -28,7 +28,14 @@ export class ApiError extends Error {
   }
 }
 
+/** A response body plus when it was cached: null for one that came off the wire. */
+export type Cached<T> = { value: T; cachedAt: Date | null };
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return (await requestWithMeta<T>(path, init)).value;
+}
+
+async function requestWithMeta<T>(path: string, init?: RequestInit): Promise<Cached<T>> {
   let response: Response;
   try {
     response = await fetch(path, {
@@ -48,11 +55,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(response.status, ...(await errorFrom(response)));
   }
 
+  const cachedAtHeader = response.headers.get("X-WD-Cached-At");
+  const parsedCachedAt = cachedAtHeader === null ? null : new Date(cachedAtHeader);
+  // A present-but-unparseable header must not become a truthy Invalid Date:
+  // unreachable while the worker is the only producer (it always writes
+  // toISOString()), but the view trusts this value without re-checking it.
+  const cachedAt = parsedCachedAt && Number.isNaN(parsedCachedAt.getTime()) ? null : parsedCachedAt;
+
   if (response.status === 204) {
-    return undefined as T;
+    return { value: undefined as T, cachedAt };
   }
 
-  return (await response.json()) as T;
+  return { value: (await response.json()) as T, cachedAt };
 }
 
 /** Reads the server's {code, message} envelope, falling back when a proxy or crash returns something else. */
@@ -95,12 +109,12 @@ export function testInstance(id: number): Promise<ConnectionTest> {
   return request<ConnectionTest>(`/api/instances/${id}/test`, { method: "POST" });
 }
 
-export function listIssues(): Promise<IssuesResponse> {
-  return request<IssuesResponse>("/api/issues");
+export function listIssues(): Promise<Cached<IssuesResponse>> {
+  return requestWithMeta<IssuesResponse>("/api/issues");
 }
 
-export function listPins(options?: { refresh?: boolean }): Promise<Pin[]> {
-  return request<Pin[]>(options?.refresh === true ? "/api/pins?refresh=1" : "/api/pins");
+export function listPins(options?: { refresh?: boolean }): Promise<Cached<Pin[]>> {
+  return requestWithMeta<Pin[]>(options?.refresh === true ? "/api/pins?refresh=1" : "/api/pins");
 }
 
 export function createPin(instanceId: number, issueKey: string): Promise<Pin> {
