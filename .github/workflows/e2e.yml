@@ -44,6 +44,10 @@ jobs:
           cp .env.example .env
           sed -i '/^WD_SECRET_KEY=/d' .env
           printf 'WD_SECRET_KEY=%s\n' "$(head -c 32 /dev/urandom | base64)" >> .env
+          # The dev containers run as this UID (docker-compose.yml `user:`). The
+          # Makefile exports it, but `docker compose` invoked directly does not
+          # see that, so it has to come from .env.
+          printf 'WD_UID=%s\nWD_GID=%s\n' "$(id -u)" "$(id -g)" >> .env
 
       # No build-web step: `up -d app` blocks on the web service's healthcheck,
       # and that service installs and builds the frontend itself.

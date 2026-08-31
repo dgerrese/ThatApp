@@ -5,11 +5,29 @@ services:
       target: dev
     ports:
       - "${WD_PORT:-8080}:8080"
+    # As the host user, so ./data/work-dashboard.db and anything written into the
+    # bind-mounted tree belong to whoever runs `make`, not to root. The Makefile
+    # exports both from `id -u`/`id -g`; driving Compose directly takes them from
+    # .env instead.
+    #
+    # Deliberately no default. A wrong UID does not fail cleanly — it half-works,
+    # then dies deep inside npm or the Go build cache with EACCES on a file some
+    # other UID created, which reads like a tooling bug rather than a config one.
+    # Refusing to start names the knob to turn.
+    #
+    # Upgrading from the named-volume layout? The old go-mod-cache and
+    # go-build-cache are root-owned 0755 and will NOT become writable on their
+    # own — run `make down` once, then `make up`. That is safe now: the database
+    # is no longer in a volume for `down -v` to take.
+    user: "${WD_UID:?unset - run through make, or add WD_UID/WD_GID to .env (see .env.example)}:${WD_GID:?unset - see .env.example}"
     volumes:
       - .:/src
-      - go-mod-cache:/go/pkg/mod
-      - go-build-cache:/root/.cache/go-build
-      - wd-data:/data
+      - go-mod-cache:/cache/go-mod
+      - go-build-cache:/cache/go-build
+      # A bind mount, deliberately, not a named volume: `make down` runs
+      # `down -v`, which drops every named volume in the project. That destroyed
+      # the owner's real Jira instance and pins once already (#73).
+      - ./data:/data
     environment:
       WD_ADDR: ":8080"
       WD_DB_PATH: /data/work-dashboard.db
@@ -37,12 +55,17 @@ services:
       start_period: 60s
 
   web:
-    image: node:26-alpine
+    build:
+      context: .
+      target: webdev
     working_dir: /src/web
+    # Same reasoning as `app`: this service writes web/dist and node_modules into
+    # the bind-mounted tree, and root-owned build output there needs sudo to clear.
+    user: "${WD_UID:?unset - run through make, or add WD_UID/WD_GID to .env (see .env.example)}:${WD_GID:?unset - see .env.example}"
     volumes:
       - .:/src
       - web-node-modules:/src/web/node_modules
-      - web-npm-cache:/root/.npm
+      - web-npm-cache:/cache/npm
     # A fresh clone has neither node_modules nor web/dist, so `docker compose up`
     # has to install and build once before watching. The marker file reports that
     # first build to the healthcheck, which is what holds the app back from
@@ -61,7 +84,11 @@ services:
     entrypoint: []
     volumes:
       - .:/src
-      - go-mod-cache:/go/pkg/mod
+      # Its own module cache, not the one `app` uses. This image runs as root, and
+      # a root-owned module written into a shared cache is one the non-root `app`
+      # cannot then update. Costs one extra download; saves an intermittent
+      # permission failure that would look like a Go bug.
+      - lint-go-mod-cache:/go/pkg/mod
       - golangci-cache:/root/.cache
 
   playwright:
@@ -90,9 +117,9 @@ services:
 volumes:
   go-mod-cache:
   go-build-cache:
+  lint-go-mod-cache:
   golangci-cache:
   web-node-modules:
   web-npm-cache:
-  wd-data:
   playwright-node-modules:
   playwright-npm-cache:

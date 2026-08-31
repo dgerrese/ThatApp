@@ -1,7 +1,21 @@
 .DEFAULT_GOAL := help
+
+# The dev containers run as this user so the SQLite database under ./data, and
+# anything written into the bind-mounted tree, belong to whoever runs `make`
+# rather than to root. Exported, so every recipe's compose call sees them.
+export WD_UID := $(shell id -u)
+export WD_GID := $(shell id -g)
+
 COMPOSE := docker compose
-APP     := $(COMPOSE) run --rm --no-deps app
-WEB     := $(COMPOSE) run --rm --no-deps web
+# --build, for the same reason test-e2e uses it: `run` reuses a cached image, so
+# a Dockerfile change silently does nothing until something forces a rebuild.
+# That failure surfaces as an unrelated-looking permission error, because the
+# stale image lacks the cache paths the `user:` mapping depends on. ~0.5s when
+# the layers are cached; a confusing afternoon when they are not.
+APP     := $(COMPOSE) run --build --rm --no-deps app
+WEB     := $(COMPOSE) run --build --rm --no-deps web
+# No `build:` key on this service — it runs a pulled image, so there is nothing
+# to rebuild.
 LINT    := $(COMPOSE) run --rm --no-deps lint
 
 .PHONY: help up down install-web build-web test-go test test-web test-e2e fmt lint-go lint-web lint tsc verify
@@ -13,7 +27,9 @@ help: ## Show this help
 up: ## Start the dev stack
 	$(COMPOSE) up
 
-down: ## Stop the dev stack and drop its volumes
+# -v drops the build and dependency caches, which is the point of it. It no
+# longer takes the database: that lives in ./data on the host (#73).
+down: ## Stop the dev stack and drop its caches (the database survives)
 	$(COMPOSE) --profile e2e down -v
 
 install-web: ## Install frontend dependencies into the web-node-modules volume
