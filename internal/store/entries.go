@@ -214,7 +214,7 @@ func (s *Store) MarkEntryPushed(
 ) error {
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE time_entries SET worklog_id = ?, pushed_at = ? WHERE id = ?`,
-		worklogID, pushedAt.UTC(), id,
+		worklogID, pushedAt.UTC().Truncate(time.Second).Format(time.RFC3339), id,
 	)
 	if err != nil {
 		return fmt.Errorf("recording worklog %s for entry %d: %w", worklogID, id, err)
