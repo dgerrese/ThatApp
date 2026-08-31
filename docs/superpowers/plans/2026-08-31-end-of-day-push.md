@@ -92,8 +92,8 @@ Add to `internal/store/entries_test.go`:
 ```go
 func TestMarkEntryPushedRecordsTheWorklogWithoutTouchingUpdatedAt(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStore(t)
-	inst := seedInstance(t, s)
+	s := openTestStore(t)
+	inst := createTestInstance(t, s)
 
 	created, err := s.CreateEntry(ctx, EntryInput{
 		InstanceID: inst.ID,
@@ -136,7 +136,7 @@ func TestMarkEntryPushedRecordsTheWorklogWithoutTouchingUpdatedAt(t *testing.T) 
 }
 
 func TestMarkEntryPushedOnAMissingRowReportsIt(t *testing.T) {
-	s := newTestStore(t)
+	s := openTestStore(t)
 
 	err := s.MarkEntryPushed(context.Background(), 9999, "10123", time.Now())
 	if err == nil {
@@ -145,8 +145,8 @@ func TestMarkEntryPushedOnAMissingRowReportsIt(t *testing.T) {
 }
 ```
 
-If `newTestStore` or `seedInstance` are named differently in this file, use the existing helpers —
-read the top of `entries_test.go` first and match them exactly.
+These helpers exist already: `openTestStore(t)` in `store_test.go` and `createTestInstance(t, s)`
+in `instances_test.go`. There is also `createTestEntry(t, s, in)` in `entries_test.go` if it suits.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -179,16 +179,16 @@ func (s *Store) MarkEntryPushed(
 		return fmt.Errorf("counting rows updated for entry %d: %w", id, err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("recording worklog %s: entry %d: %w", worklogID, id, ErrNotFound)
+		return fmt.Errorf("recording worklog %s: no entry %d", worklogID, id)
 	}
 
 	return nil
 }
 ```
 
-Use whatever "not found" sentinel this package already exports — check the top of the package for
-`ErrNotFound` and match it. If none exists, return a plain wrapped error instead and drop the
-sentinel.
+This package exports no general "not found" sentinel — only `ErrInstanceNeedsURL` and
+`ErrPinExists` — so a plain wrapped error is correct here. Do not invent a new sentinel: nothing
+branches on this error.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -375,8 +375,8 @@ func TestPushSendsTheDaysUnpushedEntriesAndIsIdempotent(t *testing.T) {
 	var created atomic.Int64
 	jiraSrv := fakeJira(t, &created)
 
-	s, db, _ := newServerWithStore(t)
-	inst := seedInstancePointingAt(t, s, db, jiraSrv.URL)
+	s, db, sealer := newServerWithStore(t)
+	inst := seedInstance(t, db, sealer, "Work", "", jiraSrv.URL)
 
 	ctx := context.Background()
 	for _, seconds := range []int{3600, 1800} {
@@ -444,9 +444,14 @@ func pushDay(t *testing.T, s *Server, day string) pushResponseDTO {
 }
 ```
 
-`seedInstancePointingAt` must create an instance whose API base URL is the fake server and whose
-token is sealed with the test sealer. `internal/server/pins_test.go` already does this — reuse its
-helper by name if one exists, otherwise write the smallest equivalent in this file.
+`seedInstance` already exists in `internal/server/issues_test.go` with the signature
+`seedInstance(t, db, sealer, name, siteURL, apiBase) *store.Instance`. Pass the fake server as the
+**apiBase** (last argument) and leave siteURL blank: a non-empty apiBase bypasses tenant resolution
+entirely, which is what lets two instances in one test point at two different fake servers.
+
+**Do not use `pointAtSite`.** It sets `srv.clients.apiBaseFor` to a single closure returning one
+URL, so every instance in the test would resolve to the same site — which would quietly destroy the
+partial-failure test in Task 4.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -685,9 +690,9 @@ func TestPushIsNotTransactionalAcrossInstances(t *testing.T) {
 	}))
 	t.Cleanup(bad.Close)
 
-	s, db, _ := newServerWithStore(t)
-	goodInst := seedInstancePointingAt(t, s, db, good.URL)
-	badInst := seedInstancePointingAt(t, s, db, bad.URL)
+	s, db, sealer := newServerWithStore(t)
+	goodInst := seedInstance(t, db, sealer, "Good", "", good.URL)
+	badInst := seedInstance(t, db, sealer, "Bad", "", bad.URL)
 
 	ctx := context.Background()
 	ids := map[int64]int64{}
@@ -755,8 +760,8 @@ func TestPushRetriesOnlyWhatFailed(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	s, db, _ := newServerWithStore(t)
-	inst := seedInstancePointingAt(t, s, db, srv.URL)
+	s, db, sealer := newServerWithStore(t)
+	inst := seedInstance(t, db, sealer, "Work", "", srv.URL)
 
 	if _, err := db.CreateEntry(context.Background(), store.EntryInput{
 		InstanceID: inst.ID,
@@ -802,7 +807,7 @@ func TestPushDefaultsToTodayInTheConfiguredZone(t *testing.T) {
 	var created atomic.Int64
 	jiraSrv := fakeJira(t, &created)
 
-	s, db, _ := newServerWithStore(t)
+	s, db, sealer := newServerWithStore(t)
 	amsterdam, err := time.LoadLocation("Europe/Amsterdam")
 	if err != nil {
 		t.Fatalf("loading zone: %v", err)
@@ -811,7 +816,7 @@ func TestPushDefaultsToTodayInTheConfiguredZone(t *testing.T) {
 	// 23:30 UTC on the 30th is 01:30 on the 31st in Amsterdam.
 	s.now = func() time.Time { return time.Date(2026, 8, 30, 23, 30, 0, 0, time.UTC) }
 
-	inst := seedInstancePointingAt(t, s, db, jiraSrv.URL)
+	inst := seedInstance(t, db, sealer, "Work", "", jiraSrv.URL)
 	if _, err := db.CreateEntry(context.Background(), store.EntryInput{
 		InstanceID: inst.ID,
 		IssueKey:   "RIDGE-1",
@@ -1051,7 +1056,7 @@ async function pushToday(regions: Regions): Promise<void> {
   try {
     entries = await listEntries();
   } catch (error) {
-    regions.pushReport.replaceChildren(alertFor("danger", messageOf(error)));
+    regions.pushReport.replaceChildren(alertFor("error", messageOf(error)));
     regions.pushReport.hidden = false;
     return;
   }
@@ -1059,7 +1064,7 @@ async function pushToday(regions: Regions): Promise<void> {
   const pending = entries.filter((entry) => entry.pushState === "unpushed");
   if (pending.length === 0) {
     regions.pushReport.replaceChildren(
-      alertFor("info", "Everything logged today has already been pushed."),
+      alertFor("success", "Everything logged today has already been pushed."),
     );
     regions.pushReport.hidden = false;
     return;
@@ -1072,7 +1077,7 @@ async function pushToday(regions: Regions): Promise<void> {
     const response = await pushDay();
     renderPushReport(regions, response);
   } catch (error) {
-    regions.pushReport.replaceChildren(alertFor("danger", messageOf(error)));
+    regions.pushReport.replaceChildren(alertFor("error", messageOf(error)));
     regions.pushReport.hidden = false;
     return;
   }
@@ -1103,16 +1108,18 @@ function renderPushReport(regions: Regions, response: PushResponse): void {
       "Press Push to Jira again to retry them.",
   );
 
+  // A sibling of the alert, never a child of it: wd-alert renders by calling
+  // this.replaceChildren(mark, message), so anything appended inside it is
+  // discarded the next time an attribute changes.
   const list = document.createElement("ul");
-  list.className = "mt-2 space-y-1 text-sm";
+  list.className = "mt-2 ml-6 space-y-1 text-sm";
   for (const result of failed) {
     const item = document.createElement("li");
     item.textContent = `${result.issueKey} — ${result.error?.message ?? "unknown error"}`;
     list.append(item);
   }
-  alert.append(list);
 
-  regions.pushReport.replaceChildren(alert);
+  regions.pushReport.replaceChildren(alert, list);
   regions.pushReport.hidden = false;
 }
 ```
@@ -1122,8 +1129,9 @@ file already has. Add `pushReport: HTMLElement` to the `Regions` interface, crea
 with the same `hidden = true` treatment and the same reasoning (an empty box would contribute a
 `space-y-4` margin), and include it in the `container.append(...)` call.
 
-`alertFor` currently takes a tone string — check which tones `wd-alert` actually supports and use
-those exact names rather than the ones written above.
+**`wd-alert` supports exactly three tones: `success`, `warning`, `error`.** An unknown tone falls
+back to `warning` silently, so a typo here is invisible rather than loud. There is no `info` or
+`danger` tone — do not add one for this ticket.
 
 - [ ] **Step 3: Lint and type-check**
 
