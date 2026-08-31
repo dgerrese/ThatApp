@@ -980,13 +980,13 @@ function pushBadge(state: Entry["pushState"]): HTMLElement | null {
   if (state === "unpushed") return null;
 
   const badge = document.createElement("span");
-  badge.className = "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium";
+  badge.className = "shrink-0 text-xs font-medium";
 
   if (state === "dirty") {
-    badge.classList.add("bg-warning-soft", "text-warning-strong");
+    badge.classList.add("text-pending");
     badge.textContent = "Edited since push";
   } else {
-    badge.classList.add("bg-ok-soft", "text-ok-strong");
+    badge.classList.add("text-running");
     badge.textContent = "Pushed";
   }
 
@@ -994,9 +994,13 @@ function pushBadge(state: Entry["pushState"]): HTMLElement | null {
 }
 ```
 
-**Check the real token names first.** Read `web/src/styles.css`'s `@theme` block and use the
-semantic colour tokens that exist there. #12 established amber as the warning tone; do not invent
-tokens.
+**The tokens are already resolved — do not invent others.** `web/src/styles.css`'s `@theme` defines
+exactly three semantic status colours: `--color-running` (green), `--color-pending` (amber) and
+`--color-failed` (red), giving the utilities `text-running`, `text-pending`, `text-failed`. There
+are **no** `-soft` or `-strong` variants, and no filled-chip background token — so colour the text,
+do not build a filled pill. This follows `wd-alert`, which colours a small mark and leaves the words
+in ordinary ink. #12 established amber as the warning tone, of which "edited since push" is one
+instance.
 
 - [ ] **Step 2: Verify by eye in both themes**
 
