@@ -354,7 +354,7 @@ func TestPushRunsInstancesConcurrently(t *testing.T) {
 	// roughly one instance's delay (~500-550ms, allowing for goroutine
 	// scheduling jitter and sqlite write serialisation across the concurrent
 	// MarkEntryPushed calls). Setting the ceiling to 1.5x a single delay keeps
-	// ~200ms/36% of headroom under it on the concurrent side while staying at
+	// ~210ms/28% of headroom under it on the concurrent side while staying at
 	// half the serial duration — widen perInstanceDelay, not this formula, if
 	// the gap ever needs to grow further.
 	threshold := perInstanceDelay + perInstanceDelay/2
