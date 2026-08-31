@@ -167,7 +167,17 @@ export function startRail(): void {
       }
 
       const due = entries.filter((entry) => entry.pushState === "unpushed");
-      if (due.length === 0) return;
+      if (due.length === 0) {
+        // Nothing schedules a repaint on this path — refresh() runs at boot, on
+        // the pre-paint retry timer and on an entries announcement, none of
+        // which fires here — so without this the rail keeps offering "N entries
+        // to push" on a button that does nothing, indefinitely.
+        pending = due;
+        paintUnpushed();
+        syncPushButton();
+
+        return;
+      }
 
       const { confirmDestructive } = await import("./components/wd-confirm");
       const seconds = due.reduce((sum, entry) => sum + entry.seconds, 0);
