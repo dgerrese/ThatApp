@@ -104,6 +104,8 @@ export interface Entry {
   startedAt: string;
   seconds: number;
   comment: string;
+  /** Derived server-side from worklog_id, pushed_at and updated_at — never stored. */
+  pushState: "unpushed" | "pushed" | "dirty";
 }
 
 /** The fields a create sends. The server stamps the rest. */
@@ -122,4 +124,18 @@ export interface EntryDraft {
 export interface EntryEdit {
   seconds?: number;
   comment?: string;
+}
+
+export interface PushResult {
+  entryId: number;
+  issueKey: string;
+  instanceId: number;
+  status: "pushed" | "skipped" | "failed";
+  worklogId?: string;
+  error?: { code: string; message: string };
+}
+
+export interface PushResponse {
+  day: string;
+  results: PushResult[];
 }
