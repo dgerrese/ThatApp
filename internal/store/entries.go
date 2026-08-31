@@ -204,6 +204,33 @@ func (s *Store) DeleteEntry(ctx context.Context, id int64) error {
 	return errNoRowsIfUnaffected(result, "deleting entry", id)
 }
 
+// MarkEntryPushed records the Jira worklog an entry became.
+//
+// It names only worklog_id and pushed_at. Stamping updated_at here would race
+// pushed_at and could leave a just-pushed entry reading as dirty, since the
+// spec derives dirty from updated_at > pushed_at.
+func (s *Store) MarkEntryPushed(
+	ctx context.Context, id int64, worklogID string, pushedAt time.Time,
+) error {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE time_entries SET worklog_id = ?, pushed_at = ? WHERE id = ?`,
+		worklogID, pushedAt.UTC(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("recording worklog %s for entry %d: %w", worklogID, id, err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("counting rows updated for entry %d: %w", id, err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("recording worklog %s: no entry %d", worklogID, id)
+	}
+
+	return nil
+}
+
 // Entry reads one entry by id. A missing id yields an error wrapping
 // sql.ErrNoRows. It exists for the partial PATCH: a request carrying only a
 // duration has to keep the stored comment, and UpdateEntry writes both. That
