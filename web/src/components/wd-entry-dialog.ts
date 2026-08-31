@@ -307,7 +307,8 @@ export class WdEntryDialog extends HTMLElement {
       }),
     );
 
-    row.append(started, duration, comment, actions);
+    const badge = pushBadge(entry.pushState);
+    row.append(started, duration, comment, ...(badge ? [badge] : []), actions);
 
     return row;
   }
@@ -422,6 +423,28 @@ export class WdEntryDialog extends HTMLElement {
   private clearNotice(): void {
     this.notice?.replaceChildren();
   }
+}
+
+/**
+ * The badge an entry wears for its push state. "unpushed" deliberately renders
+ * nothing: it is the ordinary state of a fresh entry, and a chip on every row
+ * would say least where it appeared most.
+ */
+function pushBadge(state: Entry["pushState"]): HTMLElement | null {
+  if (state === "unpushed") return null;
+
+  const badge = document.createElement("span");
+  badge.className = "shrink-0 text-xs font-medium";
+
+  if (state === "dirty") {
+    badge.classList.add("text-pending");
+    badge.textContent = "Edited since push";
+  } else {
+    badge.classList.add("text-running");
+    badge.textContent = "Pushed";
+  }
+
+  return badge;
 }
 
 function rowAction(label: string, description: string, act: () => void): HTMLElement {
