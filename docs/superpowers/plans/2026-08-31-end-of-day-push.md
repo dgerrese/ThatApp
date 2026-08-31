@@ -1031,8 +1031,18 @@ git commit -m "feat(#9): show each entry's push state in the entry dialog"
   `listEntries`, `announceEntriesChanged`
 - Produces: a Push control in Today's header and a result alert
 
-Read `wd-confirm.ts` for its actual API before writing this — `confirmAndDelete` in
-`wd-entry-dialog.ts` shows a working call.
+**The confirm API is already resolved.** `web/src/components/wd-confirm.ts` exports:
+
+```ts
+confirmDestructive(options: { heading: string; body: string; confirmLabel: string }): Promise<boolean>
+```
+
+`body` is set as an **attribute** and rendered as the `textContent` of a single `<p>`, so it must be
+one plain sentence — a per-instance breakdown or any markup is not possible without changing that
+component, which is out of scope here. Import it from `../components/wd-confirm`, and add
+`import "../components/wd-confirm";` to the side-effect import block at the top of the file so the
+element is defined. You also need `totalFigure` from `../format` — the file currently imports only
+`clockTime` from there.
 
 - [ ] **Step 1: Add the control**
 
@@ -1087,6 +1097,27 @@ async function pushToday(regions: Regions): Promise<void> {
   }
 
   announceEntriesChanged(await listEntries());
+}
+
+/**
+ * Summarises what is about to be sent, then asks.
+ *
+ * The confirmation exists because a push creates real Jira worklogs and, until
+ * #10 lands, the only way to undo one is Jira's own UI. wd-confirm renders its
+ * body as plain text, so this is one sentence rather than a per-site table.
+ */
+function confirmPush(pending: Entry[]): Promise<boolean> {
+  const seconds = pending.reduce((sum, entry) => sum + entry.seconds, 0);
+  const entries = `${String(pending.length)} ${pending.length === 1 ? "entry" : "entries"}`;
+  const sites = new Set(pending.map((entry) => entry.instanceId)).size;
+
+  return confirmDestructive({
+    heading: "Push today's time to Jira?",
+    body:
+      `${entries} totalling ${totalFigure(seconds)} will be created as worklogs on ` +
+      `${String(sites)} ${sites === 1 ? "site" : "sites"}.`,
+    confirmLabel: "Push",
+  });
 }
 
 /**
