@@ -381,3 +381,69 @@ func TestPushRunsInstancesConcurrently(t *testing.T) {
 			"should be the only one reported failed", failedCount)
 	}
 }
+
+// TestPushSerializesConcurrentRequests pins the mutex added to handlePushDay:
+// two POST /api/push calls for the same day, fired concurrently, must not both
+// read the same entries as unpushed before either records a worklog_id — that
+// interleaving is what would create a duplicate worklog in real Jira. The fake
+// Jira sleeps before answering so two unserialized requests really do overlap
+// in wall-clock time rather than merely being scheduled close together.
+func TestPushSerializesConcurrentRequests(t *testing.T) {
+	const delay = 100 * time.Millisecond
+
+	var created atomic.Int64
+	slowFakeJira := func(t *testing.T) *httptest.Server {
+		t.Helper()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/worklog") {
+				time.Sleep(delay)
+				n := created.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_ = json.NewEncoder(w).Encode(map[string]string{"id": "wl-" + strconv.FormatInt(n, 10)})
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{}`))
+		}))
+		t.Cleanup(srv.Close)
+		return srv
+	}
+
+	s, db, sealer := newServerWithStore(t)
+	inst := seedInstance(t, db, sealer, "Work", "", slowFakeJira(t).URL)
+
+	ctx := context.Background()
+	for _, issueKey := range []string{"RIDGE-1", "RIDGE-2"} {
+		if _, err := db.CreateEntry(ctx, store.EntryInput{
+			InstanceID: inst.ID,
+			IssueKey:   issueKey,
+			Day:        "2026-08-31",
+			StartedAt:  time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC),
+			Seconds:    3600,
+			Comment:    "work",
+		}); err != nil {
+			t.Fatalf("seeding entry: %v", err)
+		}
+	}
+
+	codes := make(chan int, 2)
+	for range 2 {
+		go func() {
+			req := httptest.NewRequest(http.MethodPost, "/api/push?day=2026-08-31", nil)
+			rec := httptest.NewRecorder()
+			s.ServeHTTP(rec, req)
+			codes <- rec.Code
+		}()
+	}
+	for range 2 {
+		if code := <-codes; code != http.StatusOK {
+			t.Errorf("POST /api/push = %d, want 200", code)
+		}
+	}
+
+	if got := created.Load(); got != 2 {
+		t.Fatalf("fake Jira received %d worklog creates for 2 entries pushed by two concurrent "+
+			"requests, want 2 (one per entry) — the mutex in handlePushDay did not serialize them", got)
+	}
+}

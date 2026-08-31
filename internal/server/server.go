@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dgerrese/work-dashboard/internal/config"
@@ -26,6 +27,12 @@ type Server struct {
 	// chosen instant, which is the only way to prove which local day an entry
 	// lands on when cfg.Location is hours away from the machine's clock.
 	now func() time.Time
+	// pushMu serialises handlePushDay: without it, two concurrent pushes can
+	// both read the same entry as unpushed before either writes worklog_id,
+	// creating a duplicate worklog in real Jira. A push is a once-a-day
+	// operation, so serialising it costs nothing — the alternative is a
+	// duplicate a user can only undo by hand in Jira's own UI.
+	pushMu sync.Mutex
 }
 
 // New builds a Server that serves its static files from assets. Production

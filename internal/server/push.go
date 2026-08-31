@@ -37,6 +37,14 @@ type pushResponseDTO struct {
 // is data about that entry, not a failure of this request. Per-entry results are
 // the only honest report, because the push is deliberately not transactional.
 func (s *Server) handlePushDay(w http.ResponseWriter, r *http.Request) {
+	// Held for the whole handler, not just the write: two concurrent pushes
+	// must not both read the same entry as unpushed before either records a
+	// worklog_id, which is what would create a duplicate worklog in Jira. The
+	// second request, once it gets the lock, sees the worklog_ids the first
+	// one wrote and correctly reports those entries as "skipped".
+	s.pushMu.Lock()
+	defer s.pushMu.Unlock()
+
 	today := s.now().In(s.cfg.Location).Format(dayLayout)
 
 	day, ok := dayParam(w, r, "day", today)

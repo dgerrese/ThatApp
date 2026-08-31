@@ -40,6 +40,7 @@ interface Regions {
   pinnedForm: HTMLElement;
   header: HTMLElement;
   refresh: HTMLElement;
+  push: HTMLElement;
   results: HTMLElement;
   /** One banner above both lists, per the design spec's singular "the
    *  warning" — not one per list. See renderCombinedStale. */
@@ -112,6 +113,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     pinnedForm,
     header,
     refresh,
+    push,
     results,
     stale,
     pushReport,
@@ -515,44 +517,66 @@ async function refreshEverything(regions: Regions): Promise<void> {
   }
 }
 
+/** Replaces pushReport's content and reveals it — the one place both steps
+ *  happen, since every push outcome (a read failure, "already pushed", a
+ *  push failure, a push result) needs both. */
+function showPushReport(regions: Regions, ...nodes: Node[]): void {
+  regions.pushReport.replaceChildren(...nodes);
+  regions.pushReport.hidden = false;
+}
+
 /**
  * Confirms, pushes, then reports per entry.
  *
  * The confirmation exists because a push writes real worklogs and, until #10,
  * the only way to undo one is Jira's own UI.
+ *
+ * The button is disabled for the whole call, confirmation included: a second
+ * click while one push is already in flight (or its confirmation still open)
+ * is the realistic way to fire two concurrent POST /api/push requests, and a
+ * duplicate Jira worklog is exactly the harm this ticket exists to avoid. A
+ * second browser tab is not covered by a client-side guard — see the mutex in
+ * internal/server/push.go for the other half.
  */
 async function pushToday(regions: Regions): Promise<void> {
-  let entries: Entry[];
+  regions.push.setAttribute("disabled", "");
   try {
-    entries = await listEntries();
-  } catch (error) {
-    regions.pushReport.replaceChildren(alertFor("error", messageOf(error)));
-    regions.pushReport.hidden = false;
-    return;
+    let entries: Entry[];
+    try {
+      entries = await listEntries();
+    } catch (error) {
+      showPushReport(regions, alertFor("error", messageOf(error)));
+      return;
+    }
+
+    const pending = entries.filter((entry) => entry.pushState === "unpushed");
+    if (pending.length === 0) {
+      showPushReport(regions, alertFor("success", "Everything logged today has already been pushed."));
+      return;
+    }
+
+    const confirmed = await confirmPush(pending);
+    if (!confirmed) return;
+
+    try {
+      const response = await pushDay();
+      renderPushReport(regions, response);
+    } catch (error) {
+      showPushReport(regions, alertFor("error", messageOf(error)));
+      return;
+    }
+
+    try {
+      announceEntriesChanged(await listEntries());
+    } catch {
+      // The push itself already succeeded and is reported above; a failed
+      // re-read here only means other views (the rail) miss this refresh, not
+      // that the push failed. A second alert here would overwrite the
+      // per-entry report just rendered with an unrelated read failure.
+    }
+  } finally {
+    regions.push.removeAttribute("disabled");
   }
-
-  const pending = entries.filter((entry) => entry.pushState === "unpushed");
-  if (pending.length === 0) {
-    regions.pushReport.replaceChildren(
-      alertFor("success", "Everything logged today has already been pushed."),
-    );
-    regions.pushReport.hidden = false;
-    return;
-  }
-
-  const confirmed = await confirmPush(pending);
-  if (!confirmed) return;
-
-  try {
-    const response = await pushDay();
-    renderPushReport(regions, response);
-  } catch (error) {
-    regions.pushReport.replaceChildren(alertFor("error", messageOf(error)));
-    regions.pushReport.hidden = false;
-    return;
-  }
-
-  announceEntriesChanged(await listEntries());
 }
 
 /**
@@ -586,10 +610,10 @@ function renderPushReport(regions: Regions, response: PushResponse): void {
   const pushed = response.results.filter((result) => result.status === "pushed");
 
   if (failed.length === 0) {
-    regions.pushReport.replaceChildren(
+    showPushReport(
+      regions,
       alertFor("success", `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"} to Jira.`),
     );
-    regions.pushReport.hidden = false;
     return;
   }
 
@@ -610,8 +634,7 @@ function renderPushReport(regions: Regions, response: PushResponse): void {
     list.append(item);
   }
 
-  regions.pushReport.replaceChildren(alert, list);
-  regions.pushReport.hidden = false;
+  showPushReport(regions, alert, list);
 }
 
 function renderResponse(regions: Regions, response: IssuesResponse): void {
