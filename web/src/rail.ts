@@ -184,8 +184,12 @@ export function startRail(): void {
 
       // Before pushing, not after: the per-entry report needs Today on screen
       // to land on, and the push itself is what the confirmation just agreed to.
+      // Awaited, because mounting Today goes through a dynamic import() and its
+      // onPushReported subscription only exists on the far side of it — an
+      // announcement fired during that gap is heard by nobody, and a partial
+      // failure answers 200, so nothing else would report it either.
       if (window.location.pathname !== "/today") {
-        navigate("/today");
+        await navigate("/today");
       }
 
       let response: PushResponse;
