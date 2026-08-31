@@ -2,28 +2,18 @@ import "../components/wd-alert";
 import "../components/wd-button";
 import "../components/wd-card";
 import "../components/wd-combobox";
-import "../components/wd-confirm";
 import "../components/wd-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
-import {
-  ApiError,
-  createPin,
-  deletePin,
-  listEntries,
-  listIssues,
-  listPins,
-  pushDay,
-  searchIssues,
-} from "../api";
+import { ApiError, createPin, deletePin, listEntries, listIssues, listPins, searchIssues } from "../api";
 import type { WdCombobox } from "../components/wd-combobox";
-import { confirmDestructive } from "../components/wd-confirm";
 import type { EntryTicket } from "../components/wd-entry-dialog";
 import { openEntryDialog } from "../components/wd-entry-dialog";
 import { LOG_TIME } from "../components/wd-ticket-row";
-import { announceEntriesChanged, onEntriesChanged } from "../entries-changed";
-import { clockTime, totalFigure } from "../format";
+import { onEntriesChanged } from "../entries-changed";
+import { clockTime } from "../format";
 import { paintInstanceDot } from "../instance-hue";
+import { onPushReported } from "../push-reported";
 import type { RegisterTeardown } from "../router";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin, PushResponse } from "../types";
 
@@ -40,7 +30,6 @@ interface Regions {
   pinnedForm: HTMLElement;
   header: HTMLElement;
   refresh: HTMLElement;
-  push: HTMLElement;
   results: HTMLElement;
   /** One banner above both lists, per the design spec's singular "the
    *  warning" — not one per list. See renderCombinedStale. */
@@ -92,9 +81,8 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   heading.className = "text-lg font-medium";
   heading.textContent = "Assigned issues";
 
-  const push = button("Push to Jira", "primary");
   const refresh = button("Refresh", "secondary");
-  header.append(heading, push, refresh);
+  header.append(heading, refresh);
 
   // Hidden until the first response: there is nothing to refresh yet, and with
   // no instances configured it stays hidden for good.
@@ -113,7 +101,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     pinnedForm,
     header,
     refresh,
-    push,
     results,
     stale,
     pushReport,
@@ -126,9 +113,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   };
   refresh.addEventListener("click", () => {
     void refreshEverything(regions);
-  });
-  push.addEventListener("click", () => {
-    void pushToday(regions);
   });
 
   // navigator.onLine is not trustworthy (a captive portal reports "online"),
@@ -161,6 +145,14 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     void refreshTotals(regions, entries);
   });
   registerTeardown(stopListening);
+
+  // The rail triggers the push; this only renders what it hears. Same
+  // outlives-the-view reasoning as the subscription above, and the same
+  // teardown so a navigation away cannot leave it painting a detached view.
+  const stopPushListening = onPushReported((response) => {
+    renderPushReport(regions, response);
+  });
+  registerTeardown(stopPushListening);
 
   // Independent on purpose: the Pinned card paints from the store alone and
   // must not wait on a fan-out that may be slow or failing.
@@ -523,81 +515,6 @@ async function refreshEverything(regions: Regions): Promise<void> {
 function showPushReport(regions: Regions, ...nodes: Node[]): void {
   regions.pushReport.replaceChildren(...nodes);
   regions.pushReport.hidden = false;
-}
-
-/**
- * Confirms, pushes, then reports per entry.
- *
- * The confirmation exists because a push writes real worklogs and, until #10,
- * the only way to undo one is Jira's own UI.
- *
- * The button is disabled for the whole call, confirmation included: a second
- * click while one push is already in flight (or its confirmation still open)
- * is the realistic way to fire two concurrent POST /api/push requests, and a
- * duplicate Jira worklog is exactly the harm this ticket exists to avoid. A
- * second browser tab is not covered by a client-side guard — see the mutex in
- * internal/server/push.go for the other half.
- */
-async function pushToday(regions: Regions): Promise<void> {
-  regions.push.setAttribute("disabled", "");
-  try {
-    let entries: Entry[];
-    try {
-      entries = await listEntries();
-    } catch (error) {
-      showPushReport(regions, alertFor("error", messageOf(error)));
-      return;
-    }
-
-    const pending = entries.filter((entry) => entry.pushState === "unpushed");
-    if (pending.length === 0) {
-      showPushReport(regions, alertFor("success", "Everything logged today has already been pushed."));
-      return;
-    }
-
-    const confirmed = await confirmPush(pending);
-    if (!confirmed) return;
-
-    try {
-      const response = await pushDay();
-      renderPushReport(regions, response);
-    } catch (error) {
-      showPushReport(regions, alertFor("error", messageOf(error)));
-      return;
-    }
-
-    try {
-      announceEntriesChanged(await listEntries());
-    } catch {
-      // The push itself already succeeded and is reported above; a failed
-      // re-read here only means other views (the rail) miss this refresh, not
-      // that the push failed. A second alert here would overwrite the
-      // per-entry report just rendered with an unrelated read failure.
-    }
-  } finally {
-    regions.push.removeAttribute("disabled");
-  }
-}
-
-/**
- * Summarises what is about to be sent, then asks.
- *
- * The confirmation exists because a push creates real Jira worklogs and, until
- * #10 lands, the only way to undo one is Jira's own UI. wd-confirm renders its
- * body as plain text, so this is one sentence rather than a per-site table.
- */
-function confirmPush(pending: Entry[]): Promise<boolean> {
-  const seconds = pending.reduce((sum, entry) => sum + entry.seconds, 0);
-  const entries = `${String(pending.length)} ${pending.length === 1 ? "entry" : "entries"}`;
-  const sites = new Set(pending.map((entry) => entry.instanceId)).size;
-
-  return confirmDestructive({
-    heading: "Push today's time to Jira?",
-    body:
-      `${entries} totalling ${totalFigure(seconds)} will be created as worklogs on ` +
-      `${String(sites)} ${sites === 1 ? "site" : "sites"}.`,
-    confirmLabel: "Push",
-  });
 }
 
 /**

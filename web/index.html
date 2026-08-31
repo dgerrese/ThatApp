@@ -61,17 +61,18 @@
             <span class="text-rail-muted text-base">No timer running</span>
           </div>
 
-          <!-- #9 makes this the unpushed count, and the button push. -->
+          <!-- The count of entries not yet pushed, and the control that pushes them. -->
           <span id="rail-unpushed" class="text-rail-muted text-sm">Nothing to push</span>
 
           <!-- Disabled rather than hidden: a control that vanishes teaches
-               nothing about what it would have done. Outlined rather than
-               filled, so a dead control never wears the primary. -->
+               nothing about what it would have done. Filled once there is
+               something to send, outlined and muted at rest — one element
+               covers both states via the disabled: variants below. -->
           <button
             id="rail-push"
             type="button"
             disabled
-            class="border-rail-active text-rail-muted text-md mt-0.5 inline-flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-[11px] border bg-transparent font-bold"
+            class="border-rail-active bg-rail-active text-rail-ink text-md mt-0.5 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-[11px] border font-bold disabled:cursor-not-allowed disabled:bg-transparent disabled:text-rail-muted"
           >
             Push to Jira
           </button>

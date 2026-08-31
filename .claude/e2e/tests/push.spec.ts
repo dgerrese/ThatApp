@@ -52,11 +52,9 @@ test("a push where one entry fails names the entry that did not make it", async 
   );
 
   await page.goto("/today");
-  // Scoped to <main>: the rail carries its own permanently-disabled "Push to
-  // Jira" placeholder (#9 wires the count, not this button — see
-  // web/index.html), so an unscoped role query matches two same-named buttons.
-  const main = page.locator("main");
-  await main.getByRole("button", { name: "Push to Jira" }).click();
+  // The rail owns the only "Push to Jira" button — see web/src/rail.ts — so an
+  // unscoped role query is unambiguous.
+  await page.getByRole("button", { name: "Push to Jira" }).click();
 
   // The confirmation names what is about to be sent.
   await expect(page.getByText(/2 entries totalling/)).toBeVisible();
