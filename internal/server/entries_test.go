@@ -906,8 +906,18 @@ func TestPushStateOfDerivesFromTheTwoColumnsAndUpdatedAt(t *testing.T) {
 			want:  "dirty",
 		},
 		{
+			name:  "pushed and edited in the same instant",
+			entry: store.Entry{WorklogID: "10123", PushedAt: &base, UpdatedAt: base},
+			want:  "pushed",
+		},
+		{
 			name:  "worklog id without a pushed_at is not a push",
 			entry: store.Entry{WorklogID: "10123", UpdatedAt: base},
+			want:  "unpushed",
+		},
+		{
+			name:  "a pushed_at without a worklog id is not a push",
+			entry: store.Entry{PushedAt: &base, UpdatedAt: base},
 			want:  "unpushed",
 		},
 	}
