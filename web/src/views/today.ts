@@ -5,7 +5,15 @@ import "../components/wd-combobox";
 import "../components/wd-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
-import { ApiError, createPin, deletePin, listEntries, listIssues, listPins, searchIssues } from "../api";
+import {
+  ApiError,
+  createPin,
+  deletePin,
+  listEntries,
+  listIssues,
+  listPins,
+  searchIssues,
+} from "../api";
 import type { WdCombobox } from "../components/wd-combobox";
 import type { EntryTicket } from "../components/wd-entry-dialog";
 import { openEntryDialog } from "../components/wd-entry-dialog";
@@ -491,9 +499,14 @@ function renderCombinedStale(regions: Regions): void {
     return;
   }
 
-  const oldest = moments.reduce((older, moment) => (moment.getTime() < older.getTime() ? moment : older));
+  const oldest = moments.reduce((older, moment) =>
+    moment.getTime() < older.getTime() ? moment : older,
+  );
   regions.stale.replaceChildren(
-    alertFor("warning", `Showing what was here at ${clockTime(oldest)} — no connection to the server.`),
+    alertFor(
+      "warning",
+      `Showing what was here at ${clockTime(oldest)} — no connection to the server.`,
+    ),
   );
   regions.stale.hidden = false;
 }
@@ -521,6 +534,12 @@ function showPushReport(regions: Regions, ...nodes: Node[]): void {
  * Names every entry that did not reach Jira. A count alone would be the blanket
  * status the spec calls a defect: with several entries against one ticket, "2
  * failed" does not say which two.
+ *
+ * A failure whose code is `store_failed` is reported apart from the rest, and
+ * that split is the point of reading the code at all. Those entries did reach
+ * Jira — only the local record of them did not — so the retry that is right for
+ * every other failure is exactly wrong for them: pressing Push again logs the
+ * time in Jira twice, and nothing in this app can undo it.
  */
 function renderPushReport(regions: Regions, response: PushResponse): void {
   const failed = response.results.filter((result) => result.status === "failed");
@@ -529,29 +548,63 @@ function renderPushReport(regions: Regions, response: PushResponse): void {
   if (failed.length === 0) {
     showPushReport(
       regions,
-      alertFor("success", `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"} to Jira.`),
+      alertFor(
+        "success",
+        `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"} to Jira.`,
+      ),
     );
     return;
   }
 
-  const alert = alertFor(
-    "warning",
-    `${String(failed.length)} of ${String(response.results.length)} entries did not reach Jira. ` +
-      "Press Push to Jira again to retry them.",
-  );
+  const stranded = failed.filter((result) => result.error?.code === "store_failed");
+  const retryable = failed.filter((result) => result.error?.code !== "store_failed");
+  const nodes: Node[] = [];
 
-  // A sibling of the alert, never a child of it: wd-alert renders by calling
-  // this.replaceChildren(mark, message), so anything appended inside it is
-  // discarded the next time an attribute changes.
+  if (retryable.length > 0) {
+    nodes.push(
+      alertFor(
+        "warning",
+        `${String(retryable.length)} of ${String(response.results.length)} entries did not ` +
+          "reach Jira. Press Push to Jira again to retry them.",
+      ),
+      failureList(
+        retryable.map(
+          (result) => `${result.issueKey} — ${result.error?.message ?? "unknown error"}`,
+        ),
+      ),
+    );
+  }
+
+  if (stranded.length > 0) {
+    nodes.push(
+      alertFor(
+        "error",
+        `${String(stranded.length)} ${stranded.length === 1 ? "entry" : "entries"} reached Jira ` +
+          "but could not be recorded here. Check the issue in Jira before pushing again — " +
+          "pushing now would log the time twice.",
+      ),
+      failureList(stranded.map((result) => result.issueKey)),
+    );
+  }
+
+  showPushReport(regions, ...nodes);
+}
+
+/**
+ * A sibling of the alert it follows, never a child of it: wd-alert renders by
+ * calling this.replaceChildren(mark, message), so anything appended inside it
+ * is discarded the next time an attribute changes.
+ */
+function failureList(lines: string[]): HTMLElement {
   const list = document.createElement("ul");
   list.className = "mt-2 ml-6 space-y-1 text-sm";
-  for (const result of failed) {
+  for (const line of lines) {
     const item = document.createElement("li");
-    item.textContent = `${result.issueKey} — ${result.error?.message ?? "unknown error"}`;
+    item.textContent = line;
     list.append(item);
   }
 
-  showPushReport(regions, alert, list);
+  return list;
 }
 
 function renderResponse(regions: Regions, response: IssuesResponse): void {
