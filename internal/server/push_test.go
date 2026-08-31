@@ -35,6 +35,24 @@ func fakeJira(t *testing.T, created *atomic.Int64) *httptest.Server {
 	return srv
 }
 
+// failingJira answers every worklog create with 500, which the client maps to
+// jira.ErrUnreachable.
+func failingJira(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/worklog") {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
 func TestPushSendsTheDaysUnpushedEntriesAndIsIdempotent(t *testing.T) {
 	var created atomic.Int64
 	jiraSrv := fakeJira(t, &created)
@@ -114,17 +132,7 @@ func TestPushIsNotTransactionalAcrossInstances(t *testing.T) {
 	var goodCreated atomic.Int64
 	good := fakeJira(t, &goodCreated)
 
-	// Answers every worklog create with 500, which the client maps to
-	// jira.ErrUnreachable.
-	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/worklog") {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	t.Cleanup(bad.Close)
+	bad := failingJira(t)
 
 	s, db, sealer := newServerWithStore(t)
 	goodInst := seedInstance(t, db, sealer, "Good", "", good.URL)
@@ -220,7 +228,8 @@ func TestPushRetriesOnlyWhatFailed(t *testing.T) {
 		t.Errorf("second push status = %q, want pushed — a failed entry was not retried", r.Status)
 	}
 	if got := created.Load(); got != 1 {
-		t.Errorf("fake Jira created %d worklogs, want 1", got)
+		t.Errorf("fake Jira created %d worklogs, want 1 — the retry duplicated "+
+			"the worklog instead of only sending what previously failed", got)
 	}
 }
 
@@ -290,7 +299,7 @@ func TestPushDefaultsToTodayInTheConfiguredZone(t *testing.T) {
 func TestPushRunsInstancesConcurrently(t *testing.T) {
 	const (
 		slowInstanceCount = 3
-		perInstanceDelay  = 150 * time.Millisecond
+		perInstanceDelay  = 500 * time.Millisecond
 	)
 
 	slowJira := func(t *testing.T) *httptest.Server {
@@ -310,15 +319,7 @@ func TestPushRunsInstancesConcurrently(t *testing.T) {
 		return srv
 	}
 
-	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/worklog") {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	t.Cleanup(bad.Close)
+	bad := failingJira(t)
 
 	s, db, sealer := newServerWithStore(t)
 	ctx := context.Background()
@@ -347,11 +348,16 @@ func TestPushRunsInstancesConcurrently(t *testing.T) {
 	got := pushDay(t, s, "2026-08-31")
 	elapsed := time.Since(start)
 
-	// A serial loop over the 4 instances would take roughly
-	// slowInstanceCount*perInstanceDelay (the failing instance adds
-	// essentially nothing); concurrent fan-out takes roughly one instance's
-	// delay. The threshold sits at the midpoint, comfortably clear of either.
-	threshold := time.Duration(slowInstanceCount) * perInstanceDelay / 2
+	// The threshold is load-bearing, not a round number: a serial loop over the
+	// 4 instances takes roughly slowInstanceCount*perInstanceDelay (~1500ms; the
+	// failing instance adds essentially nothing), while concurrent fan-out takes
+	// roughly one instance's delay (~500-550ms, allowing for goroutine
+	// scheduling jitter and sqlite write serialisation across the concurrent
+	// MarkEntryPushed calls). Setting the ceiling to 1.5x a single delay keeps
+	// ~200ms/36% of headroom under it on the concurrent side while staying at
+	// half the serial duration — widen perInstanceDelay, not this formula, if
+	// the gap ever needs to grow further.
+	threshold := perInstanceDelay + perInstanceDelay/2
 	if elapsed >= threshold {
 		t.Errorf("push across %d instances took %v, want under %v — instances "+
 			"are not being pushed concurrently", slowInstanceCount+1, elapsed, threshold)
@@ -367,9 +373,11 @@ func TestPushRunsInstancesConcurrently(t *testing.T) {
 		}
 	}
 	if pushedCount != slowInstanceCount {
-		t.Errorf("pushed count = %d, want %d", pushedCount, slowInstanceCount)
+		t.Errorf("pushed count = %d, want %d — a healthy instance's entry was "+
+			"lost or blanked by the failing one", pushedCount, slowInstanceCount)
 	}
 	if failedCount != 1 {
-		t.Errorf("failed count = %d, want 1", failedCount)
+		t.Errorf("failed count = %d, want 1 — the failing instance's entry "+
+			"should be the only one reported failed", failedCount)
 	}
 }
