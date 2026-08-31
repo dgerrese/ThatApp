@@ -14,9 +14,10 @@ import (
 // stored separately because the container's clock is almost certainly UTC, so
 // neither can be derived from the other after the fact.
 //
-// WorklogID and PushedAt belong to the push (#9). This package reads them and
-// never writes them: whether an entry is unpushed, clean or dirty is computed
-// from those two columns and UpdatedAt, never stored as a flag.
+// WorklogID and PushedAt belong to the push (#9). MarkEntryPushed is the only
+// writer of either, and it names no other column: whether an entry is unpushed,
+// clean or dirty is computed from those two and UpdatedAt on every read, never
+// stored as a flag.
 type Entry struct {
 	ID         int64
 	InstanceID int64
