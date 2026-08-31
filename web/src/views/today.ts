@@ -2,6 +2,7 @@ import "../components/wd-alert";
 import "../components/wd-button";
 import "../components/wd-card";
 import "../components/wd-combobox";
+import "../components/wd-confirm";
 import "../components/wd-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
@@ -12,17 +13,19 @@ import {
   listEntries,
   listIssues,
   listPins,
+  pushDay,
   searchIssues,
 } from "../api";
 import type { WdCombobox } from "../components/wd-combobox";
+import { confirmDestructive } from "../components/wd-confirm";
 import type { EntryTicket } from "../components/wd-entry-dialog";
 import { openEntryDialog } from "../components/wd-entry-dialog";
 import { LOG_TIME } from "../components/wd-ticket-row";
-import { onEntriesChanged } from "../entries-changed";
-import { clockTime } from "../format";
+import { announceEntriesChanged, onEntriesChanged } from "../entries-changed";
+import { clockTime, totalFigure } from "../format";
 import { paintInstanceDot } from "../instance-hue";
 import type { RegisterTeardown } from "../router";
-import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
+import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin, PushResponse } from "../types";
 
 /**
  * The regions that outlive a fetch, plus the two caches (pins, the last issues
@@ -41,6 +44,9 @@ interface Regions {
   /** One banner above both lists, per the design spec's singular "the
    *  warning" — not one per list. See renderCombinedStale. */
   stale: HTMLElement;
+  /** The result of the last push attempt: a success alert, a failure alert, or
+   *  a failure alert plus the list of entries that did not make it. */
+  pushReport: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
   pinsCachedAt: Date | null;
@@ -62,6 +68,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // contributes none.
   stale.hidden = true;
 
+  const pushReport = document.createElement("div");
+  // Same reasoning as stale above: empty but present would still claim a
+  // space-y-4 margin.
+  pushReport.hidden = true;
+
   const pinnedCard = document.createElement("wd-card");
   pinnedCard.setAttribute("heading", "Pinned");
 
@@ -80,8 +91,9 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   heading.className = "text-lg font-medium";
   heading.textContent = "Assigned issues";
 
+  const push = button("Push to Jira", "primary");
   const refresh = button("Refresh", "secondary");
-  header.append(heading, refresh);
+  header.append(heading, push, refresh);
 
   // Hidden until the first response: there is nothing to refresh yet, and with
   // no instances configured it stays hidden for good.
@@ -91,7 +103,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   results.className = "space-y-4";
   results.append(loadingLine());
 
-  container.append(stale, pinnedCard, header, results);
+  container.append(stale, pinnedCard, header, pushReport, results);
   root.append(container);
 
   const regions: Regions = {
@@ -102,6 +114,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     refresh,
     results,
     stale,
+    pushReport,
     pins: [],
     lastIssues: null,
     pinsCachedAt: null,
@@ -111,6 +124,9 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   };
   refresh.addEventListener("click", () => {
     void refreshEverything(regions);
+  });
+  push.addEventListener("click", () => {
+    void pushToday(regions);
   });
 
   // navigator.onLine is not trustworthy (a captive portal reports "online"),
@@ -497,6 +513,105 @@ async function refreshEverything(regions: Regions): Promise<void> {
   } finally {
     regions.refresh.removeAttribute("disabled");
   }
+}
+
+/**
+ * Confirms, pushes, then reports per entry.
+ *
+ * The confirmation exists because a push writes real worklogs and, until #10,
+ * the only way to undo one is Jira's own UI.
+ */
+async function pushToday(regions: Regions): Promise<void> {
+  let entries: Entry[];
+  try {
+    entries = await listEntries();
+  } catch (error) {
+    regions.pushReport.replaceChildren(alertFor("error", messageOf(error)));
+    regions.pushReport.hidden = false;
+    return;
+  }
+
+  const pending = entries.filter((entry) => entry.pushState === "unpushed");
+  if (pending.length === 0) {
+    regions.pushReport.replaceChildren(
+      alertFor("success", "Everything logged today has already been pushed."),
+    );
+    regions.pushReport.hidden = false;
+    return;
+  }
+
+  const confirmed = await confirmPush(pending);
+  if (!confirmed) return;
+
+  try {
+    const response = await pushDay();
+    renderPushReport(regions, response);
+  } catch (error) {
+    regions.pushReport.replaceChildren(alertFor("error", messageOf(error)));
+    regions.pushReport.hidden = false;
+    return;
+  }
+
+  announceEntriesChanged(await listEntries());
+}
+
+/**
+ * Summarises what is about to be sent, then asks.
+ *
+ * The confirmation exists because a push creates real Jira worklogs and, until
+ * #10 lands, the only way to undo one is Jira's own UI. wd-confirm renders its
+ * body as plain text, so this is one sentence rather than a per-site table.
+ */
+function confirmPush(pending: Entry[]): Promise<boolean> {
+  const seconds = pending.reduce((sum, entry) => sum + entry.seconds, 0);
+  const entries = `${String(pending.length)} ${pending.length === 1 ? "entry" : "entries"}`;
+  const sites = new Set(pending.map((entry) => entry.instanceId)).size;
+
+  return confirmDestructive({
+    heading: "Push today's time to Jira?",
+    body:
+      `${entries} totalling ${totalFigure(seconds)} will be created as worklogs on ` +
+      `${String(sites)} ${sites === 1 ? "site" : "sites"}.`,
+    confirmLabel: "Push",
+  });
+}
+
+/**
+ * Names every entry that did not reach Jira. A count alone would be the blanket
+ * status the spec calls a defect: with several entries against one ticket, "2
+ * failed" does not say which two.
+ */
+function renderPushReport(regions: Regions, response: PushResponse): void {
+  const failed = response.results.filter((result) => result.status === "failed");
+  const pushed = response.results.filter((result) => result.status === "pushed");
+
+  if (failed.length === 0) {
+    regions.pushReport.replaceChildren(
+      alertFor("success", `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"} to Jira.`),
+    );
+    regions.pushReport.hidden = false;
+    return;
+  }
+
+  const alert = alertFor(
+    "warning",
+    `${String(failed.length)} of ${String(response.results.length)} entries did not reach Jira. ` +
+      "Press Push to Jira again to retry them.",
+  );
+
+  // A sibling of the alert, never a child of it: wd-alert renders by calling
+  // this.replaceChildren(mark, message), so anything appended inside it is
+  // discarded the next time an attribute changes.
+  const list = document.createElement("ul");
+  list.className = "mt-2 ml-6 space-y-1 text-sm";
+  for (const result of failed) {
+    const item = document.createElement("li");
+    item.textContent = `${result.issueKey} — ${result.error?.message ?? "unknown error"}`;
+    list.append(item);
+  }
+
+  regions.pushReport.replaceChildren(alert, list);
+  regions.pushReport.hidden = false;
 }
 
 function renderResponse(regions: Regions, response: IssuesResponse): void {
