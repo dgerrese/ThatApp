@@ -880,3 +880,43 @@ func TestDeleteEntryRejectsANonNumericID(t *testing.T) {
 
 	assertRejected(t, rec, http.StatusBadRequest, "invalid_request")
 }
+
+func TestPushStateOfDerivesFromTheTwoColumnsAndUpdatedAt(t *testing.T) {
+	base := time.Date(2026, 8, 31, 10, 0, 0, 0, time.UTC)
+	pushed := base.Add(time.Minute)
+
+	cases := []struct {
+		name  string
+		entry store.Entry
+		want  string
+	}{
+		{
+			name:  "never pushed",
+			entry: store.Entry{UpdatedAt: base},
+			want:  "unpushed",
+		},
+		{
+			name:  "pushed and untouched since",
+			entry: store.Entry{WorklogID: "10123", PushedAt: &pushed, UpdatedAt: base},
+			want:  "pushed",
+		},
+		{
+			name:  "edited after the push",
+			entry: store.Entry{WorklogID: "10123", PushedAt: &base, UpdatedAt: pushed},
+			want:  "dirty",
+		},
+		{
+			name:  "worklog id without a pushed_at is not a push",
+			entry: store.Entry{WorklogID: "10123", UpdatedAt: base},
+			want:  "unpushed",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := pushStateOf(tc.entry); got != tc.want {
+				t.Errorf("pushStateOf() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

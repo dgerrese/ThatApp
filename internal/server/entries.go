@@ -25,10 +25,6 @@ const maxEntrySeconds = 24 * 60 * 60
 // which would be a round trip to answer a question the server already had in
 // hand; position is the 0-based index into store.Instances' created_at order,
 // which is what instanceHue.ts keys its colour off.
-//
-// Push state is deliberately absent. Every entry this ticket creates is
-// unpushed, and naming the derived state before #9 owns it would invent
-// vocabulary the pushing ticket has to live with.
 type entryDTO struct {
 	ID               int64  `json:"id"`
 	InstanceID       int64  `json:"instanceId"`
@@ -39,6 +35,21 @@ type entryDTO struct {
 	StartedAt        string `json:"startedAt"`
 	Seconds          int    `json:"seconds"`
 	Comment          string `json:"comment"`
+	PushState        string `json:"pushState"`
+}
+
+// pushStateOf reports whether an entry has reached Jira, and whether it has been
+// edited since. It is computed from worklog_id, pushed_at and updated_at on every
+// read rather than stored, which is what makes a repeated push idempotent for free.
+func pushStateOf(e store.Entry) string {
+	if e.WorklogID == "" || e.PushedAt == nil {
+		return "unpushed"
+	}
+	if e.UpdatedAt.After(*e.PushedAt) {
+		return "dirty"
+	}
+
+	return "pushed"
 }
 
 // entryDTOFrom renders one row for the browser. started_at is normalised to UTC
@@ -56,6 +67,7 @@ func (s *Server) entryDTOFrom(entry store.Entry, inst store.Instance, position i
 		StartedAt:        entry.StartedAt.In(s.cfg.Location).Format(time.RFC3339),
 		Seconds:          entry.Seconds,
 		Comment:          entry.Comment,
+		PushState:        pushStateOf(entry),
 	}
 }
 
