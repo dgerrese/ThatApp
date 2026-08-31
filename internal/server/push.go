@@ -159,7 +159,17 @@ func (s *Server) pushInstanceEntries(
 		// Recorded immediately, per entry, rather than batched at the end: the
 		// worklog exists in Jira from here on, and a crash before the write
 		// would leave the next push creating a duplicate.
-		if err := s.db.MarkEntryPushed(ctx, entry.ID, worklogID, s.now().UTC()); err != nil {
+		//
+		// WithoutCancel is the same scenario without the crash. ctx descends
+		// from the request, which net/http cancels the moment the browser goes
+		// away — a reload, a closed tab, a proxy giving up on a slow site — and
+		// database/sql refuses to execute on a cancelled context. Dropping
+		// cancellation here keeps the local record of a worklog that already
+		// exists in Jira, which is the only thing standing between a disconnect
+		// and a duplicate on the next push.
+		if err := s.db.MarkEntryPushed(
+			context.WithoutCancel(ctx), entry.ID, worklogID, s.now().UTC(),
+		); err != nil {
 			result.Status = "failed"
 			result.WorklogID = worklogID
 			result.Error = &errorBody{

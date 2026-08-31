@@ -447,3 +447,64 @@ func TestPushSerializesConcurrentRequests(t *testing.T) {
 			"requests, want 2 (one per entry) — the mutex in handlePushDay did not serialize them", got)
 	}
 }
+
+// TestPushRecordsAWorklogAfterTheClientDisconnects pins the one failure that
+// silently produces a duplicate in the user's timesheet: net/http cancels
+// r.Context() when the browser goes away, and database/sql refuses to execute
+// on a cancelled context, so a disconnect between Jira answering 201 and the
+// local write leaves the worklog existing in Jira with worklog_id still NULL —
+// and the next push creates it a second time.
+//
+// s.now is the seam that makes the window deterministic rather than a race: the
+// handler reads it once for the default day, then once per entry as the last
+// thing it evaluates before MarkEntryPushed. Cancelling on that second read
+// places the disconnect exactly inside the window, with the 201 already
+// received.
+func TestPushRecordsAWorklogAfterTheClientDisconnects(t *testing.T) {
+	var created atomic.Int64
+	jiraSrv := fakeJira(t, &created)
+
+	s, db, sealer := newServerWithStore(t)
+	inst := seedInstance(t, db, sealer, "Work", "", jiraSrv.URL)
+
+	entry, err := db.CreateEntry(context.Background(), store.EntryInput{
+		InstanceID: inst.ID,
+		IssueKey:   "RIDGE-1",
+		Day:        "2026-08-31",
+		StartedAt:  time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC),
+		Seconds:    3600,
+		Comment:    "work",
+	})
+	if err != nil {
+		t.Fatalf("seeding entry: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var reads atomic.Int64
+	s.now = func() time.Time {
+		if reads.Add(1) > 1 {
+			cancel()
+		}
+
+		return time.Date(2026, 8, 31, 17, 0, 0, 0, time.UTC)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/push?day=2026-08-31", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+
+	if got := created.Load(); got != 1 {
+		t.Fatalf("fake Jira received %d worklog creates, want 1", got)
+	}
+
+	stored, err := db.Entry(context.Background(), entry.ID)
+	if err != nil {
+		t.Fatalf("reading the entry back: %v", err)
+	}
+	if stored.WorklogID == "" || stored.PushedAt == nil {
+		t.Fatalf("entry reads back as %+v after a disconnected push — the worklog "+
+			"exists in Jira but nothing records it, so the next push duplicates it", stored)
+	}
+}
