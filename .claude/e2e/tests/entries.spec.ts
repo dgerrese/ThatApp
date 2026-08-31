@@ -10,6 +10,9 @@ interface StubEntry {
   startedAt: string;
   seconds: number;
   comment: string;
+  /** Present because the real DTO always carries it — a stub without it would
+   *  exercise a state the server never sends. */
+  pushState: "unpushed" | "pushed" | "dirty";
 }
 
 interface Recorder {
@@ -33,6 +36,7 @@ function entry(id: number, issueKey: string, seconds: number, options?: Partial<
     startedAt: `${DAY}T09:15:00+02:00`,
     seconds,
     comment: "",
+    pushState: "unpushed",
     ...options,
   } satisfies StubEntry;
 }

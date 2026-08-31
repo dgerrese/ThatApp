@@ -431,7 +431,14 @@ export class WdEntryDialog extends HTMLElement {
  * would say least where it appeared most.
  */
 function pushBadge(state: Entry["pushState"]): HTMLElement | null {
-  if (state === "unpushed") return null;
+  // Each badged state is named, and anything else gets no badge — never a
+  // default of "Pushed". pushState crosses the network and is only typed at
+  // compile time, so a state this build does not recognise (a cached shell
+  // against a newer server, a response that lost the field) reaches here as
+  // something neither branch below should claim. Telling someone their time
+  // reached Jira when it did not is the one wrong answer indistinguishable
+  // from a true one; no badge merely says nothing.
+  if (state !== "pushed" && state !== "dirty") return null;
 
   const badge = document.createElement("span");
   badge.className = "shrink-0 text-xs font-medium";
