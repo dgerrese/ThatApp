@@ -33,12 +33,13 @@ history and says otherwise in places.
 **Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #73 — none carries a
 `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
-**In progress: nothing** — no `issue-*` branch is cut. **One open pull request, carrying no ticket:
-#49** (`codeberg-api-limits`), which is project design. The `retro-skill` and
+**In progress: #51**, on `issue-51-frontend-unit-tests` — one commit, a plan, no implementation.
+**No pull request is open:** #49 (`codeberg-api-limits`) merged on 2026-09-01, and the eod skill
+followed it as PR #81. The `retro-skill` and
 `worktrees-without-the-tax` branches were carried across the forge move with their work intact but
 **no pull request open on either** — the GitHub pull requests that used to hold them did not migrate,
-so re-opening them on Codeberg is a decision waiting to be made. **To do:** #8, #10,
-#11 and #51. **Needs refinement:** #13 (LAN/HTTPS phone access — deferred, and needs the owner's explicit
+so re-opening them on Codeberg is a decision waiting to be made. **To do:** #8, #10
+and #11. **Needs refinement:** #13 (LAN/HTTPS phone access — deferred, and needs the owner's explicit
 go-ahead even to refine), #19, #35, #39, #40, #47, #61 and #80. **Intake, fourteen, every one the owner's
 to approve or decline:** #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as
 not planned:** #21, #22 — folded into #4, not rejected; both labelled `wontfix`.
