@@ -33,8 +33,11 @@ history and says otherwise in places.
 **Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #73 — none carries a
 `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
-**In progress: nothing** — no `issue-*` branch is cut. The two open pull requests carry no ticket
-between them: **#78** (`retro-skill`) and this handoff branch when it goes out. **To do:** #8, #10,
+**In progress: nothing** — no `issue-*` branch is cut. **One open pull request, carrying no ticket:
+#49** (`codeberg-api-limits`), which is project design. The `retro-skill` and
+`worktrees-without-the-tax` branches were carried across the forge move with their work intact but
+**no pull request open on either** — the GitHub pull requests that used to hold them did not migrate,
+so re-opening them on Codeberg is a decision waiting to be made. **To do:** #8, #10,
 #11 and #51. **Needs refinement:** #13 (LAN/HTTPS phone access — deferred, and needs the owner's explicit
 go-ahead even to refine), #19, #35, #39, #40, #47, #61 and #80. **Intake, fourteen, every one the owner's
 to approve or decline:** #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as
@@ -511,7 +514,16 @@ it. Full narrative in `handoff/2026-09-01.md`; four things must not be rediscove
 - **`wontfix` is load-bearing now.** Forgejo issues are only open or closed; there is no "closed as
   not planned". A declined ticket closed without `wontfix` is indistinguishable from one that
   shipped. Status labels are `status/*`, scoped and `exclusive: true`, so the forge itself enforces
-  one status at a time.
+  one status at a time — verified, not assumed: adding a second status drops the first.
+- **Issues and pull requests share one number sequence.** Opening a pull request during the issue
+  migration consumed a number meant for an issue and shifted everything after it. It was caught by a
+  guard and repaired cheaply, but the rule stands: **nothing may create an issue or pull request
+  while a numbered migration is running.** The migration is done, so this now matters only if the
+  numbers are ever rebuilt again.
+- **Three Codeberg limits**, all found the hard way and written into the `ticket-workflow` skill:
+  issue creation is rate limited to roughly one per 32 seconds for bulk work; repository create and
+  delete need the `write:user` scope the token deliberately lacks, so do those in the web interface;
+  and Actions is a repository *unit* that must be enabled, which does not retroactively run anything.
 
 **Merging into `main` locally is forbidden.** Stated by the owner on 2026-08-17 as "absolutely
 forbidden" and written into `CLAUDE.md`'s hard constraints and the `ticket-workflow` skill as PR #33.
@@ -1102,6 +1114,23 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   timer). #8 is not a prerequisite for #9 despite the spec's ordering — manual entry already
   produces the entries a push sends.
 
+**Left over from the forge move, 2026-09-01:**
+
+- **Local `main` is stale and only the owner may move it** — still the pre-rename tip `d07f4ec` while the project is at `afa098e`. Until it moves, branching from local `main` produces
+  a branch with the old names, the old module path and the deleted GitHub workflows.
+  Its SHA is `d07f4ec` and not the `71c8c2f` the day log mentions: the author-email rewrite
+  re-hashed every branch, `main` included, so the commit is the same work under a new hash.
+- **`retro-skill` and `worktrees-without-the-tax` are pushed but have no pull request.** Their work
+  survived the move; the GitHub pull requests holding them did not. Both predate the rename, so
+  either will need `THAT_*`/`that-*` applied before it can merge.
+- **`upload-artifact` on hosted runners is still unverified.** It only runs on end-to-end failure,
+  and that workflow is path-gated, so it has never fired. If it turns out unsupported, the step
+  drops with no loss to the gate itself. Everything else in `.forgejo/workflows/` is confirmed
+  working on `codeberg-medium`.
+- **`make fmt`, `make lint` and the e2e rig were not re-run after the rename beyond the two gates.**
+  `make verify` and `make test-e2e` both passed, which is the merge gate; `make fmt` in particular
+  was not, and #74 already records that it rewrites committed files.
+
 **Waiting on the owner:**
 
 - **The intake queue is thirteen and is the longest it has been:** #41, #42, #43, #53, #55, #56,
@@ -1113,7 +1142,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 - **Seven local branches are merged into `origin/main` and droppable** whenever the owner says so:
   `handoff-2026-08-17`, `handoff-2026-08-20`, `handoff-2026-08-27`, `handoff-2026-08-31`,
   `handoff-post-4`, `issue-12-pwa-shell`, `issue-9-end-of-day-push`. `worktrees-without-the-tax` is
-  kept deliberately (see below); `retro-skill` is PR #78, open.
+  kept deliberately (see below); `retro-skill` carries unmerged work and was pushed to Codeberg.
+  Note these were merged into the *GitHub* `main`, which is now archived — they are contained in
+  Codeberg's `main` too, since it descends from the same history.
 
 **Decided but not built:**
 
@@ -1175,15 +1206,27 @@ request at the end-of-day signal. PR #78 (`retro-skill`) is open and waiting on 
 
 ## Environment notes
 
-- **`gh` may not exist on a new machine**, and every label move in the ticket workflow goes through
-  it. On the current machine it lives at `~/.local/bin/gh`, installed from the GitHub release
-  tarball because there is no passwordless sudo and Ubuntu's apt candidate is far behind. Refinement
-  can be drafted offline and pushed with `gh issue edit <n> --body-file` once auth is available.
-- **The Claude GitHub App is installed on this repo.** That lets Claude be mentioned in issues and
-  pull requests; it does **not** give a CLI session API access. They are separate mechanisms.
-- Local `main` may sit well behind `origin/main`; branch from `origin/main`, not from it. **It is
-  level with `origin/main` at `d5fa002` as of 2026-09-01**, but it goes stale again the moment the
-  owner merges anything, so the habit stands rather than the SHA.
+- **The CLI is `tea`, and it will not come from a package manager.** Every label and status move goes
+  through it. There is no apt repository for it — and `apt install tea` installs a *completely
+  different program*, a graphical text editor, which is what happened on 2026-09-01. Install the
+  binary from `dl.gitea.com` and check it against the published `.sha256` (note: `.sha` 404s). On the
+  current machine it is `/usr/local/bin/tea`, v0.15.1. Because it is a manual install it receives no
+  security updates; check its version by hand rather than assuming it is current.
+- **`tea` needs its own token; the SSH key is not enough.** SSH covers `git push`/`pull` only — the
+  Forgejo API takes a token, registered with `tea login add`. The token carries `write:issue`,
+  `write:repository` and `read:user`, deliberately **not** `write:user`, so it cannot create or
+  delete repositories. Do those in the web interface.
+- **`gh` is still installed** at `~/.local/bin/gh` and still authenticated, but the GitHub repository
+  is archived and read-only. It is useful only for reading the old record. Nothing in the workflow
+  should reach for it.
+- **The Claude GitHub App no longer applies.** It was installed on the GitHub repository, which is
+  archived; Forgejo has no equivalent, and the `@claude` and automatic-review workflows were deleted
+  in the move. Claude runs locally through the superpowers skills, which is how the work was always
+  actually done.
+- Local `main` may sit well behind the forge; branch from the remote, not from it. **As of
+  2026-09-01 it is badly stale — still on the pre-rename tip `d07f4ec` while the project is
+  at `afa098e`** on Codeberg. Advancing it is the owner's call, since `CLAUDE.md` forbids a session
+  moving `main`.
 - **SSH authentication was down on 2026-08-17** and no git traffic reached GitHub all session:
   `sign_and_send_pubkey: signing failed … communication with agent failed`, and `ssh-add -l` reports
   *The agent has no identities* — the agent is running but empty, or its socket is stale from an
@@ -1194,10 +1237,14 @@ request at the end-of-day signal. PR #78 (`retro-skill`) is open and waiting on 
   their pull requests went up, which is the fix, and `--force-with-lease` is how a rebased branch
   gets pushed over its pre-rebase remote copy. **It recurred on 2026-08-24**, same signature,
   mid-session — and this time there is a workaround that does not touch the remote:
-  `git -c credential.helper='!gh auth git-credential' push https://codeberg.org/DionGerrese/ThatApp.git <branch>`
-  pushes on `gh`'s token with the agent dead, as a one-off, leaving the SSH remote configured. Use
-  it the moment an SSH push fails rather than leaving a branch stranded; `ssh-add` remains the real
-  fix and the owner's to run.
+  `git -c credential.helper='!gh auth git-credential' push https://github.com/dgerrese/work-dashboard.git <branch>`
+  pushed on `gh`'s token with the agent dead, as a one-off, leaving the SSH remote configured.
+  **That exact command is dead now** — it names the archived GitHub repository, and the 2026-09-01
+  rename rewrote the URL to a Codeberg one, which made the sentence look current while being
+  nonsense: `gh`'s token has no authority on Codeberg. The URL above is restored to what was
+  actually run. **The Codeberg equivalent is `tea login add --git-credentials`**, which registers
+  `tea` as a git credential helper so HTTPS pushes authenticate on its token; it has not been tried
+  here. `ssh-add` — or starting 1Password — remains the real fix and the owner's to run.
 - **The 2026-08-28 recurrence had a different cause, and `ssh-add` is not its fix.** Keys come from
   the **1Password SSH agent**, not from a file, and the app was simply not running: no 1Password
   process, and `~/.1password/agent.sock` left over from 2026-08-27 answering *Connection refused*.
