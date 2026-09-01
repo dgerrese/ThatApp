@@ -511,7 +511,16 @@ it. Full narrative in `handoff/2026-09-01.md`; four things must not be rediscove
 - **`wontfix` is load-bearing now.** Forgejo issues are only open or closed; there is no "closed as
   not planned". A declined ticket closed without `wontfix` is indistinguishable from one that
   shipped. Status labels are `status/*`, scoped and `exclusive: true`, so the forge itself enforces
-  one status at a time.
+  one status at a time — verified, not assumed: adding a second status drops the first.
+- **Issues and pull requests share one number sequence.** Opening a pull request during the issue
+  migration consumed a number meant for an issue and shifted everything after it. It was caught by a
+  guard and repaired cheaply, but the rule stands: **nothing may create an issue or pull request
+  while a numbered migration is running.** The migration is done, so this now matters only if the
+  numbers are ever rebuilt again.
+- **Three Codeberg limits**, all found the hard way and written into the `ticket-workflow` skill:
+  issue creation is rate limited to roughly one per 32 seconds for bulk work; repository create and
+  delete need the `write:user` scope the token deliberately lacks, so do those in the web interface;
+  and Actions is a repository *unit* that must be enabled, which does not retroactively run anything.
 
 **Merging into `main` locally is forbidden.** Stated by the owner on 2026-08-17 as "absolutely
 forbidden" and written into `CLAUDE.md`'s hard constraints and the `ticket-workflow` skill as PR #33.
