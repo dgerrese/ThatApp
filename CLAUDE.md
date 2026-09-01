@@ -199,5 +199,9 @@ appears. It holds the label mechanics, the `gh` commands, what each status requi
 full — including the standing decision on worktrees and why the whole-branch review is not
 optional.
 
-`docs/superpowers/plans/2026-08-12-handoff.md` is where a session resumes from: current state,
-decisions not to reopen, and what is still open.
+`docs/superpowers/plans/handoff.md` is where a session resumes from: current state, decisions not to
+reopen, and what is still open. It carries **no dated entries** — the day-by-day narrative lives in
+`docs/superpowers/plans/handoff/YYYY-MM-DD.md`, one file per day. Read `handoff.md` always; read a
+day only to learn how something came to be. Anything a later session must not rediscover gets
+promoted from the day's file into `handoff.md` on the day it happens, so no daily file is ever
+load-bearing.

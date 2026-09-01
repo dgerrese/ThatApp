@@ -1,6 +1,8 @@
 # Work Dashboard — handoff
 
 **Date:** 2026-09-01
+**Formerly:** `docs/superpowers/plans/2026-08-12-handoff.md`, split on 2026-09-01. Plans and specs
+written before that date cite the old path in prose; they were deliberately not rewritten.
 **Supersedes:** nothing
 **Superseded by:** the design of record, wherever the two disagree —
 [`docs/superpowers/specs/2026-08-04-work-dashboard-design.md`](../specs/2026-08-04-work-dashboard-design.md)
@@ -9,13 +11,17 @@ This is the document a session resumes from — on this machine or another one. 
 *decisions already taken*, so neither has to be rediscovered or relitigated. It does not repeat the
 design (that is the spec) or the rules (that is `CLAUDE.md` and the `ticket-workflow` skill).
 
+**This file holds current state only.** The day-by-day narrative lives in [`handoff/`](handoff/),
+one file per day, named `YYYY-MM-DD.md`. Read a day only to learn how something came to be — nothing
+there is load-bearing, because anything a later session must not rediscover is promoted into this
+file on the day it happens.
+
 **Keep it current.** Update it when a ticket changes status, when a decision lands that a later
-session should not reopen, and when work stops mid-flight. It is a project-design document, so it
-needs no ticket.
+session should not reopen, and when work stops mid-flight. The day's narrative goes to
+`handoff/<today>.md`. It is a project-design document, so it needs no ticket.
 
 ---
-
-## Where things stand — 2026-08-21
+## Where things stand
 
 **Merged:** #1 scaffolding (containerised Go + vanilla-TS skeleton, config validation, HTTP server,
 build-tagged asset FS, esbuild + Tailwind v4, golangci-lint v2 + ESLint 9, CI) · #2 `internal/store`
@@ -377,167 +383,6 @@ ever exists), #59 (the pin flow's canvas source contradicts #44's spec). #43 gai
 its priority is now higher: #6 added the second by-index concurrent write site and #9's push will be
 the third.
 
-### 2026-08-22 — #7 under way
-
-**#7's spec was approved on 2026-08-21** and is now the binding document. Before it became binding
-it was **diffed against `ManualDialog.dc.html`**, which is the rule #6 produced after two of its
-divergences reached a finished branch. Four gaps came out of that diff, all resolved in the spec
-rather than left in it:
-
-- **Drawn on the board, missing from the spec:** the dialog's header — summary as an `<h2>`, a muted
-  `KEY · Instance · Status` line, the ticket's day total at 22px, a round Close, in a 560px card —
-  now adopted unchanged. And the per-entry push chip ("In Jira" / "Not pushed"), which stays
-  deferred to #9 but is now recorded *as* a deferral, so nobody later reads its absence as an
-  oversight in reading the board.
-- **In the spec, drawn nowhere:** the dialog's trigger, and the editing affordance. Both were
-  settled with the owner **in the browser** on 2026-08-21, in the app's own tokens and typeface —
-  the method that settled the duration stepper, and the one that keeps working.
-
-**The trigger is "T4": the row's duration cell is a `<button>`** carrying a magenta uppercase "Log"
-hint that expands on hover and focus. **Its reflow is accepted, not overlooked** — the hint widens
-the button and the summary re-truncates while it is out, measured as "Retry a worklog push that
-faile…" at rest against "…that f…" hovered. The owner saw the measurement and chose it. **Do not
-"fix" it into a reserved-width variant.** Rejected: a separate `+` button (three controls at the
-row's right edge once #8 lands) and making the whole row the target — which cannot be a `<button>`
-at all, since the row holds the key's link and will hold #8's play control, so it would need
-`tabindex` and hand-written Enter/Space handling, the reimplementation `wd-button` and `wd-confirm`
-exist to avoid.
-
-**Editing is "F4": one form at the foot**, which editing loads the entry into, with the mode named
-on a line of its own and the dismissing `×` at that line's end. The field row is **identical in both
-modes** — measured at 298px adding and 335px editing, the only arrangement tested where the comment
-grows, because "Save" is narrower than "Add entry". Every alternative put the mode or its Cancel
-inside the field row and cost between 11px and 83px.
-
-**#7's issue body was corrected** in the same pass: `started_at` is never edited (which also
-corrects line 238 of the design of record), the picker is a stepper you can type into rather than
-fixed increments, and the rail — not just Today — carries the total *and* the split. Two criteria
-were added that the spec put in scope and the body never mentioned: deleting confirms through
-`wd-confirm`, and the API does not enforce the 15-minute grid.
-
-**The plan is `docs/superpowers/plans/2026-08-21-manual-time-entry.md`, eight tasks, in #44's
-light format rather than #6's heavy one** — feared lost on 2026-08-24 and found unpushed the same
-evening; see *#7's Go side is on no branch* below, and its resolution after it. That was a deliberate choice: #6's review found six defects in
-plan-supplied test code, every one an assertion aimed at the wrong observable, and concluded that
-plans are drafted, not verified. Writing three thousand lines of unverified Go into a plan document
-buys less than it costs. Tasks: store → clock → API → duration control → dialog → trigger → rail →
-gates. Only two orderings are forced.
-
-**Tasks 1–3 were built and reported merged into the branch** — `3e45fd8` the store, `8ca37c7`
-the injected clock, `b024a2b` the API, `make verify` green after each and re-run independently
-rather than taken on a subagent's report. **None of the three had reached GitHub** when the
-2026-08-24 check ran — they sat unpushed on the machine that built them, and are on origin since
-that evening. See *#7's Go side is on no branch* below.
-
-### 2026-08-24 — #7's Go side is on no branch
-
-**The three commits above are unreachable, and so is the plan.** Checked on 2026-08-24, after the
-2026-08-22 handoff merged as PR #63:
-
-- `GET /repos/dgerrese/work-dashboard/commits/<sha>` returns **422 "No commit found"** for
-  `3e45fd8`, `8ca37c7` and `b024a2b` alike, which means they are on no branch on GitHub — not on a
-  stale one, not unmerged somewhere.
-- `origin/issue-7-manual-time-entry` holds one commit past `main`: `be4a3f6`, the design. There is
-  no `docs/superpowers/plans/2026-08-21-manual-time-entry.md`, no entries store and no entries
-  handler; `time_entries` appears only in the initial migration.
-- On the machine this was checked from, no dangling commit, stash, worktree or reflog entry carries
-  them either. Its 21 August reflog shows the design commit on this branch and nothing else.
-
-So the work exists only wherever it was built, unpushed, if that machine still has it. **#7 moved to
-`status:blocked` on 2026-08-24** pending that check; the comment on the issue holds the same
-evidence.
-
-**What survives is worth more than it looks.** The spec is approved and safe on the branch, the
-mutation-testing findings and the decisions below were all written down here rather than left in the
-code, and #7's issue body carries the corrected criteria. A rebuild re-types the Go; it does not
-have to rediscover any of the thinking. **What does not survive is the plan document** — the eight
-tasks are recorded above only as their titles (store → clock → API → duration control → dialog →
-trigger → rail → gates), so a rebuild starts by writing that plan again from the spec.
-
-**The habit this argues for:** push the branch after each task, not at the end of the ticket. Three
-tasks' worth of reviewed, verified Go was lost to a step that costs seconds.
-
-### 2026-08-24, evening — #7 was on this machine; pushed, reviewed, in review as PR #65
-
-**The check the blocking comment asked for happened the same evening, and everything was here** —
-not just tasks 1–3 but the plan, the spec-gap commit and tasks 4–8, committed 2026-08-21/22 and
-never pushed. One push moved `origin/issue-7-manual-time-entry` from `be4a3f6` to `d0d2f39`;
-nothing was rebuilt. The SSH agent failure of 2026-08-17 recurred mid-evening (see *Environment
-notes*), and a note written on this machine before the push landed recorded it as already done —
-**only the push's own output or `git ls-remote` proves a push**; a handoff that says "pushed"
-without one is how this ticket got a second scare.
-
-**The whole-branch review also ran on 2026-08-24, on the top tier over the full diff against
-`main`.** Ten findings, ten fixes, six pinned by tests that failed first — 12 new e2e failures
-captured RED across both browsers, plus two new unit tables — all in `78742d3`, whose commit
-message holds the findings. The one worth repeating here: `paintTotals` rebuilt every row per
-mutation, which detached the button `showModal()` holds as its focus-return target, so closing the
-dialog dropped a keyboard user at `<body>` — the exact bug class this branch existed to avoid, one
-layer down. `seconds` now repaints the figure in place.
-
-**Both gates were re-run after the fix wave**: `make verify` ended `verify: OK`, and `make test-e2e`
-passed **184/184** across Firefox and Chromium. #7 went back to `status:in-progress` once the
-branch reached origin, and **PR #65 is open with `Closes #7`** — the review state. The habit
-argument above stands, sharpened: two days of a blocked label, with the work complete on one
-machine the whole time, cost exactly one push a dead SSH agent was allowed to veto.
-
-### What mutation testing found, and why it is now the habit
-
-Every task this ticket ran was attacked with mutations after it went green, and **the technique
-found something every time**. This is worth keeping as practice, not just as a note.
-
-- **Task 1:** 38 mutations, 8 survived. Three tests were vacuous. A `Day` assertion dated *today*,
-  so a mutation stamping the day from the clock wrote back the value being checked. An `UpdatedAt`
-  check spelled `!x.After(y.Add(-time.Second))`, which passes when the two are **equal** — the
-  precise case it existed to catch. And two ordering tests whose **two-entry fixtures could always be
-  satisfied by id order in one direction** — with two rows, descending id is chronological whenever
-  ascending is not.
-- **The test held up as the model was itself broken.** Task 1's fix wave was told to copy
-  `TestEntriesForDayReturnsOldestFirst`'s fixture as the standard; it did, found the copy still
-  passed the mutation, and traced it back to the original. Both now use three entries inserted
-  middle-late-early, which no id ordering reproduces.
-- **Task 3:** 36 mutations across writing and review, 5 survived the first pass — three untested
-  response fields, an untested id bound, and an asymmetry between twin tables where POST gated the
-  accepted 24-hour boundary and PATCH gated only the rejected one. That asymmetry-between-twins
-  shape is the same tell #6's review named.
-- **A frozen clock cannot detect "reads the clock twice"** — it returns the same value both times.
-  Proving one instant needs a clock that advances per call.
-- **Two of task 3's findings came from reading `pins.go`, not from mutation.** PATCH was committing
-  its write before reading the instances, contradicting a rule `handleCreatePin` states in prose;
-  and PATCH validated the duration before reading the entry, so a bad duration on a missing id
-  reported the duration where POST reports the unknown instance. **Neither ordering was pinned by a
-  test, and mutation could not have found either** — only comparing the code against its own
-  siblings' documented conventions did.
-
-### Decisions taken during #7's Go side, not to be reopened
-
-- **`started_at` is normalised to UTC on write and rendered back through `cfg.Location` in the
-  handler.** It is a text column both read paths sort on, so mixed offsets would sort against
-  chronology — `01:00+02:00` compares later than `00:30Z` while being ninety minutes earlier. The
-  spec's `+02:00` sample row is therefore correct output, not stale: the normalisation is a storage
-  concern and stops at the handler. A reviewer called the spec out of date on this; it is not.
-- **A column declared `DATE` is parsed into a `time.Time` by modernc's driver regardless of what is
-  stored**, so a plain `SELECT day` returns `"2026-08-21T00:00:00Z"`. Every read casts it back to
-  text. The same trap sits on `pinned_issues` and `instances` for anyone wanting a bare date out of
-  them.
-- **The read-modify-write behind a partial `PATCH` is not atomic, deliberately.** Two concurrent
-  PATCHes for one id — one sending `seconds`, one sending a comment — can both read before either
-  writes, and the second write puts the stale half back, discarding an edit. Reproduced 60/60. It is
-  a **logical lost update, not a Go data race**, so `-race` would never see it. Tolerated because one
-  browser drives this app. Recorded in `handleUpdateEntry`'s comment. **#8 is where it stops being
-  hypothetical** — a timer PATCHing `seconds` while the foot form holds an open comment is exactly
-  this interleaving — and that ticket decides what to do about it.
-- **`UpdateEntry` moves `updated_at` on every call including a no-op**, marking a clean pushed entry
-  dirty so #9 re-pushes it. Deliberate: the push is idempotent, and one redundant request is cheaper
-  than diffing the row.
-- **The seconds range is enforced on `PATCH` as well as `POST`.** The spec writes the rule only
-  under POST; leaving PATCH open would let a browser set an entry to forty hours through the back
-  door.
-- **`newServerWithStore` has fifty-three callers across six test files**, so a helper needing the
-  store's path duplicates its setup rather than changing that signature. Recorded in the helper's
-  own comment, because the next reader will otherwise try the dedup and discover the cost the hard
-  way.
-
 ### Two things needing the owner
 
 - **The superpowers skills are not installed on this machine.** No plugin, nothing under
@@ -836,6 +681,88 @@ What the boards settle, none of it to be redesigned during #44's refinement:
   Ridgeline reads `4h 27m` in one and `3h 42m` in the other (the difference is a Ridgeline pin living
   in the Pinned card); and pinned rows identify their instance by coloured dot alone.
 
+### What mutation testing found, and why it is now the habit
+
+Every task this ticket ran was attacked with mutations after it went green, and **the technique
+found something every time**. This is worth keeping as practice, not just as a note.
+
+- **Task 1:** 38 mutations, 8 survived. Three tests were vacuous. A `Day` assertion dated *today*,
+  so a mutation stamping the day from the clock wrote back the value being checked. An `UpdatedAt`
+  check spelled `!x.After(y.Add(-time.Second))`, which passes when the two are **equal** — the
+  precise case it existed to catch. And two ordering tests whose **two-entry fixtures could always be
+  satisfied by id order in one direction** — with two rows, descending id is chronological whenever
+  ascending is not.
+- **The test held up as the model was itself broken.** Task 1's fix wave was told to copy
+  `TestEntriesForDayReturnsOldestFirst`'s fixture as the standard; it did, found the copy still
+  passed the mutation, and traced it back to the original. Both now use three entries inserted
+  middle-late-early, which no id ordering reproduces.
+- **Task 3:** 36 mutations across writing and review, 5 survived the first pass — three untested
+  response fields, an untested id bound, and an asymmetry between twin tables where POST gated the
+  accepted 24-hour boundary and PATCH gated only the rejected one. That asymmetry-between-twins
+  shape is the same tell #6's review named.
+- **A frozen clock cannot detect "reads the clock twice"** — it returns the same value both times.
+  Proving one instant needs a clock that advances per call.
+- **Two of task 3's findings came from reading `pins.go`, not from mutation.** PATCH was committing
+  its write before reading the instances, contradicting a rule `handleCreatePin` states in prose;
+  and PATCH validated the duration before reading the entry, so a bad duration on a missing id
+  reported the duration where POST reports the unknown instance. **Neither ordering was pinned by a
+  test, and mutation could not have found either** — only comparing the code against its own
+  siblings' documented conventions did.
+
+### Decisions taken during #7's Go side, not to be reopened
+
+- **`started_at` is normalised to UTC on write and rendered back through `cfg.Location` in the
+  handler.** It is a text column both read paths sort on, so mixed offsets would sort against
+  chronology — `01:00+02:00` compares later than `00:30Z` while being ninety minutes earlier. The
+  spec's `+02:00` sample row is therefore correct output, not stale: the normalisation is a storage
+  concern and stops at the handler. A reviewer called the spec out of date on this; it is not.
+- **A column declared `DATE` is parsed into a `time.Time` by modernc's driver regardless of what is
+  stored**, so a plain `SELECT day` returns `"2026-08-21T00:00:00Z"`. Every read casts it back to
+  text. The same trap sits on `pinned_issues` and `instances` for anyone wanting a bare date out of
+  them.
+- **The read-modify-write behind a partial `PATCH` is not atomic, deliberately.** Two concurrent
+  PATCHes for one id — one sending `seconds`, one sending a comment — can both read before either
+  writes, and the second write puts the stale half back, discarding an edit. Reproduced 60/60. It is
+  a **logical lost update, not a Go data race**, so `-race` would never see it. Tolerated because one
+  browser drives this app. Recorded in `handleUpdateEntry`'s comment. **#8 is where it stops being
+  hypothetical** — a timer PATCHing `seconds` while the foot form holds an open comment is exactly
+  this interleaving — and that ticket decides what to do about it.
+- **`UpdateEntry` moves `updated_at` on every call including a no-op**, marking a clean pushed entry
+  dirty so #9 re-pushes it. Deliberate: the push is idempotent, and one redundant request is cheaper
+  than diffing the row.
+- **The seconds range is enforced on `PATCH` as well as `POST`.** The spec writes the rule only
+  under POST; leaving PATCH open would let a browser set an entry to forty hours through the back
+  door.
+- **`newServerWithStore` has fifty-three callers across six test files**, so a helper needing the
+  store's path duplicates its setup rather than changing that signature. Recorded in the helper's
+  own comment, because the next reader will otherwise try the dedup and discover the cost the hard
+  way.
+
+### Decisions taken during #9, not to be reopened
+
+- **Push state is derived, with one implementation and one construction site.** `pushStateOf` is the
+  only deriver; `entryDTOFrom` is the only place an `entryDTO` is built, so no response can omit it.
+  Nothing on the browser side recomputes it — `worklogId` and `pushedAt` are not even on the
+  TypeScript `Entry`, which is what stops a second implementation appearing.
+- **`MarkEntryPushed` names only `worklog_id` and `pushed_at`.** Stamping `updated_at` there would
+  race its own `pushed_at` and could mark a freshly pushed entry dirty. A test asserts `updated_at`
+  is unchanged, and a plausible "just reuse `UpdateEntry`" refactor would fail it.
+- **`dirty` is reported, not repaired.** #7's edit stamps `updated_at`, so an edited pushed entry is
+  reachable today. #9 reports it honestly and skips it; the `PUT` is #10's.
+- **The confirmation is one plain sentence.** `wd-confirm` sets `body` as an attribute rendered as a
+  single `<p>`'s textContent, so the per-site breakdown an early sketch promised is not achievable
+  without changing that component.
+- **The failure list is a sibling of `wd-alert`, never a child.** That component renders by calling
+  `this.replaceChildren(mark, message)`, so anything appended inside it is discarded on the next
+  attribute change.
+- **`wd-alert` has exactly three tones** — `success`, `warning`, `error`. An unknown tone falls back
+  to `warning` *silently*, so a typo is invisible rather than loud.
+- **An unknown push state renders no badge.** `pushBadge` is an allowlist, not an excludelist:
+  telling someone their time reached Jira when it did not is the one wrong answer indistinguishable
+  from a true one.
+- **`push-reported.ts` mirrors `entries-changed.ts`** so the rail can announce a result without
+  statically importing the view that renders it, keeping Today out of the cold-start bundle.
+
 ## Facts worth not rediscovering
 
 All verified empirically rather than recalled.
@@ -1021,474 +948,6 @@ asserted 48 as the expected post-ticket total and would have tripped its own "a 
 on a correct outcome, because it was written before #29 added 11 settings specs. **A plan that
 asserts a test count must derive it from a count taken on the branch it will run on**, not from the
 count that was true when it was written.
-
-### 2026-08-24 — #12 under way, four tasks in, task 4 interrupted mid-fix
-
-**#12 is `status:in-progress` on `issue-12-pwa-shell`, pushed through `4cbb0fe`.** Its design is
-`docs/superpowers/specs/2026-08-24-pwa-shell-design.md` and its plan
-`docs/superpowers/plans/2026-08-24-pwa-shell.md`, nine tasks in #44's light format. The SDD ledger
-is `.superpowers/sdd/2026-08-24-pwa-shell/progress.md` — git-ignored, so it does **not** survive a
-`git clean -fdx`; the commits it names do.
-
-**Tasks 1-3 are complete and reviewed clean.** Task 4 is not: its fix round was interrupted and its
-last commit is a WIP.
-
-| Task | State |
-| --- | --- |
-| 1 — manifest, icons, byte budget | complete, `4fa1192..48cb0e4` |
-| 2 — worker built, registered, activates | complete, `48cb0e4..429c57e` |
-| 3 — install precaches, refuses a lie | complete, `429c57e..d01b3c3` |
-| 4 — the shell survives offline | **fix round 1 open**, `d01b3c3..4cbb0fe` |
-| 5-9 | not started |
-
-**Where task 4 actually stands.** Its review found three Important defects, two of them real bugs the
-tests did not catch:
-
-- **The navigate branch claimed the whole origin.** `mode === "navigate"` was tested before any
-  pathname test, so opening `/api/health` in a tab — or an icon in a new tab — was claimed by the
-  worker and written into the shell cache *under the `/index.html` key*. Every later offline
-  navigation then served that JSON or PNG as the app shell.
-- **Runtime cache writes had none of the content-type guard `precacheShell` insists on**, against
-  the same `handleAsset` fallback. A load during a rebuild window cached HTML under `/app.js` — the
-  exact lie install exists to refuse, written by the path that runs far more often.
-- **A cold first navigation to `/settings` fails reliably** while `/today` first makes it work, and
-  the test was written in the only order that hides it. Unexplained. The structural argument that it
-  cannot be the new code — every navigation goes through one identical `networkFirst` call with no
-  per-path state — is an argument, not evidence, and some original probes ran against a stale
-  `dist/sw.js`, so their provenance is unclear.
-
-`4cbb0fe` appears to fix the first two and the watcher. **It is unverified** — the implementer was
-stopped immediately before running the suite. Nothing in it has a passing run behind it.
-
-**Still owed on task 4:** the three `/settings` probes (cold online `goto`, a third never-visited
-path such as `/week`, and a marker proving whether `respondWith` ran at all); a same-page offline
-reload test, which the suite has never had; and assertions that fail without each new guard.
-
-**Two design decisions the owner made on 2026-08-24, not to be reopened:**
-
-- **Last-known Jira data is cached and shown stale.** `GET /api/issues` and `GET /api/pins` only;
-  nothing under `/api/entries`, and no write is ever queued. This contradicts #12's original written
-  criterion that `/api/*` is never cached — task 8 rewrites that criterion rather than diverging
-  from it silently.
-- **Amber is *warning*, and "not yet sent" is one instance of it.** Task 8 widens the design
-  language's line 93 and its "All pushed" paragraph to match; `wd-alert` already announced that tone
-  as "Warning", so only the prose was ever narrow.
-
-**A limit worth stating plainly, found during task 2:** service workers need a secure context, and
-`localhost` is the only plain-HTTP origin that qualifies. So the worker — and every offline
-behaviour built on it — is inert on **any** non-localhost plain-HTTP origin, desktop included, not
-just on a phone. That is broader than #13's phone framing. #12 stays scoped to `localhost`; #13 is
-what makes it reachable elsewhere.
-
-**The e2e rig now carries three skips and two workarounds**, all annotated in `pwa.spec.ts`:
-`window.caches` throws `SecurityError` in the rig's Firefox, and `request.serviceWorker()` is
-Chromium-only. The consequence is worth knowing: **on Firefox, the primary target, nothing verifies
-cache names, contents or eviction, and nothing separates network-first from cache-first** — flipping
-the shell to cache-first would leave the whole Firefox run green. Both the reviewer and the
-implementer put the fix at rig level (real TLS in the e2e stack), not in `sw.ts`; adding a
-postMessage introspection hole to production code for test access was considered and rejected.
-
-**Fourteen Minor findings are deferred** to the whole-branch review, listed in the SDD ledger. Two
-are worth carrying even if the ledger is lost: `/manifest.json` is precached but no fetch branch
-serves it, so it is unreachable from cache offline; and a non-ok response currently beats a good
-cached copy, so a 5xx during a restart breaks the app where a cached shell would have carried it.
-
-**The icon is done and committed.** `web/icons/` holds `icon.svg`, `icon-maskable.svg` and three
-PNGs, chosen from four directions on 2026-08-24. The rasterisation ran on the host's ImageMagick —
-**an exception the owner granted for that one-off, recorded as not a precedent** in
-`web/icons/README.md` and in the spec. It is spent; nothing else in this ticket runs a host tool.
-
-### 2026-08-25 — #12 finished and in review as PR #68
-
-**All nine tasks are complete and the branch is pushed.** `issue-12-pwa-shell` at `617d511`, opened as
-**PR #68** with `Closes #12`. The ticket keeps `status:in-progress`; the open pull request is the
-review state.
-
-The session resumed with task 4's fix round interrupted and unverified (`4cbb0fe`, committed WIP). That
-commit was replaced by verified work via soft reset, so **the push was `--force-with-lease`** — nothing
-on the branch now says "unverified".
-
-**Gates, re-run on the exact tree pushed:** `make verify` OK · `make test-e2e` 169 passed / 11 skipped,
-both engines · `make test-web` 5/5. Installability checked over HTTP: `manifest.json` as
-`application/manifest+json`, all three icons as `image/png`, `sw.js` as `text/javascript`,
-`index.html` 5,821 bytes of 14,336.
-
-**The `/settings` mystery was our bug, not the rig's — and it is the most valuable thing this ticket
-found.** `precacheShell` stored `/index.html` **with its redirected flag set**, because Go's
-`ServeFileFS` redirects any path ending in `/index.html` to `./`, and the Service Worker spec forbids
-answering a *navigation* with a redirected response. Chromium enforces it; Firefox does not, which is
-exactly what let it hide as a rig quirk through an entire time-boxed investigation. Nothing was ever
-special about `/settings` — it was simply the address Chromium's own HTTP cache had no copy of, so it
-was the first to actually reach the worker. Fixed with `withoutRedirectHistory` on every shell-cache
-write.
-
-**The consequence is the part to carry forward: the offline fallback was broken on Chromium for the
-whole of tasks 3 and 4, and every suite run was green**, because neither browser's offline emulation
-reaches its own HTTP cache. Assertions are now written to be HTTP-cache-proof. This is the fourth time
-this project has been bitten by a test asserting on the wrong observable (#5's sibling-failure guard,
-#7's mutation pass, tasks 3-5 here). Mutation-proving is not optional on this codebase.
-
-**Decisions taken during #12, not to be reopened:**
-
-- **One stale banner, not two** (controller ruling, and the likeliest to want overturning). The
-  implementer built two independent slots from the plan's "above the affected list"; the spec's
-  acceptance line is singular, and both endpoints are the same server so they fail together — two slots
-  would show two byte-identical amber sentences differing only in a minute. Re-splits later if wanted.
-- **The router gained a view lifecycle it never had.** `render` now receives a `registerTeardown`,
-  because task 7 needed to remove an `online` listener and no teardown mechanism existed anywhere.
-  **#8-#11 all inherit it.** It is registration-based, not return-based — the return shape lost or
-  misattributed a view's cleanup whenever two navigations overlapped, which a hand-read missed and a
-  reviewer caught.
-- **The handoff is not edited inside a product branch.** Task 8's plan told it to; `CLAUDE.md` requires
-  process documents to go in their own pull request, split from product changes. The plan was overruled.
-
-**Known and deliberately shipped, both in PR #68's body:**
-
-- `router.ts:105-109` — the composed teardown has **no isolation between cleanups**. A throwing cleanup
-  skips the rest of the chain, leaves `teardownCurrentView` set so the next navigation re-runs cleanups
-  that already ran, and propagates out of a `void renderCurrent()` as an unhandled rejection.
-  Unreachable today — one registration, and `removeEventListener` cannot throw. **Fix it when #8 lands
-  the second registration.**
-- **`web/src/format.test.ts` runs in no gate.** `make verify` is `lint tsc test`, and `test` is
-  `test-go` alone — `test-web` is deliberately excluded pending #51. So the TZ-pinned `clockTime` test
-  executes only by hand, and `web/tsconfig.json` excludes `*.test.ts` so it is type-checked nowhere
-  either. Blast radius today is one wrong time in one banner. **The branch review's recommendation:
-  take `test: test-go test-web` as a separate one-line PR — it decides no convention, so it is not
-  #51's call — but it did not gate #12.** This becomes a real problem at #8.
-
-**Firefox is a merge decision the owner still has.** Playwright's Firefox in this rig cannot reach a
-service worker's own `fetch`, so the **cache-fallback arm is unverified on the primary target** — the
-`catch` blocks, `cacheFirst`'s hit path, the `X-WD-Cached-At` stamp and the stale banner end to end.
-Raised as **#66**. What Firefox does prove is more than it looks: activation is gated on
-`precacheShell()` and `evictStaleCaches()` both resolving, so the worker demonstrably builds,
-registers, precaches all seven extensions, writes to the Cache API and evicts there. The residual risk
-was judged low with a reason rather than an assertion — those paths are ~15 lines against a
-CacheStorage surface Firefox already drives correctly, and the one genuine engine divergence (`Vary`
-on `cache.match` with a bare URL) cannot arise because the Go server sets no `Vary`. **The five-minute
-closure is manual and still owed: `make up`, load Today with pins, stop the app container, reload in
-Firefox.** The Chrome extension was not connected this session, so it could not be done here.
-
-**One test contacted the owner's real Jira**, while an implementer verified a fix to that very class of
-bug; it disclosed this rather than hiding it. One `GET /api/pins?refresh=1` reached the dev container,
-which decrypted the stored token and made one authenticated **read** per pin, then wrote to the local
-cache. **Nothing on Jira was mutated** — no path reached by that endpoint issues a POST, PUT or DELETE.
-Residue is N authenticated GETs in Atlassian's logs and rate limit.
-
-**The root cause is now named precisely, and belongs in #35's refinement: a `**/api/pins` glob does not
-match the `?refresh=1` query form; a `URL.pathname` predicate does.** `pins.spec.ts` had already
-worked around it with `**/api/pins**` without the reason being written down. This shape appeared four
-times in one ticket.
-
-**Raised this session:** **#66** (the rig cannot exercise a worker on Firefox — the primary target),
-**#67** (`make up`'s watcher can leave `dist/sw.js` precaching chunk hashes `app.js` no longer imports,
-the third instance of that class on this branch), and a severity comment on **#35**.
-
-**Environment note worth keeping — and corrected on 2026-08-26.** Three ssh-agents run on this
-machine, and the 2026-08-25 note named the wrong one. The session agent at `$SSH_AUTH_SOCK` is
-empty. `gcr-ssh-agent` at `/run/user/1001/gcr/ssh` does hold two keys, **but GitHub rejects both** —
-verified with `ssh -v`, which offers each in turn and gets `Permission denied (publickey)`. The key
-GitHub accepts lives in **1Password's agent**, which `~/.ssh/config` already points github.com at
-via `IdentityAgent ~/.1password/agent.sock` with `IdentityFile none`. So there is nothing to export:
-when SSH works, it works through that config, and when it fails the cause is 1Password being locked
-or not yet running. On 2026-08-26 the agent's socket existed but refused connections until
-1Password restarted, after which `ssh -T git@github.com` authenticated first try. **Check
-`ps aux | grep 1password` and `SSH_AUTH_SOCK=~/.1password/agent.sock ssh-add -l` before reaching for
-any workaround** — the gh-token push below is for when the agent is genuinely down, not for a
-locked one that a restart fixes. Separately, commit signing goes through 1Password's `op-ssh-sign`
-and locks periodically — `1Password: failed to fill whole buffer` means unlock it and retry, never
-`--no-gpg-sign`. It locked three times this session.
-
-### 2026-08-26 — #51 refined and settled; nothing implemented
-
-**#51 is `status:todo` with its four open questions closed.** The session started by picking up the
-#12 branch review's recommendation — take `test: test-go test-web` as a one-line PR — and refinement
-killed that framing outright. **The tree contradicts it in two places, both naming #51**:
-`Makefile:30-33` ("wiring one in here would be deciding that by accident") and the nineteen-line
-docblock at the head of `web/src/format.test.ts`. #51's own body lists *where the gate goes* as one
-of the four things it must settle. The review's "it decides no convention, so it is not #51's call"
-was wrong on the record. The owner chose to refine #51 properly instead of carving one decision out
-of it early.
-
-**The four decisions, now in #51's body with their reasons — do not reopen:**
-
-- **Pure modules only.** `format.ts`, `instance-hue.ts`, `key-column.ts` and whatever #8-#11 add.
-  `router.ts`, the `wd-*` components and anything touching `history`/`location` stay with Playwright.
-  This is the decision that keeps a DOM shim out of the dependency list.
-- **`node --test`**, on Node 26.7.0 in the `web` container, running `.ts` under native type
-  stripping. No test dependency.
-- **A second tsconfig, not a loosened one.** `web/tsconfig.test.json` extends the base and adds
-  `allowImportingTsExtensions` plus `"types": ["node"]`, including only `src/**/*.test.ts`. The base
-  config keeps its exclude, so the `.ts`-extension licence never reaches app code — which is
-  extensionless everywhere today, the single `.ts` import in the tree being `format.test.ts:24`.
-- **Table plus one `await t.test()` per case**, mirroring Go's `t.Run`: named node per case, one
-  failure does not abort the table.
-
-**`@types/node` was verified, not assumed.** Under a probe config the *only* errors on the existing
-test file are `TS2307` on `node:test` and `node:assert/strict` — `allowImportingTsExtensions`
-resolves `./format.ts` cleanly and `strict`, `verbatimModuleSyntax`, `isolatedModules` and
-`noUncheckedIndexedAccess` all pass on the file as written. The probe config was deleted; the tree is
-unchanged.
-
-**No branch was cut and nothing was implemented**, on the owner's sequencing call: #51 branches from
-a `main` that already contains PR #68, because #68 adds two `clockTime` tests to `format.test.ts` and
-#51 rewrites that file. `status:todo` is therefore accurate — nobody has started.
-
-**The lesson worth carrying:** a branch review's recommendation is evidence, not a ruling. This one
-was written by a reviewer that had not read the two comments forbidding the change it proposed.
-Check the tree for a written decision before acting on a review's one-liner.
-
-### 2026-08-27 — #7 merged, local caught up, and #68's conflicts resolved
-
-**#7 is merged and closed**, as PR #65 on 2026-08-27 — the thing that had been waiting longest. #69
-(the 2026-08-25 handoff) merged alongside it. `main` is `37a6b42`.
-
-**Local was two merges and 121 commits behind and is now current.** Local `main` was fast-forwarded
-from `afdae72` to `37a6b42`, and the **eleven** branches whose remotes had gone were deleted. Every
-one went out under `git branch -d`, which refuses an unmerged branch — so the fact that all eleven
-succeeded *is* the proof they were fully merged, and nothing was force-dropped. The list in *Still
-open* that had been sitting on the owner's desk since 2026-08-21 is therefore closed out.
-`worktrees-without-the-tax` was left alone, as that entry required — it is unmerged and still wanted.
-
-**PR #68 was `CONFLICTING`, and now is not.** #7 landed on `main` while #12 sat in review, and both
-had built out `web/src/views/today.ts`. `main` was merged into `issue-12-pwa-shell` as `284a614`
-(not rebased — rebasing would have rewritten eighteen reviewed commits and forced a push over a
-branch the owner is mid-review on).
-
-**Only `today.ts` conflicted.** `api.ts`, `main.ts`, `index.html`, `styles.css`, `server.go` and the
-e2e specs merged clean, and `api.ts` in particular came out right on its own: `listIssues` and
-`listPins` return `Cached<T>` while #7's `listEntries` stays a plain `Entry[]`, which is exactly the
-split #12 intended.
-
-All four hunks were additive on both sides, so the resolution is the union — #12's `stale`,
-`pinsCachedAt` and `issuesCachedAt` alongside #7's `totals` and `totalsEpoch`, and all three of the
-view's listeners kept.
-
-**One judgement call, and it is the part worth a second opinion.** #7's `onEntriesChanged` listener
-retired itself on the first wake-up that found the view detached, because the router had no
-unsubscribe hook — its comment said so in as many words. #12 adds one. The listener now hands its
-stopper to `registerTeardown` and the self-retiring guard is gone, because keeping it would have left
-a comment explaining the absence of a hook sitting two lines above it. **That makes it the second
-`registerTeardown` call**, which #68's own body named as the moment `router.ts`'s uninsulated
-teardown chain becomes worth fixing. It stays unreachable: both cleanups are a bare
-`removeEventListener` and neither can throw. If the owner would rather the merge had been verbatim,
-this is the line to revert.
-
-**Gates, on the merge result rather than on either parent:** `make verify` OK · `make test-e2e` 209
-passed / 11 skipped / 0 failed, both engines · `make test-web` 18/18. CI green on all three checks —
-`verify`, `e2e` and `claude-review`. GitHub reports `MERGEABLE` / `CLEAN`.
-
-**What did not change:** the ticket keeps `status:in-progress`, because the open pull request is the
-review state and the merge is the owner's. The two things #68's body left for the owner are still
-open and still theirs — the five-minute manual Firefox offline check (`make up`, load Today with a
-couple of pins, stop the app container, reload), and the `test: test-go test-web` question, which
-2026-08-26 established is #51's to settle and not a one-line PR.
-
-### 2026-08-28 — #12 merged; #51 is unblocked
-
-**PR #68 merged at 15:19 UTC**, merge commit `7355cd0`, closing **#12**. Its `status:in-progress`
-label was stripped on close, per the rule that a closed issue carries no status.
-
-**The merged branch was demonstrated in the browser rather than trusted.** Chromium, `make up`,
-service worker controlling the page. What held: `sw.js` activates at scope `/`; the shell precache
-carries all fifteen entries; the worker refuses to cache the catch-all's content-type lie
-(`/nonexistent-chunk.js` really is served `200 text/html`, and it does not land in the cache); the
-data cache holds `/api/issues` and `/api/pins` and nothing else, with `/api/entries` and
-`/api/instances` fetched and deliberately not cached; `X-WD-Cached-At` is present and is re-stamped
-on refetch; killing the app container leaves the whole shell rendering, with **one** amber banner;
-in-app navigation and a cold reload of `/settings` both survive offline; `index.html` is 6,044 bytes
-of 14,336 after the merge from `main`.
-
-**One gap found, raised as intake #71.** The amber banner clears on the `online` event and on the
-next refetch, and neither fires when the *server* is what came back rather than the *network* — so a
-view left untouched keeps saying "no connection to the server" over a server that is answering. Any
-navigation clears it, which is what makes it low severity. The distinction worth carrying: `online`
-means *the browser regained a network*, not *the server is reachable*, and the next person will
-assume it covers both.
-
-**Note the demo showed empty lists** — the dev database had no Jira instances configured at that
-point, so the stale banner and its timestamp were exercised over empty data rather than real issues.
-The mechanism was proven; the rendering of real cached issues offline was not.
-
-### 2026-08-31 — the 2026-08-28 entry went out, over a conflict that was avoidable
-
-**1Password was the whole blocker and nothing else was.** The owner started the app; `ssh-add -l`
-against `~/.1password/agent.sock` listed the keys, and fetch, commit signing and push all worked
-with no other change. The 2026-08-28 entry committed as `6537744` and opened as **PR #72**.
-
-**The branch was four commits behind `main`, and the check that said otherwise was misread.**
-`git diff --stat origin/main...HEAD` — three dots — diffs the *merge base* against `HEAD`, so a
-branch that is purely **behind** produces an empty diff. That emptiness was read as "level with
-`main`" and the pull request was opened on it; GitHub reported the conflict immediately.
-**To ask whether a branch is behind, use `git log HEAD..origin/main`.** A three-dot diff cannot
-answer that question, and it looks most reassuring exactly when it is most wrong.
-
-**`main` had moved because 2026-08-27 was a working day this branch never saw** — PR #70 and the
-merge of #68. Resolving it merged `origin/main` into the branch (never the reverse) and took the
-newer statement bullet by bullet, which meant **discarding two claims the 2026-08-28 entry made in
-good faith**: that the app-icon canvas was an undecided untracked file, and that ten local branches
-were still waiting to be deleted. Both had been settled on 2026-08-27 and are recorded as such
-above. Those two were also repeated to the owner as open questions at the start of this session,
-which they were not.
-
-**The lesson is the same one the app-icon bullet already taught, one level up:** before carrying a
-"still open" item forward, check whether a later commit on `main` has already closed it. A handoff
-branch cut from a stale base will faithfully preserve questions the tree has answered.
-
-### 2026-08-31, the rest of the day — #73 shipped, #9 built and in review
-
-**#73 merged as PR #75: the dev database can no longer be destroyed by `make down`.** The cause was
-never subtle once looked at — `make down` runs `docker compose --profile e2e down -v`, and `-v` drops
-every named volume in the project, `wd-data` among them. The database now lives in a `./data` bind
-mount, which `down -v` cannot reach. `-v` keeps dropping the caches, which is what it is for.
-
-**The owner chose to have the dev containers run as the host user**, so the database file is theirs
-rather than root's. That one decision has a tail, and every line of the diff is downstream of it:
-`HOME=/root` is unwritable for a non-root user, so Go's and npm's caches moved to `/cache`,
-pre-created `0777` — Docker seeds a *fresh* named volume from the image directory including its
-mode, which is what makes an arbitrary UID work, and was verified directly rather than assumed,
-nested-under-a-bind-mount case included. `lint` got its own module cache, because it runs as root
-from an image we do not control and a root-owned module in a shared cache is one the non-root `app`
-cannot update. `web` moved off the stock node image onto a `webdev` stage.
-
-**The host UID here is 1001, not 1000** — the `/tmp/claude-1001` scratch path was saying so all
-along. The first design defaulted to 1000 and broke `npm ci` immediately.
-
-**There is deliberately no default UID.** A wrong one does not fail cleanly: it half-works and then
-dies with EACCES on a file another UID created, which reads like a Go or npm bug rather than a
-configuration one. The compose guard refuses to start and names the knob. Both CI workflows append
-`WD_UID`/`WD_GID` to `.env`, because each runs `docker compose` directly at least once and would not
-otherwise see the Makefile's exports.
-
-**The branch review caught a bug that would have broken CI.** With `./data` absent, the Docker daemon
-creates the bind-mount source itself, **owned by root**, so the non-root app cannot create the
-database and the stack dies with `unable to open database file (14)`. That is every fresh clone,
-including CI's e2e job, which checks out clean and runs bare `docker compose up -d app`. Fixed by
-tracking `data/.gitkeep`, the idiom already used for `web/dist/.gitkeep`.
-
-**On another machine, generated files are still root-owned** from previous runs. No sudo needed, in
-keeping with the everything-in-Docker rule:
-
-```shell
-docker run --rm -v "$PWD":/src alpine chown -R "$(id -u):$(id -g)" \
-  /src/web/dist /src/web/node_modules /src/.claude/e2e/node_modules
-```
-
-The old `work-dashboard_wd-data` volume was left in place as a backup and can be dropped once the
-owner is satisfied.
-
-**#9 is built and in review as PR #76**, green on all three checks. Nine tasks — eight planned plus
-one late rework — each with a fresh implementer and its own reviewer, then a whole-branch review on
-the most capable tier, one fix wave and a scoped re-review. Plan:
-`docs/superpowers/plans/2026-08-31-end-of-day-push.md`. No separate spec: the design of record
-already settles push semantics, and the plan argues from it.
-
-**Three defects are worth carrying forward, because each was invisible to the gate below it.**
-
-1. **A client disconnect could duplicate a Jira worklog.** `MarkEntryPushed` ran on the request
-   context. `net/http` cancels `r.Context()` on disconnect and `database/sql` checks `ctx.Err()`
-   before executing, so a reload between Jira returning 201 and the local write left a worklog in
-   Jira with `worklog_id IS NULL` — and the next push sent it again, silently, because the
-   connection was already gone. Found only by the **whole-branch review**; no task review could see
-   it, because it spans the handler and the store. Closed with `context.WithoutCancel` scoped to
-   that one call. The window is not always brief: `pushInstanceTimeout` is two minutes, and a user
-   watching a stuck button is exactly the user who reloads.
-2. **Two clicks could duplicate a worklog.** The Push button was never disabled during its own async
-   flow, and the server had no guard, so two requests could both read an entry as unpushed before
-   either wrote. Closed with a disabled button and a mutex spanning the whole read-then-write
-   window. **Confirmed real by mutation:** without the mutex the test fails 5/5 runs, 4 creates
-   instead of 2.
-3. **A test that guarded nothing.** `TestPushIsNotTransactionalAcrossInstances` still passed when
-   the concurrent fan-out was replaced by a sequential loop — it pinned partial failure, but not
-   concurrency at all. This is the #5 lesson recurring exactly, and the plan called for the mutation
-   check *because* the handoff records that history. Its replacement was then itself too tight for
-   CI at 11% headroom; it now sits at ~540ms against a 750ms ceiling, where a serial implementation
-   takes ~1500ms — margin on both sides.
-
-**The push control belongs in the rail, and `index.html` had said so since #12.** The markup carried
-`<!-- #9 makes this the unpushed count, and the button push. -->` over `#rail-unpushed` and
-`#rail-push`. The plan never opened that file and built the control in Today's header instead, so
-the branch briefly shipped two buttons reading "Push to Jira", one permanently dead. The e2e spec
-had to scope its selector to `<main>` to avoid the dead one, which is the only reason it surfaced.
-**The general lesson matches the app-icon bullet's:** before building a control, check whether the
-tree already reserves one. `web/index.html` also reserves `#rail-timer` for #8 — look there first.
-
-### Decisions taken during #9, not to be reopened
-
-- **Push state is derived, with one implementation and one construction site.** `pushStateOf` is the
-  only deriver; `entryDTOFrom` is the only place an `entryDTO` is built, so no response can omit it.
-  Nothing on the browser side recomputes it — `worklogId` and `pushedAt` are not even on the
-  TypeScript `Entry`, which is what stops a second implementation appearing.
-- **`MarkEntryPushed` names only `worklog_id` and `pushed_at`.** Stamping `updated_at` there would
-  race its own `pushed_at` and could mark a freshly pushed entry dirty. A test asserts `updated_at`
-  is unchanged, and a plausible "just reuse `UpdateEntry`" refactor would fail it.
-- **`dirty` is reported, not repaired.** #7's edit stamps `updated_at`, so an edited pushed entry is
-  reachable today. #9 reports it honestly and skips it; the `PUT` is #10's.
-- **The confirmation is one plain sentence.** `wd-confirm` sets `body` as an attribute rendered as a
-  single `<p>`'s textContent, so the per-site breakdown an early sketch promised is not achievable
-  without changing that component.
-- **The failure list is a sibling of `wd-alert`, never a child.** That component renders by calling
-  `this.replaceChildren(mark, message)`, so anything appended inside it is discarded on the next
-  attribute change.
-- **`wd-alert` has exactly three tones** — `success`, `warning`, `error`. An unknown tone falls back
-  to `warning` *silently*, so a typo is invisible rather than loud.
-- **An unknown push state renders no badge.** `pushBadge` is an allowlist, not an excludelist:
-  telling someone their time reached Jira when it did not is the one wrong answer indistinguishable
-  from a true one.
-- **`push-reported.ts` mirrors `entries-changed.ts`** so the rail can announce a result without
-  statically importing the view that renders it, keeping Today out of the cold-start bundle.
-
-### 2026-09-01 — #9 merged, and the label it left behind
-
-**#9 merged as PR #76 at 08:23**, closing the ticket. That is the whole product's push path in
-`main`: entries become Jira worklogs, and #7's manual entry now has somewhere to go. The handoff
-entry written the evening before went out alongside it as **PR #77**.
-
-**The merge closed the issue but did not strip its label — and it had been happening for a week.**
-#9 was found closed and still carrying `status:in-progress`, which the status rules call a lie
-outright, since GitHub already records how an issue ended. Auditing the rest of the board found the
-same on **#7 and #73**: every ticket merged since 2026-08-27. `Closes #<n>` closes the issue and
-nothing removes the label, so the move belongs to a session — and the owner merging is exactly the
-moment no session is watching. All three are stripped, and the board now audits clean: no closed
-issue carries a `status:*` label, and every open one carries exactly one.
-
-**The audit is two `gh` calls and is worth running at the start of any session that follows a
-merge**, because a stale label is invisible from the issue itself:
-
-```shell
-gh issue list --state closed --limit 60 --json number,labels \
-  --jq '[.[] | select([.labels[].name] | any(startswith("status:"))) | .number]'
-gh issue list --state open --limit 60 --json number,labels \
-  --jq '[.[] | select(([.labels[].name] | map(select(startswith("status:"))) | length) != 1) | .number]'
-```
-
-**1Password was down again, third session running.** No process at all, and `~/.1password/agent.sock`
-left over from 2026-08-31 10:38 answering *Connection refused* — the 2026-08-28 signature exactly,
-and the owner starting the app fixed fetch in one try, as it did on 2026-08-31. Nothing new was
-learned, which is itself the finding: **probe `pgrep 1password` and the socket as the first act of a
-session**, before reading anything that a stale `main` would make wrong. `gh` kept working
-throughout, so the label move above went through while fetch could not.
-
-**Local `main` was three commits behind and is now caught up** — fast-forwarded `1880fee..d5fa002`,
-which is the merge of #76 over the merge of #77. Checked with `git merge-base --is-ancestor`, not
-with a three-dot diff; the 2026-08-31 entry explains why that distinction is not pedantry.
-
-**`handoff-2026-08-31` and `issue-9-end-of-day-push` have gone from the remote** and survive
-locally with no upstream. Deleting them is the owner's call, as ever.
-
-**A `retro` skill was written and is in review as PR #78**, at the owner's request — project design,
-so no ticket. It reads finished work for failures that recurred across two or more tickets or cost
-something once, and puts each proposed rule change to the owner one at a time; an approved proposal
-edits the rules immediately, a declined one is recorded so a later retro does not raise it again.
-**It changes how the project is run and nothing else** — product findings become intake tickets.
-
-It was written against a baseline run, and the baseline is the reason its shape is what it is. An
-agent given the same task with no skill found real recurrences and then failed on *shape*: it
-counted twelve intake tickets from this document's prose where the board held thirteen, proposed
-directions to travel in rather than wording, mixed product work into process, added a new gate in
-all seven proposals, and faulted the intake queue for sitting when owner-only approval is the
-design. So the skill is a contract with required slots rather than a list of prohibitions. **The
-first real retro has not been run**, and the adjudication loop is the part a subagent cannot test —
-it needs the owner in it.
 
 ## Still open
 

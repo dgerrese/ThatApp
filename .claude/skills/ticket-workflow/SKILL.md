@@ -223,15 +223,34 @@ change touches the frontend or the rig. Paste the output. See
 
 ## Keeping the handoff current
 
-`docs/superpowers/plans/2026-08-12-handoff.md` is what a session on another machine resumes from.
-Update it when a ticket changes status, when a decision is taken that a later session should not
-reopen, or when work stops mid-flight. It is a project-design document, so it needs no ticket.
+The handoff is two things, and which one you write to depends on what you are recording.
+
+| File | Holds | Shape |
+|---|---|---|
+| `docs/superpowers/plans/handoff.md` | Where things stand, decisions not to reopen, facts not to rediscover, what is still open, environment notes | Current state, **edited in place**. No dated entries. |
+| `docs/superpowers/plans/handoff/YYYY-MM-DD.md` | The day's narrative — what was done, what it turned up, what it cost | Append-only, one file per day |
+
+`handoff.md` is what a session on another machine resumes from, and it is the one that must always
+be read. Update it when a ticket changes status, when a decision is taken that a later session
+should not reopen, or when work stops mid-flight. It is a project-design document, so it needs no
+ticket.
+
+**Write the day's narrative to `handoff/<today>.md`, and promote from it the same day.** Anything a
+later session must not rediscover — a decision, a fact, a change in what is open — belongs in
+`handoff.md` too, not only in the day's file. A daily file is the audit trail; it is never the
+thing that has to be read to know where the project stands.
+
+Two reasons it is split this way, both worth not relitigating. Current state has to be reconcilable
+at a glance: a decision taken one day and reversed the next must be *one* edited line, not two
+entries in two files with nothing saying which wins. And every session used to append to the same
+region of the same file — the `2026-08-31` entry records a merge conflict caused by exactly that.
+Two machines working different days now never touch the same file.
 
 **Edit it freely; push it once.** Handoff edits accumulate on a local branch and go out as a single
 pull request when the owner signals they are shutting down for the day. Do not push a branch or
 open a pull request for an individual handoff edit — one pull request per touch-up bloats the
-history and the pull request list for no gain. Keep writing to the file as things change; just hold
-the push until the end-of-day signal.
+history and the pull request list for no gain. Keep writing to both files as things change; just
+hold the push until the end-of-day signal.
 
 This applies to the handoff alone. Product pull requests still go out per ticket, when the ticket
 is finished — never batched, never held.
