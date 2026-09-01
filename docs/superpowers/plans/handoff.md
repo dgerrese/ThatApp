@@ -23,6 +23,111 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
+**Verified against GitHub on 2026-09-01.** This ledger is the authority on status; the narrative
+further down is history and says otherwise in places.
+
+**Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #73 — none carries a
+`status:*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
+2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
+**In progress: nothing** — no `issue-*` branch is cut. The two open pull requests carry no ticket
+between them: **#78** (`retro-skill`) and this handoff branch when it goes out. **To do:** #8, #10,
+#11 and #51. **Needs refinement:** #13 (LAN/HTTPS phone access — deferred, and needs the owner's explicit
+go-ahead even to refine), #19, #35, #39, #40, #47 and #61. **Intake, thirteen, every one the owner's
+to approve or decline:** #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74. **Closed as
+not planned:** #21, #22 — folded into #4, not rejected; both labelled `wontfix`.
+
+**#8, #10 and #11 are the whole remaining product**, and none of them has a design yet.
+
+### One thing needing the owner
+
+~~**The superpowers skills are not installed on this machine.**~~ **Wrong as of 2026-09-01**, and
+the item is retired. The plugin is installed at
+`~/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/` and its skills load normally;
+`~/.claude/skills` being empty is not where a plugin lives, which is what the original check got
+wrong. The half of the item about #7's whole-branch review is moot — #7 merged on 2026-08-27.
+
+- **#43 (`-race`) cannot be done as written.** `go test -race` fails in the app image outright:
+  `CGO_ENABLED=0` and no C compiler, so it reports `-race requires cgo`. The image has to change
+  first. Separately, **`-race` would not have caught #7's lost update**, which is across SQL
+  statements rather than shared memory — so #43 should not be treated as covering that class at all.
+  Worth a comment on the issue; not yet posted.
+
+### What gated what — every gate below is discharged
+
+**Nothing here still blocks anything**, as of 2026-09-01: #4, #5, #6, #7, #29 and #44 are all
+merged. It is kept because the *reasons* explain why parts of the codebase look the way they do.
+The one live item this section used to carry — do not implement #19 from its current state — moved
+to *Still open*.
+
+- **#5–#12 are unblocked.** #4 put the split URL columns, `internal/atlassian`, `jira.Client.Myself`,
+  the JSON error envelope, `api.ts`, the router and the first `wd-*` components on `main`, which is
+  what every one of them builds on. Branch from `origin/main`.
+- **#5 needs the site URL for issue links**, which is why the two-URL split had to land first.
+- **#5 hands #6 a layout question and #7 a deadline.** Both come from #5's design and are recorded
+  here so they are found rather than rediscovered. **#6:** pinned issues span instances, and the
+  card-per-instance layout has no place for them; #5 deliberately does not pre-empt the answer beyond
+  keeping `wd-ticket-row` free of anything instance-specific. **#7:** Today re-renders wholesale, and
+  that was right for #5 because it holds no typed input and no per-row in-flight state — but the
+  moment a row carries a duration field the user types into, a wholesale re-render discards input
+  mid-typing, which is the exact bug #29 paid to fix in Settings. #7 must revisit it before shipping
+  a typed field, not after.
+- **#44 gated #6 and #7 and no longer does.** PR #52 merged on 2026-08-21, so the design tokens,
+  the `wd-*` components, the rail shell and the self-hosted typeface are all on `main`. Branch from
+  `origin/main`.
+- **#29 owned the parked re-render finding below**, and PR #34 closes three of the *Carried out of
+  #4* findings as a consequence: the detached-DOM connection test, the Add form losing typed input on
+  a Remove, and a failed initial load rendering no controls.
+- **#29 gated #6 and no longer does.** Until time entry ships the cascade destroys nothing; after
+  it, the confirmation is all that stands between a stray click and lost logged time. PR #34 landed,
+  so #6 is clear on this front.
+
+### Carried out of #4 — findings deliberately not fixed there
+
+The whole-branch review triaged these as acceptable to ship. **The SDD ledger that held them is
+deleted, so this is the only record.** None is a regression; each was inherited from the plan's own
+code rather than introduced by an implementer.
+
+- ~~**The Settings view re-renders by `container.replaceChildren()` on every mutation.**~~ **Fixed in
+  #29 (PR #34).** `render()` now builds three persistent regions threaded through a `Regions` object,
+  and `refresh()` reconciles the list by `instance.id`. Both consequences are closed and covered:
+  typed Add-form input survives a Remove, and an in-flight connection test no longer writes into
+  detached DOM. Edit mode gained the Cancel affordance in the same change, which is why patching the
+  two symptoms individually was refused.
+- ~~**A failed initial load renders no controls at all**~~ **Fixed in #29 (PR #34)**, and now carries
+  the regression test it lacked — it was the only one of the design's three named outcomes without
+  one.
+- **`internal/server/instances.go` is 360 lines** as of 2026-09-01, grown across Tasks 6–8 and since.
+  Three reviewers judged a split unwarranted: it is one cohesive resource, and splitting would
+  scatter `decodeInstanceRequest` and `verifyJiraCredentials` away from their only two callers. **The
+  trigger this finding named did not fire** — #5's issue routes landed in `issues.go` (109 lines),
+  not here — so the file grew for other reasons and the judgement still stands. Re-measure before
+  citing this number.
+- **`NormalizeSiteURL` (`internal/atlassian/tenant.go:38`) does not case-fold the host**, so
+  `https://Example.atlassian.net` and `https://example.atlassian.net` persist as different strings for
+  the same site. Harmless until something keys on the stored value.
+- **`web/src/router.ts` swallows a rejected dynamic `import()`.** A stale chunk hash after a redeploy,
+  or being offline, leaves the previous view on screen with no indication. **This gets worse at #12**,
+  when a service worker starts serving stale chunks.
+- **No request body size limit** on `json.NewDecoder(r.Body).Decode(...)`. Bounded risk on a
+  localhost-bound single-user server, but these are the repo's first mutating endpoints, so they set
+  the precedent.
+- **The API has no authentication and no CSRF defence**, so a cross-origin
+  `<form enctype="text/plain">` can reach `POST /api/instances`. The design of record excludes app
+  auth from v1 and binds to localhost, deferring it to #13 — **not a #4 defect**. Rejecting mutating
+  requests whose `Content-Type` is not `application/json` would close the form vector for free and is
+  worth a line in #13's scope.
+
+Repo hygiene, no ticket needed under `CLAUDE.md`: **`web/build.mjs` never cleans `dist/` and there is
+no `.dockerignore`.** See *Facts worth not rediscovering*.
+
+### How things got here — narrative, frozen 2026-08-21
+
+**Everything below this line is a record, not a status.** It accumulated between 2026-08-14 and
+2026-08-21 and was deliberately not rewritten as tickets moved on, so it still calls #5 "in review",
+#44 and #6 `status:todo`, and #7 undesigned. The ledger at the top of this section is what is true.
+Read this for *why* a thing is the way it is; never for *where* it stands. The rules it produced
+that outlive it have been promoted into *Decisions taken* and *Facts worth not rediscovering*.
+
 **Merged:** #1 scaffolding (containerised Go + vanilla-TS skeleton, config validation, HTTP server,
 build-tagged asset FS, esbuild + Tailwind v4, golangci-lint v2 + ESLint 9, CI) · #2 `internal/store`
 (design at `docs/superpowers/specs/2026-08-07-store-design.md`) · #16 the Playwright rig
@@ -103,19 +208,6 @@ The whole-branch review of #3 produced three new tickets rather than in-branch f
 #22. **#21 and #22 were folded into #4 on 2026-08-12** and closed as not planned; #19 stands
 alone.
 
-**The ledger below was rewritten against GitHub on 2026-09-01** and is the current one; the rest of
-this section is the narrative as it stood on 2026-08-21 and is left alone.
-
-**Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #73 — none carries a
-`status:*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
-2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
-**In progress: nothing** — no branch is cut and no pull request is open. **To do:** #8, #10, #11 and
-#51. **Needs refinement:** #13 (LAN/HTTPS phone access — deferred, and needs the owner's explicit
-go-ahead even to refine), #19, #35, #39, #40, #47 and #61. **Intake, thirteen, every one the owner's
-to approve or decline:** #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74. **Closed as
-not planned:** #21, #22 — folded into #4, not rejected; both labelled `wontfix`.
-
-**#8, #10 and #11 are the whole remaining product**, and none of them has a design yet.
 
 **#6 was moved to `status:todo` on 2026-08-20** at the owner's word. It had been carrying
 `status:in-progress` with no `issue-6-*` branch behind it, which the branch-existence rule makes
@@ -383,85 +475,6 @@ ever exists), #59 (the pin flow's canvas source contradicts #44's spec). #43 gai
 its priority is now higher: #6 added the second by-index concurrent write site and #9's push will be
 the third.
 
-### Two things needing the owner
-
-- **The superpowers skills are not installed on this machine.** No plugin, nothing under
-  `~/.claude/skills`. `ticket-workflow` and this document both route through them — `writing-plans`,
-  `subagent-driven-development`, `requesting-code-review` — and every shipped ticket used them.
-  #7's plan and its subagent loop were run by hand against the ten worked examples in the repo, which
-  works, but **the whole-branch review before #7's pull request has no skill behind it either**, and
-  that review is the one this project has three tickets' worth of evidence for keeping. Decide
-  whether to install the plugin or to run that review through `/code-review`.
-- **#43 (`-race`) cannot be done as written.** `go test -race` fails in the app image outright:
-  `CGO_ENABLED=0` and no C compiler, so it reports `-race requires cgo`. The image has to change
-  first. Separately, **`-race` would not have caught #7's lost update**, which is across SQL
-  statements rather than shared memory — so #43 should not be treated as covering that class at all.
-  Worth a comment on the issue; not yet posted.
-
-### What gates what
-
-- **#5–#12 are unblocked.** #4 put the split URL columns, `internal/atlassian`, `jira.Client.Myself`,
-  the JSON error envelope, `api.ts`, the router and the first `wd-*` components on `main`, which is
-  what every one of them builds on. Branch from `origin/main`.
-- **#5 needs the site URL for issue links**, which is why the two-URL split had to land first.
-- **#5 hands #6 a layout question and #7 a deadline.** Both come from #5's design and are recorded
-  here so they are found rather than rediscovered. **#6:** pinned issues span instances, and the
-  card-per-instance layout has no place for them; #5 deliberately does not pre-empt the answer beyond
-  keeping `wd-ticket-row` free of anything instance-specific. **#7:** Today re-renders wholesale, and
-  that was right for #5 because it holds no typed input and no per-row in-flight state — but the
-  moment a row carries a duration field the user types into, a wholesale re-render discards input
-  mid-typing, which is the exact bug #29 paid to fix in Settings. #7 must revisit it before shipping
-  a typed field, not after.
-- **#44 gated #6 and #7 and no longer does.** PR #52 merged on 2026-08-21, so the design tokens,
-  the `wd-*` components, the rail shell and the self-hosted typeface are all on `main`. Branch from
-  `origin/main`.
-- **#19's facts changed under it on 2026-08-14** — see *Facts worth not rediscovering*. It still has
-  no acceptance criteria by design and must not be implemented from that state; its three open
-  questions are the owner's to answer in a brainstorming round.
-- **#29 owned the parked re-render finding below**, and PR #34 closes three of the *Carried out of
-  #4* findings as a consequence: the detached-DOM connection test, the Add form losing typed input on
-  a Remove, and a failed initial load rendering no controls.
-- **#29 gated #6 and no longer does.** Until time entry ships the cascade destroys nothing; after
-  it, the confirmation is all that stands between a stray click and lost logged time. PR #34 landed,
-  so #6 is clear on this front.
-
-### Carried out of #4 — findings deliberately not fixed there
-
-The whole-branch review triaged these as acceptable to ship. **The SDD ledger that held them is
-deleted, so this is the only record.** None is a regression; each was inherited from the plan's own
-code rather than introduced by an implementer.
-
-- ~~**The Settings view re-renders by `container.replaceChildren()` on every mutation.**~~ **Fixed in
-  #29 (PR #34).** `render()` now builds three persistent regions threaded through a `Regions` object,
-  and `refresh()` reconciles the list by `instance.id`. Both consequences are closed and covered:
-  typed Add-form input survives a Remove, and an in-flight connection test no longer writes into
-  detached DOM. Edit mode gained the Cancel affordance in the same change, which is why patching the
-  two symptoms individually was refused.
-- ~~**A failed initial load renders no controls at all**~~ **Fixed in #29 (PR #34)**, and now carries
-  the regression test it lacked — it was the only one of the design's three named outcomes without
-  one.
-- **`internal/server/instances.go` is ~331 lines**, grown across Tasks 6–8. Three reviewers judged a
-  split unwarranted: it is one cohesive resource, and splitting would scatter `decodeInstanceRequest`
-  and `verifyJiraCredentials` away from their only two callers. **Revisit if #5's issue routes land in
-  the same file.**
-- **`NormalizeSiteURL` (`internal/atlassian/tenant.go:38`) does not case-fold the host**, so
-  `https://Example.atlassian.net` and `https://example.atlassian.net` persist as different strings for
-  the same site. Harmless until something keys on the stored value.
-- **`web/src/router.ts` swallows a rejected dynamic `import()`.** A stale chunk hash after a redeploy,
-  or being offline, leaves the previous view on screen with no indication. **This gets worse at #12**,
-  when a service worker starts serving stale chunks.
-- **No request body size limit** on `json.NewDecoder(r.Body).Decode(...)`. Bounded risk on a
-  localhost-bound single-user server, but these are the repo's first mutating endpoints, so they set
-  the precedent.
-- **The API has no authentication and no CSRF defence**, so a cross-origin
-  `<form enctype="text/plain">` can reach `POST /api/instances`. The design of record excludes app
-  auth from v1 and binds to localhost, deferring it to #13 — **not a #4 defect**. Rejecting mutating
-  requests whose `Content-Type` is not `application/json` would close the form vector for free and is
-  worth a line in #13's scope.
-
-Repo hygiene, no ticket needed under `CLAUDE.md`: **`web/build.mjs` never cleans `dist/` and there is
-no `.dockerignore`.** See *Facts worth not rediscovering*.
-
 ## Decisions taken — do not reopen
 
 **Merging into `main` locally is forbidden.** Stated by the owner on 2026-08-17 as "absolutely
@@ -680,6 +693,41 @@ What the boards settle, none of it to be redesigned during #44's refinement:
   outside the dialog; card subtotals and the rail's per-instance split both stay, even though
   Ridgeline reads `4h 27m` in one and `3h 42m` in the other (the difference is a Ridgeline pin living
   in the Pinned card); and pinned rows identify their instance by coloured dot alone.
+
+The six below were produced by #44, #6 and #7 and lived only in the frozen narrative until
+2026-09-01. They bind later tickets, so they belong here.
+
+- **Every `wd-*` custom event carries the `wd-` prefix** — `wd-search`, `wd-select`, `wd-cancel`. A
+  component that dispatched a bare `select` collided with the native text-selection `select`, which
+  bubbles through light DOM to the same listener; Firefox's `fill()` fires it and the handler
+  crashed on `undefined.instanceId`. Shadow DOM would contain it and shadow DOM is forbidden here so
+  Tailwind can reach component internals. This is a rule for the whole family, not a fix for one
+  component.
+- **Every destructive action confirms, through `wd-confirm`.** Deleting a time entry destroys a
+  record of work. #6 argued the opposite for Unpin and was right for the opposite reason — unpinning
+  destroys nothing. **This binds #10's worklog deletion, and is not to be re-argued from the Unpin
+  precedent.**
+- **A row key never wears the primary.** It is `ink-muted` whether it links or not, settled by the
+  owner on 2026-08-20. A permanent magenta sat on exactly the element #8 and #9 must tint
+  running-green and failed-red, so state would have competed with decoration. The link declares
+  itself by darkening to full ink on hover, which also stops linked and unlinked keys differing by
+  hue alone.
+- **Plans are drafted, not verified.** #6 found six defects in plan-supplied test code, every one an
+  assertion aimed at the wrong observable. The working rule: write the plan's test, then ask whether
+  it would fail if the code it guards were wrong — and treat "no" as a defect to fix rather than
+  scope to defend. This is also why plans are drafted in #44's light format rather than carrying
+  thousands of lines of unverified Go.
+- **A spec written from approved design sources is diffed against those sources before it becomes
+  binding.** Every review on #6's branch compared code against spec, and the spec was where both of
+  the owner's divergences already were. Doing the diff once, at the start, costs minutes; both of
+  these cost a rebuilt component after the ticket was declared finished. #7 did this and it caught
+  four gaps.
+- **#6's refresh fan-out is per-instance and serial within an instance**, under one shared 15s
+  budget. The spec says "one goroutine per pin" *and* "clients are resolved per instance"; the
+  implementation satisfied the second by abandoning the first, which is what keeps `forInstance`'s
+  first-use `api_base_url` repair from running twice concurrently on one row. N pins on one site
+  share one budget serially. Fine at single-user pin counts — recorded so it is a decision rather
+  than a drift.
 
 ### What mutation testing found, and why it is now the habit
 
@@ -949,128 +997,145 @@ on a correct outcome, because it was written before #29 added 11 settings specs.
 asserts a test count must derive it from a count taken on the branch it will run on**, not from the
 count that was true when it was written.
 
+The nine below came out of #44 and #6 and lived only in the frozen narrative until 2026-09-01. Each
+is a trap that cost time once already.
+
+- **A `var()` inside an inherited custom property resolves where it is *declared*, not where it is
+  used, and fails silently.** `--instance: light-dark(oklch(0.60 0.13 var(--h)), …)` on `:root`
+  computes to guaranteed-invalid, because `--h` does not exist there — every dot renders transparent
+  with **nothing in the console**. The hue must go in the `background` declaration on the element
+  itself, so the instance dot is a CSS rule rather than a colour utility.
+- **`--color-ink-faint` is not a text colour** — 3.60:1 on `raised`. It clears the non-text floor
+  and fails the text floor, and nothing in the name warns you. Card headings use `ink-muted`.
+- **Contrast has three tiers, not two:** text 4.5:1, meaningful non-text 3:1, decorative separators
+  exempt. Reporting a hairline as failing 3:1 is as wrong as shipping body text at 3.6:1.
+- **A flex item's floor is its min-content width, so `truncate` silently does nothing** without
+  `min-w-0` on the shrinking box. A long summary pushed the status clean out of the card while
+  **every class-based check passed** — the utility was present, correct, and inert. Regression tests
+  for truncation therefore assert **geometry, not classes**.
+- **Tailwind v4's Preflight leaves `<button>` on the default arrow cursor**, deliberately, so the
+  app has to say `cursor-pointer` itself. `wd-button`'s base covers every button; the rail's Push is
+  the only raw one.
+- **A stale bundle can survive a rebuild, and did.** `/app.js` is unhashed and cacheable while
+  `build.mjs` never cleans `dist/`, so a cached `app.js` keeps resolving to old content-hashed
+  chunks that were never removed — a fix measured as "not working" was working, and the browser was
+  running code from before it. **Hard-reload before believing any frontend measurement.** Adjacent
+  to intake #40.
+- **`.claude/e2e/` has no `.prettierrc.json`, and still does not as of 2026-09-01.**
+  `web/.prettierrc.json` sets `printWidth: 100`, but prettier run from the e2e directory finds no
+  config and reflows at its default 80 — it silently rewrote 68 lines of a spec file during #6 and
+  had to be reverted. It recurs every time an agent formats from there. A config file in
+  `.claude/e2e/` closes it permanently; it is a project-design change and needs no ticket.
+- **Both engines serialise computed `oklch()` as `oklch()`**, trailing zeros normalised, so
+  `theme.spec.ts`'s assertions changed shape and not merely value. Verified in Firefox and Chromium
+  rather than assumed; the two ground colours are constants now, so an engine that converts to
+  `rgb()` is a two-line change.
+- **The issue-key column floor is 76px and each list measures its own keys.** The design drew 76px
+  around seven-character examples, but the owner's own `RIDGE-5325` measures 78px, so that
+  instance's card sat 2px out of line. Measuring per list rather than per app avoids padding a
+  short-keyed instance to suit a long-keyed one, which spends width the summary needs.
+
+Two more, salvaged from *Still open* on 2026-09-01 when the bullets carrying them were retired:
+
+- **A leading underscore hides a directory from the Go toolchain.** `internal/jira/_smoke/main.go`
+  is a read-only smoke command that seeds an instance and runs `SearchAssigned` against a real site,
+  reading the sealed token from the DB. The underscore keeps `go build ./...`, `go test ./...` and
+  golangci-lint from seeing it, which is what lets it exist without making `make verify` reach the
+  network. It shipped in `main` as of PR #20, and it is what found #21 and #22.
+- **An untracked file inside a directory another branch tracks is not necessarily an oversight.**
+  The app-icon canvas page looked abandoned and was nearly "rescued"; in fact `issue-12-pwa-shell`
+  tracked that directory *and* a `.gitignore` whose only line was that filename, because the page is
+  a ~2MB generated rendering of artboards that are themselves tracked. Check for a `.gitignore` on
+  the branch that owns the directory before calling a file undecided.
+
 ## Still open
 
-- ~~**#6's plan will fail at its last step**, and its branch is behind `main`.~~ **Both fixed on
-  2026-08-21.** `issue-6-pinned-issues` is rebased onto `main` — post-#52, three documentation
-  commits and no more — and the plan's closing `status:review` move is dropped, because opening the
-  pull request *is* review. The same commit killed the **stacked pull request** the spec and plan
-  were built around: #38 merged, so there is no bottom layer, no `gh stack link`, and no "merging a
-  stack lands every layer below it" hazard. #6's is an ordinary pull request against `main`.
-- ~~**#6 is `status:todo` and its branch is not pushed.**~~ Built on 2026-08-21; `status:in-progress`
-  since the branch was pushed.
-- **The pin restyle still contradicts #44's spec** — now raised as intake #59. #6 did *not* inherit
-  either mistake: its plan was written in the corrected vocabulary, so nothing shipped wrong. The
-  file remains a design source a later ticket would read as authoritative.
+Resolved bullets were retired from this section on 2026-09-01; what they were worth keeping for is
+in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is below is open.
+
+**The one thing between here and a usable app:**
+
+- **Re-add the Ridgeline instance before trusting #9 with a real day.** #9 is merged, but the push
+  has never run against real Jira — every test and every by-eye check used an `httptest` server, a
+  browser stub or a throwaway mock. The mechanism is proven; the round trip to a real site is not.
+  #73 moved the database to a `./data` bind mount on 2026-08-31, so it survives `make down` and only
+  has to be added once. **Basic auth fails silently on the site host: the instance must point at the
+  API gateway.**
+- **Then a real week of use, then #11.** The route to a usable app: the week of use above → #11 (the
+  weekly rollup, the deadline the app exists to serve) → #10 (corrections after a push) → #8 (the
+  timer). #8 is not a prerequisite for #9 despite the spec's ordering — manual entry already
+  produces the entries a push sends.
+
+**Waiting on the owner:**
+
+- **The intake queue is thirteen and is the longest it has been:** #41, #42, #43, #53, #55, #56,
+  #57, #58, #59, #66, #67, #71, #74. Approving or declining them is the owner's move alone, and
+  **nothing has come off the queue since it was opened.**
 - **Whether the owner's other repo mirrors this label set** is still unanswered, and the gap widened
   on 2026-08-20: this repo now has five statuses plus `bug`/`enhancement`/`wontfix`, having deleted
   `review`, `done` and `declined` and renamed two more. Ask before assuming the two still match.
+- **Seven local branches are merged into `origin/main` and droppable** whenever the owner says so:
+  `handoff-2026-08-17`, `handoff-2026-08-20`, `handoff-2026-08-27`, `handoff-2026-08-31`,
+  `handoff-post-4`, `issue-12-pwa-shell`, `issue-9-end-of-day-push`. `worktrees-without-the-tax` is
+  kept deliberately (see below); `retro-skill` is PR #78, open.
 
-- ~~**`internal/jira/_smoke/main.go`** — undecided whether it ships with #3.~~ **Resolved: it
-  shipped.** It is in `main` as of PR #20. A read-only smoke command that seeds an instance and runs
-  `SearchAssigned` against a real site, reading the sealed token from the DB. The leading underscore
-  keeps `go build ./...`, `go test ./...` and golangci-lint from seeing it, so `make verify` stays
-  offline. It is what found #21 and #22.
+**Decided but not built:**
+
 - **Worktrees without the Docker tax** —
-  `docs/superpowers/plans/2026-08-10-worktrees-without-the-tax.md` (on its own branch) makes
+  `docs/superpowers/plans/2026-08-10-worktrees-without-the-tax.md`, on its own branch. It makes
   worktrees cheap by pinning shared Compose volumes with a fixed `name:`; verified that `name:`
   produces an unprefixed volume while a sibling without it stays project-scoped. **The owner has
   chosen that one worktree per ticket becomes the default once this lands**, which flips the
-  standing "branch in place" decision in `CLAUDE.md` and the `ticket-workflow` skill. Not yet
+  standing "branch in place" decision in `CLAUDE.md` and the `ticket-workflow` skill. Not
   implemented, and it has no issue.
-- **Repo hygiene, no ticket needed:** add a `.dockerignore` excluding `web/dist` and
-  `web/node_modules`, and `rm -rf dist` in `web/build.mjs`. Together they make the image reproducible
-  and future byte measurements trustworthy. Not started.
-- **Enter does not submit the Settings form, and that is deliberate for now.** The form has four
-  implicit-submission-blocking fields and no submit button — `wd-button` renders
-  `<button type="button">` — so per the HTML implicit-submission rules Enter does nothing. #4's fix
-  wave removed the dead `submit` listener and corrected `wd-button`'s docstring rather than wiring it
-  up: the honest fix gives `wd-button` a `type` attribute and swaps the click handler for a submit
-  handler, and doing both in a final fix wave with only one re-review risks a double-submit. Worth a
-  follow-up.
-- ~~**#29 is in review as PR #34.**~~ Merged; the owner confirmed on 2026-08-20.
-- ~~**#5 stops at a known point: its plan is written and Task 1 has not begun.**~~ Built and merged
-  as PR #38 on 2026-08-20.
-- **#35 is intake and untouched.** Raised while planning #5. Approving or declining it is the owner's
-  move; do not refine it unasked.
-- ~~**The dev database holds the owner's real Ridgeline instance and two real pins** (`RIDGE-4929`,
-  `RIDGE-4930`) as of 2026-08-21 — they added the instance themselves mid-session, and two
-  placeholder instances seeded alongside were deleted once the real one was noticed.~~ **All of it
-  is gone as of 2026-08-28**: `GET /api/instances` returns `[]` and Settings renders "No Jira
-  instances yet". `work-dashboard_wd-data` still exists, but `/data/work-dashboard.db` is 4,096
-  bytes and untouched since 2026-08-25 09:12, so the volume was recreated somewhere between
-  2026-08-21 and then — most likely a `make down` during the #12 session. **Nobody recorded it, and
-  the owner has not been asked whether it matters.** The warning stands for whatever gets added
-  next — but the remedy has changed: **#73 moved the database to a `./data` bind mount on
-  2026-08-31, so `make down` can no longer reach it.** Stopping the containers directly is no longer
-  necessary, and this whole class of loss is closed.
-- **Everything is pushed and merged**: #65, #68, the handoff branches as PR #69, #70, #72 and #77,
-  #73 as PR #75, and ~~**#9 in review as PR #76**~~ — **merged on 2026-09-01**, which leaves nothing
-  waiting on the owner. This entry accumulates on `handoff-2026-09-01` and goes out at the end of
-  the day.
-- **Re-add the Ridgeline instance before trusting #9 with a real day.** Now the first thing between
-  here and a usable app, because #9 is merged: the push has never run against real Jira — every test
-  and every by-eye check used an `httptest` server, a browser stub or a throwaway mock. The mechanism
-  is proven; the round trip to a real site is not. It survives `make down` now, so it only has to be
-  added once. Note that basic auth fails **silently** on the site host: the instance must point at
-  the API gateway.
+- **Repo hygiene, no ticket needed:** a `.dockerignore` excluding `web/dist` and `web/node_modules`,
+  and `rm -rf dist` in `web/build.mjs`. Together they make the image reproducible and future byte
+  measurements trustworthy. Not started.
+- **`.claude/e2e/` still has no `.prettierrc.json`** — see *Facts worth not rediscovering*. Also a
+  project-design change needing no ticket, and it recurs every time an agent formats from that
+  directory.
+
+**Known defects and gaps, none blocking:**
+
 - **Two things #9 left undone on purpose**, both in PR #76's body: an edit landing during an
   in-flight push can be lost (`pushMu` serialises pushes against each other, not against
-  `PATCH /api/entries/{id}`; the window is seconds, and the guarded-update fix reaches into #10), and
-  the new `store_failed` branch of the failure report has no test.
-- **A flake worth watching:** `pwa.spec.ts:322` (service-worker offline navigation) failed once
-  during a full e2e run on 2026-08-31, then passed in isolation and on a full re-run. It touches
-  nothing #9 changed. If it recurs, it is real.
-- ~~**#7 is in review as PR #65**, the oldest thing waiting.~~ **Merged and closed on 2026-08-27**,
-  alongside handoff PR #70.
-- **The intake queue is thirteen and is the longest it has been**: #41, #42, #43, #53, #55, #56,
-  #57, #58, #59, #66, #67, #71, and **#74** raised on 2026-08-31. Approving or declining them is the
-  owner's move alone, and nothing has come off the queue since it was opened.
+  `PATCH /api/entries/{id}`; the window is seconds, and the guarded-update fix reaches into #10),
+  and the new `store_failed` branch of the failure report has no test.
 - **#74 is worth reading before the next frontend ticket.** `make fmt` rewrites seven
   already-committed files, because prettier is pinned as `^3.0.0` — a caret range now resolving to
   3.9.6 — and **no gate checks formatting**: `lint` is `eslint src` only, and `fmt` is write-only,
-  never `--check`. So the tree drifted from its own formatter with nothing to notice. It ambushed
-  #9's fix wave, which had to format `today.ts` and revert the rest by hand.
-- ~~**The dev stack is running** on `localhost:8080` as of 2026-08-17, and its database holds one
-  real Jira instance (Ridgeline) with a sealed token.~~ **Superseded by the bullet above** — the
-  database was found empty on 2026-08-28, and #73 then moved it out of a named volume entirely, so
-  the `make down` warning it carried no longer applies either.
-- ~~**Ten local branches are fully merged into `origin/main` and can be deleted**, as of 2026-08-21.
-  Not deleted — the owner's call.~~ **Done on 2026-08-27**, at the owner's word: eleven branches
-  whose remotes had gone were deleted, and local `main` was fast-forwarded to `37a6b42` rather than
-  left behind. `worktrees-without-the-tax` was kept, as that entry required. **What survives locally
-  with a live or absent upstream:** `handoff-2026-08-17`, `handoff-2026-08-20`, `handoff-post-4`,
-  `worktrees-without-the-tax`, `issue-12-pwa-shell` and `main`. The first three are merged and
-  droppable whenever the owner says so; they were left because their remotes still exist.
-  **`handoff-2026-08-31` and `issue-9-end-of-day-push` joined them on 2026-09-01**, both merged and
-  both with their remotes now gone.
+  never `--check`. The tree drifted from its own formatter with nothing to notice. It ambushed #9's
+  fix wave, which had to format `today.ts` and revert the rest by hand.
+- **The pin restyle still contradicts #44's spec** — raised as intake #59. #6 did *not* inherit
+  either mistake: its plan was written in the corrected vocabulary, so nothing shipped wrong. The
+  file remains a design source a later ticket would read as authoritative.
+- **Enter does not submit the Settings form, and that is deliberate for now.** The form has four
+  implicit-submission-blocking fields and no submit button — `wd-button` renders
+  `<button type="button">` — so per the HTML implicit-submission rules Enter does nothing. #4's fix
+  wave removed the dead `submit` listener and corrected `wd-button`'s docstring rather than wiring
+  it up: the honest fix gives `wd-button` a `type` attribute and swaps the click handler for a
+  submit handler, and doing both in one fix wave with a single re-review risks a double-submit.
+  Worth a follow-up.
+- **A flake worth watching:** `pwa.spec.ts:322` (service-worker offline navigation) failed once
+  during a full e2e run on 2026-08-31, then passed in isolation and on a full re-run. It touches
+  nothing #9 changed. **If it recurs, it is real.**
+
+**Before planning the next ticket:**
+
 - **#51 is `status:todo`, refined and unblocked**, and its branch has not been cut. It is the only
-  ready ticket with a settled design; #8-#11 still have none.
-- **#8's markup is already reserved too.** `web/index.html` carries `#rail-timer` with
+  ready ticket with a settled design; #8, #10 and #11 still have none.
+- **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
   #9 plan missed and paid for late. **Open `web/index.html` before planning #8.**
-- **The fastest route to a usable app, as it now stands:** ~~#9 merged~~ — done on 2026-09-01 — then
-  a real week of use, then #11 (the weekly rollup, which is the deadline the app exists to serve),
-  then #10 (corrections after a push), then #8 (the timer). #8 is not a prerequisite for #9 despite
-  the spec's ordering — manual entry already produces the entries a push sends. **The route now
-  starts with the week of use**, which is the Ridgeline bullet above.
-- ~~**`docs/superpowers/canvas/2026-08-24-app-icon/work-dashboard-app-icon.html` is untracked.**
-  Nobody has said whether it is a keeper, and it predates the #12 session that would have committed
-  it. Decide before it is lost.~~ **Wrong on the record, and closed on 2026-08-27 by deleting the
-  file** at the owner's word. The #12 session *did* handle it: `issue-12-pwa-shell` tracks that
-  directory — `Main.dc.html`, `Monogram.dc.html`, `Split.dc.html`, `Ring.dc.html`, `canvas.json`,
-  `README.md` — **and a `.gitignore` whose only line is that filename**. The README says why: the
-  seeded page is ~2MB of generated payload, rebuilt from the artboards with the `design` skill's
-  `seed-canvas.mjs`, and it is also published at
-  `claude.ai/code/artifact/61290e4b-98b4-4dfc-ac00-9703240b338a`. **The artboards are the source; the
-  2.2MB page was a rendering of them.** Nothing was lost, and checking out `issue-12-pwa-shell`
-  restores the directory.
-
-  **The general lesson:** an untracked file inside a directory another branch tracks is not
-  necessarily an oversight. Check for a `.gitignore` on the branch that owns the directory before
-  calling it undecided — this bullet had been asking the owner to rule on a question already
-  answered in the tree.
+- **#35 is `status:needs-refinement`**, not intake as this section long claimed. Raised while
+  planning #5. Refining it is available work; it has the owner's approval already.
+- **#19 must not be implemented from its current state.** Its facts changed under it on
+  2026-08-14 — see *Facts worth not rediscovering* — and it still has no acceptance criteria, by
+  design. Its three open questions are the owner's to answer in a brainstorming round.
 - **Spec §"Decisions deferred"** — unchanged; nothing there blocks the ready tickets.
+
+**This branch:** `handoff-2026-09-01` carries three unpushed commits and goes out as one pull
+request at the end-of-day signal. PR #78 (`retro-skill`) is open and waiting on the owner.
 
 ## Environment notes
 
@@ -1080,9 +1145,9 @@ count that was true when it was written.
   can be drafted offline and pushed with `gh issue edit <n> --body-file` once auth is available.
 - **The Claude GitHub App is installed on this repo.** That lets Claude be mentioned in issues and
   pull requests; it does **not** give a CLI session API access. They are separate mechanisms.
-- Local `main` may sit well behind `origin/main`; branch from `origin/main`, not from it. **It was
-  caught up on 2026-08-27** and is at `37a6b42`, but it goes stale again the moment the owner merges
-  anything, so the habit stands.
+- Local `main` may sit well behind `origin/main`; branch from `origin/main`, not from it. **It is
+  level with `origin/main` at `d5fa002` as of 2026-09-01**, but it goes stale again the moment the
+  owner merges anything, so the habit stands rather than the SHA.
 - **SSH authentication was down on 2026-08-17** and no git traffic reached GitHub all session:
   `sign_and_send_pubkey: signing failed … communication with agent failed`, and `ssh-add -l` reports
   *The agent has no identities* — the agent is running but empty, or its socket is stale from an
@@ -1111,4 +1176,6 @@ count that was true when it was written.
   signing and push all worked with no other change. **It recurred identically on 2026-09-01** — no
   process, the socket stale from the previous morning — making it three sessions running, so treat
   the probe as the **first act of a session**, before reading any state a stale `main` would make
-  wrong.
+  wrong. It was started again later on 2026-09-01: signing and push both worked for the handoff
+  commits that afternoon, so the pattern is "broken at the start of every session, fixed by the
+  owner once asked" rather than anything intermittent.
