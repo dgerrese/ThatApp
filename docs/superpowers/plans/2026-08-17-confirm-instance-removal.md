@@ -11,7 +11,7 @@
 **Goal:** Make removing a Jira instance ask first, and stop the Settings view wiping itself on every
 mutation — the two are the same lines of code.
 
-**Architecture:** A `wd-confirm` WebComponent wrapping a native `<dialog>`, with a promise helper
+**Architecture:** A `that-confirm` WebComponent wrapping a native `<dialog>`, with a promise helper
 `confirmDestructive()` over it, so a call site reads as one statement instead of a pair of event
 handlers. Then the view stops calling `container.replaceChildren()`: `render()` builds three
 persistent regions, `refresh()` reconciles the instance list against the DOM by `instance.id`, and
@@ -25,7 +25,7 @@ Playwright for tests, everything in Docker.
 starting. It holds the rejected alternatives (`window.confirm()`, an inline two-step button, a
 region split without diffing, an observable store) and why each lost.
 
-**Issue:** [#29](https://github.com/dgerrese/work-dashboard/issues/29). Branch:
+**Issue:** [#29](https://codeberg.org/DionGerrese/ThatApp/issues/29). Branch:
 `issue-29-confirm-removal`, already cut and holding the design commit.
 
 ## Global Constraints
@@ -34,7 +34,7 @@ region split without diffing, an observable store) and why each lost.
 - **No JavaScript frameworks.** Vanilla TS only, `strict` with `noUncheckedIndexedAccess` and
   `verbatimModuleSyntax`. Do not weaken `tsconfig.json`; no `any`, no `as any`, no non-null
   assertions. Type-only imports use `import type` on their own line.
-- **Reusable UI is a `wd-*` WebComponent in light DOM, never shadow DOM** — shadow roots stop
+- **Reusable UI is a `that-*` WebComponent in light DOM, never shadow DOM** — shadow roots stop
   Tailwind utilities reaching component internals.
 - **No stock Tailwind colour utility may appear in `web/src/`.** #30 established this and a grep
   enforces it. Use the semantic tokens: `bg-raised`, `border-edge`, `text-ink`, `text-ink-muted`,
@@ -46,9 +46,9 @@ region split without diffing, an observable store) and why each lost.
 - **Tests assert computed styles, attributes and requests — never class names.**
 - **ESLint runs `js.configs.recommended`**, which includes `no-empty`: a `catch` block needs a
   comment to pass.
-- **`wd-button`'s `label` attribute is the sole source of its inner button's accessible name.** One
+- **`that-button`'s `label` attribute is the sole source of its inner button's accessible name.** One
   built without it renders a nameless button that role-based Playwright queries cannot find.
-- **`wd-card` overwrites its own `className` in `connectedCallback`**, so spacing must live on a
+- **`that-card` overwrites its own `className` in `connectedCallback`**, so spacing must live on a
   wrapper element.
 - **Comments are rare and explain *why*.**
 
@@ -56,7 +56,7 @@ region split without diffing, an observable store) and why each lost.
 
 | File | Responsibility | Task |
 |---|---|---|
-| `web/src/components/wd-confirm.ts` | **New.** The `<dialog>` wrapper and the `confirmDestructive()` promise helper. | 1 |
+| `web/src/components/that-confirm.ts` | **New.** The `<dialog>` wrapper and the `confirmDestructive()` promise helper. | 1 |
 | `web/src/views/settings.ts` | Remove asks first (1); persistent regions and Cancel (2); keyed row reconciliation (3). | 1, 2, 3 |
 | `.claude/e2e/tests/settings.spec.ts` | The whole test surface for this ticket. | 1, 2, 3 |
 
@@ -82,15 +82,15 @@ real contents. Do not summarise a run into bullets.
 
 ---
 
-### Task 1: `wd-confirm`, and Remove asks first
+### Task 1: `that-confirm`, and Remove asks first
 
 **Files:**
-- Create: `web/src/components/wd-confirm.ts`
+- Create: `web/src/components/that-confirm.ts`
 - Modify: `web/src/views/settings.ts` (the import block; `removeInstance`)
 - Test: `.claude/e2e/tests/settings.spec.ts`
 
 **Interfaces:**
-- Consumes: `wd-button` (attributes `label`, `variant`), the #30 colour tokens.
+- Consumes: `that-button` (attributes `label`, `variant`), the #30 colour tokens.
 - Produces:
   ```ts
   export function confirmDestructive(options: {
@@ -214,10 +214,10 @@ click through. Paste the output.
 
 - [ ] **Step 4: Write the component**
 
-Create `web/src/components/wd-confirm.ts`:
+Create `web/src/components/that-confirm.ts`:
 
 ```ts
-import "./wd-button";
+import "./that-button";
 
 /**
  * Wraps a native <dialog> rather than building a modal from a div: showModal()
@@ -227,7 +227,7 @@ import "./wd-button";
  * Backdrop-click dismissal is deliberately absent — <dialog> does not do it,
  * Esc already provides the safe exit, and adding it means hit-testing by hand.
  */
-export class WdConfirm extends HTMLElement {
+export class ThatConfirm extends HTMLElement {
   connectedCallback(): void {
     if (this.querySelector("dialog")) return;
 
@@ -235,12 +235,12 @@ export class WdConfirm extends HTMLElement {
     dialog.className = "max-w-sm rounded-lg border border-edge bg-raised p-4 text-ink shadow-sm";
 
     const heading = document.createElement("h2");
-    heading.id = "wd-confirm-heading";
+    heading.id = "that-confirm-heading";
     heading.className = "mb-2 text-lg font-medium";
     heading.textContent = this.getAttribute("heading") ?? "";
 
     const body = document.createElement("p");
-    body.id = "wd-confirm-body";
+    body.id = "that-confirm-body";
     body.className = "mb-4 text-sm text-ink-muted";
     body.textContent = this.getAttribute("body") ?? "";
 
@@ -267,14 +267,14 @@ export class WdConfirm extends HTMLElement {
 }
 
 function dialogButton(label: string, variant: string): HTMLElement {
-  const element = document.createElement("wd-button");
+  const element = document.createElement("that-button");
   element.setAttribute("label", label);
   element.setAttribute("variant", variant);
 
   return element;
 }
 
-customElements.define("wd-confirm", WdConfirm);
+customElements.define("that-confirm", ThatConfirm);
 
 /**
  * Resolves true only on the confirming button; Cancel, Esc and any other close
@@ -285,7 +285,7 @@ export function confirmDestructive(options: {
   body: string;
   confirmLabel: string;
 }): Promise<boolean> {
-  const element = document.createElement("wd-confirm");
+  const element = document.createElement("that-confirm");
   element.setAttribute("heading", options.heading);
   element.setAttribute("body", options.body);
   element.setAttribute("confirm-label", options.confirmLabel);
@@ -327,13 +327,13 @@ inventing a colour here would break #30's no-stock-utility rule.
 In `web/src/views/settings.ts`, add to the component imports at the top:
 
 ```ts
-import "../components/wd-confirm";
+import "../components/that-confirm";
 ```
 
 and to the value imports:
 
 ```ts
-import { confirmDestructive } from "../components/wd-confirm";
+import { confirmDestructive } from "../components/that-confirm";
 ```
 
 Then replace `removeInstance` (currently at lines 136-151) with:
@@ -379,7 +379,7 @@ Expected: all settings tests pass on both projects — the four that existed plu
 
 ```shell
 make verify 2>&1 | tee .superpowers/sdd/2026-08-17-confirm-instance-removal/task-1-verify.log
-git add web/src/components/wd-confirm.ts web/src/views/settings.ts .claude/e2e/tests/settings.spec.ts
+git add web/src/components/that-confirm.ts web/src/views/settings.ts .claude/e2e/tests/settings.spec.ts
 git commit -m "feat(web): confirm before removing a Jira instance"
 ```
 
@@ -458,7 +458,7 @@ export async function render(root: HTMLElement): Promise<void> {
   formCard = document.createElement("div");
   formCard.className = "mt-6";
 
-  // wd-card overwrites its own className on connect, so the spacing lives on a
+  // that-card overwrites its own className on connect, so the spacing lives on a
   // wrapper. Appearance sits outside the regions refresh() touches.
   const appearance = document.createElement("div");
   appearance.className = "mt-6";
@@ -648,9 +648,9 @@ async function refresh(regions: Regions): Promise<void> {
 }
 
 function reconcileList(regions: Regions, instances: Instance[]): void {
-  const card = regions.listCard.querySelector<HTMLElement>("wd-card") ?? emptyListCard(regions);
+  const card = regions.listCard.querySelector<HTMLElement>("that-card") ?? emptyListCard(regions);
 
-  // Never replaceChildren() on the card itself: wd-card injects its heading once,
+  // Never replaceChildren() on the card itself: that-card injects its heading once,
   // in connectedCallback, so wiping its children deletes the heading with no way
   // to get it back.
   const notice = card.querySelector("[data-empty-notice]");
@@ -703,7 +703,7 @@ with these three helpers, next to the other local helpers:
 
 ```ts
 function emptyListCard(regions: Regions): HTMLElement {
-  const card = document.createElement("wd-card");
+  const card = document.createElement("that-card");
   card.setAttribute("heading", "Jira instances");
   regions.listCard.replaceChildren(card);
 
@@ -800,8 +800,8 @@ git commit -m "refactor(web): reconcile instance rows by id instead of rebuildin
 
 ## Self-review against the spec
 
-- **`wd-confirm`** — Task 1: light DOM, native `<dialog>`, `showModal()`, the promise helper with the
-  spec's exact signature, `aria-labelledby`/`aria-describedby`, `label` on every `wd-button`, no
+- **`that-confirm`** — Task 1: light DOM, native `<dialog>`, `showModal()`, the promise helper with the
+  spec's exact signature, `aria-labelledby`/`aria-describedby`, `label` on every `that-button`, no
   backdrop-click dismissal, `::backdrop` left to the browser.
 - **The static wording** — Task 1, Step 5, naming the instance and never enumerating the cascade. No
   counts, no counts endpoint, no server change anywhere in this plan.

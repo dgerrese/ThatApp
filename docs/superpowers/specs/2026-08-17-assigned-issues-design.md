@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#5](https://github.com/dgerrese/work-dashboard/issues/5). `GET /api/issues` fetches
+The design for [#5](https://codeberg.org/DionGerrese/ThatApp/issues/5). `GET /api/issues` fetches
 the issues assigned to the user from every configured instance concurrently, and the Today view
 renders them. It is the first view of the app's actual purpose: `/` has shown a placeholder since #4.
 
@@ -120,10 +120,10 @@ export function listIssues(): Promise<IssuesResponse>;
 set" as empty — the Go struct has no pointer there and `noUncheckedIndexedAccess` makes an optional
 field cost a guard at every use.
 
-### `wd-ticket-row`
+### `that-ticket-row`
 
 A light-DOM component with attributes `key`, `summary`, `status` and `url`, reactive through
-`observedAttributes` — like `wd-button` and `wd-alert`, and **unlike `wd-card`**, whose `heading` is
+`observedAttributes` — like `that-button` and `that-alert`, and **unlike `that-card`**, whose `heading` is
 not reactive and silently ignores a later change.
 
 It renders the key, the summary and the status. **The key is an `<a target="_blank" rel="noopener">`
@@ -148,14 +148,14 @@ Assigned issues                                  [ Refresh ]
 └─────────────────────────────────────────────────────────────┘
 ```
 
-A heading and a Refresh `wd-button` above a `wd-card` per instance. Each card holds exactly one of
+A heading and a Refresh `that-button` above a `that-card` per instance. Each card holds exactly one of
 three things:
 
-- a `<ul>` of `wd-ticket-row`, one per issue;
-- a `wd-alert` carrying the instance's `error.message`, when `error` is non-null;
+- a `<ul>` of `that-ticket-row`, one per issue;
+- a `that-alert` carrying the instance's `error.message`, when `error` is non-null;
 - a muted "No issues assigned." when the instance succeeded with an empty list.
 
-The card's title is the instance name, set **before the card is inserted**: `wd-card` has no
+The card's title is the instance name, set **before the card is inserted**: `that-card` has no
 `observedAttributes`, so a heading assigned after insertion is silently ignored.
 
 **The four states the view itself can be in:**
@@ -167,7 +167,7 @@ The card's title is the instance name, set **before the card is inserted**: `wd-
   whole content area including the heading row**: a Refresh button that can only ever refetch an empty
   list is a control with nothing to do. This state takes over what the router placeholder says today,
   and it is the reason the placeholder's wording changes rather than being deleted outright.
-- **The whole request failed** — one `wd-alert` with the message, and Refresh stays usable so the user
+- **The whole request failed** — one `that-alert` with the message, and Refresh stays usable so the user
   can retry without navigating.
 
 **Today re-renders wholesale, and that is deliberate.** #29 gave the Settings view keyed
@@ -177,7 +177,7 @@ not exist yet. **#7 must revisit this** the moment a row carries a duration fiel
 at that point a wholesale re-render discards input mid-typing, which is exactly the bug #29 paid to
 fix. This is written here so #7 finds it rather than rediscovering it.
 
-`wd-button` is given a `label` attribute, which is the sole source of its inner button's accessible
+`that-button` is given a `label` attribute, which is the sole source of its inner button's accessible
 name; without it Playwright's role-based queries cannot find the button at all.
 
 ### The router
@@ -229,7 +229,7 @@ Stubbing `/api/issues` with `page.route`, the way `settings.spec.ts` stubs the i
 
 **#5 does run e2e.** The handoff records that "#5 and #9 will skip e2e" under the `paths:` filter in
 `.github/workflows/e2e.yml` because they touch no frontend files. That holds for #9; it is wrong for
-#5, which adds `today.ts` and `wd-ticket-row.ts`. The gate needs no change — the note does, and this
+#5, which adds `today.ts` and `that-ticket-row.ts`. The gate needs no change — the note does, and this
 ticket corrects it.
 
 Everything runs through Docker: `make verify` and `make test-e2e`, both green before the pull request.
@@ -237,16 +237,16 @@ Everything runs through Docker: `make verify` and `make test-e2e`, both green be
 ## Dependencies
 
 - **#4 landed everything this builds on**: the split URL columns, `internal/atlassian`,
-  `instanceClients`, the JSON error envelope, `api.ts`, the router and the first `wd-*` components.
+  `instanceClients`, the JSON error envelope, `api.ts`, the router and the first `that-*` components.
 - **#6 follows and inherits a layout question.** Pinned issues span instances, and the card-per-instance
   layout has no place for them. #6 decides that; #5 does not constrain it beyond keeping
-  `wd-ticket-row` free of anything instance-specific.
+  `that-ticket-row` free of anything instance-specific.
 - **#7 must revisit the wholesale re-render**, as above.
 
 ## Out of scope
 
 - **Pinned issues** (#6) and **any time logging** (#7, #8) — no timer, no duration field, no day total.
-  `wd-ticket-row` is shaped to accept them and carries none of them.
+  `that-ticket-row` is shaped to accept them and carries none of them.
 - **Filtering, sorting or searching the list.** The JQL is fixed and the order is Jira's.
 - **Pagination in the UI.** `SearchAssigned` already pages internally to 100 pages; a person's
   assigned open issues do not reach that.

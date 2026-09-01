@@ -7,7 +7,7 @@
  * dialog into the entry bundle and spend the 14kB budget on a component nobody
  * has opened yet.
  *
- * `wd-`, not the bare `entries-changed` the design writes: every custom event
+ * `that-`, not the bare `entries-changed` the design writes: every custom event
  * this app raises is prefixed, a rule #6 arrived at after `select` collided
  * with the native text-selection event in light DOM. Nothing native is called
  * `entries-changed`, so this is not that bug — but a second convention would be
@@ -17,7 +17,7 @@
 // the shell bundle through this file.
 import type { Entry } from "./types";
 
-const ENTRIES_CHANGED = "wd-entries-changed";
+const ENTRIES_CHANGED = "that-entries-changed";
 
 /**
  * Fired on `document` rather than bubbled from whatever changed: the rail is a

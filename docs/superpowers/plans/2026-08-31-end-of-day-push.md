@@ -18,7 +18,7 @@ columns and `updated_at` — never a stored flag.
 **Tech Stack:** Go standard library, `golang.org/x/sync/errgroup` (via `fanOutInstances`),
 `modernc.org/sqlite`, vanilla TypeScript, Tailwind v4, Playwright.
 
-**Spec:** `docs/superpowers/specs/2026-08-04-work-dashboard-design.md`, sections *Push semantics*,
+**Spec:** `docs/superpowers/specs/2026-08-04-thatapp-design.md`, sections *Push semantics*,
 *Partial failure* and *API surface*.
 
 **Issue:** #9
@@ -26,7 +26,7 @@ columns and `updated_at` — never a stored flag.
 ## Global Constraints
 
 - **Everything runs in Docker.** Never run Go, Node or npm on the host.
-- **No JavaScript frameworks.** Vanilla TS only. Reusable UI is a `wd-*` WebComponent in **light
+- **No JavaScript frameworks.** Vanilla TS only. Reusable UI is a `that-*` WebComponent in **light
   DOM, never shadow DOM**.
 - **Tailwind CSS v4**, CSS-first. Theme values live in `@theme` in `web/src/styles.css`.
 - **`index.html` stays under 14kB.** Views load via dynamic `import()`.
@@ -64,7 +64,7 @@ produces it. This ticket must therefore *report* `dirty` honestly rather than ca
 | `internal/server/server.go` (modify) | Register the route |
 | `web/src/types.ts` (modify) | `Entry.pushState`, `PushResult`, `PushResponse` |
 | `web/src/api.ts` (modify) | `pushDay()` |
-| `web/src/components/wd-entry-dialog.ts` (modify) | Per-entry push badge on `entryRow` |
+| `web/src/components/that-entry-dialog.ts` (modify) | Per-entry push badge on `entryRow` |
 | `web/src/views/today.ts` (modify) | Push button, confirm, result alert naming failures |
 | `.claude/e2e/tests/push.spec.ts` (create) | Partial-failure visibility end to end |
 
@@ -348,7 +348,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // fakeJira counts worklog creates and hands back a fresh id for each.
@@ -471,8 +471,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/jira"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // pushInstanceTimeout bounds one instance's whole sequence of worklog creates,
@@ -941,7 +941,7 @@ git commit -m "feat(#9): add the push API call and its types"
 ### Task 6: The per-entry push badge
 
 **Files:**
-- Modify: `web/src/components/wd-entry-dialog.ts`
+- Modify: `web/src/components/that-entry-dialog.ts`
 
 **Interfaces:**
 - Consumes: `Entry.pushState` (Task 5)
@@ -998,7 +998,7 @@ function pushBadge(state: Entry["pushState"]): HTMLElement | null {
 exactly three semantic status colours: `--color-running` (green), `--color-pending` (amber) and
 `--color-failed` (red), giving the utilities `text-running`, `text-pending`, `text-failed`. There
 are **no** `-soft` or `-strong` variants, and no filled-chip background token — so colour the text,
-do not build a filled pill. This follows `wd-alert`, which colours a small mark and leaves the words
+do not build a filled pill. This follows `that-alert`, which colours a small mark and leaves the words
 in ordinary ink. #12 established amber as the warning tone, of which "edited since push" is one
 instance.
 
@@ -1015,7 +1015,7 @@ Expected: PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add web/src/components/wd-entry-dialog.ts
+git add web/src/components/that-entry-dialog.ts
 git commit -m "feat(#9): show each entry's push state in the entry dialog"
 ```
 
@@ -1027,11 +1027,11 @@ git commit -m "feat(#9): show each entry's push state in the entry dialog"
 - Modify: `web/src/views/today.ts`
 
 **Interfaces:**
-- Consumes: `pushDay` (Task 5), `openConfirm` from `web/src/components/wd-confirm.ts`,
+- Consumes: `pushDay` (Task 5), `openConfirm` from `web/src/components/that-confirm.ts`,
   `listEntries`, `announceEntriesChanged`
 - Produces: a Push control in Today's header and a result alert
 
-**The confirm API is already resolved.** `web/src/components/wd-confirm.ts` exports:
+**The confirm API is already resolved.** `web/src/components/that-confirm.ts` exports:
 
 ```ts
 confirmDestructive(options: { heading: string; body: string; confirmLabel: string }): Promise<boolean>
@@ -1039,8 +1039,8 @@ confirmDestructive(options: { heading: string; body: string; confirmLabel: strin
 
 `body` is set as an **attribute** and rendered as the `textContent` of a single `<p>`, so it must be
 one plain sentence — a per-instance breakdown or any markup is not possible without changing that
-component, which is out of scope here. Import it from `../components/wd-confirm`, and add
-`import "../components/wd-confirm";` to the side-effect import block at the top of the file so the
+component, which is out of scope here. Import it from `../components/that-confirm`, and add
+`import "../components/that-confirm";` to the side-effect import block at the top of the file so the
 element is defined. You also need `totalFigure` from `../format` — the file currently imports only
 `clockTime` from there.
 
@@ -1103,7 +1103,7 @@ async function pushToday(regions: Regions): Promise<void> {
  * Summarises what is about to be sent, then asks.
  *
  * The confirmation exists because a push creates real Jira worklogs and, until
- * #10 lands, the only way to undo one is Jira's own UI. wd-confirm renders its
+ * #10 lands, the only way to undo one is Jira's own UI. that-confirm renders its
  * body as plain text, so this is one sentence rather than a per-site table.
  */
 function confirmPush(pending: Entry[]): Promise<boolean> {
@@ -1143,7 +1143,7 @@ function renderPushReport(regions: Regions, response: PushResponse): void {
       "Press Push to Jira again to retry them.",
   );
 
-  // A sibling of the alert, never a child of it: wd-alert renders by calling
+  // A sibling of the alert, never a child of it: that-alert renders by calling
   // this.replaceChildren(mark, message), so anything appended inside it is
   // discarded the next time an attribute changes.
   const list = document.createElement("ul");
@@ -1164,7 +1164,7 @@ file already has. Add `pushReport: HTMLElement` to the `Regions` interface, crea
 with the same `hidden = true` treatment and the same reasoning (an empty box would contribute a
 `space-y-4` margin), and include it in the `container.append(...)` call.
 
-**`wd-alert` supports exactly three tones: `success`, `warning`, `error`.** An unknown tone falls
+**`that-alert` supports exactly three tones: `success`, `warning`, `error`.** An unknown tone falls
 back to `warning` silently, so a typo here is invisible rather than loud. There is no `info` or
 `danger` tone — do not add one for this ticket.
 

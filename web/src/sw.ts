@@ -9,8 +9,8 @@ declare const __WD_PRECACHE__: string[];
 declare const __WD_BUILD_ID__: string;
 Object.assign(self, { __WD_PRECACHE__, __WD_BUILD_ID__ });
 
-const SHELL_CACHE = `wd-shell-${__WD_BUILD_ID__}`;
-const DATA_CACHE = `wd-data-${__WD_BUILD_ID__}`;
+const SHELL_CACHE = `that-shell-${__WD_BUILD_ID__}`;
+const DATA_CACHE = `that-data-${__WD_BUILD_ID__}`;
 
 // One row per extension the build ships. A mismatch here is what
 // handleAsset's index.html fallback would otherwise produce for anything
@@ -187,7 +187,7 @@ function isCachedJiraRead(pathname: string): boolean {
 // asked — did this body come off the wire, and if not, how old is it.
 function withCachedAtHeader(response: Response, storedAt: Date): Response {
   const headers = new Headers(response.headers);
-  headers.set("X-WD-Cached-At", storedAt.toISOString());
+  headers.set("X-THAT-Cached-At", storedAt.toISOString());
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

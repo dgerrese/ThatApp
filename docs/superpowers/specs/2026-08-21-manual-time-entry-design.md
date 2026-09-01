@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#7](https://github.com/dgerrese/work-dashboard/issues/7). Time is typed against a
+The design for [#7](https://codeberg.org/DionGerrese/ThatApp/issues/7). Time is typed against a
 ticket, stored locally, and shown as the day's total. `GET/POST/PATCH/DELETE /api/entries` back it,
 a modal dialog per ticket is the only manual way in, and the rail carries the total and the split.
 
@@ -32,7 +32,7 @@ this ticket. Nothing here talks to Jira: the worklog push is #9.
    is about reconciling worklogs that already exist in Jira, not about local editing. Shipping
    without delete would make every mistyped entry permanent for two tickets.
 6. **Every destructive action confirms.** Deleting an entry destroys a record of work, so it goes
-   through `wd-confirm`. #6 argued the opposite for Unpin and was right there for the opposite
+   through `that-confirm`. #6 argued the opposite for Unpin and was right there for the opposite
    reason: unpinning destroys nothing. This is a standing rule, and it binds #10's worklog deletion
    too.
 7. **The rail owns its own data.** A shell-level module fetches today's entries and re-renders on an
@@ -97,7 +97,7 @@ The browser never computes a date. It reads the `day` the server stamped and gro
 what makes the rail's client-side summing safe.
 
 **The handler takes its clock as a `func() time.Time`.** The acceptance criterion asks for a test
-with the container at UTC and `WD_TIMEZONE=Pacific/Auckland` proving an entry near the boundary
+with the container at UTC and `THAT_TIMEZONE=Pacific/Auckland` proving an entry near the boundary
 lands on the right local day, and that is unprovable without an injected instant — you cannot make
 the test machine be 11pm. `internal/server.Server` gains a `now func() time.Time` field defaulting to `time.Now`; the
 zone is already validated at boot and held as `cfg.Location`, a `*time.Location`, so nothing parses
@@ -135,7 +135,7 @@ deferral to #9 and not an oversight in reading the board. The entry row's layout
 ### `GET`
 
 `from` and `to` are optional, inclusive, `YYYY-MM-DD`, and **both default to today** — resolved in
-`WD_TIMEZONE` — so the rail's call is a bare `GET /api/entries`. #11's week grid reuses the same
+`THAT_TIMEZONE` — so the rail's call is a bare `GET /api/entries`. #11's week grid reuses the same
 endpoint with a range. A malformed date or `from` after `to` is 400 `invalid_request`.
 
 ### `POST`
@@ -160,10 +160,10 @@ Both answer 404 `entry_not_found`.
 
 **A non-numeric id is 400 `invalid_request`**, following `/api/pins/{id}`. `/api/instances/{id}`
 answers 404 for the same input by documented design; this makes it two routes to one, which turns
-[#55](https://github.com/dgerrese/work-dashboard/issues/55) into "change instances to match" rather
+[#55](https://codeberg.org/DionGerrese/ThatApp/issues/55) into "change instances to match" rather
 than an open question.
 
-## The duration control — `web/src/components/wd-duration.ts`
+## The duration control — `web/src/components/that-duration.ts`
 
 One bordered group: `−`, a field, `+`. Radius on the outside only, hairline dividers between, and
 the focus ring on the group via `:focus-within` rather than on the input alone.
@@ -193,9 +193,9 @@ input keeps at least one step** — typing a number and getting nothing back rea
 This table is the specification. It is the kind of rule a later reader "simplifies" — `7` → 0h 15m
 in particular looks like a bug until you know that rounding to nearest gives 0h 00m.
 
-## The dialog — `web/src/components/wd-entry-dialog.ts`
+## The dialog — `web/src/components/that-entry-dialog.ts`
 
-Two components rather than the ticket's single `wd-time-entry.ts`: the control above, reusable by
+Two components rather than the ticket's single `that-time-entry.ts`: the control above, reusable by
 #8, and the dialog here.
 
 **The trigger** is the row's duration cell, on assigned and pinned rows alike: a `<button>` showing
@@ -220,10 +220,10 @@ back to the owner.
 three controls at the row's right edge the moment #8 lands. Making the whole row the target cannot
 be a `<button>` at all — the row holds the key's link and will hold #8's play control, and a button
 may contain neither — so it would need `tabindex`, `role` and hand-written Enter/Space handling,
-which is the reimplementation `wd-button` and `wd-confirm` exist to avoid, on the most-used control
+which is the reimplementation `that-button` and `that-confirm` exist to avoid, on the most-used control
 in the app.
 
-**The modal follows `wd-confirm`**: a native `<dialog>` opened with `showModal()`, which supplies
+**The modal follows `that-confirm`**: a native `<dialog>` opened with `showModal()`, which supplies
 the focus trap, the inert background, the top layer, Esc dismissal and focus returning to the
 trigger. Its deliberate no-dismiss-on-backdrop rule carries over, and so does its trap — Preflight's
 `* { margin: 0 }` is author origin and beats the UA's `dialog { margin: auto }`, so the dialog lands
@@ -237,7 +237,7 @@ on the right, and a round Close button — in a 560px card. Adopted unchanged.
 its comment, and edit and delete. Empty reads "Nothing logged against this ticket today."
 
 **The dialog holds exactly one duration control — the form at its foot** — and editing loads the
-entry into it. The alternative, turning the row itself into an editor, puts a second `wd-duration`
+entry into it. The alternative, turning the row itself into an editor, puts a second `that-duration`
 on screen and gives one dialog two places to type. Settled with the owner on 2026-08-21 against
 three other arrangements.
 
@@ -254,7 +254,7 @@ because it was missing, and the argument carries here unchanged.
 **The row being edited is the only one left undimmed**, which is what binds the foot form to a
 particular entry.
 
-**Deleting confirms**, per decision 6, through `wd-confirm`. That opens a modal `<dialog>` from
+**Deleting confirms**, per decision 6, through `that-confirm`. That opens a modal `<dialog>` from
 inside a modal `<dialog>`: the top layer is a stack and both target browsers support it, but Esc
 must close only the confirmation, leaving the entry dialog open with focus back on its row. That is
 asserted rather than assumed.
@@ -294,7 +294,7 @@ Table-driven over the injected clock. The cases that matter are the ones where U
 date disagree, in both directions — a test at `11:30Z` in Auckland passes even against a handler
 that ignores the timezone entirely, because UTC agrees on that instant.
 
-| Instant (UTC) | `WD_TIMEZONE` | Local | `day` must be | UTC would say |
+| Instant (UTC) | `THAT_TIMEZONE` | Local | `day` must be | UTC would say |
 |---|---|---|---|---|
 | `2026-08-21T13:00:00Z` | Pacific/Auckland | 22nd, 01:00 | `2026-08-22` | `2026-08-21` |
 | `2026-08-21T02:00:00Z` | America/Los_Angeles | 20th, 19:00 | `2026-08-20` | `2026-08-21` |
@@ -342,7 +342,7 @@ integer is the class of defect this project keeps finding.
   comment into the foot, Save posts a `PATCH` for that id, and Cancel leaves the entry unchanged.
 
 The parse rule is a pure function and the obvious first customer for
-[#51](https://github.com/dgerrese/work-dashboard/issues/51)'s frontend unit runner, which does not
+[#51](https://codeberg.org/DionGerrese/ThatApp/issues/51)'s frontend unit runner, which does not
 exist yet. Until it does, it is covered through Playwright, and #51 should absorb it.
 
 ## Out of scope
@@ -358,7 +358,7 @@ exist yet. Until it does, it is covered through Playwright, and #51 should absor
 | Criterion | Where it is met |
 |---|---|
 | `GET/POST/PATCH/DELETE /api/entries` served and covered by handler tests | *The API*, *Testing* |
-| `day` resolved in `WD_TIMEZONE`, proven by a boundary test | *The day boundary*, and the two-zone table |
+| `day` resolved in `THAT_TIMEZONE`, proven by a boundary test | *The day boundary*, and the two-zone table |
 | A new entry defaults `started_at` to creation time | *The day boundary* |
 | Zero or negative duration rejected with 400 | *`POST`*, rejection 3 |
 | Several entries per ticket per day, each with its own comment and start time | the dialog filters `EntriesForDay`'s response and lists them |
@@ -378,13 +378,13 @@ this document on 2026-08-21, when the owner approved it:
   fixed options, and it overrides the boards' plain text field.
 
 **Two criteria were added in the same edit**, both in this document's scope and neither in the
-original body: deleting an entry confirms through `wd-confirm` (decision 6, now a standing rule),
+original body: deleting an entry confirms through `that-confirm` (decision 6, now a standing rule),
 and the API does not enforce the 15-minute grid (decision 8, pinned by a test so the tightening
 fails a gate rather than #8).
 
 ## Corrections to other documents
 
-- `docs/superpowers/specs/2026-08-04-work-dashboard-design.md` line 238 says manual entries "default
+- `docs/superpowers/specs/2026-08-04-thatapp-design.md` line 238 says manual entries "default
   to the time the entry was created and remain editable". The second half is now false; this ticket
   corrects that line, as #6 corrected the `pinned_issues` block.
 - The boards draw a plain `00:00` text field for duration in `ManualExpand.dc.html` and

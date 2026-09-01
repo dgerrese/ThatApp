@@ -227,7 +227,7 @@
       "x": 10,
       "y": -250,
       "w": 360,
-      "text": "BASELINE — what ships today\n\nRecreated from web/index.html, wd-card, wd-button, wd-alert and wd-ticket-row: stock zinc tokens, system-ui, three type sizes, near-black accent.\n\nHere so the three directions are judged against the real thing, not a memory of it. Flip any board's Mode chip to see dark.\n\nIt shows less than the others because it IS less — no timers, no day total, no push. Those land in tickets 7–9."
+      "text": "BASELINE — what ships today\n\nRecreated from web/index.html, that-card, that-button, that-alert and that-ticket-row: stock zinc tokens, system-ui, three type sizes, near-black accent.\n\nHere so the three directions are judged against the real thing, not a memory of it. Flip any board's Mode chip to see dark.\n\nIt shows less than the others because it IS less — no timers, no day total, no push. Those land in tickets 7–9."
     },
     {
       "id": "paper",
@@ -423,7 +423,7 @@
       "x": 0,
       "y": 400,
       "w": 400,
-      "text": "M4 · DIALOG — one component, two anchorings\n\nCentred on the desktop, anchored to the bottom edge on the phone. Same markup, same content, one CSS difference — which is exactly why this beats the popover: M2 was quietly two designs.\n\nIT ALSO DELETES THE OPEN LIST. wd-confirm already wraps a native <dialog> and calls showModal(), and its own comment names what that supplies: focus trap, inert background, top layer, Esc dismissal, and focus returning to whatever opened it. Four of the five things left open for M2 are simply not our problem.\n\nTHE FIFTH IS ALREADY DECIDED TOO. wd-confirm deliberately does NOT dismiss on backdrop click — <dialog> has no such behaviour, Esc is the safe exit, and adding it means hit-testing by hand. Same rule here.\n\nONE TRAP WORTH CARRYING OVER: Preflight's `* { margin: 0 }` is author origin and beats the UA's `dialog { margin: auto }`, so a dialog lands top-left in Firefox and Chromium unless margin is set explicitly. wd-confirm.ts carries that note; this design needs it too."
+      "text": "M4 · DIALOG — one component, two anchorings\n\nCentred on the desktop, anchored to the bottom edge on the phone. Same markup, same content, one CSS difference — which is exactly why this beats the popover: M2 was quietly two designs.\n\nIT ALSO DELETES THE OPEN LIST. that-confirm already wraps a native <dialog> and calls showModal(), and its own comment names what that supplies: focus trap, inert background, top layer, Esc dismissal, and focus returning to whatever opened it. Four of the five things left open for M2 are simply not our problem.\n\nTHE FIFTH IS ALREADY DECIDED TOO. that-confirm deliberately does NOT dismiss on backdrop click — <dialog> has no such behaviour, Esc is the safe exit, and adding it means hit-testing by hand. Same rule here.\n\nONE TRAP WORTH CARRYING OVER: Preflight's `* { margin: 0 }` is author origin and beats the UA's `dialog { margin: auto }`, so a dialog lands top-left in Firefox and Chromium unless margin is set explicitly. that-confirm.ts carries that note; this design needs it too."
     },
     {
       "id": "m4m",

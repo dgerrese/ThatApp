@@ -1,4 +1,4 @@
-import "./wd-button";
+import "./that-button";
 
 /**
  * Wraps a native <dialog> rather than building a modal from a div: showModal()
@@ -8,7 +8,7 @@ import "./wd-button";
  * Backdrop-click dismissal is deliberately absent — <dialog> does not do it,
  * Esc already provides the safe exit, and adding it means hit-testing by hand.
  */
-export class WdConfirm extends HTMLElement {
+export class ThatConfirm extends HTMLElement {
   connectedCallback(): void {
     if (this.querySelector("dialog")) return;
 
@@ -19,12 +19,12 @@ export class WdConfirm extends HTMLElement {
     dialog.className = "bg-raised text-ink shadow-card m-auto max-w-sm rounded-2xl p-5";
 
     const heading = document.createElement("h2");
-    heading.id = "wd-confirm-heading";
+    heading.id = "that-confirm-heading";
     heading.className = "mb-2 text-xl font-bold tracking-[-0.02em]";
     heading.textContent = this.getAttribute("heading") ?? "";
 
     const body = document.createElement("p");
-    body.id = "wd-confirm-body";
+    body.id = "that-confirm-body";
     body.className = "text-ink-muted mb-4 text-md";
     body.textContent = this.getAttribute("body") ?? "";
 
@@ -51,14 +51,14 @@ export class WdConfirm extends HTMLElement {
 }
 
 function dialogButton(label: string, variant: string): HTMLElement {
-  const element = document.createElement("wd-button");
+  const element = document.createElement("that-button");
   element.setAttribute("label", label);
   element.setAttribute("variant", variant);
 
   return element;
 }
 
-customElements.define("wd-confirm", WdConfirm);
+customElements.define("that-confirm", ThatConfirm);
 
 /**
  * Resolves true only on the confirming button; Cancel, Esc and any other close
@@ -69,7 +69,7 @@ export function confirmDestructive(options: {
   body: string;
   confirmLabel: string;
 }): Promise<boolean> {
-  const element = document.createElement("wd-confirm");
+  const element = document.createElement("that-confirm");
   element.setAttribute("heading", options.heading);
   element.setAttribute("body", options.body);
   element.setAttribute("confirm-label", options.confirmLabel);

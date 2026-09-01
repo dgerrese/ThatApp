@@ -13,14 +13,14 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/config"
-	"github.com/dgerrese/work-dashboard/internal/crypto"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/config"
+	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // serverInZone builds a server whose configured zone is zone and whose clock is
 // frozen at instant. Both are needed together: the day an entry lands on is only
-// provable when the machine's own clock and WD_TIMEZONE disagree, and no test
+// provable when the machine's own clock and THAT_TIMEZONE disagree, and no test
 // can move the machine's clock to 1am in Auckland.
 func serverInZone(
 	t *testing.T, zone string, instant time.Time,
@@ -208,7 +208,7 @@ func TestPostEntryStampsTheDayInTheConfiguredZone(t *testing.T) {
 			}
 			// The store normalises started_at to UTC on write; the response
 			// renders it back in the configured zone, so the browser shows the
-			// wall clock the entry was made at without knowing WD_TIMEZONE.
+			// wall clock the entry was made at without knowing THAT_TIMEZONE.
 			if dto.StartedAt != tc.wantStartedAt {
 				t.Errorf("startedAt = %q, want %q", dto.StartedAt, tc.wantStartedAt)
 			}

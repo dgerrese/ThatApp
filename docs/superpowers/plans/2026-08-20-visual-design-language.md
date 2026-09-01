@@ -101,8 +101,8 @@ deliberately broken formatter fails it.
 
 ### Task 5 — the components
 
-**Modify** all five of `web/src/components/wd-{alert,button,card,confirm,ticket-row}.ts` to the
-language. `wd-confirm` keeps its explicit margin and its absent backdrop dismissal — both have
+**Modify** all five of `web/src/components/that-{alert,button,card,confirm,ticket-row}.ts` to the
+language. `that-confirm` keeps its explicit margin and its absent backdrop dismissal — both have
 reasons recorded in its own comments and neither is a styling decision.
 
 **Verify:** `make verify`, then `make test-e2e`. The settings and today specs assert behaviour rather

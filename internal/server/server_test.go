@@ -10,8 +10,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/config"
-	"github.com/dgerrese/work-dashboard/internal/server"
+	"codeberg.org/DionGerrese/ThatApp/internal/config"
+	"codeberg.org/DionGerrese/ThatApp/internal/server"
 )
 
 // maxIndexHTMLBytes is the TCP initial congestion window: a first response
@@ -30,7 +30,7 @@ func newTestServer() *server.Server {
 		"app.js":        {Data: []byte("console.log('app')")},
 		"app.css":       {Data: []byte(":root{color:red}")},
 		"sw.js":         {Data: []byte("self.addEventListener('install', () => {});")},
-		"manifest.json": {Data: []byte(`{"name":"Work Dashboard"}`)},
+		"manifest.json": {Data: []byte(`{"name":"ThatApp"}`)},
 		"icon.svg":      {Data: []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`)},
 		"icon-192.png":  {Data: []byte("\x89PNG\r\n\x1a\n")},
 		// "wOF2" is the woff2 signature, and it has to be real bytes: the

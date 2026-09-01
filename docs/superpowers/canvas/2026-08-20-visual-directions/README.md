@@ -1,4 +1,4 @@
-# Work Dashboard — Visual Directions (design canvas, 2026-08-20)
+# ThatApp — Visual Directions (design canvas, 2026-08-20)
 
 The source of the visual design worked out with the owner on 2026-08-20 and approved board by
 board. 25 artboards over five pages, plus the 27 annotations that carry the reasoning.

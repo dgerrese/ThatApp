@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/dgerrese/work-dashboard/internal/jira"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // searchLimit caps one instance's summary matches. This backs a type-ahead: a

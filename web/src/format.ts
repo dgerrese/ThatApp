@@ -52,7 +52,7 @@ export function totalFigure(seconds: number): string {
  * Browser-local is deliberate here and only here: this names a moment the
  * viewer just lived through, so their own clock is the right one. Nothing that
  * decides which *day* an entry belongs to may follow it — that is resolved
- * against WD_TIMEZONE on the server, which must agree with the end-of-day push
+ * against THAT_TIMEZONE on the server, which must agree with the end-of-day push
  * and the weekly rollup even when no browser is open.
  */
 export function clockTime(date: Date): string {

@@ -18,7 +18,7 @@ import type { Entry, PushResponse } from "./types";
  * only from Today.
  *
  * It never computes a date. It sums rows the server already stamped with a day
- * resolved in WD_TIMEZONE, which is the only way the total agrees with the
+ * resolved in THAT_TIMEZONE, which is the only way the total agrees with the
  * end-of-day push when no browser is open to ask.
  */
 // The first retry after a failed boot read, doubling up to the cap. Short to
@@ -179,7 +179,7 @@ export function startRail(): void {
         return;
       }
 
-      const { confirmDestructive } = await import("./components/wd-confirm");
+      const { confirmDestructive } = await import("./components/that-confirm");
       const seconds = due.reduce((sum, entry) => sum + entry.seconds, 0);
       const label = `${String(due.length)} ${due.length === 1 ? "entry" : "entries"}`;
       const sites = new Set(due.map((entry) => entry.instanceId)).size;
@@ -288,7 +288,7 @@ function restingLine(): HTMLElement {
  */
 function bar(slices: Slice[]): HTMLElement {
   const wrapper = document.createElement("div");
-  wrapper.className = "wd-split-bar flex h-[7px] gap-[3px]";
+  wrapper.className = "that-split-bar flex h-[7px] gap-[3px]";
   wrapper.setAttribute("aria-hidden", "true");
 
   for (const slice of slices) {
@@ -312,7 +312,7 @@ function figures(slices: Slice[]): HTMLElement {
     row.className = "flex items-center gap-[9px] text-base";
 
     const dot = document.createElement("span");
-    dot.className = "wd-dot";
+    dot.className = "that-dot";
     dot.style.setProperty("--h", String(instanceHue(slice.position)));
     // No role="img" or label here, unlike paintInstanceDot: the name this dot
     // would announce is the very next element, and repeating it would have a
@@ -324,7 +324,7 @@ function figures(slices: Slice[]): HTMLElement {
     name.textContent = slice.name;
 
     const figure = document.createElement("span");
-    figure.className = "wd-tnum font-bold";
+    figure.className = "that-tnum font-bold";
     figure.textContent = totalFigure(slice.seconds);
 
     row.append(dot, name, figure);

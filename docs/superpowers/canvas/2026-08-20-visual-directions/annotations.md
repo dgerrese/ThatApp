@@ -217,7 +217,7 @@ COST: the total is 46px and the parts are 13px, so the breakdown reads as a foot
 ### BASELINE — what ships today
 <sub>`id: baseline`</sub>
 
-Recreated from web/index.html, wd-card, wd-button, wd-alert and wd-ticket-row: stock zinc tokens, system-ui, three type sizes, near-black accent.
+Recreated from web/index.html, that-card, that-button, that-alert and that-ticket-row: stock zinc tokens, system-ui, three type sizes, near-black accent.
 
 Here so the three directions are judged against the real thing, not a memory of it. Flip any board's Mode chip to see dark.
 
@@ -255,11 +255,11 @@ COST: austere. Errors get a rule and red text instead of a tinted box, which is 
 
 Centred on the desktop, anchored to the bottom edge on the phone. Same markup, same content, one CSS difference — which is exactly why this beats the popover: M2 was quietly two designs.
 
-IT ALSO DELETES THE OPEN LIST. wd-confirm already wraps a native <dialog> and calls showModal(), and its own comment names what that supplies: focus trap, inert background, top layer, Esc dismissal, and focus returning to whatever opened it. Four of the five things left open for M2 are simply not our problem.
+IT ALSO DELETES THE OPEN LIST. that-confirm already wraps a native <dialog> and calls showModal(), and its own comment names what that supplies: focus trap, inert background, top layer, Esc dismissal, and focus returning to whatever opened it. Four of the five things left open for M2 are simply not our problem.
 
-THE FIFTH IS ALREADY DECIDED TOO. wd-confirm deliberately does NOT dismiss on backdrop click — <dialog> has no such behaviour, Esc is the safe exit, and adding it means hit-testing by hand. Same rule here.
+THE FIFTH IS ALREADY DECIDED TOO. that-confirm deliberately does NOT dismiss on backdrop click — <dialog> has no such behaviour, Esc is the safe exit, and adding it means hit-testing by hand. Same rule here.
 
-ONE TRAP WORTH CARRYING OVER: Preflight's `* { margin: 0 }` is author origin and beats the UA's `dialog { margin: auto }`, so a dialog lands top-left in Firefox and Chromium unless margin is set explicitly. wd-confirm.ts carries that note; this design needs it too.
+ONE TRAP WORTH CARRYING OVER: Preflight's `* { margin: 0 }` is author origin and beats the UA's `dialog { margin: auto }`, so a dialog lands top-left in Firefox and Chromium unless margin is set explicitly. that-confirm.ts carries that note; this design needs it too.
 
 ### M4 · SHEET — the same dialog on the phone
 <sub>`id: m4m`</sub>

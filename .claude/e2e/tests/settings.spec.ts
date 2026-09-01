@@ -107,7 +107,7 @@ test("an instance can be added and appears in the list", async ({ page }) => {
 
   await addInstance(page);
 
-  // exact: true disambiguates from the shell's persistent "Work Dashboard"
+  // exact: true disambiguates from the shell's persistent "ThatApp"
   // heading, which the default substring match would otherwise also resolve.
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
   await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();

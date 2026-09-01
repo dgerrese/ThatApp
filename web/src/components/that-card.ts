@@ -5,7 +5,7 @@
  * Borderless, on a soft shadow — each section reads as a distinct object without
  * a rule drawn around it.
  */
-export class WdCard extends HTMLElement {
+export class ThatCard extends HTMLElement {
   connectedCallback(): void {
     this.className = "bg-raised shadow-card block rounded-2xl px-5 py-4";
 
@@ -22,4 +22,4 @@ export class WdCard extends HTMLElement {
   }
 }
 
-customElements.define("wd-card", WdCard);
+customElements.define("that-card", ThatCard);

@@ -1,14 +1,14 @@
-import "./wd-alert";
-import "./wd-button";
-import "./wd-confirm";
-import "./wd-duration";
+import "./that-alert";
+import "./that-button";
+import "./that-confirm";
+import "./that-duration";
 
 import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "../api";
-import { confirmDestructive } from "./wd-confirm";
+import { confirmDestructive } from "./that-confirm";
 import { announceEntriesChanged } from "../entries-changed";
 import { totalFigure } from "../format";
 import type { Entry } from "../types";
-import type { WdDuration } from "./wd-duration";
+import type { ThatDuration } from "./that-duration";
 
 /** What the row that opened the dialog knows about its ticket. */
 export interface EntryTicket {
@@ -23,7 +23,7 @@ export interface EntryTicket {
  * One ticket's logged time for today: what is already down, and the single form
  * that adds to it or edits it.
  *
- * A native <dialog> opened with showModal(), following wd-confirm — the focus
+ * A native <dialog> opened with showModal(), following that-confirm — the focus
  * trap, the inert background, the top layer, Esc and returning focus to the
  * trigger all come from the platform. Its no-dismiss-on-backdrop rule carries
  * over unchanged, and so does the explicit margin: Preflight's `* { margin: 0 }`
@@ -38,7 +38,7 @@ export interface EntryTicket {
  * foot form and names the mode on a line of its own, so the stepper, the
  * comment and the one primary button sit where they sat when adding.
  */
-export class WdEntryDialog extends HTMLElement {
+export class ThatEntryDialog extends HTMLElement {
   /** Assigned before the element is appended, which is what connectedCallback builds from. */
   ticket: EntryTicket | undefined;
 
@@ -48,7 +48,7 @@ export class WdEntryDialog extends HTMLElement {
   private notice: HTMLElement | undefined;
   private modeLine: HTMLElement | undefined;
   private modeLabel: HTMLElement | undefined;
-  private duration: WdDuration | undefined;
+  private duration: ThatDuration | undefined;
   private comment: HTMLInputElement | undefined;
   private submit: HTMLElement | undefined;
 
@@ -67,7 +67,7 @@ export class WdEntryDialog extends HTMLElement {
     const dialog = document.createElement("dialog");
     dialog.className =
       "bg-raised text-ink shadow-card m-auto w-[560px] max-w-[calc(100vw-2rem)] rounded-2xl p-5";
-    dialog.setAttribute("aria-labelledby", "wd-entry-dialog-heading");
+    dialog.setAttribute("aria-labelledby", "that-entry-dialog-heading");
 
     dialog.append(this.header(ticket), this.entryList(), this.footForm());
     // Closing is the only exit, whether it came from Esc, the round Close or a
@@ -90,7 +90,7 @@ export class WdEntryDialog extends HTMLElement {
     identity.className = "min-w-0";
 
     const heading = document.createElement("h2");
-    heading.id = "wd-entry-dialog-heading";
+    heading.id = "that-entry-dialog-heading";
     heading.className = "text-xl font-bold tracking-[-0.02em]";
     heading.textContent = ticket.summary;
 
@@ -111,8 +111,8 @@ export class WdEntryDialog extends HTMLElement {
     // Named, like #rail-total: one dialog is open at a time, and the ticket's
     // total and an entry's duration can read the same figure — which leaves
     // nothing else to tell them apart.
-    total.id = "wd-entry-dialog-total";
-    total.className = "wd-tnum text-[22px] leading-none font-bold tracking-[-0.02em]";
+    total.id = "that-entry-dialog-total";
+    total.className = "that-tnum text-[22px] leading-none font-bold tracking-[-0.02em]";
     total.textContent = totalFigure(0);
     this.total = total;
 
@@ -200,7 +200,7 @@ export class WdEntryDialog extends HTMLElement {
     const row = document.createElement("div");
     row.className = "flex items-center gap-2";
 
-    const duration = document.createElement("wd-duration") as WdDuration;
+    const duration = document.createElement("that-duration") as ThatDuration;
     duration.setAttribute("label", "Duration");
     this.duration = duration;
 
@@ -217,7 +217,7 @@ export class WdEntryDialog extends HTMLElement {
     });
     this.comment = comment;
 
-    const submit = document.createElement("wd-button");
+    const submit = document.createElement("that-button");
     submit.setAttribute("variant", "primary");
     submit.setAttribute("label", "Add entry");
     submit.addEventListener("click", () => {
@@ -281,11 +281,11 @@ export class WdEntryDialog extends HTMLElement {
     }
 
     const started = document.createElement("span");
-    started.className = "text-ink-muted wd-tnum shrink-0 text-sm";
+    started.className = "text-ink-muted that-tnum shrink-0 text-sm";
     started.textContent = clockTime(entry.startedAt);
 
     const duration = document.createElement("span");
-    duration.className = "wd-tnum w-16 shrink-0 font-bold";
+    duration.className = "that-tnum w-16 shrink-0 font-bold";
     duration.textContent = totalFigure(entry.seconds);
 
     const comment = document.createElement("span");
@@ -414,7 +414,7 @@ export class WdEntryDialog extends HTMLElement {
   }
 
   private showNotice(tone: string, message: string): void {
-    const alert = document.createElement("wd-alert");
+    const alert = document.createElement("that-alert");
     alert.setAttribute("tone", tone);
     alert.setAttribute("message", message);
     this.notice?.replaceChildren(alert);
@@ -478,7 +478,7 @@ function emptyLine(): HTMLElement {
  * The wall clock an entry was started at, read straight out of the string.
  *
  * Deliberately not via Date: the server has already converted started_at into
- * WD_TIMEZONE, and parsing it would re-convert it into whatever zone this
+ * THAT_TIMEZONE, and parsing it would re-convert it into whatever zone this
  * browser is in — which is exactly the disagreement the configured zone exists
  * to prevent.
  */
@@ -486,14 +486,14 @@ function clockTime(startedAt: string): string {
   return startedAt.slice(11, 16);
 }
 
-customElements.define("wd-entry-dialog", WdEntryDialog);
+customElements.define("that-entry-dialog", ThatEntryDialog);
 
 /**
  * Opens the dialog for one ticket, appended to `host` — the view's own root,
  * never the row that asked for it.
  */
 export function openEntryDialog(host: HTMLElement, ticket: EntryTicket): void {
-  const element = document.createElement("wd-entry-dialog") as WdEntryDialog;
+  const element = document.createElement("that-entry-dialog") as ThatEntryDialog;
   element.ticket = ticket;
   host.append(element);
 }

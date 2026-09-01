@@ -1,8 +1,8 @@
-import "../components/wd-alert";
-import "../components/wd-button";
-import "../components/wd-card";
-import "../components/wd-combobox";
-import "../components/wd-ticket-row";
+import "../components/that-alert";
+import "../components/that-button";
+import "../components/that-card";
+import "../components/that-combobox";
+import "../components/that-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
 import {
@@ -14,10 +14,10 @@ import {
   listPins,
   searchIssues,
 } from "../api";
-import type { WdCombobox } from "../components/wd-combobox";
-import type { EntryTicket } from "../components/wd-entry-dialog";
-import { openEntryDialog } from "../components/wd-entry-dialog";
-import { LOG_TIME } from "../components/wd-ticket-row";
+import type { ThatCombobox } from "../components/that-combobox";
+import type { EntryTicket } from "../components/that-entry-dialog";
+import { openEntryDialog } from "../components/that-entry-dialog";
+import { LOG_TIME } from "../components/that-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
 import { clockTime } from "../format";
 import { paintInstanceDot } from "../instance-hue";
@@ -71,7 +71,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // space-y-4 margin.
   pushReport.hidden = true;
 
-  const pinnedCard = document.createElement("wd-card");
+  const pinnedCard = document.createElement("that-card");
   pinnedCard.setAttribute("heading", "Pinned");
 
   const pinnedList = document.createElement("div");
@@ -210,7 +210,7 @@ function totalKey(instanceId: number, issueKey: string): string {
 
 /** Writes the totals onto whatever rows are on screen right now. */
 function paintTotals(regions: Regions): void {
-  for (const row of document.querySelectorAll("wd-ticket-row")) {
+  for (const row of document.querySelectorAll("that-ticket-row")) {
     const instanceId = Number(row.getAttribute("instance-id") ?? "0");
     const issueKey = row.getAttribute("key") ?? "";
     row.setAttribute("seconds", String(regions.totals.get(totalKey(instanceId, issueKey)) ?? 0));
@@ -256,7 +256,7 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
   // A pin form may already be open (e.g. this refresh followed a successful
   // pin); its combobox must learn about the newly current pins rather than
   // keep offering one that is now a duplicate.
-  const combobox = regions.pinnedForm.querySelector("wd-combobox") as WdCombobox | null;
+  const combobox = regions.pinnedForm.querySelector("that-combobox") as ThatCombobox | null;
   combobox?.setDisabledKeys(pinnedKeysOf(regions));
 }
 
@@ -293,11 +293,11 @@ function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
   const dot = document.createElement("span");
   paintInstanceDot(dot, pin.instancePosition, pin.instanceName);
 
-  // wd-ticket-row sets its own className in connectedCallback, so a utility
+  // that-ticket-row sets its own className in connectedCallback, so a utility
   // applied from outside would be discarded; the wrapper carries flex-1.
   const wrapper = document.createElement("div");
   wrapper.className = "min-w-0 flex-1";
-  const row = document.createElement("wd-ticket-row");
+  const row = document.createElement("that-ticket-row");
   row.setAttribute("key", pin.key);
   row.setAttribute("summary", pin.summary);
   row.setAttribute("status", pin.status);
@@ -315,8 +315,8 @@ function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
   // exactly as they were cached, and this is the only thing that changes.
   if (pin.error) {
     // text-failed, not a "danger" token: the palette's error colour is named
-    // failed (see wd-alert's TONES), and there is no --color-danger* in
-    // styles.css. role="status", matching wd-alert, so a screen reader
+    // failed (see that-alert's TONES), and there is no --color-danger* in
+    // styles.css. role="status", matching that-alert, so a screen reader
     // announces the failure the same way it does the assigned card's.
     const failure = document.createElement("span");
     failure.setAttribute("role", "status");
@@ -341,7 +341,7 @@ function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
  * only a disabled control while the request is in flight.
  */
 function unpin(regions: Regions, pin: Pin, row: HTMLElement): void {
-  const control = row.querySelector("wd-button");
+  const control = row.querySelector("that-button");
   control?.setAttribute("disabled", "");
 
   void deletePin(pin.id)
@@ -357,7 +357,7 @@ function unpin(regions: Regions, pin: Pin, row: HTMLElement): void {
 /** True while the pin form (its combobox) is on screen — the condition both
  *  refreshPins branches must not disturb mid-typing. */
 function formIsOpen(regions: Regions): boolean {
-  return regions.pinnedForm.querySelector("wd-combobox") !== null;
+  return regions.pinnedForm.querySelector("that-combobox") !== null;
 }
 
 /** Called after every listPins(), including the shared Refresh's, so it must
@@ -380,7 +380,7 @@ function renderPinOpener(regions: Regions): void {
 }
 
 function showPinForm(regions: Regions): void {
-  const combobox = document.createElement("wd-combobox") as WdCombobox;
+  const combobox = document.createElement("that-combobox") as ThatCombobox;
   combobox.setAttribute("label", "Find an issue");
   combobox.setAttribute("placeholder", "Search by key or title");
 
@@ -402,7 +402,7 @@ function showPinForm(regions: Regions): void {
   // slow first search can land after a fast second one and paint over it.
   let inFlight: AbortController | undefined;
 
-  combobox.addEventListener("wd-search", (event) => {
+  combobox.addEventListener("that-search", (event) => {
     const query = (event as CustomEvent<string>).detail;
     inFlight?.abort();
     const controller = new AbortController();
@@ -420,7 +420,7 @@ function showPinForm(regions: Regions): void {
       });
   });
 
-  combobox.addEventListener("wd-select", (event) => {
+  combobox.addEventListener("that-select", (event) => {
     const hit = (event as CustomEvent<IssueHit>).detail;
     inFlight?.abort();
     alertSlot.replaceChildren();
@@ -437,7 +437,7 @@ function showPinForm(regions: Regions): void {
       });
   });
 
-  combobox.addEventListener("wd-cancel", () => {
+  combobox.addEventListener("that-cancel", () => {
     inFlight?.abort();
     renderPinOpener(regions);
   });
@@ -591,7 +591,7 @@ function renderPushReport(regions: Regions, response: PushResponse): void {
 }
 
 /**
- * A sibling of the alert it follows, never a child of it: wd-alert renders by
+ * A sibling of the alert it follows, never a child of it: that-alert renders by
  * calling this.replaceChildren(mark, message), so anything appended inside it
  * is discarded the next time an attribute changes.
  */
@@ -637,8 +637,8 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
 }
 
 function instanceCard(group: InstanceIssues, pins: Pin[]): HTMLElement {
-  const card = document.createElement("wd-card");
-  // wd-card has no observedAttributes, so the heading must be set before the
+  const card = document.createElement("that-card");
+  // that-card has no observedAttributes, so the heading must be set before the
   // element is inserted; changing it afterwards silently does nothing.
   card.setAttribute("heading", group.name);
 
@@ -668,7 +668,7 @@ function instanceCard(group: InstanceIssues, pins: Pin[]): HTMLElement {
   list.className = "divide-y divide-edge";
   for (const issue of visible) {
     const item = document.createElement("li");
-    const row = document.createElement("wd-ticket-row");
+    const row = document.createElement("that-ticket-row");
     row.setAttribute("key", issue.key);
     row.setAttribute("summary", issue.summary);
     row.setAttribute("status", issue.status);
@@ -715,7 +715,7 @@ function noInstances(): HTMLElement {
 // ticket's scope. Worth its own ticket.
 
 function button(label: string, variant: string): HTMLElement {
-  const element = document.createElement("wd-button");
+  const element = document.createElement("that-button");
   // label is the sole source of the inner button's accessible name; without it
   // role-based queries cannot find the button at all.
   element.setAttribute("label", label);
@@ -725,7 +725,7 @@ function button(label: string, variant: string): HTMLElement {
 }
 
 function alertFor(tone: string, message: string): HTMLElement {
-  const alert = document.createElement("wd-alert");
+  const alert = document.createElement("that-alert");
   alert.setAttribute("tone", tone);
   alert.setAttribute("message", message);
 

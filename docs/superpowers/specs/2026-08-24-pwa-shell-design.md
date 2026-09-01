@@ -8,7 +8,7 @@ This settles ticket 12: the app becomes installable, survives a lost connection,
 the Jira lists it last saw. It does not make the app reachable from a phone — that needs HTTPS and
 is ticket 13.
 
-The design of record (`2026-08-04-work-dashboard-design.md`) names the ticket in one line and lists
+The design of record (`2026-08-04-thatapp-design.md`) names the ticket in one line and lists
 `manifest.json` in the served tree. Everything below is new.
 
 ## What ships
@@ -76,7 +76,7 @@ same reason recorded in its comment — esbuild and Tailwind only emit what they
 
 | Field | Value | Why |
 | --- | --- | --- |
-| `name` | Work Dashboard | |
+| `name` | ThatApp | |
 | `short_name` | Dashboard | Home-screen labels truncate near 12 characters. |
 | `start_url` | `/today` | The instrument, not the settings page. |
 | `scope` | `/` | |
@@ -145,7 +145,7 @@ no such rule: the worker registers everywhere, and a dev rebuild always wins whi
 
 ### Updating
 
-There are two caches, `wd-shell-<build id>` and `wd-data-<build id>`. `install` precaches into the
+There are two caches, `that-shell-<build id>` and `that-data-<build id>`. `install` precaches into the
 first and calls `skipWaiting()`. `activate` deletes **every** cache whose name does not carry the
 current build id — old shells and old data alike — then `clients.claim()`.
 
@@ -158,7 +158,7 @@ rather than with data whose shape predates the code reading it.
 
 **The worker stamps the response; the app never infers.** When the worker serves `/api/issues` or
 `/api/pins` from cache because the network attempt failed, it returns the cached body with one added
-header, `X-WD-Cached-At`, carrying an ISO-8601 UTC timestamp.
+header, `X-THAT-Cached-At`, carrying an ISO-8601 UTC timestamp.
 
 `navigator.onLine` is not the signal. It reports "online" for a captive portal and for a container
 that is simply stopped, and the question a view actually needs answered is not "is there a network"
@@ -169,7 +169,7 @@ exact signature**, so `listInstances`, `createInstance`, `updateInstance`, `dele
 `testInstance`, `createPin`, `deletePin` and `searchIssues` are untouched. Only `listIssues` and
 `listPins` change shape, and only their call sites in `today.ts` move.
 
-The view renders a `wd-alert` with `tone="warning"` above the affected list:
+The view renders a `that-alert` with `tone="warning"` above the affected list:
 
 > Showing what was here at 14:32 — no connection to the server.
 
@@ -185,7 +185,7 @@ renders that through `messageOf`. Offline writes fail with correct words today.
 `2026-08-20-visual-design-language.md` line 93 reads "amber says *not yet sent*". The owner widened
 that on 2026-08-24: **amber is warning, and "not yet sent" is one instance of it.** Stale data is
 another. Line 93 and the "All pushed" paragraph at line 288 are updated to match, so the document
-and the code agree — `wd-alert` already announces that tone to a screen reader as "Warning", so the
+and the code agree — `that-alert` already announces that tone to a screen reader as "Warning", so the
 narrow reading only ever lived in the prose.
 
 ## The 14 kB budget

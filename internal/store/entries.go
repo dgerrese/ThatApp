@@ -9,7 +9,7 @@ import (
 
 // Entry is time logged against one issue on one local day.
 //
-// Day is the user's local date, resolved against WD_TIMEZONE by whoever creates
+// Day is the user's local date, resolved against THAT_TIMEZONE by whoever creates
 // the entry; StartedAt is the instant that date was resolved from. They are
 // stored separately because the container's clock is almost certainly UTC, so
 // neither can be derived from the other after the fact.

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/atlassian"
-	"github.com/dgerrese/work-dashboard/internal/jira"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/atlassian"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // instanceDTO is the response shape. It is written out rather than reusing

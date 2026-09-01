@@ -1,6 +1,6 @@
 {
-  "name": "Work Dashboard",
-  "short_name": "Dashboard",
+  "name": "ThatApp",
+  "short_name": "ThatApp",
   "start_url": "/today",
   "scope": "/",
   "display": "standalone",

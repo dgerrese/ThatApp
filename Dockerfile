@@ -13,7 +13,7 @@ COPY go.mod ./
 RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/work-dashboard ./cmd/server
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/thatapp ./cmd/server
 
 FROM golang:1.26-alpine AS dev
 WORKDIR /src
@@ -42,6 +42,6 @@ RUN mkdir -p /cache/npm /cache/home /src/web/node_modules \
 
 FROM scratch AS prod
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build /out/work-dashboard /work-dashboard
+COPY --from=build /out/thatapp /thatapp
 EXPOSE 8080
-ENTRYPOINT ["/work-dashboard"]
+ENTRYPOINT ["/thatapp"]

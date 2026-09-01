@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#6](https://github.com/dgerrese/work-dashboard/issues/6). Pins are how time gets
+The design for [#6](https://codeberg.org/DionGerrese/ThatApp/issues/6). Pins are how time gets
 logged against tickets that are not assigned to the user — shared work, standing meetings,
 miscellaneous overhead. `GET/POST/DELETE /api/pins` back them, `GET /api/issues/search` finds the
 issue to pin, and the Today view grows a Pinned card above the assigned instance cards.
@@ -28,7 +28,7 @@ see *Branching*.
 2. **Pinning is a search box inside the Pinned card** — one combobox that searches by issue key *and*
    by title, across every instance at once, and pins the issue you pick. A pin control on assigned rows
    was rejected as extra surface that makes the assigned-and-pinned collision routine, and competes for
-   room in `wd-ticket-row` that #7 and #8 want. Pinning from Settings was rejected as putting a daily
+   room in `that-ticket-row` that #7 and #8 want. Pinning from Settings was rejected as putting a daily
    action two clicks away.
 3. **The search spans instances, so there is no instance picker.** An earlier draft paired an instance
    `<select>` with a free-form key field; the owner replaced it on 2026-08-20 with a search select, and
@@ -50,7 +50,7 @@ see *Branching*.
    the fan-out aware of pins couples two resources and puts #5's most carefully tested code back in
    play for no gain.
 7. **Unpinning gets no confirmation.** `time_entries` rows are keyed by `(instance_id, issue_key)` and
-   have no foreign key to `pinned_issues`, so unpinning destroys nothing. #29 built `wd-confirm` for
+   have no foreign key to `pinned_issues`, so unpinning destroys nothing. #29 built `that-confirm` for
    instance removal because that cascade *does* destroy logged time; reusing it here would train the
    user to click through a dialog that never guards anything.
 
@@ -210,7 +210,7 @@ envelope has somewhere to grow.
   `instanceHue` in `web/src/instance-hue.ts` keys a row's dot colour off of; the browser has no other way
   to learn it short of that same round trip.
 - **`url` is built server-side** by the existing `browseURL`, empty when the instance has no site URL —
-  identical to `/api/issues`, so `wd-ticket-row` needs no new rule.
+  identical to `/api/issues`, so `that-ticket-row` needs no new rule.
 - **`error` is non-null only on a refresh that failed**, and the pin still carries its cached summary
   and status. It is always null on the plain `GET`, which touches no network and cannot fail per-pin.
 - **`summary` and `status` are the cached values**, empty string for "never fetched".
@@ -400,8 +400,8 @@ Assigned issues                                     [ Refresh ]
 The `●` is a coloured dot: on a pinned row it stands alone, on a search-result row it sits beside the
 instance name. That difference is deliberate, not a drafting inconsistency — see "A dot, not a name" below.
 
-The Pinned card is a `wd-card` above #5's heading row. Its heading is set before insertion, because
-`wd-card` has no `observedAttributes`.
+The Pinned card is a `that-card` above #5's heading row. Its heading is set before insertion, because
+`that-card` has no `observedAttributes`.
 
 **Pins and issues are fetched independently**, both started on render. The Pinned card paints as soon
 as `/api/pins` answers and does not wait on the fan-out, which is the point of decision 1: with every
@@ -415,7 +415,7 @@ reconciliation for rows with nothing to preserve is machinery guarding a case th
 This is narrower than #5's parked note for #7, which is about the assigned rows and stays open.
 
 **The row is an `<li class="flex items-baseline gap-3">** holding an instance dot, a
-`<div class="flex-1">` wrapping the `wd-ticket-row`, and the unpin `wd-button`. **`wd-ticket-row` is
+`<div class="flex-1">` wrapping the `that-ticket-row`, and the unpin `that-button`. **`that-ticket-row` is
 not modified**: #5 kept it free of anything instance-specific and that holds. It also sets its own
 `className` in `connectedCallback`, so a class applied from outside before insertion would be
 discarded — hence the wrapping div rather than a utility on the element.
@@ -436,7 +436,7 @@ identity survives a monochrome screen.
 **The search-result row is a deliberate exception to that rule, not an oversight.** Per the same two
 sources: *"Search results keep the name beside the dot... results are scanned across instances you
 have not seen before, where a hue cannot disambiguate. Dot-alone earns its keep on rows you already
-recognise."* `wd-combobox`'s option row therefore keeps `hit.instanceName` as visible text **and**
+recognise."* `that-combobox`'s option row therefore keeps `hit.instanceName` as visible text **and**
 paints a dot before it from `hit.instancePosition` — see "Each option carries..." below, which this
 document previously described as matching the pinned row's columns exactly; it now differs by exactly
 this one dot-versus-name distinction.
@@ -450,20 +450,20 @@ fetches are independent, a failed `/api/pins` means no filtering rather than no 
 result is the act of pinning**, which is what one control instead of three buttons buys. `listInstances()`
 is not called at all.
 
-Failures render a `wd-alert` inside the card carrying the server's message.
+Failures render a `that-alert` inside the card carrying the server's message.
 
 **Unpinning** removes the row from the list region on success, with no reload and no confirmation. The
-control is a secondary `wd-button` labelled **"Unpin"**, not an ✕: `wd-button` renders `textContent`
+control is a secondary `that-button` labelled **"Unpin"**, not an ✕: `that-button` renders `textContent`
 only, so an icon would mean a new component, and Settings already establishes text buttons in row
 actions (Test / Edit / Remove). Matching that costs nothing and invents nothing.
 
-### `wd-combobox`
+### `that-combobox`
 
-The one genuinely new component, and the first `wd-*` with interaction logic rather than presentation.
+The one genuinely new component, and the first `that-*` with interaction logic rather than presentation.
 A native `<select>` cannot be searched, so this is a text input plus a listbox:
 
 ```
-wd-combobox
+that-combobox
   input   role="combobox" aria-autocomplete="list" aria-expanded aria-controls
           aria-activedescendant
   ul      role="listbox" id
@@ -471,9 +471,9 @@ wd-combobox
 ```
 
 Attributes in: `label`, `placeholder`. A `setBusy(boolean)` method disables the input while a pin
-is in flight; there is no `disabled` attribute for a caller to set instead. Out: `wd-search`,
-`wd-select` and `wd-cancel`
-`CustomEvent`s — `wd-select` carries the chosen hit. The `wd-` prefix is load-bearing, not decorative:
+is in flight; there is no `disabled` attribute for a caller to set instead. Out: `that-search`,
+`that-select` and `that-cancel`
+`CustomEvent`s — `that-select` carries the chosen hit. The `that-` prefix is load-bearing, not decorative:
 an earlier `search`/`select` pairing collided with native events and crashed the app in Firefox, and
 `cancel` was renamed alongside them by the same argument even though no native `cancel` fires on a text
 input — closing the hazard by construction rather than by an argument that happens to hold today. It
@@ -508,7 +508,7 @@ two refresh buttons on one screen is a question the user should not have to answ
   since `ON DELETE CASCADE` took them with the last instance.
 - **No pins** — the card renders with a muted "Nothing pinned." and the Pin button.
 - **Loading** — a muted "Loading…" line in the list region, as #5 does.
-- **`/api/pins` failed outright** — one `wd-alert` in place of the list, with the Pin button hidden.
+- **`/api/pins` failed outright** — one `that-alert` in place of the list, with the Pin button hidden.
   The server would still reject a duplicate, but a pin created against a list that could not be read
   has nowhere to appear, which looks indistinguishable from the pin having failed.
 - **A pin's refresh failed** — the row renders its cached values with its error message beside them.
@@ -529,7 +529,7 @@ two refresh buttons on one screen is a question the user should not have to answ
 - **Some instances failed** — the results that did arrive, plus a muted footer naming the instances that
   did not: "Personal could not be searched." One instance being down must not blank the others, which is
   the same property `fanOutInstances` exists to preserve.
-- **Every instance failed** — a `wd-alert` in the popup carrying the first error's message.
+- **Every instance failed** — a `that-alert` in the popup carrying the first error's message.
 - **Pinning** — the input is disabled and the popup closes while `POST /api/pins` is in flight. On
   success the form collapses and the row appears; on failure the alert renders and the form stays open
   with the query intact.

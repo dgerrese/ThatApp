@@ -87,7 +87,7 @@ export interface IssueSearchResponse {
 /**
  * One logged entry, as the dialog and the rail read it. `day` and `startedAt`
  * are stamped by the server and never sent by the browser, which is what keeps
- * the day boundary answerable in WD_TIMEZONE with no browser open.
+ * the day boundary answerable in THAT_TIMEZONE with no browser open.
  *
  * `startedAt` is RFC 3339 already converted to that zone — read the wall clock
  * out of the string rather than through Date, which would re-convert it to

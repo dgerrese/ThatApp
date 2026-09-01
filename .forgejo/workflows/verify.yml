@@ -1,0 +1,87 @@
+name: Verify
+
+# The merge gate, without Docker.
+#
+# `make verify` drives every tool through Compose because *local development*
+# runs in containers — that constraint is about the developer's machine, not
+# about CI. It also cannot be honoured here: a Forgejo Actions job is itself a
+# container, and Codeberg's hosted runners provide no Docker daemon inside it.
+# The tools underneath Compose are plain binaries, so this file invokes them
+# directly. `make verify` stays the developer-facing gate; this workflow must be
+# kept in step with it, and the two are only equivalent as long as that is done
+# by hand.
+#
+# Two jobs, deliberately. Codeberg caps a hosted job at 10 minutes on
+# codeberg-medium (4 CPU / 8G RAM). Splitting gives each toolchain its own
+# budget and runs them in parallel, rather than spending one budget installing
+# both. They are independent: neither reads the other's output.
+#
+# Action references are fully qualified. A bare `actions/checkout` is resolved
+# against the instance's DEFAULT_ACTIONS_URL, which an administrator can change;
+# naming the host makes these workflows independent of that setting.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  go:
+    runs-on: codeberg-medium
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v5
+
+      # go.mod is the single source of truth for the toolchain version, so the
+      # workflow never drifts from what the module declares.
+      - uses: https://data.forgejo.org/actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Pinned to the same version as the `lint` service in docker-compose.yml.
+      # These two must move together, or CI and a local `make lint` will
+      # disagree about what counts as clean.
+      - name: Install golangci-lint
+        env:
+          GOLANGCI_LINT_VERSION: "2.12.2"
+        run: |
+          curl -sSfL \
+            "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin --strip-components=1 \
+              "golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint"
+          golangci-lint --version
+
+      - name: Lint Go
+        run: golangci-lint run
+
+      # CGO_ENABLED=0 is not a speed tweak. modernc.org/sqlite is pure Go, so
+      # the suite needs no C toolchain — that is what lets this run on a bare
+      # runner at all. Setting it explicitly means a dependency that quietly
+      # reintroduces cgo fails here rather than working by accident.
+      - name: Test Go
+        run: CGO_ENABLED=0 go test ./...
+
+  web:
+    runs-on: codeberg-medium
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v5
+
+      # Matches the node:26 base used by the web and webdev stages in Dockerfile.
+      - uses: https://data.forgejo.org/actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        working-directory: web
+        run: npm run lint
+
+      # Both projects, matching the `tsc` target in the Makefile: the second
+      # covers the service worker, which has its own lib set.
+      - name: Type-check
+        working-directory: web
+        run: |
+          npx tsc --noEmit
+          npx tsc --noEmit -p tsconfig.worker.json

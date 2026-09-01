@@ -1,11 +1,15 @@
+# Explicit, so image and volume names do not depend on the directory this is
+# checked out into. Renaming the checkout no longer silently orphans the caches.
+name: thatapp
+
 services:
   app:
     build:
       context: .
       target: dev
     ports:
-      - "${WD_PORT:-8080}:8080"
-    # As the host user, so ./data/work-dashboard.db and anything written into the
+      - "${THAT_PORT:-8080}:8080"
+    # As the host user, so ./data/thatapp.db and anything written into the
     # bind-mounted tree belong to whoever runs `make`, not to root. The Makefile
     # exports both from `id -u`/`id -g`; driving Compose directly takes them from
     # .env instead.
@@ -19,7 +23,7 @@ services:
     # go-build-cache are root-owned 0755 and will NOT become writable on their
     # own — run `make down` once, then `make up`. That is safe now: the database
     # is no longer in a volume for `down -v` to take.
-    user: "${WD_UID:?unset - run through make, or add WD_UID/WD_GID to .env (see .env.example)}:${WD_GID:?unset - see .env.example}"
+    user: "${THAT_UID:?unset - run through make, or add THAT_UID/THAT_GID to .env (see .env.example)}:${THAT_GID:?unset - see .env.example}"
     volumes:
       - .:/src
       - go-mod-cache:/cache/go-mod
@@ -29,23 +33,23 @@ services:
       # the owner's real Jira instance and pins once already (#73).
       - ./data:/data
     environment:
-      WD_ADDR: ":8080"
-      WD_DB_PATH: /data/work-dashboard.db
-      WD_SECRET_KEY: "${WD_SECRET_KEY:-}"
-      WD_TIMEZONE: "${WD_TIMEZONE:-Europe/Amsterdam}"
+      THAT_ADDR: ":8080"
+      THAT_DB_PATH: /data/thatapp.db
+      THAT_SECRET_KEY: "${THAT_SECRET_KEY:-}"
+      THAT_TIMEZONE: "${THAT_TIMEZONE:-Europe/Amsterdam}"
     command: go run -tags dev ./cmd/server
     depends_on:
       web:
         condition: service_healthy
     # "app" collides with the .app gTLD, which sits on Chromium and Firefox's
     # built-in HSTS preload list, so a browser silently upgrades http://app to
-    # https and breaks the Playwright rig. wd-app is a second, unambiguous name
+    # https and breaks the Playwright rig. that-app is a second, unambiguous name
     # on the same network for the rig to target instead. See docker-compose.yml
     # `playwright` service and .claude/e2e/playwright.config.ts.
     networks:
       default:
         aliases:
-          - wd-app
+          - that-app
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
       interval: 3s
@@ -61,7 +65,7 @@ services:
     working_dir: /src/web
     # Same reasoning as `app`: this service writes web/dist and node_modules into
     # the bind-mounted tree, and root-owned build output there needs sudo to clear.
-    user: "${WD_UID:?unset - run through make, or add WD_UID/WD_GID to .env (see .env.example)}:${WD_GID:?unset - see .env.example}"
+    user: "${THAT_UID:?unset - run through make, or add THAT_UID/THAT_GID to .env (see .env.example)}:${THAT_GID:?unset - see .env.example}"
     volumes:
       - .:/src
       - web-node-modules:/src/web/node_modules
@@ -105,7 +109,7 @@ services:
       - playwright-node-modules:/e2e/node_modules
       - playwright-npm-cache:/root/.npm
     environment:
-      WD_BASE_URL: "http://wd-app:8080"
+      THAT_BASE_URL: "http://that-app:8080"
       # playwright.config.ts branches on CI for forbidOnly, retries and the
       # reporter. `compose run` forwards nothing from the host environment, so
       # without this the container never sees the CI runner's CI=true.

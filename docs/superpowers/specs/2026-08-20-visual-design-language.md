@@ -148,7 +148,7 @@ the console. The hue must go in a declaration on the element itself:
 
 ```css
 /* RIGHT */
-.wd-dot { background: light-dark(oklch(0.60 0.13 var(--h)), oklch(0.72 0.12 var(--h))); }
+.that-dot { background: light-dark(oklch(0.60 0.13 var(--h)), oklch(0.72 0.12 var(--h))); }
 ```
 
 This is why the instance dot is a rule in `styles.css` rather than a Tailwind colour utility.
@@ -236,7 +236,7 @@ Push visible and disabled.
 
 A native `<button>` resolves to the default arrow cursor and Tailwind v4's Preflight deliberately
 leaves it there. **Every button therefore sets `cursor-pointer` explicitly**, and a disabled one
-says `not-allowed`. This is in `wd-button`'s base, so it is one decision rather than one per
+says `not-allowed`. This is in `that-button`'s base, so it is one decision rather than one per
 caller.
 
 ## The ticket row
@@ -312,7 +312,7 @@ same content, one CSS difference. It beat the popover because the popover was qu
 and because `showModal()` supplies the focus trap, the inert background, the top layer, Esc dismissal
 and focus return.
 
-Two rules carry over from `wd-confirm`, which already proves the pattern:
+Two rules carry over from `that-confirm`, which already proves the pattern:
 
 - **Backdrop-click dismissal stays absent.** `<dialog>` has no such behaviour, Esc is the safe exit,
   and adding it means hit-testing by hand.

@@ -6,9 +6,9 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/config"
-	"github.com/dgerrese/work-dashboard/internal/crypto"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/config"
+	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // newServerWithStore builds a Server over a real store in a temp directory and

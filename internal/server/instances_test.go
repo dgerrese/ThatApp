@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/crypto"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // jiraSiteServer stands in for a whole Jira site: the unauthenticated

@@ -27,11 +27,11 @@ both modes.
 
 ## Three facts found while planning
 
-**The spec's event name breaks a rule #6 set.** `wd-combobox.ts` dispatches `wd-search`,
-`wd-select` and `wd-cancel`, because a custom event named `select` collided with the native
+**The spec's event name breaks a rule #6 set.** `that-combobox.ts` dispatches `that-search`,
+`that-select` and `that-cancel`, because a custom event named `select` collided with the native
 text-selection event in light DOM and crashed a handler. The spec names this ticket's event
 `entries-changed`. Nothing native is called that, so it is not the same bug — but the rule as
-recorded is that every custom event this app raises is prefixed. **Use `wd-entries-changed`**, and
+recorded is that every custom event this app raises is prefixed. **Use `that-entries-changed`**, and
 treat the spec's unprefixed spelling as the slip it is rather than a third convention.
 
 **No migration is needed, and the schema is already right.** `time_entries` and both its indexes
@@ -96,7 +96,7 @@ clock threaded through later is a clock threaded through badly.
 `server.go` beside the pins routes. `instances.go` and `issues.go` are untouched.
 **Create** `internal/server/entries_test.go`.
 
-`GET` takes optional inclusive `from`/`to`, both defaulting to today resolved in `WD_TIMEZONE`.
+`GET` takes optional inclusive `from`/`to`, both defaulting to today resolved in `THAT_TIMEZONE`.
 `POST` stamps `day` and `startedAt` from one instant and **never accepts either from the client**.
 The response is a bare array; `instanceName` and `instancePosition` are joined in from the instances
 the handler already loads. Rejection order for `POST`: malformed body, blank `issueKey` or missing
@@ -106,7 +106,7 @@ following `/api/pins/{id}`.
 
 **The day boundary is the test that matters**, table-driven over the injected clock:
 
-| Instant (UTC) | `WD_TIMEZONE` | Local | `day` must be | UTC would say |
+| Instant (UTC) | `THAT_TIMEZONE` | Local | `day` must be | UTC would say |
 |---|---|---|---|---|
 | `2026-08-21T13:00:00Z` | Pacific/Auckland | 22nd, 01:00 | `2026-08-22` | `2026-08-21` |
 | `2026-08-21T02:00:00Z` | America/Los_Angeles | 20th, 19:00 | `2026-08-20` | `2026-08-21` |
@@ -125,7 +125,7 @@ multiple of 900**, so the tightening the design forbids fails a gate instead of 
 
 ### Task 4 — the duration control
 
-**Create** `web/src/components/wd-duration.ts` — `−` / field / `+` as one bordered group, radius on
+**Create** `web/src/components/that-duration.ts` — `−` / field / `+` as one bordered group, radius on
 the outside only, hairline dividers between, focus ring on the group via `:focus-within`.
 `−`/`+` and ↑/↓ move by 15 minutes; typed digits commit on Enter or blur; `inputmode="numeric"`.
 **Create** the parse rule as an exported pure function, and cover it under `node:test` beside
@@ -139,18 +139,18 @@ The table in the spec is the specification: `300` → 3h, `1100` → 11h, `45` �
 control that swallows what you typed reads as broken. The test must fail if someone drops the
 minimum-one-step clause.
 
-**Verify:** `docker compose run --rm --no-deps web node --test src/components/wd-duration.test.ts`,
+**Verify:** `docker compose run --rm --no-deps web node --test src/components/that-duration.test.ts`,
 plus `make verify`.
 
 ---
 
 ### Task 5 — the dialog
 
-**Create** `web/src/components/wd-entry-dialog.ts`.
+**Create** `web/src/components/that-entry-dialog.ts`.
 **Modify** `web/src/api.ts` and `web/src/types.ts` — `listEntries`, `createEntry`, `updateEntry`,
 `deleteEntry`, and the `Entry` type carrying `instanceName` and `instancePosition`.
 
-A native `<dialog>` opened with `showModal()`, following `wd-confirm`: no backdrop dismissal, and an
+A native `<dialog>` opened with `showModal()`, following `that-confirm`: no backdrop dismissal, and an
 explicit margin, because Preflight's `* { margin: 0 }` beats the UA's `dialog { margin: auto }` and
 the dialog otherwise lands top-left in both target browsers.
 
@@ -174,7 +174,7 @@ re-renders wholesale, and a refresh landing mid-edit would destroy the element b
 which is #29's bug in new clothes.
 
 After every mutation the dialog refreshes its list, the trigger's total updates, and a
-`wd-entries-changed` event goes up for the rail.
+`that-entries-changed` event goes up for the rail.
 
 **Verify:** `make verify`, then `make test-e2e`.
 
@@ -182,7 +182,7 @@ After every mutation the dialog refreshes its list, the trigger's total updates,
 
 ### Task 6 — the trigger
 
-**Modify** `web/src/components/wd-ticket-row.ts` and the pinned rows in `web/src/views/today.ts`, so
+**Modify** `web/src/components/that-ticket-row.ts` and the pinned rows in `web/src/views/today.ts`, so
 assigned and pinned rows alike carry the duration cell.
 
 A `<button aria-haspopup="dialog">` showing that ticket's total for the day — `0:00` when there is
@@ -205,7 +205,7 @@ where #44 left those two regions in their resting state with a comment naming th
 
 It calls `GET /api/entries`, sums `seconds` for the total, groups by `instanceId` for the split, and
 draws each instance's dot from `instancePosition` via `paintInstanceDot`. It renders on load and on
-every `wd-entries-changed`. **Living in the shell rather than in Today is the whole point** — it is
+every `that-entries-changed`. **Living in the shell rather than in Today is the whole point** — it is
 what keeps it right on Settings and on #11's Week view without either knowing it exists.
 
 Three rules from #44 bind it: a total is `Nh Nm` and never `H:MM`; every figure carries
@@ -221,7 +221,7 @@ It never computes a date. It sums rows the server already stamped.
 ### Task 8 — the gates
 
 **Create** `.claude/e2e/tests/entries.spec.ts`.
-**Modify** `docs/superpowers/specs/2026-08-04-work-dashboard-design.md` — line 238 says manual
+**Modify** `docs/superpowers/specs/2026-08-04-thatapp-design.md` — line 238 says manual
 entries "default to the time the entry was created and remain editable"; the second half is now
 false, and this ticket corrects it as #6 corrected the `pinned_issues` block.
 

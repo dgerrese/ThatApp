@@ -26,7 +26,7 @@ everything in Docker.
 holds the full token table, the rejected alternative design and why, and the empirical Tailwind v4
 facts these tasks depend on.
 
-**Issue:** [#30](https://github.com/dgerrese/work-dashboard/issues/30). Branch:
+**Issue:** [#30](https://codeberg.org/DionGerrese/ThatApp/issues/30). Branch:
 `issue-30-theme-toggle`, already cut from `main` and holding the design commits.
 
 ## Global Constraints
@@ -37,7 +37,7 @@ facts these tasks depend on.
   config file to edit.
 - **`web/index.html` carries the app shell and inlined critical CSS only**, and the initial HTTP
   response must stay under 14kB. It is 797 bytes before this work and must be measured after.
-- **Reusable UI is a `wd-*` WebComponent in light DOM, never shadow DOM.** The theme control is
+- **Reusable UI is a `that-*` WebComponent in light DOM, never shadow DOM.** The theme control is
   *not* one of these — see Task 3.
 - **Browsers are Firefox (primary) and Chromium.** Safari and WebKit are an explicit non-goal: do
   not add WebKit to the Playwright matrix, and do not raise it as missing coverage.
@@ -61,7 +61,7 @@ facts these tasks depend on.
 | `web/index.html` | Shell markup on tokens, and the inline first-paint script. | 1, 2, 4 |
 | `web/src/theme.ts` | **New.** Reads and writes the preference; owns no rendering and no state of its own — the DOM attribute and `localStorage` are the state. | 3 |
 | `web/src/views/settings.ts` | Gains the Appearance card; its own colours move to tokens. | 3, 4 |
-| `web/src/components/wd-card.ts`, `wd-button.ts`, `wd-alert.ts` | Colours move to tokens. | 4 |
+| `web/src/components/that-card.ts`, `that-button.ts`, `that-alert.ts` | Colours move to tokens. | 4 |
 | `web/src/router.ts` | The placeholder view's colours move to tokens. | 4 |
 | `.claude/e2e/tests/theme.spec.ts` | **New.** The whole test surface for this feature. | 1, 2, 3, 4 |
 
@@ -477,7 +477,7 @@ export async function render(root: HTMLElement): Promise<void> {
   const container = document.createElement("div");
   container.className = "space-y-6";
 
-  // wd-card overwrites its own className on connect, so the spacing lives on a
+  // that-card overwrites its own className on connect, so the spacing lives on a
   // wrapper. Appearance sits outside `container` because refresh() replaces
   // that element's children on every mutation.
   const appearance = document.createElement("div");
@@ -500,12 +500,12 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = 
 ];
 
 /**
- * Plain markup rather than a wd-* component: this has exactly one call site,
+ * Plain markup rather than a that-* component: this has exactly one call site,
  * and the settings form already builds its controls from local helpers. Native
  * radios also inherit color-scheme themeing without any extra work.
  */
 function appearanceCard(): HTMLElement {
-  const card = document.createElement("wd-card");
+  const card = document.createElement("that-card");
   card.setAttribute("heading", "Appearance");
 
   const fieldset = document.createElement("fieldset");
@@ -570,9 +570,9 @@ nothing uses them — a dark page with white cards on it.
 
 **Files:**
 - Modify: `web/index.html` (the header link, line 18)
-- Modify: `web/src/components/wd-card.ts:7`
-- Modify: `web/src/components/wd-button.ts:1-5`
-- Modify: `web/src/components/wd-alert.ts:1-5`
+- Modify: `web/src/components/that-card.ts:7`
+- Modify: `web/src/components/that-button.ts:1-5`
+- Modify: `web/src/components/that-alert.ts:1-5`
 - Modify: `web/src/router.ts:69`, `web/src/router.ts:75`
 - Modify: `web/src/views/settings.ts` (lines 36, 44, 66, 210, 218-219)
 - Test: `.claude/e2e/tests/theme.spec.ts` (append)
@@ -592,7 +592,7 @@ test("cards and buttons take the dark palette too", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await openSettings(page);
 
-  const card = page.locator("wd-card").first();
+  const card = page.locator("that-card").first();
   await expect(card).toHaveCSS("background-color", "rgb(23, 23, 23)");
   await expect(card).toHaveCSS("border-color", "rgb(38, 38, 38)");
 
@@ -613,13 +613,13 @@ Expected: FAILS with the card's background still `rgb(255, 255, 255)` — `bg-wh
 
 - [ ] **Step 3: Retrofit the components**
 
-`web/src/components/wd-card.ts`, line 7:
+`web/src/components/that-card.ts`, line 7:
 
 ```ts
     this.className = "block rounded-lg border border-edge bg-raised p-4 shadow-sm";
 ```
 
-`web/src/components/wd-button.ts`, lines 1-5:
+`web/src/components/that-button.ts`, lines 1-5:
 
 ```ts
 const VARIANTS: Record<string, string> = {
@@ -629,7 +629,7 @@ const VARIANTS: Record<string, string> = {
 };
 ```
 
-`web/src/components/wd-alert.ts`, lines 1-5:
+`web/src/components/that-alert.ts`, lines 1-5:
 
 ```ts
 const TONES: Record<string, string> = {
@@ -692,7 +692,7 @@ Expected: every spec passes on Firefox and Chromium — `theme.spec.ts`, `settin
 is the run that proves nothing regressed.
 
 **Do not "tidy" the two `exact: true` locators in `settings.spec.ts` if you find yourself editing
-that file.** `getByText("Work")` collides with the shell's `<h1>Work Dashboard</h1>`, and
+that file.** `getByText("Work")` collides with the shell's `<h1>ThatApp</h1>`, and
 `getByRole("link", { name: "Settings" })` with the router placeholder's "Open Settings" link. Both
 are real strict-mode failures, not style.
 
@@ -718,7 +718,7 @@ Checked after writing, spec section by section.
 - **First paint** — Task 2, including the byte measurement the 14kB budget requires.
 - **`web/src/theme.ts`** — Task 3, both exported functions with the spec's signatures and the
   "auto for unreadable" rule.
-- **The control** — Task 3: `wd-card`, `<fieldset>`, legend, three native radios, local helpers, no
+- **The control** — Task 3: `that-card`, `<fieldset>`, legend, three native radios, local helpers, no
   new component.
 - **The retrofit** — Task 4, all six files from the spec's table, closed by the grep.
 - **Testing** — the spec's five scenarios map to Tasks 1 (1, 2), 2 (3 as the stored-preference case,

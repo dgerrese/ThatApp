@@ -2,10 +2,10 @@ import { fieldFigure } from "../duration";
 // A type-only import is erased at compile time (verbatimModuleSyntax makes
 // that a guarantee), so describing the request with the dialog's own shape
 // costs no bundle bytes and cannot drift from what openEntryDialog expects.
-import type { EntryTicket } from "./wd-entry-dialog";
+import type { EntryTicket } from "./that-entry-dialog";
 
 /** Prefixed, like every custom event this app raises — see entries-changed.ts. */
-export const LOG_TIME = "wd-log-time";
+export const LOG_TIME = "that-log-time";
 
 /**
  * One issue: its key, its summary and its status. Light DOM, so #7 and #8 can
@@ -20,10 +20,10 @@ export const LOG_TIME = "wd-log-time";
  * design draws.
  *
  * Its own content lives in a wrapper the component owns and re-renders, rather
- * than in the host's children — the same shape wd-button uses — so that anything
+ * than in the host's children — the same shape that-button uses — so that anything
  * a later ticket appends survives an attribute change.
  */
-export class WdTicketRow extends HTMLElement {
+export class ThatTicketRow extends HTMLElement {
   static get observedAttributes(): string[] {
     return ["key", "summary", "status", "url", "instance-id", "instance-name", "seconds"];
   }
@@ -125,7 +125,7 @@ export class WdTicketRow extends HTMLElement {
     hint.setAttribute("aria-hidden", "true");
 
     const total = document.createElement("span");
-    total.className = "wd-tnum text-md";
+    total.className = "that-tnum text-md";
     total.textContent = figure;
 
     trigger.append(hint, total);
@@ -194,7 +194,7 @@ export class WdTicketRow extends HTMLElement {
 
     if (url === "") {
       const span = document.createElement("span");
-      span.className = "wd-key wd-tnum text-ink-muted";
+      span.className = "that-key that-tnum text-ink-muted";
       span.textContent = key;
 
       return span;
@@ -205,7 +205,7 @@ export class WdTicketRow extends HTMLElement {
     link.target = "_blank";
     // Without noopener the opened page gets a window.opener handle back here.
     link.rel = "noopener";
-    link.className = "wd-key wd-tnum text-ink-muted";
+    link.className = "that-key that-tnum text-ink-muted";
     link.textContent = key;
 
     return link;
@@ -220,4 +220,4 @@ export class WdTicketRow extends HTMLElement {
   }
 }
 
-customElements.define("wd-ticket-row", WdTicketRow);
+customElements.define("that-ticket-row", ThatTicketRow);

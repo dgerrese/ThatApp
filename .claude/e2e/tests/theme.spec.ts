@@ -152,7 +152,7 @@ test("cards and buttons take the dark palette too", async ({ page }) => {
   // Cards are borderless now and sit on a shadow instead, so there is no
   // border colour left to assert. The shadow is what proves the treatment
   // survived, and a stylesheet that never loaded leaves it "none".
-  const card = page.locator("wd-card").first();
+  const card = page.locator("that-card").first();
   await expect(card).toHaveCSS("background-color", "oklch(0.215 0.01 60)");
   await expect(card).not.toHaveCSS("box-shadow", "none");
 

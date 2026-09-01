@@ -13,7 +13,7 @@ const TONES: Record<string, { colour: string; mark: string; label: string }> = {
   error: { colour: "text-failed", mark: "▲", label: "Failed" },
 };
 
-export class WdAlert extends HTMLElement {
+export class ThatAlert extends HTMLElement {
   static get observedAttributes(): string[] {
     return ["tone", "message"];
   }
@@ -48,4 +48,4 @@ export class WdAlert extends HTMLElement {
   }
 }
 
-customElements.define("wd-alert", WdAlert);
+customElements.define("that-alert", ThatAlert);

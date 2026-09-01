@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // dayLayout is the wire form of a local date: the format `day` is stored in and
@@ -55,7 +55,7 @@ func pushStateOf(e store.Entry) string {
 // entryDTOFrom renders one row for the browser. started_at is normalised to UTC
 // on write, so it is converted back to the configured zone here: the dialog
 // shows the wall clock the entry was made at without the browser having to know
-// WD_TIMEZONE, or having to agree with it.
+// THAT_TIMEZONE, or having to agree with it.
 func (s *Server) entryDTOFrom(entry store.Entry, inst store.Instance, position int) entryDTO {
 	return entryDTO{
 		ID:               entry.ID,
@@ -99,7 +99,7 @@ func (s *Server) instanceIndex(
 }
 
 // handleListEntries answers with the entries in an inclusive from/to range,
-// oldest first. Both bounds default to today resolved in WD_TIMEZONE, so the
+// oldest first. Both bounds default to today resolved in THAT_TIMEZONE, so the
 // rail's call is a bare GET /api/entries and the browser never computes a date.
 func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
 	today := s.now().In(s.cfg.Location).Format(dayLayout)

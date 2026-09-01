@@ -18,7 +18,7 @@
 //	docker compose run --rm --no-deps app go run ./internal/jira/_smoke
 //	docker compose run --rm --no-deps app go run ./internal/jira/_smoke -site Work
 //
-// Configuration comes from WD_SECRET_KEY and WD_DB_PATH, which docker-compose.yml
+// Configuration comes from THAT_SECRET_KEY and THAT_DB_PATH, which docker-compose.yml
 // already sets. There are no smoke-only environment variables.
 package main
 
@@ -33,10 +33,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dgerrese/work-dashboard/internal/config"
-	"github.com/dgerrese/work-dashboard/internal/crypto"
-	"github.com/dgerrese/work-dashboard/internal/jira"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/config"
+	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 func main() {

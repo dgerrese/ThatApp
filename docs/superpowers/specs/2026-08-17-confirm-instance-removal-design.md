@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#29](https://github.com/dgerrese/work-dashboard/issues/29). Removing a Jira instance
+The design for [#29](https://codeberg.org/DionGerrese/ThatApp/issues/29). Removing a Jira instance
 takes one click and no confirmation, and `DELETE /api/instances/{id}` cascades to `pinned_issues`,
 `time_entries` and `timers`. That is harmless only while `time_entries` is empty. Once #6 ships time
 entry it destroys logged time — the asset `CLAUDE.md`'s *Where correctness lives* exists to protect —
@@ -17,7 +17,7 @@ that would open the same file a second time.
 
 ## Decisions taken in brainstorming
 
-1. **A native `<dialog>` wrapped as a `wd-confirm` WebComponent.** Chosen by the owner before
+1. **A native `<dialog>` wrapped as a `that-confirm` WebComponent.** Chosen by the owner before
    refinement: light DOM, Tailwind-styled, focus-trapped and Esc-dismissible, driveable by role in
    Playwright. Explicitly **not** `window.confirm()` — unstyleable in a styled PWA, blocks the event
    loop, and needs dialog handling in the e2e rig — and **not** an inline two-step button.
@@ -29,11 +29,11 @@ that would open the same file a second time.
    split with no diffing (simpler, but a list rebuild still discards a sibling row's in-flight
    result) and an observable instances store (the shape a framework would give you, and the repo has
    ruled frameworks out).
-4. **#30 lands first.** `wd-confirm` is written against the semantic colour tokens from
+4. **#30 lands first.** `that-confirm` is written against the semantic colour tokens from
    `docs/superpowers/specs/2026-08-14-theme-toggle-design.md` rather than stock light utilities, so
    the component's colours are written once and #30's retrofit table stays at six files.
 
-## `wd-confirm`
+## `that-confirm`
 
 A light-DOM component wrapping native `<dialog>`, and a promise helper over it — the same shape as
 the `button()` and `alertFor()` helpers the Settings view already builds its controls from.
@@ -46,7 +46,7 @@ export function confirmDestructive(options: {
 }): Promise<boolean>;
 ```
 
-It creates a `<wd-confirm>`, appends it to `document.body`, calls `showModal()`, resolves `true` on
+It creates a `<that-confirm>`, appends it to `document.body`, calls `showModal()`, resolves `true` on
 confirm and `false` on Cancel or Esc, and removes the element before resolving. The promise is what
 lets the call site read as a single statement rather than as a pair of event handlers.
 
@@ -55,9 +55,9 @@ the inert background and the top layer; Esc fires `cancel`; and the dialog retur
 Remove button that opened it. None of that is reimplemented, which is the whole argument for the
 native element over a div.
 
-The component renders an `<h2>`, a `<p>`, and two `wd-button`s — Cancel as `secondary`, the
+The component renders an `<h2>`, a `<p>`, and two `that-button`s — Cancel as `secondary`, the
 confirming action as `danger`. The dialog is `aria-labelledby` the heading and `aria-describedby` the
-body. **Every `wd-button` is given a `label` attribute**, which is the sole source of its inner
+body. **Every `that-button` is given a `label` attribute**, which is the sole source of its inner
 button's accessible name; one built without it renders a nameless button that role-based Playwright
 queries cannot find.
 
@@ -138,14 +138,14 @@ Tests 5 and 6 are the regression tests for the parked findings; both fail agains
 these findings live. This closes that.
 
 Both `exact: true` locators already in `settings.spec.ts` are load-bearing — `getByText("Work")`
-collides with the shell's `<h1>Work Dashboard</h1>`, and `getByRole("link", { name: "Settings" })`
+collides with the shell's `<h1>ThatApp</h1>`, and `getByRole("link", { name: "Settings" })`
 with the router placeholder's "Open Settings" link. Do not tidy them away while adding to the file.
 
 Everything runs through Docker: `make verify` and `make test-e2e`.
 
 ## Dependencies
 
-- **#30 lands first**, so `wd-confirm` is written with semantic tokens (`bg-raised`, `text-ink`,
+- **#30 lands first**, so `that-confirm` is written with semantic tokens (`bg-raised`, `text-ink`,
   `bg-danger-solid`) rather than stock utilities.
 - **#29 must land before #6.** Until time entry ships, the cascade destroys nothing; after it, this
   is the only thing standing between one stray click and lost logged time.
@@ -157,5 +157,5 @@ Everything runs through Docker: `make verify` and `make test-e2e`.
   a different and much larger design.
 - **Generalising `confirmDestructive` for #9's push failures or #11's week view** before those
   tickets exist. The helper is shaped so they can reuse it; nothing is added for them here.
-- **The Enter-to-submit follow-up** and giving `wd-button` a `type` attribute. Recorded separately in
+- **The Enter-to-submit follow-up** and giving `that-button` a `type` attribute. Recorded separately in
   the handoff; doing it here would put a second unrelated change through the same fix wave.

@@ -1,11 +1,11 @@
-# Work Dashboard — handoff
+# ThatApp — handoff
 
 **Date:** 2026-09-01
 **Formerly:** `docs/superpowers/plans/2026-08-12-handoff.md`, split on 2026-09-01. Plans and specs
 written before that date cite the old path in prose; they were deliberately not rewritten.
 **Supersedes:** nothing
 **Superseded by:** the design of record, wherever the two disagree —
-[`docs/superpowers/specs/2026-08-04-work-dashboard-design.md`](../specs/2026-08-04-work-dashboard-design.md)
+[`docs/superpowers/specs/2026-08-04-thatapp-design.md`](../specs/2026-08-04-thatapp-design.md)
 
 This is the document a session resumes from — on this machine or another one. It holds *state* and
 *decisions already taken*, so neither has to be rediscovered or relitigated. It does not repeat the
@@ -23,22 +23,26 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified against GitHub on 2026-09-01.** This ledger is the authority on status; the narrative
-further down is history and says otherwise in places.
+**Verified on 2026-09-01.** This ledger is the authority on status; the narrative further down is
+history and says otherwise in places.
+
+> **The forge changed on 2026-09-01.** Issue and pull-request numbers below were verified against
+> GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
+> before that date happened on GitHub; the numbers still resolve.
 
 **Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #73 — none carries a
-`status:*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
+`status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
 **In progress: nothing** — no `issue-*` branch is cut. The two open pull requests carry no ticket
 between them: **#78** (`retro-skill`) and this handoff branch when it goes out. **To do:** #8, #10,
 #11 and #51. **Needs refinement:** #13 (LAN/HTTPS phone access — deferred, and needs the owner's explicit
-go-ahead even to refine), #19, #35, #39, #40, #47 and #61. **Intake, thirteen, every one the owner's
-to approve or decline:** #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74. **Closed as
+go-ahead even to refine), #19, #35, #39, #40, #47, #61 and #80. **Intake, fourteen, every one the owner's
+to approve or decline:** #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as
 not planned:** #21, #22 — folded into #4, not rejected; both labelled `wontfix`.
 
 **#8, #10 and #11 are the whole remaining product**, and none of them has a design yet.
 
-### One thing needing the owner
+### Two things needing the owner
 
 ~~**The superpowers skills are not installed on this machine.**~~ **Wrong as of 2026-09-01**, and
 the item is retired. The plugin is installed at
@@ -52,6 +56,16 @@ wrong. The half of the item about #7's whole-branch review is moot — #7 merged
   statements rather than shared memory — so #43 should not be treated as covering that class at all.
   Worth a comment on the issue; not yet posted.
 
+- **The Jira API token cannot write worklogs, so no push can succeed.** Found 2026-09-01 by running
+  a real push. Reads are fine — the connection test returns the right account and assigned issues
+  list — but `POST /rest/api/3/issue/{key}/worklog` comes back `401
+  {"code":401,"message":"Unauthorized; scope does not match"}`. The token carries read scope and not
+  whatever a worklog write needs. **Only the owner can fix it**: remint the token in Atlassian with
+  write scope and re-enter it in Settings. Until then, treat any push failure on this instance as
+  this, not as a new bug — and note that #8, #10 and #11 cannot be verified against a real push
+  either. The exact scope or token type required was never established, only that a read-capable
+  token was refused; #80 turns on settling that.
+
 ### What gated what — every gate below is discharged
 
 **Nothing here still blocks anything**, as of 2026-09-01: #4, #5, #6, #7, #29 and #44 are all
@@ -60,19 +74,19 @@ The one live item this section used to carry — do not implement #19 from its c
 to *Still open*.
 
 - **#5–#12 are unblocked.** #4 put the split URL columns, `internal/atlassian`, `jira.Client.Myself`,
-  the JSON error envelope, `api.ts`, the router and the first `wd-*` components on `main`, which is
+  the JSON error envelope, `api.ts`, the router and the first `that-*` components on `main`, which is
   what every one of them builds on. Branch from `origin/main`.
 - **#5 needs the site URL for issue links**, which is why the two-URL split had to land first.
 - **#5 hands #6 a layout question and #7 a deadline.** Both come from #5's design and are recorded
   here so they are found rather than rediscovered. **#6:** pinned issues span instances, and the
   card-per-instance layout has no place for them; #5 deliberately does not pre-empt the answer beyond
-  keeping `wd-ticket-row` free of anything instance-specific. **#7:** Today re-renders wholesale, and
+  keeping `that-ticket-row` free of anything instance-specific. **#7:** Today re-renders wholesale, and
   that was right for #5 because it holds no typed input and no per-row in-flight state — but the
   moment a row carries a duration field the user types into, a wholesale re-render discards input
   mid-typing, which is the exact bug #29 paid to fix in Settings. #7 must revisit it before shipping
   a typed field, not after.
 - **#44 gated #6 and #7 and no longer does.** PR #52 merged on 2026-08-21, so the design tokens,
-  the `wd-*` components, the rail shell and the self-hosted typeface are all on `main`. Branch from
+  the `that-*` components, the rail shell and the self-hosted typeface are all on `main`. Branch from
   `origin/main`.
 - **#29 owned the parked re-render finding below**, and PR #34 closes three of the *Carried out of
   #4* findings as a consequence: the detached-DOM connection test, the Add form losing typed input on
@@ -124,7 +138,7 @@ no `.dockerignore`.** See *Facts worth not rediscovering*.
 
 **Everything below this line is a record, not a status.** It accumulated between 2026-08-14 and
 2026-08-21 and was deliberately not rewritten as tickets moved on, so it still calls #5 "in review",
-#44 and #6 `status:todo`, and #7 undesigned. The ledger at the top of this section is what is true.
+#44 and #6 `status/todo`, and #7 undesigned. The ledger at the top of this section is what is true.
 Read this for *why* a thing is the way it is; never for *where* it stands. The rules it produced
 that outlive it have been promoted into *Decisions taken* and *Facts worth not rediscovering*.
 
@@ -187,7 +201,7 @@ fan-out should re-run that mutation check**, because the test's value is entirel
 - **#30 before #5** because only the Settings view existed, so the retrofit was thirty-three utility
   usages across six files; each of #5–#12 adds a view that would otherwise have been written against
   hardcoded light colours and needed retrofitting afterwards.
-- **#30 before #29** so `wd-confirm` was written against the semantic tokens once instead of in stock
+- **#30 before #29** so `that-confirm` was written against the semantic tokens once instead of in stock
   utilities and then again in #30's retrofit. It kept #30's retrofit table at six files, and #29
   still landed well before #6, which is its only hard deadline.
 
@@ -209,8 +223,8 @@ The whole-branch review of #3 produced three new tickets rather than in-branch f
 alone.
 
 
-**#6 was moved to `status:todo` on 2026-08-20** at the owner's word. It had been carrying
-`status:in-progress` with no `issue-6-*` branch behind it, which the branch-existence rule makes
+**#6 was moved to `status/todo` on 2026-08-20** at the owner's word. It had been carrying
+`status/in-progress` with no `issue-6-*` branch behind it, which the branch-existence rule makes
 wrong. **Its design document is still missing**: `docs/superpowers/specs/2026-08-20-pinned-issues-design.md`,
 cited by the issue body and the owner's comment, has never existed on any branch. The acceptance
 criteria stand on their own; the document behind them would have to be written from the two design
@@ -229,7 +243,7 @@ scanned across instances you have not seen and a hue cannot disambiguate there; 
 result is `aria-disabled` rather than `disabled`, because a disabled button is skipped by screen
 readers and "already pinned" is worth announcing.
 
-**#44 A visual design language for the app — refined on 2026-08-20**, `status:todo`. Its body now
+**#44 A visual design language for the app — refined on 2026-08-20**, `status/todo`. Its body now
 carries full acceptance criteria. Two things the canvas left open were settled with the owner during
 refinement, and neither is to be reopened:
 
@@ -284,7 +298,7 @@ rather than assumed; the two ground colours are constants now so an engine that 
 is a two-line change.
 
 **#51 was raised on 2026-08-20 at the owner's request** — a frontend unit test runner, at
-`status:needs-refinement`. There is none in the repo: `web/package.json` carries no test dependency
+`status/needs-refinement`. There is none in the repo: `web/package.json` carries no test dependency
 and the only frontend tests are the Playwright specs. #44 lands a **deliberately rudimentary**
 `format.test.ts` under `node:test`, scoped out of tsc and eslint rather than adding `@types/node` or
 setting `allowImportingTsExtensions`, and **not** wired into `make verify` — choosing that gate is
@@ -309,7 +323,7 @@ than from a gate.** All are on the branch; none was caught by `verify` or by 74 
    **Every class-based check passed the whole time**: the utility was present and correct and simply
    had no effect. Its regression test therefore asserts geometry, not classes.
 3. **Every button showed the default arrow cursor.** Tailwind v4's Preflight deliberately leaves
-   `<button>` on it, so the app has to say `cursor-pointer` itself. One fix in `wd-button`'s base
+   `<button>` on it, so the app has to say `cursor-pointer` itself. One fix in `that-button`'s base
    covers every button; the rail's Push is the only raw one.
 4. **The key column was a magic number the owner's own data already exceeded.** The design draws
    76px around seven-character examples; `RIDGE-5325` measures 78px, so that instance's whole card
@@ -327,7 +341,7 @@ full ink on hover instead, which also stops linked and unlinked keys differing b
 that were never removed — a fix measured as "not working" was working, and the browser was running
 code from before it. **Hard-reload before believing a frontend measurement.** Adjacent to intake #40.
 
-**#53 was raised on 2026-08-20**, `status:intake`: the phone layout is designed on
+**#53 was raised on 2026-08-20**, `status/intake`: the phone layout is designed on
 `Mobile.dc.html` / `MobileSheet.dc.html` and specified in #44's spec, and **no ticket builds it**.
 **#13 is not that ticket** — it is TLS, app-level authentication and getting a CA onto the phone, and
 its own body says it delivers no new app features. #13 makes the dashboard reachable from a phone; it
@@ -344,18 +358,18 @@ view that would otherwise be written against the old vocabulary and need retrofi
 
 **#44 merged on 2026-08-21**, as PR #52 — the owner's word, with all three checks green (verify, e2e
 74/74 across Firefox and Chromium, and the review workflow). The issue closed `COMPLETED` still
-carrying `status:in-progress`, which the new rule forbids, so **the label was removed by hand**: a
+carrying `status/in-progress`, which the new rule forbids, so **the label was removed by hand**: a
 merge closes the issue but does not strip its status label, and nothing does it automatically. The
 2026-08-20 handoff went out in the same batch as PR #54.
 
-**#6 is the whole board now.** It is `status:todo` with a design, a plan and no implementation, and
+**#6 is the whole board now.** It is `status/todo` with a design, a plan and no implementation, and
 the gate that stood in front of it is gone: #44 landed the vocabulary its Pinned card is drawn in,
 and #5 landed the Today view it hangs off.
 
 **#6 merged on 2026-08-21**, as PR #60 (merge commit `47ed5c3`) — the owner's word. Built the same day on `issue-6-pinned-issues`, all eleven tasks through
 subagent-driven-development: the `status_cache` migration and pins store, `jira.Client.Issue`,
 `SearchText`/`escapeJQL`, the `fanOutInstances` extraction, `/api/pins` list-delete-create-refresh,
-`/api/issues/search`, the frontend types and Pinned card, `wd-combobox` and the pin flow, then unpin
+`/api/issues/search`, the frontend types and Pinned card, `that-combobox` and the pin flow, then unpin
 and one Refresh for both lists. Each task had its own review; seven needed a fix round. `make verify`
 green and **140 Playwright tests, 70 per browser** across Firefox and Chromium, up from 74. Spec
 `docs/superpowers/specs/2026-08-20-pinned-issues-design.md`, plan
@@ -388,11 +402,11 @@ a Tailwind token that has never existed in this repo. **Plans are drafted, not v
 working rule that came out of it: write the plan's test, then ask whether it would fail if the code
 it guards were wrong — and treat "no" as a defect to fix rather than scope to defend.
 
-**A custom event named `select` collides with the native one, in light DOM.** `wd-combobox`
+**A custom event named `select` collides with the native one, in light DOM.** `that-combobox`
 dispatched `select`; the native `<input>` text-selection `select` event bubbles through light DOM to
 the same listener, Firefox's `fill()` fires it, and the handler crashed on `undefined.instanceId`.
 Shadow DOM would have contained it and shadow DOM is forbidden here so Tailwind can reach component
-internals — so **every `wd-*` custom event is now prefixed**: `wd-search`, `wd-select`, `wd-cancel`.
+internals — so **every `that-*` custom event is now prefixed**: `that-search`, `that-select`, `that-cancel`.
 That is a rule for the whole family, not a fix for one component.
 
 **`.claude/e2e/` has no `.prettierrc.json`.** `web/.prettierrc.json` sets `printWidth: 100`, but
@@ -418,7 +432,7 @@ the app rather than from `verify` or the e2e suite — and it now has a specific
    on `main` until now — finally has a caller. Search results keep the name beside the dot, which is
    the restyle's deliberate exception for rows you have not seen before.
 2. **An instance's name sits inside its card where the Hybrid board draws it above**, beside its dot
-   with the day total opposite. Raised as **#61**, `status:needs-refinement`, because it is not #6's
+   with the day total opposite. Raised as **#61**, `status/needs-refinement`, because it is not #6's
    defect: #5 built the card, #44 deliberately deferred the Today layout rework ("#6 opens
    `today.ts` next and the two would collide"), and #6's scope never included the assigned card. It
    fell between the three.
@@ -430,7 +444,7 @@ against those sources before it becomes the binding authority.** Doing that once
 costs minutes; both of these cost a rebuilt component after the ticket was declared finished.
 
 **#7 is designed and awaiting the owner's review of its spec.** Branch `issue-7-manual-time-entry`,
-cut from `origin/main` after #60 merged and pushed; `status:in-progress`; one commit, `be4a3f6`,
+cut from `origin/main` after #60 merged and pushed; `status/in-progress`; one commit, `be4a3f6`,
 holding `docs/superpowers/specs/2026-08-21-manual-time-entry-design.md`. **No implementation has
 started, and the plan is not written** — the next action is the owner's read of the spec, then
 `superpowers:writing-plans`.
@@ -438,7 +452,7 @@ started, and the plan is not written** — the next action is the owner's read o
 **Eight decisions came out of its brainstorm on 2026-08-21, and one of them is a standing rule:**
 
 - **Every destructive action confirms.** Deleting a time entry destroys a record of work, so it goes
-  through `wd-confirm`. #6 argued the opposite for Unpin and was right there for the opposite
+  through `that-confirm`. #6 argued the opposite for Unpin and was right there for the opposite
   reason — unpinning destroys nothing. This binds #10's worklog deletion too, and it is not to be
   re-argued from the Unpin precedent.
 - **The dialog is the only manual way to add time**, with the timer (#8) the other. M4's dialog
@@ -470,12 +484,34 @@ things nobody could see until they were built.
 **Five intakes came out of #6**, all the owner's to approve or decline: #55 (two `{id}` routes answer
 differently for a malformed id, and #7's `/api/entries/{id}` is the third with no convention
 recorded), #56 (`settings.spec.ts` flakes under load — seen twice, clean in isolation, not #6's
-doing), #57 (three named gaps in the pins handler tests), #58 (`wd-combobox` breaks if a second one
+doing), #57 (three named gaps in the pins handler tests), #58 (`that-combobox` breaks if a second one
 ever exists), #59 (the pin flow's canvas source contradicts #44's spec). #43 gained a comment arguing
 its priority is now higher: #6 added the second by-index concurrent write site and #9's push will be
 the third.
 
 ## Decisions taken — do not reopen
+
+**The forge is Codeberg, and the project is called ThatApp.** Moved on 2026-09-01 from
+`github.com/dgerrese/work-dashboard` to `codeberg.org/DionGerrese/ThatApp`. The GitHub repository is
+kept **private and archived** — it is not the authority on anything, and nothing should be pushed to
+it. Full narrative in `handoff/2026-09-01.md`; four things must not be rediscovered:
+
+- **A history rewrite does not clean a GitHub repo that has ever had a pull request.** GitHub's
+  `refs/pull/*` refs are read-only, survive a force-push, and held the entire pre-scrub history —
+  39 of them, one matching 17,251 times. Only GitHub can remove them. That is why the project moved
+  rather than simply going public.
+- **Never use Forgejo's migration tool on such a repo.** It does a full mirror *including*
+  `refs/pull/*`, which would reimport exactly what the rewrite removed. Push from a scrubbed local
+  clone into an empty repository instead.
+- **CI does not use Docker, and must not be "fixed" to.** Codeberg's hosted runners give a job no
+  Docker daemon and cap it at ten minutes. `.forgejo/workflows/` invokes the toolchains directly.
+  This works only because `modernc.org/sqlite` is pure Go and nothing uses `-race` — a cgo
+  dependency would break CI, not just slow it. `make verify` remains the local gate, and nothing
+  enforces that the two stay equivalent.
+- **`wontfix` is load-bearing now.** Forgejo issues are only open or closed; there is no "closed as
+  not planned". A declined ticket closed without `wontfix` is indistinguishable from one that
+  shipped. Status labels are `status/*`, scoped and `exclusive: true`, so the forge itself enforces
+  one status at a time.
 
 **Merging into `main` locally is forbidden.** Stated by the owner on 2026-08-17 as "absolutely
 forbidden" and written into `CLAUDE.md`'s hard constraints and the `ticket-workflow` skill as PR #33.
@@ -489,7 +525,7 @@ to offer the other two options and explain the missing one.
 **Never write current state into a GitHub issue or pull request body.** The owner's rule, given
 2026-08-14: no "this ticket is in flight", "awaiting review", "not yet estimated", "PR #27 is
 stale". State changes constantly and prose does not update itself, so every stateful sentence
-becomes a lie somebody has to hunt down. The `status:*` label is already the single source of truth.
+becomes a lie somebody has to hunt down. The `status/*` label is already the single source of truth.
 **Dependencies and blockers are the exception and should still be written** — "blocked by #29",
 "must land before #6 ships time entry", "supersedes #21" — because they describe the work rather
 than the moment. Existing bodies were swept on 2026-08-14. **This document is the deliberate
@@ -584,7 +620,7 @@ not reopened from the ticket body alone:
    to be re-entered. The accepted cost: an instance cannot be renamed while Jira is unreachable.
 4. **The router lands in #4**, not #5, because `handleAsset` already falls back to the app shell for
    client-side routes — the shell was promising routing that did not exist. Only the components the
-   settings form needs are built; `wd-ticket-row`, `wd-timer` and `wd-time-entry` belong to #5–#8.
+   settings form needs are built; `that-ticket-row`, `that-timer` and `that-time-entry` belong to #5–#8.
 
 **Browser support is Firefox and Chromium.** Firefox is primary. **Safari and WebKit are an
 explicit non-goal** — do not raise them as a coverage gap, do not add WebKit to the Playwright
@@ -596,7 +632,7 @@ to `.claude/agents/` and removed on 2026-08-07 without ever running a ticket. Do
 rebuilding them. The gaps were structural: nothing reviewed integration across issues, and the
 reviewer ran on a weaker model than the developer — which ticket 1's evidence contradicts.
 
-**The status set is five, and a `status:*` label now describes open work only.** Reviewed label by
+**The status set is five, and a `status/*` label now describes open work only.** Reviewed label by
 label with the owner on 2026-08-20 against two questions: does it match the issue's actual state,
 and does it say anything GitHub does not already know. What survived is
 `intake → needs-refinement → todo → in-progress`, plus `blocked` from anywhere.
@@ -622,15 +658,15 @@ for exactly this and its description rewritten to say so.
 whether a ticket is a defect or new capability. At most one, and plenty of tickets legitimately have
 neither. The other six stock labels — `documentation`, `duplicate`, `good first issue`,
 `help wanted`, `invalid`, `question` — were deleted unused, so nobody reaches for a second competing
-vocabulary alongside `status:*`.
+vocabulary alongside `status/*`.
 
 **One gap is known and written down rather than solved:** a pull request closed *without* merging
 leaves its issue with no signal at all. It has happened once, on PR#27. Move the ticket back to
-`status:in-progress` by hand.
+`status/in-progress` by hand.
 
-**`status:in-progress` was restored on 2026-08-20, reversing the decision below.** The owner asked
+**`status/in-progress` was restored on 2026-08-20, reversing the decision below.** The owner asked
 for it so the board shows what is actually being worked on. The trigger is **cutting the branch** —
-not the first line of implementation — so `status:todo` means "untouched" and a ticket with an
+not the first line of implementation — so `status/todo` means "untouched" and a ticket with an
 `issue-<n>-<slug>` branch reads as in progress even when that branch carries only a design and a
 plan. #5 was the case that made the gap visible: designed, planned, branch pushed, and
 indistinguishable from #6–#12, which nobody had opened. Colour `#5319E7`, description "Branch cut.
@@ -643,7 +679,7 @@ open** — ask before assuming the two match.
 `awaiting-human`, `proposal`. They tracked the removed PM's dispatch lifecycle. The fourth,
 `in-progress`, was restored on its own merits above rather than as a reversal of that reasoning: it
 is not a dispatch state. The fifth, `in-review`, is not coming back either — the state it named is
-now read off the open pull request. `status:intake` (added 2026-08-12) was never one of them: it
+now read off the open pull request. `status/intake` (added 2026-08-12) was never one of them: it
 exists so a discovery made mid-ticket has somewhere to land that is not the ticket being worked on.
 
 **#9 will skip e2e** under the `paths:` filter in `.github/workflows/e2e.yml`, because it changes
@@ -651,7 +687,7 @@ handlers the UI depends on without touching frontend files. The owner accepted t
 UI needs checking by hand. Do not re-raise it as a hole in the gate.
 
 **This used to say "#5 and #9", and that was wrong about #5.** #5 added `web/src/views/today.ts` and
-`web/src/components/wd-ticket-row.ts`, so the `paths:` gate fires for it and always would have. The
+`web/src/components/that-ticket-row.ts`, so the `paths:` gate fires for it and always would have. The
 gate needed no change; the note did. Corrected 2026-08-20 — #5's own design document had flagged the
 correction as part of that ticket, but `CLAUDE.md` puts project-design documents in their own pull
 request, so it landed here instead of in PR #38.
@@ -683,11 +719,11 @@ What the boards settle, none of it to be redesigned during #44's refinement:
   hues 265 and 175 are identity only. Each has a lighter `-rail` variant used *only* on the dark
   ground. Every pairing was measured in both themes; the floor is 4.5:1 for text, 3:1 for icons.
 - **Manual entry is a native `<dialog>`** — centred on desktop, bottom-anchored on the phone. Chosen
-  over a popover *because* `wd-confirm` already proves the pattern: `showModal()` supplies the focus
+  over a popover *because* `that-confirm` already proves the pattern: `showModal()` supplies the focus
   trap, inert background, top layer, Esc dismissal and focus return. **Backdrop-click dismissal stays
-  absent**, matching the decision recorded in `wd-confirm.ts`.
+  absent**, matching the decision recorded in `that-confirm.ts`.
 - **Preflight's `* { margin: 0 }` beats the UA's `dialog { margin: auto }`**, so a dialog lands
-  top-left in Firefox and Chromium unless margin is set explicitly. Already true of `wd-confirm`;
+  top-left in Firefox and Chromium unless margin is set explicitly. Already true of `that-confirm`;
   it will be true of the entry dialog too.
 - **Three things the owner decided against**, so they are not to be re-proposed: no quick-add path
   outside the dialog; card subtotals and the rail's per-instance split both stay, even though
@@ -697,13 +733,13 @@ What the boards settle, none of it to be redesigned during #44's refinement:
 The six below were produced by #44, #6 and #7 and lived only in the frozen narrative until
 2026-09-01. They bind later tickets, so they belong here.
 
-- **Every `wd-*` custom event carries the `wd-` prefix** — `wd-search`, `wd-select`, `wd-cancel`. A
+- **Every `that-*` custom event carries the `that-` prefix** — `that-search`, `that-select`, `that-cancel`. A
   component that dispatched a bare `select` collided with the native text-selection `select`, which
   bubbles through light DOM to the same listener; Firefox's `fill()` fires it and the handler
   crashed on `undefined.instanceId`. Shadow DOM would contain it and shadow DOM is forbidden here so
   Tailwind can reach component internals. This is a rule for the whole family, not a fix for one
   component.
-- **Every destructive action confirms, through `wd-confirm`.** Deleting a time entry destroys a
+- **Every destructive action confirms, through `that-confirm`.** Deleting a time entry destroys a
   record of work. #6 argued the opposite for Unpin and was right for the opposite reason — unpinning
   destroys nothing. **This binds #10's worklog deletion, and is not to be re-argued from the Unpin
   precedent.**
@@ -797,13 +833,13 @@ found something every time**. This is worth keeping as practice, not just as a n
   is unchanged, and a plausible "just reuse `UpdateEntry`" refactor would fail it.
 - **`dirty` is reported, not repaired.** #7's edit stamps `updated_at`, so an edited pushed entry is
   reachable today. #9 reports it honestly and skips it; the `PUT` is #10's.
-- **The confirmation is one plain sentence.** `wd-confirm` sets `body` as an attribute rendered as a
+- **The confirmation is one plain sentence.** `that-confirm` sets `body` as an attribute rendered as a
   single `<p>`'s textContent, so the per-site breakdown an early sketch promised is not achievable
   without changing that component.
-- **The failure list is a sibling of `wd-alert`, never a child.** That component renders by calling
+- **The failure list is a sibling of `that-alert`, never a child.** That component renders by calling
   `this.replaceChildren(mark, message)`, so anything appended inside it is discarded on the next
   attribute change.
-- **`wd-alert` has exactly three tones** — `success`, `warning`, `error`. An unknown tone falls back
+- **`that-alert` has exactly three tones** — `success`, `warning`, `error`. An unknown tone falls back
   to `warning` *silently*, so a typo is invisible rather than loud.
 - **An unknown push state renders no badge.** `pushBadge` is an allowlist, not an excludelist:
   telling someone their time reached Jira when it did not is the one wrong answer indistinguishable
@@ -838,7 +874,7 @@ All verified empirically rather than recalled.
 
 **The Playwright rig.** `app` is a real gTLD on the browsers' HSTS preload list, so a single-label
 Compose host named `app` gets rewritten from `http://` to `https://` before the request leaves and
-every test dies on SSL. Fixed with a `wd-app` network alias — an alias, not a rename, because
+every test dies on SSL. Fixed with a `that-app` network alias — an alias, not a rename, because
 renaming would ripple through every `make` target, the CI job and `CLAUDE.md`.
 
 **The frontend build.** `web/build.mjs` shipped with `splitting: false` and `outfile`. Under that
@@ -880,13 +916,13 @@ It now maps to 502 `account_not_found`. **429 still falls to the `default` branc
 500, which is #19's territory; the branch no longer leaks the raw Go error string, it logs
 server-side and returns a fixed message.
 
-**`wd-button`'s `label` attribute is the sole source of its inner button's accessible name** — there
-is no slot fallback, and the component's own interface docs omit it. A `wd-button` built without
+**`that-button`'s `label` attribute is the sole source of its inner button's accessible name** — there
+is no slot fallback, and the component's own interface docs omit it. A `that-button` built without
 `label` renders a nameless button that role-based Playwright queries cannot find. The Settings view
 funnels every one through a single `button(label, variant)` helper for this reason.
 
-**`wd-card` has no `observedAttributes`**, so its `heading` is not reactive, while `wd-button` and
-`wd-alert` both are. Set a card's heading before insertion; changing it afterwards silently does
+**`that-card` has no `observedAttributes`**, so its `heading` is not reactive, while `that-button` and
+`that-alert` both are. Set a card's heading before insertion; changing it afterwards silently does
 nothing.
 
 **Tailwind v4 facts for #30, verified against `tailwindcss` v4.3.3 in the project container rather
@@ -934,7 +970,7 @@ before it, and **any "did this row change?" check by field comparison is structu
 correctly refused, clearing the just-saved row's status by id inside `save()` instead.
 
 **The e2e suite runs against the dev database, and #5 makes that dangerous.** `make test-e2e` starts
-the same `app` service `make up` does, mounting the same `wd-data` volume — so the browser suite talks
+the same `app` service `make up` does, mounting the same `that-data` volume — so the browser suite talks
 to a database holding real Jira instances with real sealed tokens. Nothing exercises it today because
 every spec stubs the routes it needs, but **once `/` renders Today, a spec that navigates there
 without stubbing `/api/issues` makes the server fan out to a real Jira site**, which breaks
@@ -966,7 +1002,7 @@ tidying when that file is next open.
 
 **Two `exact: true` locators in `settings.spec.ts` are load-bearing — do not "tidy" them away.**
 `getByText` matches substrings, so `getByText("Work")` collides with the shell's
-`<h1>Work Dashboard</h1>`; and `getByRole("link", { name: "Settings" })` collides with the router
+`<h1>ThatApp</h1>`; and `getByRole("link", { name: "Settings" })` collides with the router
 placeholder's "Open Settings" link, because `/` has no registered route and the placeholder is on
 screen alongside the shell nav. Both are real Playwright strict-mode failures, not stylistic choices.
 
@@ -1014,7 +1050,7 @@ is a trap that cost time once already.
   **every class-based check passed** — the utility was present, correct, and inert. Regression tests
   for truncation therefore assert **geometry, not classes**.
 - **Tailwind v4's Preflight leaves `<button>` on the default arrow cursor**, deliberately, so the
-  app has to say `cursor-pointer` itself. `wd-button`'s base covers every button; the rail's Push is
+  app has to say `cursor-pointer` itself. `that-button`'s base covers every button; the rail's Push is
   the only raw one.
 - **A stale bundle can survive a rebuild, and did.** `/app.js` is unhashed and cacheable while
   `build.mjs` never cleans `dist/`, so a cached `app.js` keeps resolving to old content-hashed
@@ -1110,10 +1146,10 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   either mistake: its plan was written in the corrected vocabulary, so nothing shipped wrong. The
   file remains a design source a later ticket would read as authoritative.
 - **Enter does not submit the Settings form, and that is deliberate for now.** The form has four
-  implicit-submission-blocking fields and no submit button — `wd-button` renders
+  implicit-submission-blocking fields and no submit button — `that-button` renders
   `<button type="button">` — so per the HTML implicit-submission rules Enter does nothing. #4's fix
-  wave removed the dead `submit` listener and corrected `wd-button`'s docstring rather than wiring
-  it up: the honest fix gives `wd-button` a `type` attribute and swaps the click handler for a
+  wave removed the dead `submit` listener and corrected `that-button`'s docstring rather than wiring
+  it up: the honest fix gives `that-button` a `type` attribute and swaps the click handler for a
   submit handler, and doing both in one fix wave with a single re-review risks a double-submit.
   Worth a follow-up.
 - **A flake worth watching:** `pwa.spec.ts:322` (service-worker offline navigation) failed once
@@ -1122,12 +1158,12 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Before planning the next ticket:**
 
-- **#51 is `status:todo`, refined and unblocked**, and its branch has not been cut. It is the only
+- **#51 is `status/todo`, refined and unblocked**, and its branch has not been cut. It is the only
   ready ticket with a settled design; #8, #10 and #11 still have none.
 - **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
   #9 plan missed and paid for late. **Open `web/index.html` before planning #8.**
-- **#35 is `status:needs-refinement`**, not intake as this section long claimed. Raised while
+- **#35 is `status/needs-refinement`**, not intake as this section long claimed. Raised while
   planning #5. Refining it is available work; it has the owner's approval already.
 - **#19 must not be implemented from its current state.** Its facts changed under it on
   2026-08-14 — see *Facts worth not rediscovering* — and it still has no acceptance criteria, by
@@ -1158,7 +1194,7 @@ request at the end-of-day signal. PR #78 (`retro-skill`) is open and waiting on 
   their pull requests went up, which is the fix, and `--force-with-lease` is how a rebased branch
   gets pushed over its pre-rebase remote copy. **It recurred on 2026-08-24**, same signature,
   mid-session — and this time there is a workaround that does not touch the remote:
-  `git -c credential.helper='!gh auth git-credential' push https://github.com/dgerrese/work-dashboard.git <branch>`
+  `git -c credential.helper='!gh auth git-credential' push https://codeberg.org/DionGerrese/ThatApp.git <branch>`
   pushes on `gh`'s token with the agent dead, as a one-off, leaving the SSH remote configured. Use
   it the moment an SSH push fails rather than leaving a branch stranded; `ssh-add` remains the real
   fix and the owner's to run.

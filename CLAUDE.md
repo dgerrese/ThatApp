@@ -1,11 +1,11 @@
-# Work Dashboard
+# ThatApp
 
 A personal PWA that surfaces the Jira issues assigned to one user across several Jira Cloud
 instances and logs time against them. Time is entered locally through the day, pushed to Jira as
 worklogs at end of day, and reviewed in a weekly rollup before the organisation's weekly timesheet
 submission. Single user, self-hosted, runs in Docker.
 
-**The design of record is `docs/superpowers/specs/2026-08-04-work-dashboard-design.md`.** Read it
+**The design of record is `docs/superpowers/specs/2026-08-04-thatapp-design.md`.** Read it
 before answering "how is this supposed to work" — it holds the architecture, data model, API
 surface, push semantics and the 13-ticket sequence. This file holds the rules for working in the
 repo; it does not repeat the design.
@@ -17,14 +17,18 @@ repo; it does not repeat the design.
 
 These come from the project owner. They are not preferences and not open to reinterpretation.
 
-- **Everything runs in Docker.** There is no Go, Node or npm on the host. Never run them bare.
+- **Local development runs in Docker.** There is no Go, Node or npm on the host, so never run them
+  bare here — drive everything through `make` or `docker compose`. This is a rule about *this
+  machine*, not about the software: CI runs the same tools natively, because a Forgejo Actions job
+  is itself a container and Codeberg's hosted runners provide no Docker daemon inside one. See
+  `.forgejo/workflows/`.
 - **No JavaScript frameworks.** Vanilla JS only; TypeScript is permitted for typing.
 - **Tailwind CSS v4** for all styling. v4 is CSS-first — there is no `tailwind.config.js`; theme
   values live in `@theme` in `web/src/styles.css`.
 - **Keep files small, and keep the initial HTTP response under 14kB.** That number is the TCP
   initial congestion window. `index.html` carries the app shell and inlined critical CSS only;
   views load through dynamic `import()`.
-- **Reusable UI is a native WebComponent** registered as `wd-*`, using **light DOM, never shadow
+- **Reusable UI is a native WebComponent** registered as `that-*`, using **light DOM, never shadow
   DOM** — shadow roots stop Tailwind utilities reaching component internals.
 - **Browser support is Firefox and Chromium.** Firefox is the primary target — it is what the owner
   uses — with Chromium covered for occasional switching. **Safari and WebKit are an explicit
@@ -61,11 +65,18 @@ docker compose --profile e2e run --build --rm playwright sh -c 'npm ci --no-audi
 ```
 
 `make verify` and `make test-e2e` together are the source of truth for whether a change is green.
-Both run in CI, but on different triggers: `verify` deliberately needs no running stack and runs
-on every pull request; `test-e2e` builds the frontend and waits on the app's healthcheck, so it
-runs in its own CI workflow, gated to pull requests that touch the frontend or the rig itself —
-that gate is the `paths:` list in `.github/workflows/e2e.yml`, which must name every file the rig
+CI runs the same checks on different triggers: `verify` needs no running stack and runs on every
+pull request; the end-to-end suite builds the frontend and waits on the app's health endpoint, so
+it runs in its own workflow, gated to pull requests that touch the frontend or the rig itself —
+that gate is the `paths:` list in `.forgejo/workflows/e2e.yml`, which must name every file the rig
 depends on. Never claim work is done without pasting their output.
+
+**CI does not use Compose, and the two can drift.** `make verify` drives each tool through a
+container; `.forgejo/workflows/verify.yml` invokes the same tools directly, and splits them across
+two jobs because Codeberg caps a hosted job at ten minutes. Nothing enforces that the two stay
+equivalent — change one and you must change the other by hand. The end-to-end workflow points the
+Playwright rig at `localhost` through `THAT_BASE_URL` rather than the Compose alias, which is why
+it needs no test changes.
 
 ## Layout
 
@@ -76,7 +87,7 @@ internal/server/   HTTP routes: /api/* and static assets
 web/               frontend source and the built dist/
   embed.go         assets embedded into the binary  (//go:build !dev)
   assets_dev.go    assets read from disk            (//go:build dev)
-  src/components/  wd-* WebComponents
+  src/components/  that-* WebComponents
   src/views/       lazily imported views
 .claude/e2e/       Playwright rig: its image, config and tests/
 .claude/skills/    repo-local skills, starting with ticket-workflow
@@ -113,13 +124,13 @@ verbs (`process`, `handle`, `build`) and direction-hiding nouns fail that test.
 Configuration is read from the environment at boot and validated; the server refuses to start on
 anything missing or malformed. Copy `.env.example` to `.env` and fill it in.
 
-- `WD_SECRET_KEY` — 32 bytes, base64-encoded. Encrypts Jira API tokens at rest.
-- `WD_TIMEZONE` — IANA name. Decides where the day boundary falls for time entries. Deliberately
+- `THAT_SECRET_KEY` — 32 bytes, base64-encoded. Encrypts Jira API tokens at rest.
+- `THAT_TIMEZONE` — IANA name. Decides where the day boundary falls for time entries. Deliberately
   not derived from the browser: the end-of-day push and weekly rollup must agree on where a day
   ends even when no browser is open.
-- `WD_ADDR`, `WD_DB_PATH`, `WD_PORT` — have defaults.
+- `THAT_ADDR`, `THAT_DB_PATH`, `THAT_PORT` — have defaults.
 
-Adding a `WD_*` variable is a public API change. It must be documented in `.env.example`, and it is
+Adding a `THAT_*` variable is a public API change. It must be documented in `.env.example`, and it is
 only justified when a value must genuinely differ per environment. A lookup table the code always
 reads the same way is a constant, not configuration.
 
@@ -133,7 +144,7 @@ them. Test them harder than anything else.
   the same day repeatedly idempotent, and it is what a stored flag would quietly break. A push
   across instances is not transactional: each entry succeeds or fails on its own, failures keep
   `worklog_id IS NULL` for the next attempt, and the UI must show which entries did not make it.
-- **The day boundary.** `day` is the user's local date, resolved against `WD_TIMEZONE`, while the
+- **The day boundary.** `day` is the user's local date, resolved against `THAT_TIMEZONE`, while the
   container's clock is almost certainly UTC. Anything that decides which day an entry belongs to —
   entry creation, the end-of-day push, the weekly rollup — must agree, including when no browser is
   open to ask.
@@ -142,12 +153,12 @@ Both are worth a table-driven test that a plausible refactor would fail.
 
 ## Workflow
 
-Development goes by GitHub issues in `dgerrese/work-dashboard`. Every change to the *product* has
+Development goes by Codeberg issues in `DionGerrese/ThatApp`. Every change to the *product* has
 an issue, a branch and a pull request. Changes to how the project is *run* — `CLAUDE.md`,
 `.claude/**`, process documents — need no issue and go in their own pull request; split a change
 that touches both.
 
-Open tickets carry exactly one `status:*` label; closed ones carry none, because GitHub already
+Open tickets carry exactly one `status/*` label; closed ones carry none, because Codeberg already
 records how an issue ended:
 
 ```
@@ -161,20 +172,20 @@ labelled wontfix
 
 Review and done are **not labels**. An open pull request saying `Closes #<n>` is the review state,
 and a closed issue is the finished one — so the label comes off when the issue closes. A pull
-request closed *without* merging is the one gap: move the ticket back to `status:in-progress` by
+request closed *without* merging is the one gap: move the ticket back to `status/in-progress` by
 hand.
 
 `bug` and `enhancement` are a second, optional axis recording whether a ticket is a defect or new
 capability. At most one, and plenty of tickets are neither.
 
-**Cutting the branch is what moves a ticket to `status:in-progress`.** The trigger is the branch
+**Cutting the branch is what moves a ticket to `status/in-progress`.** The trigger is the branch
 existing, not a judgement about how far the work has got: a ticket with `issue-<n>-<slug>` pushed is
-in progress even when that branch carries only a design and a plan. That makes `status:todo` mean
+in progress even when that branch carries only a design and a plan. That makes `status/todo` mean
 "nobody has started this" rather than "started or not, who knows".
 
 **Intake is for tickets you raise yourself** — a problem noticed in passing, a gap in the spec.
-Those start at `status:intake` and stop there. **A ticket the owner asks for arrives already
-approved**, because the asking is the approval: create it at `status:needs-refinement` and skip
+Those start at `status/intake` and stop there. **A ticket the owner asks for arrives already
+approved**, because the asking is the approval: create it at `status/needs-refinement` and skip
 intake altogether.
 
 Two moves are the owner's alone: **approving an intake** and **declining one** (closing it as not
@@ -185,7 +196,7 @@ The merge is theirs in the literal sense too: **merging into `main` locally is f
 hard constraint above. Finishing a branch means pushing it and opening a pull request — those are
 the only two endings, alongside leaving the branch alone.
 
-**Blocked is a hard stop.** The moment a blocker appears, move the ticket to `status:blocked`, say
+**Blocked is a hard stop.** The moment a blocker appears, move the ticket to `status/blocked`, say
 what blocked it, and stop. Do not lower a threshold, skip a test, reshape the scope to dodge it, or
 pick up another ticket to stay busy.
 

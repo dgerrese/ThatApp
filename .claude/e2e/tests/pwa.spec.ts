@@ -120,8 +120,8 @@ test("activation evicts stale caches and leaves exactly the two current-build on
   // because nothing this test does happens to collide with the current
   // build's own two names.
   await page.evaluate(async () => {
-    await caches.open("wd-shell-stale");
-    await caches.open("wd-data-stale");
+    await caches.open("that-shell-stale");
+    await caches.open("that-data-stale");
   });
 
   await page.evaluate(() => navigator.serviceWorker.register("/sw.js"));
@@ -129,7 +129,7 @@ test("activation evicts stale caches and leaves exactly the two current-build on
 
   const { cacheNames, shellPaths } = await page.evaluate(async () => {
     const names = await caches.keys();
-    const shellName = names.find((name) => name.startsWith("wd-shell-") && name !== "wd-shell-stale");
+    const shellName = names.find((name) => name.startsWith("that-shell-") && name !== "that-shell-stale");
     const paths = shellName
       ? (await (await caches.open(shellName)).keys()).map((request) => new URL(request.url).pathname)
       : [];
@@ -139,16 +139,16 @@ test("activation evicts stale caches and leaves exactly the two current-build on
   // Named, not just counted: a count-only check would still pass if
   // eviction deleted the wrong cache, or deleted nothing and something else
   // happened to keep the total at two.
-  expect(cacheNames).not.toContain("wd-shell-stale");
-  expect(cacheNames).not.toContain("wd-data-stale");
+  expect(cacheNames).not.toContain("that-shell-stale");
+  expect(cacheNames).not.toContain("that-data-stale");
   expect(cacheNames).toHaveLength(2);
 
   // Both remaining cache names carry the same build id: they are the shell
   // and data cache of one build, not leftovers from two.
-  const buildIds = cacheNames.map((name) => name.replace(/^wd-(shell|data)-/, ""));
+  const buildIds = cacheNames.map((name) => name.replace(/^that-(shell|data)-/, ""));
   expect(buildIds[0]).toBe(buildIds[1]);
-  expect(cacheNames.some((name) => name.startsWith("wd-shell-"))).toBe(true);
-  expect(cacheNames.some((name) => name.startsWith("wd-data-"))).toBe(true);
+  expect(cacheNames.some((name) => name.startsWith("that-shell-"))).toBe(true);
+  expect(cacheNames.some((name) => name.startsWith("that-data-"))).toBe(true);
 
   expect(shellPaths).toEqual(expect.arrayContaining(["/index.html", "/app.css", "/app.js"]));
   // Chunk filenames carry esbuild's content hash and are not known ahead of
@@ -219,7 +219,7 @@ test("install rejects a precache entry that answers HTML under a .js name, leavi
 // before awaiting any fetch — so checking for content here does not depend
 // on /api/* succeeding, which task 4 deliberately leaves uncached.
 async function expectShellRendered(page: Page): Promise<void> {
-  await expect(page.locator(".wd-rail")).toBeVisible();
+  await expect(page.locator(".that-rail")).toBeVisible();
   expect(await page.locator("#view > *").count()).toBeGreaterThan(0);
 }
 
@@ -334,7 +334,7 @@ test("a navigation to a path that names a file is never answered with the app sh
   // with and only the worker's behaviour decides the outcome.
   const cold = await context.newPage();
   await cold.goto("/a-file-this-build-never-shipped.png").catch(() => undefined);
-  await expect(cold.locator(".wd-rail")).toHaveCount(0);
+  await expect(cold.locator(".that-rail")).toHaveCount(0);
 });
 
 test("a navigation to an /api/ path is never answered with the app shell", async ({ page, context }) => {
@@ -356,7 +356,7 @@ test("a navigation to an /api/ path is never answered with the app shell", async
   // not one of them.
   const cold = await context.newPage();
   await cold.goto("/api/no-such-endpoint").catch(() => undefined);
-  await expect(cold.locator(".wd-rail")).toHaveCount(0);
+  await expect(cold.locator(".that-rail")).toHaveCount(0);
 });
 
 test("a rebuild's app.js is what the next load takes, not the cached one", async ({ page, context, browserName }) => {
@@ -432,7 +432,7 @@ test("a runtime response whose content type contradicts its path is served but n
   expect(served).toContain("lie");
 
   const cacheKeptTheGoodCopy = await page.evaluate(async () => {
-    const shellName = (await caches.keys()).find((name) => name.startsWith("wd-shell-"));
+    const shellName = (await caches.keys()).find((name) => name.startsWith("that-shell-"));
     if (!shellName) return false;
     const cached = await (await caches.open(shellName)).match("/app.js");
     if (!cached) return false;
@@ -495,7 +495,7 @@ test("a cache-first miss answered by the SPA fallback is served but never cached
   expect(served.contentType).toContain("html");
 
   const cachedUnderTheChunkName = await page.evaluate(async () => {
-    const shellName = (await caches.keys()).find((name) => name.startsWith("wd-shell-"));
+    const shellName = (await caches.keys()).find((name) => name.startsWith("that-shell-"));
     if (!shellName) return "no shell cache";
     const cached = await (await caches.open(shellName)).match("/chunk-0000000000000000.js");
     return cached ? "cached" : "not cached";
@@ -530,7 +530,7 @@ async function readThroughWorker(
     return {
       status: response.status,
       body: await response.text(),
-      stamp: response.headers.get("X-WD-Cached-At"),
+      stamp: response.headers.get("X-THAT-Cached-At"),
     };
   }, url);
 }
@@ -668,7 +668,7 @@ test("the assigned-issues warning names a time while the server is unreachable, 
             id: 1,
             name: "Work",
             issues: [
-              { key: "WD-1", summary: "Ship it", status: "In Progress", url: "https://example.test/WD-1" },
+              { key: "THAT-1", summary: "Ship it", status: "In Progress", url: "https://example.test/WD-1" },
             ],
             error: null,
           },
@@ -782,7 +782,7 @@ test("a write attempted with the server unreachable fails and is never replayed 
     fetch("/api/pins", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instanceId: 1, issueKey: "WD-1" }),
+      body: JSON.stringify({ instanceId: 1, issueKey: "THAT-1" }),
     })
       .then((response) => `resolved ${response.status}`)
       .catch(() => "rejected"),

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 )
 
 func TestIssueReturnsSummaryAndStatus(t *testing.T) {

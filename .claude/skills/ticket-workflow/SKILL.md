@@ -1,18 +1,18 @@
 ---
 name: ticket-workflow
-description: Use when starting any work in this repo, creating or refining a GitHub issue, moving a ticket between statuses, opening a pull request, or the moment a blocker appears. Holds the ticket lifecycle, the label mechanics and the superpowers loop that runs underneath it.
+description: Use when starting any work in this repo, creating or refining a Codeberg issue, moving a ticket between statuses, opening a pull request, or the moment a blocker appears. Holds the ticket lifecycle, the label mechanics and the superpowers loop that runs underneath it.
 ---
 
 # Ticket workflow
 
-Work in this repository is tracked as GitHub issues in `dgerrese/work-dashboard`, and every change
+Work in this repository is tracked as Codeberg issues in `DionGerrese/ThatApp`, and every change
 to the product arrives through a pull request tied to one. This skill holds the mechanics. The
 rules come from the project owner and are not open to reinterpretation.
 
 ## Does this need a ticket?
 
 **Yes** — for everything that changes the product: Go and TypeScript source, the SQLite schema, the
-`/api/*` surface, `WD_*` configuration, Docker and Compose, CI workflows, dependencies, and the
+`/api/*` surface, `THAT_*` configuration, Docker and Compose, CI workflows, dependencies, and the
 design of record under `docs/superpowers/specs/`.
 
 **No** — only for *project design*: `CLAUDE.md`, `.claude/**` (skills, the e2e rig's own process
@@ -24,36 +24,56 @@ semantics needs a ticket; a change to this skill does not. When a change touches
 
 ## The five statuses
 
-Status lives in a label, and **a `status:*` label describes open work only.** Exactly one while the
-issue is open; none once it is closed. The label is the source of truth for anything GitHub cannot
+Status lives in a label, and **a `status/*` label describes open work only.** Exactly one while the
+issue is open; none once it is closed. The label is the source of truth for anything Codeberg cannot
 already tell you — not a board, not a comment, not a checklist.
 
 | Status | Label | Who moves it | Meaning |
 |---|---|---|---|
-| Intake | `status:intake` | You, for ideas **you** raise | A raw problem or idea, a few sentences. Nothing else happens yet. |
-| Needs refinement | `status:needs-refinement` | **Owner only** — except a ticket they asked for, which you create here directly | Approved, but not yet refined; the acceptance criteria are still fuzzy. |
-| To do | `status:todo` | You, when refinement is genuinely finished | Acceptance criteria are complete and unambiguous. Work may start, and nobody has started it. |
-| In progress | `status:in-progress` | You, when the branch is cut | `issue-<n>-<slug>` exists. Someone is on it. |
-| Blocked | `status:blocked` | You, immediately, from any status | A blocker exists. Work stops. |
+| Intake | `status/intake` | You, for ideas **you** raise | A raw problem or idea, a few sentences. Nothing else happens yet. |
+| Needs refinement | `status/needs-refinement` | **Owner only** — except a ticket they asked for, which you create here directly | Approved, but not yet refined; the acceptance criteria are still fuzzy. |
+| To do | `status/todo` | You, when refinement is genuinely finished | Acceptance criteria are complete and unambiguous. Work may start, and nobody has started it. |
+| In progress | `status/in-progress` | You, when the branch is cut | `issue-<n>-<slug>` exists. Someone is on it. |
+| Blocked | `status/blocked` | You, immediately, from any status | A blocker exists. Work stops. |
 
-### What GitHub says, so the labels do not
+### What Codeberg says, so the labels do not
 
-Three former statuses were deleted on 2026-08-20 because each restated something GitHub already
+Three former statuses were deleted on 2026-08-20 because each restated something the forge already
 knew. Read these off the issue itself rather than reaching for a label:
 
 | Was | Read it from |
 |---|---|
-| `status:review` | An **open pull request** whose body says `Closes #<n>`. Opening the PR *is* the move to review — the two were always the same event. |
-| `status:done` | The issue is **closed with `COMPLETED`**, its pull request merged. |
-| `status:declined` | The issue is **closed with `NOT_PLANNED`** and labelled `wontfix`. |
+| `status/review` | An **open pull request** whose body says `Closes #<n>`. Opening the PR *is* the move to review — the two were always the same event. |
+| `status/done` | The issue is **closed** and not labelled `wontfix`, its pull request merged. |
+| `status/declined` | The issue is **closed** and labelled `wontfix`. |
+
+**`wontfix` is load-bearing here, and was not on GitHub.** Forgejo issues are only ever open or
+closed — there is no "closed as not planned" as distinct from "closed as completed", and `tea
+issues close` accordingly takes no reason. GitHub recorded that distinction itself, which is why
+the 2026-08-20 cleanup could drop both labels. On Codeberg only `wontfix` separates a declined
+ticket from a finished one, so **never close a declined ticket without it** — unlabelled, it is
+indistinguishable from work that shipped.
 
 **A pull request closed without merging is the one gap**, because the issue is then left with no
-signal at all — it has happened once, on PR#27. Move the ticket back to `status:in-progress` by
+signal at all — it has happened once, on PR#27. Move the ticket back to `status/in-progress` by
 hand when that occurs.
 
-**On closing an issue, remove its `status:*` label.** A closed issue carrying `status:in-progress`
-is a lie, and the whole point of dropping `done` and `declined` was that GitHub already records
-which kind of closed it is.
+**On closing an issue, remove its `status/*` label.** A closed issue carrying `status/in-progress`
+is a lie.
+
+### Scoped labels are exclusive, and the forge enforces it
+
+The `status/*` labels use Forgejo's scoped-label mechanism: the `/` is a scope delimiter, and the
+labels are created with `exclusive: true`, so **applying one automatically removes any other label
+in the same scope**. Two consequences:
+
+- Adding a status does not require removing the old one. `tea issues edit <n> --add-labels
+  status/todo` is the whole move; the previous status falls off by itself.
+- "Exactly one `status/*` label while open" is no longer a rule you can break by accident. It is
+  still possible to have *none* — that is the state to watch for.
+
+`bug`, `enhancement` and `wontfix` are unscoped and carry no exclusivity, so those are still
+applied and removed by hand.
 
 ### Type: `bug` and `enhancement`
 
@@ -68,10 +88,10 @@ Unlike status, type is **optional and at most one**. Plenty of tickets are neith
 test-infrastructure change, a documentation ticket. Do not force one on for the sake of symmetry;
 an unlabelled issue is a legitimate answer.
 
-**Cutting the branch is what moves a ticket to `status:in-progress`.** The trigger is the branch
+**Cutting the branch is what moves a ticket to `status/in-progress`.** The trigger is the branch
 existing — not the first line of implementation code, and not a judgement about how far the work has
 got. A ticket whose branch carries only a design and a plan is in progress. Move the label in the
-same breath as `git checkout -b`, so `status:todo` can be read as "untouched" without checking.
+same breath as `git checkout -b`, so `status/todo` can be read as "untouched" without checking.
 
 **Opening the pull request is the last thing you do to a ticket unaided.** It carries no label
 move any more — the open pull request is the review state. After that the ticket is the owner's
@@ -81,14 +101,14 @@ until they say what happens next.
 
 - **Intake → Needs refinement.** The owner approves an intake ticket. Create it, then stop and ask.
   This governs *promotion*, not where a ticket enters. A ticket the owner asked for never sits in
-  intake at all — it is created at `status:needs-refinement`, because the asking was the approval.
+  intake at all — it is created at `status/needs-refinement`, because the asking was the approval.
   What you may never do is promote an intake **you** raised.
-- **Declining an intake.** The owner closes it as `NOT_PLANNED` and labels it `wontfix`. Never
+- **Declining an intake.** The owner labels it `wontfix` and closes it. Never
   pre-empt it.
 - **Closing a finished ticket.** The merge is the owner's, and so is the close. A green
   `make verify`, a passing CI run, an approving review and a branch that looks merged are none of
   them that signal. Merging the pull request closes the issue through `Closes #<n>`; strip the
-  `status:*` label when it does.
+  `status/*` label when it does.
 
 **Merging into `main` locally is forbidden outright** — a hard constraint in `CLAUDE.md`, not a
 preference. A branch reaches `main` through a pull request the owner merges and no other way, no
@@ -101,7 +121,7 @@ missing rather than silently dropping it.
 
 The moment a blocker appears — a decision only the owner can make, an external dependency that
 fails, a requirement that turns out to be contradictory, a gate that cannot legitimately pass —
-move the ticket to `status:blocked`, comment on the issue with what blocked it and what you tried,
+move the ticket to `status/blocked`, comment on the issue with what blocked it and what you tried,
 and stop.
 
 **Do not design around a blocker.** Specifically, do not:
@@ -116,36 +136,52 @@ unblocked one that got there by moving the goalposts.
 
 ## Commands
 
+The forge is Codeberg, so the CLI is `tea`, not `gh`. It reads the repository from the git remote;
+`tea login list` shows whether this machine is authenticated.
+
 ```shell
 # An idea you raised: create at intake, then stop and wait for approval
-gh issue create --label status:intake --title "..." --body "..."
+tea issues create --labels status/intake --title "..." --description "..."
 
 # A ticket the owner asked for: skip intake, the asking was the approval
-gh issue create --label status:needs-refinement --title "..." --body "..."
+tea issues create --labels status/needs-refinement --title "..." --description "..."
 
-# Move a ticket (always remove the old label in the same call)
-gh issue edit <n> --remove-label status:needs-refinement --add-label status:todo
-gh issue edit <n> --remove-label status:todo --add-label status:in-progress
+# Move a ticket. The status labels are exclusive, so adding the new one drops
+# the old one; there is no --remove-labels to pair with it.
+tea issues edit <n> --add-labels status/todo
+tea issues edit <n> --add-labels status/in-progress
 
-# Closing: the label comes off, GitHub carries the outcome
-gh issue edit <n> --remove-label status:in-progress
-gh issue close <n> --reason "not planned" && gh issue edit <n> --add-label wontfix
+# Closing. `tea issues close` takes no reason - Forgejo has none - so the
+# distinction between finished and declined lives entirely in `wontfix`.
+tea issues edit <n> --remove-labels status/in-progress && tea issues close <n>
+tea issues edit <n> --remove-labels status/intake --add-labels wontfix && tea issues close <n>
 
 # Type, when it is genuinely one or the other
-gh issue edit <n> --add-label bug
+tea issues edit <n> --add-labels bug
 
 # See the board
-gh issue list --label status:todo
-gh issue list --label status:in-progress        # what is actually being worked on
-gh pr list --state open                         # what is waiting on the owner
-gh issue list --state all --json number,title,labels
+tea issues list --labels status/todo
+tea issues list --labels status/in-progress       # what is actually being worked on
+tea pulls list --state open                       # what is waiting on the owner
+tea issues list --state all --output json
 
 # Comment when a status change needs explaining
-gh issue comment <n> --body "..."
+tea comment <n> "..."
 ```
 
-Never leave an **open** issue with two `status:*` labels or none, and never leave a **closed** one
-carrying a `status:*` label at all. If you find an issue in either state, say so rather than
+Creating the `status/*` labels needs the API rather than `tea labels create`, which has no flag for
+exclusivity:
+
+```shell
+# {owner} and {repo} are filled in from the current repository. A request with a
+# body defaults to POST, so no --method is needed.
+tea api "repos/{owner}/{repo}/labels" \
+  -d '{"name":"status/todo","color":"#0e8a16","exclusive":true}'
+```
+
+Never leave an **open** issue with no `status/*` label, and never leave a **closed** one carrying a
+`status/*` label at all. Two statuses at once is no longer possible — the scope is exclusive — so
+the only failure left is the absent one. If you find an issue in either state, say so rather than
 guessing which is right.
 
 ## What each status actually involves
@@ -153,7 +189,7 @@ guessing which is right.
 **Intake.** A short problem or idea statement, and **only for ideas you raise yourself**. Do not
 research, do not design, do not estimate. Create it and stop. Discoveries made mid-ticket — a bug
 noticed in passing, a gap in the spec — belong here, not in the ticket you are working on. A ticket
-the owner asked for does not pass through here; create it at `status:needs-refinement`.
+the owner asked for does not pass through here; create it at `status/needs-refinement`.
 
 **Refinement.** Research properly: read the relevant code, check the design of record, resolve open
 questions with the owner. Finish by rewriting the issue body to hold the problem, the approach,
@@ -185,8 +221,8 @@ is not redrafted later.
    repo: branch in place, no worktree.** Compose derives its project name from the directory, so a
    worktree gets its own images and volumes and rebuilds everything from cold. Invoke the skill,
    then apply this decision unless a ticket genuinely needs the isolation. Branch name:
-   `issue-<n>-<short-slug>`. **Move the ticket to `status:in-progress` in the same breath as
-   creating the branch** — that is the trigger, and a branch that exists under `status:todo` is the
+   `issue-<n>-<short-slug>`. **Move the ticket to `status/in-progress` in the same breath as
+   creating the branch** — that is the trigger, and a branch that exists under `status/todo` is the
    exact ambiguity the label was added to remove. *The worktree decision is due to flip* — see the
    handoff's "Still open".
 3. **`superpowers:writing-plans`** — turns the acceptance criteria into a plan under
@@ -201,7 +237,7 @@ is not redrafted later.
    and the failing output belongs in the task report; a task that cannot show it is not done.
 6. **`superpowers:requesting-code-review`** — between tasks and again before merge.
 7. **`superpowers:finishing-a-development-branch`** — verifies the suite, presents the integration
-   options, pushes and opens the pull request. The ticket keeps `status:in-progress` — the open
+   options, pushes and opens the pull request. The ticket keeps `status/in-progress` — the open
    pull request is the review state — so there is no label to move. Then stop.
 
 **One issue, one branch, one pull request.** The pull request body references the issue with

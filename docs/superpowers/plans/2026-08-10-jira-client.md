@@ -71,7 +71,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
 )
 
 // key32 is a fixed 32-byte key. Tests must not depend on randomness they do not control.
@@ -229,7 +229,7 @@ import (
 )
 
 // KeySize is the AES-256 key length callers must supply. config validates
-// WD_SECRET_KEY to this length at boot.
+// THAT_SECRET_KEY to this length at boot.
 const KeySize = 32
 
 // Sealer encrypts and decrypts tokens with AES-GCM under one key.
@@ -327,7 +327,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 )
 
 // newTestClient points a client at a stub server standing in for Jira.
@@ -932,7 +932,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 )
 
 func amsterdamTime(t *testing.T) time.Time {

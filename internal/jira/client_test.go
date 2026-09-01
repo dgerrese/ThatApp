@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 )
 
 // newTestClient points a client at a stub server standing in for Jira.

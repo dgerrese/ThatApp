@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/atlassian"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/atlassian"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // tenantInfoServer stands in for a Jira site's unauthenticated tenant-info

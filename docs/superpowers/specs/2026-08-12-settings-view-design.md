@@ -4,9 +4,9 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#4](https://github.com/dgerrese/work-dashboard/issues/4). It elaborates the ticket
+The design for [#4](https://codeberg.org/DionGerrese/ThatApp/issues/4). It elaborates the ticket
 sequence's fourth entry in
-[`2026-08-04-work-dashboard-design.md`](2026-08-04-work-dashboard-design.md), which stays the design
+[`2026-08-04-thatapp-design.md`](2026-08-04-thatapp-design.md), which stays the design
 of record wherever the two disagree.
 
 The ticket arrived heavily refined: four decisions were settled when #21 and #22 were folded into
@@ -156,7 +156,7 @@ web/src/
   router.ts     '/' → placeholder, '/settings' → import('./views/settings')
   api.ts        typed fetch wrappers
   types.ts      hand-written mirror of the Go response structs
-  components/   wd-card.ts  wd-button.ts  wd-alert.ts
+  components/   that-card.ts  that-button.ts  that-alert.ts
   views/        settings.ts
 ```
 
@@ -164,7 +164,7 @@ The router lands here rather than in #5 because `handleAsset` already falls back
 client-side routes, so the shell promises routing that does not yet exist. `/` renders a short
 placeholder linking to Settings until #5 brings Today.
 
-Components are limited to what the form uses. `wd-ticket-row`, `wd-timer` and `wd-time-entry` are
+Components are limited to what the form uses. `that-ticket-row`, `that-timer` and `that-time-entry` are
 named in the design of record but belong to #5 through #8; inventing their APIs against no caller
 would mean rewriting them when a real one appears.
 

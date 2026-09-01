@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#30](https://github.com/dgerrese/work-dashboard/issues/30). The app has no theming:
+The design for [#30](https://codeberg.org/DionGerrese/ThatApp/issues/30). The app has no theming:
 `@theme` in `web/src/styles.css` holds one token (`--font-sans`) and every view uses hardcoded light
 utilities. This introduces a colour vocabulary, a dark palette, and a three-state control that
 selects between them.
@@ -166,11 +166,11 @@ the state.
 
 ## The control
 
-A `wd-card` headed **Appearance** in the Settings view, containing a `<fieldset>` with a legend and
+A `that-card` headed **Appearance** in the Settings view, containing a `<fieldset>` with a legend and
 three radios: Light, Dark, Auto.
 
-Plain markup and local helper functions, **not a `wd-*` component**. The existing `wd-card`,
-`wd-button` and `wd-alert` are reusable primitives; a theme picker has exactly one call site, and the
+Plain markup and local helper functions, **not a `that-*` component**. The existing `that-card`,
+`that-button` and `that-alert` are reusable primitives; a theme picker has exactly one call site, and the
 settings form already builds its controls from local helpers (`field`, `button`, `alertFor`). A
 component here would be consistency with the letter of the rule against its purpose.
 
@@ -186,9 +186,9 @@ In scope. Without it the tokens exist and nothing uses them.
 |---|---|
 | `web/index.html` | body → `bg-surface text-ink`; header link → `text-ink-muted hover:text-ink` |
 | `web/src/router.ts` | placeholder paragraph → `text-ink-muted`; its link → `text-link` |
-| `web/src/components/wd-card.ts` | `bg-white border-neutral-200` → `bg-raised border-edge` |
-| `web/src/components/wd-button.ts` | primary → `bg-accent text-accent-ink`; secondary → `bg-raised border-edge text-ink`; danger → `bg-danger-solid text-danger-solid-ink hover:bg-danger-solid-hover` |
-| `web/src/components/wd-alert.ts` | each tone → `bg-{tone}-tint border-{tone}-edge text-{tone}-ink` |
+| `web/src/components/that-card.ts` | `bg-white border-neutral-200` → `bg-raised border-edge` |
+| `web/src/components/that-button.ts` | primary → `bg-accent text-accent-ink`; secondary → `bg-raised border-edge text-ink`; danger → `bg-danger-solid text-danger-solid-ink hover:bg-danger-solid-hover` |
+| `web/src/components/that-alert.ts` | each tone → `bg-{tone}-tint border-{tone}-edge text-{tone}-ink` |
 | `web/src/views/settings.ts` | inputs → `border-edge focus:border-ink`; field caption → `text-ink`; `divide-neutral-200` → `divide-edge` |
 
 No stock colour utility should remain in `web/src/` or `web/index.html` afterwards.

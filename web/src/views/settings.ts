@@ -1,10 +1,10 @@
-import "../components/wd-alert";
-import "../components/wd-button";
-import "../components/wd-card";
-import "../components/wd-confirm";
+import "../components/that-alert";
+import "../components/that-button";
+import "../components/that-card";
+import "../components/that-confirm";
 
 import { ApiError, createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
-import { confirmDestructive } from "../components/wd-confirm";
+import { confirmDestructive } from "../components/that-confirm";
 import { setThemePreference, themePreference } from "../theme";
 import type { Instance } from "../types";
 import type { ThemePreference } from "../theme";
@@ -23,7 +23,7 @@ export async function render(root: HTMLElement): Promise<void> {
   };
   regions.formCard.className = "mt-6";
 
-  // wd-card overwrites its own className on connect, so the spacing lives on a
+  // that-card overwrites its own className on connect, so the spacing lives on a
   // wrapper. Appearance sits outside the regions refresh() touches.
   const appearance = document.createElement("div");
   appearance.className = "mt-6";
@@ -54,9 +54,9 @@ async function refresh(regions: Regions): Promise<void> {
 }
 
 function reconcileList(regions: Regions, instances: Instance[]): void {
-  const card = regions.listCard.querySelector<HTMLElement>("wd-card") ?? newListCard(regions);
+  const card = regions.listCard.querySelector<HTMLElement>("that-card") ?? newListCard(regions);
 
-  // Never replaceChildren() on the card itself: wd-card injects its heading once,
+  // Never replaceChildren() on the card itself: that-card injects its heading once,
   // in connectedCallback, so wiping its children deletes the heading with no way
   // to get it back.
   const notice = card.querySelector("[data-empty-notice]");
@@ -109,7 +109,7 @@ function showForm(regions: Regions, editing: Instance | undefined): void {
 }
 
 function newListCard(regions: Regions): HTMLElement {
-  const card = document.createElement("wd-card");
+  const card = document.createElement("that-card");
   card.setAttribute("heading", "Jira instances");
   regions.listCard.replaceChildren(card);
 
@@ -284,7 +284,7 @@ async function removeInstance(
 }
 
 function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElement {
-  const card = document.createElement("wd-card");
+  const card = document.createElement("that-card");
   card.setAttribute("heading", editing ? `Edit ${editing.name}` : "Add an instance");
   if (editing) {
     card.dataset["editingId"] = String(editing.id);
@@ -322,7 +322,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
   form.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper, status, actions);
   card.append(form);
 
-  // wd-button renders a real <button type="button">, so it does not submit the
+  // that-button renders a real <button type="button">, so it does not submit the
   // form on its own; this click handler is the only path into save().
   submit.addEventListener("click", () => {
     void save();
@@ -386,7 +386,7 @@ function field(name: string, label: string, type: string, value: string): Field 
 }
 
 function button(label: string, variant: string): HTMLElement {
-  const element = document.createElement("wd-button");
+  const element = document.createElement("that-button");
   element.setAttribute("label", label);
   element.setAttribute("variant", variant);
 
@@ -400,12 +400,12 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = 
 ];
 
 /**
- * Plain markup rather than a wd-* component: this has exactly one call site,
+ * Plain markup rather than a that-* component: this has exactly one call site,
  * and the settings form already builds its controls from local helpers. Native
  * radios also inherit color-scheme themeing without any extra work.
  */
 function appearanceCard(): HTMLElement {
-  const card = document.createElement("wd-card");
+  const card = document.createElement("that-card");
   card.setAttribute("heading", "Appearance");
 
   const fieldset = document.createElement("fieldset");
@@ -441,7 +441,7 @@ function appearanceCard(): HTMLElement {
 }
 
 function alertFor(tone: string, message: string): HTMLElement {
-  const alert = document.createElement("wd-alert");
+  const alert = document.createElement("that-alert");
   alert.setAttribute("tone", tone);
   alert.setAttribute("message", message);
 

@@ -6,7 +6,7 @@
  * Run it with: make test-web
  *
  * It lives here rather than beside the component because a `node:test` file
- * cannot import `components/wd-duration.ts`: node has no `HTMLElement`, so the
+ * cannot import `components/that-duration.ts`: node has no `HTMLElement`, so the
  * class declaration throws at module evaluation. Keeping the rule DOM-free is
  * what makes it testable at all.
  */

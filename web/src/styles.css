@@ -91,7 +91,7 @@
    :root, where --h does not exist — so the token would compute to
    guaranteed-invalid and every dot would render transparent with nothing in
    the console. Written here, --h resolves against the element itself. */
-.wd-dot {
+.that-dot {
   display: inline-block;
   width: 7px;
   height: 7px;
@@ -99,14 +99,14 @@
   border-radius: 999px;
   background: light-dark(oklch(0.6 0.13 var(--h)), oklch(0.72 0.12 var(--h)));
 }
-.wd-rail .wd-dot {
+.that-rail .that-dot {
   background: oklch(0.7 0.13 var(--h));
 }
 
 /* The instance split's bar. Each segment wears the same hue as the dot beside
    its figure, because it is the same identity — but it is sized by the time it
-   stands for, so the fixed 7px square of .wd-dot cannot be reused for it. */
-.wd-split-bar > span {
+   stands for, so the fixed 7px square of .that-dot cannot be reused for it. */
+.that-split-bar > span {
   border-radius: 999px;
   background: oklch(0.7 0.13 var(--h));
 }
@@ -114,15 +114,15 @@
 /* Where you are, shown by fill and weight rather than by colour alone. The
    rail is the only place in the app with a persistent selected state, so this
    is a rule rather than a utility repeated on every link. */
-.wd-nav {
+.that-nav {
   color: var(--color-rail-muted);
   font-weight: 500;
   text-decoration: none;
 }
-a.wd-nav:hover {
+a.that-nav:hover {
   color: var(--color-rail-ink);
 }
-.wd-nav[aria-current="page"] {
+.that-nav[aria-current="page"] {
   background: var(--color-rail-active);
   color: var(--color-rail-ink);
   font-weight: 700;
@@ -132,24 +132,24 @@ a.wd-nav:hover {
    summaries up down a card; without it every row starts its title at a
    different x and the list reads as ragged. 76px is what the design drew, and
    it is only the floor: web/src/key-column.ts measures each list and widens
-   --wd-key-col when that list's own keys need more, so one long key moves the
+   --that-key-col when that list's own keys need more, so one long key moves the
    whole column instead of breaking rank with the rest of the list. Real data
    reaches the floor immediately — a ten-character key already overruns it. */
-.wd-key {
+.that-key {
   flex: none;
-  min-width: var(--wd-key-col, 76px);
+  min-width: var(--that-key-col, 76px);
   font-size: var(--text-sm);
   font-weight: 700;
   letter-spacing: 0.03em;
   text-decoration: none;
 }
 /* The link's affordance, since it no longer announces itself by colour. */
-a.wd-key:hover {
+a.that-key:hover {
   color: var(--color-ink);
 }
 
 /* Figures that sit above one another have to align, or the column reads as
    ragged noise rather than as quantities. */
-.wd-tnum {
+.that-tnum {
   font-variant-numeric: tabular-nums;
 }

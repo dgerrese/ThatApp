@@ -1,4 +1,4 @@
-module github.com/dgerrese/work-dashboard
+module codeberg.org/DionGerrese/ThatApp
 
 go 1.26.5
 

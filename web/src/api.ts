@@ -56,7 +56,7 @@ async function requestWithMeta<T>(path: string, init?: RequestInit): Promise<Cac
     throw new ApiError(response.status, ...(await errorFrom(response)));
   }
 
-  const cachedAtHeader = response.headers.get("X-WD-Cached-At");
+  const cachedAtHeader = response.headers.get("X-THAT-Cached-At");
   const parsedCachedAt = cachedAtHeader === null ? null : new Date(cachedAtHeader);
   // A present-but-unparseable header must not become a truthy Invalid Date:
   // unreachable while the worker is the only producer (it always writes
@@ -142,7 +142,7 @@ export function searchIssues(query: string, signal: AbortSignal): Promise<IssueS
 
 /**
  * Every entry in an inclusive range of local days, oldest first. Both bounds
- * default to today resolved in WD_TIMEZONE, so the ordinary call is bare and
+ * default to today resolved in THAT_TIMEZONE, so the ordinary call is bare and
  * the browser never computes a date — which is the whole reason the day
  * boundary is the server's to decide.
  */

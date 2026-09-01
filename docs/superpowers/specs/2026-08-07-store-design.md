@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-07
 - **Status:** Approved
-- **Scope:** GitHub issue #2 (ticket 2 of the sequence in `2026-08-04-work-dashboard-design.md`)
+- **Scope:** GitHub issue #2 (ticket 2 of the sequence in `2026-08-04-thatapp-design.md`)
 
 ## Purpose
 

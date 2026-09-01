@@ -15,7 +15,7 @@ import { exactSecondsFromTyped, fieldFigure, secondsFromTyped, steppedSeconds } 
  *
  * Reusable by #8, which puts a start/stop control beside it.
  */
-export class WdDuration extends HTMLElement {
+export class ThatDuration extends HTMLElement {
   static get observedAttributes(): string[] {
     return ["seconds", "disabled"];
   }
@@ -175,4 +175,4 @@ export class WdDuration extends HTMLElement {
   }
 }
 
-customElements.define("wd-duration", WdDuration);
+customElements.define("that-duration", ThatDuration);

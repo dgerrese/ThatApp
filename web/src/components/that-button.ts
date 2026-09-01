@@ -12,7 +12,7 @@ const VARIANTS: Record<string, string> = {
  * being reimplemented. The inner button is deliberately type="button": this
  * component does not participate in form submission.
  */
-export class WdButton extends HTMLElement {
+export class ThatButton extends HTMLElement {
   static get observedAttributes(): string[] {
     return ["variant", "disabled", "label"];
   }
@@ -53,4 +53,4 @@ export class WdButton extends HTMLElement {
   }
 }
 
-customElements.define("wd-button", WdButton);
+customElements.define("that-button", ThatButton);

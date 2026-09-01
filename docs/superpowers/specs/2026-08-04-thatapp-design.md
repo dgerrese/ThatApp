@@ -1,4 +1,4 @@
-# Work Dashboard — Design
+# ThatApp — Design
 
 - **Date:** 2026-08-04
 - **Status:** Approved
@@ -89,7 +89,7 @@ CREATE TABLE instances (
   name           VARCHAR(120) NOT NULL,  -- display name, e.g. "Acme"
   base_url       VARCHAR(255) NOT NULL,  -- https://acme.atlassian.net
   email          VARCHAR(255) NOT NULL,
-  api_token_enc  BLOB NOT NULL,          -- AES-GCM, key from WD_SECRET_KEY
+  api_token_enc  BLOB NOT NULL,          -- AES-GCM, key from THAT_SECRET_KEY
   created_at     DATETIME NOT NULL
 );
 
@@ -137,7 +137,7 @@ record time that person did not spend.
 `day` is the user's **local** date, not UTC. The container's clock is very likely UTC while the
 user is not, so the boundary between days must not be decided by the server's zone.
 
-The user's zone is configured once via the `WD_TIMEZONE` environment variable (an IANA name such
+The user's zone is configured once via the `THAT_TIMEZONE` environment variable (an IANA name such
 as `Europe/Amsterdam`), and the server resolves local dates and worklog `started` timestamps
 against it. The app refuses to start on an unset or unparseable value. Deriving the zone from the
 browser instead was rejected: the end-of-day push and the weekly rollup both need to agree on
@@ -155,7 +155,7 @@ which also preserves an honest record of when each block of work happened.
 
 ### Credentials at rest
 
-API tokens are encrypted with AES-GCM using a key read from the `WD_SECRET_KEY` environment
+API tokens are encrypted with AES-GCM using a key read from the `THAT_SECRET_KEY` environment
 variable, so possession of the SQLite file alone does not yield working Jira credentials. The app
 refuses to start if the variable is absent or malformed — failing loudly at boot is far better
 than silently writing plaintext tokens nobody notices until the phone ticket exposes them to the
@@ -241,7 +241,7 @@ was created — **and are not editable**, which is the half of this paragraph #7
 server stamps `day` and `started_at` from one reading of its own clock and accepts neither from the
 browser, so `PATCH /api/entries/{id}` carries `seconds` and `comment` and nothing else. Letting a
 client set `started_at` would let it file work into a day its own start time contradicts, which is
-the disagreement `WD_TIMEZONE` exists to prevent.
+the disagreement `THAT_TIMEZONE` exists to prevent.
 
 ## Frontend
 
@@ -254,8 +254,8 @@ web/
     types.ts            hand-written mirror of the Go response structs
     router.ts
     components/
-      wd-card.ts  wd-button.ts  wd-alert.ts
-      wd-ticket-row.ts  wd-time-entry.ts  wd-timer.ts
+      that-card.ts  that-button.ts  that-alert.ts
+      that-ticket-row.ts  that-time-entry.ts  that-timer.ts
     views/
       today.ts  week.ts  settings.ts      lazy-loaded via import()
   sw.ts

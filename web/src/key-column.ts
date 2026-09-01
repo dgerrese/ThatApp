@@ -18,7 +18,7 @@ const FLOOR_PX = 76;
 function widestKey(list: HTMLElement): number {
   let widest = 0;
 
-  for (const key of list.querySelectorAll<HTMLElement>(".wd-key")) {
+  for (const key of list.querySelectorAll<HTMLElement>(".that-key")) {
     // The text, not the box: the box already carries the floor, so measuring it
     // would only ever measure the floor back.
     const range = document.createRange();
@@ -37,7 +37,7 @@ export function alignKeyColumn(list: HTMLElement): void {
   const apply = (): void => {
     const widest = widestKey(list);
     if (widest > 0) {
-      list.style.setProperty("--wd-key-col", `${Math.ceil(Math.max(FLOOR_PX, widest))}px`);
+      list.style.setProperty("--that-key-col", `${Math.ceil(Math.max(FLOOR_PX, widest))}px`);
     }
   };
 

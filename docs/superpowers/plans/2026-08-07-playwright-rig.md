@@ -46,7 +46,7 @@ docker-compose.yml       + app healthcheck, + profile-gated playwright service
 Makefile                 + test-e2e
 .github/workflows/e2e.yml  new: the filtered e2e workflow
 CLAUDE.md                corrected: verify is not the whole gate
-docs/superpowers/specs/2026-08-04-work-dashboard-design.md   corrected make-target table
+docs/superpowers/specs/2026-08-04-thatapp-design.md   corrected make-target table
 ```
 
 ---
@@ -91,7 +91,7 @@ why the next step generates the lock before anything builds.
 
 ```json
 {
-  "name": "work-dashboard-e2e",
+  "name": "thatapp-e2e",
   "private": true,
   "type": "module",
   "scripts": {
@@ -142,7 +142,7 @@ Then add a new service:
       - ./.claude/e2e:/e2e
       - playwright-node-modules:/e2e/node_modules
     environment:
-      WD_BASE_URL: "http://wd-app:8080"
+      THAT_BASE_URL: "http://that-app:8080"
     depends_on:
       app:
         condition: service_healthy
@@ -158,7 +158,7 @@ at that instead:
     networks:
       default:
         aliases:
-          - wd-app
+          - that-app
 ```
 
 An alias rather than a rename, because renaming the service would ripple through every `make`
@@ -220,8 +220,8 @@ git commit -m "build: profile-gated playwright container and app healthcheck"
 import { defineConfig, devices } from "@playwright/test";
 
 // The rig runs inside Compose and reaches the app over the service network, so
-// it behaves identically here and in CI and does not depend on WD_PORT.
-const baseURL = process.env.WD_BASE_URL ?? "http://wd-app:8080";
+// it behaves identically here and in CI and does not depend on THAT_PORT.
+const baseURL = process.env.THAT_BASE_URL ?? "http://that-app:8080";
 
 export default defineConfig({
   testDir: "./tests",
@@ -251,8 +251,8 @@ import { expect, test } from "@playwright/test";
 test("the app shell boots and reaches the API", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page).toHaveTitle("Work Dashboard");
-  await expect(page.getByRole("heading", { name: "Work Dashboard" })).toBeVisible();
+  await expect(page).toHaveTitle("ThatApp");
+  await expect(page.getByRole("heading", { name: "ThatApp" })).toBeVisible();
 
   // The shell ships this text; the module rewrites it only after /api/health
   // resolves. Seeing it change proves the bundle parsed and the fetch worked.
@@ -265,7 +265,7 @@ test("an unknown route still serves the app shell", async ({ page }) => {
   const response = await page.goto("/week");
 
   expect(response?.status()).toBe(200);
-  await expect(page.getByRole("heading", { name: "Work Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ThatApp" })).toBeVisible();
 });
 ```
 
@@ -319,7 +319,7 @@ git commit -m "test: playwright smoke spec on firefox and chromium"
 
 **Files:**
 - Create: `.github/workflows/e2e.yml` (not a job in `ci.yml` — see Step 1)
-- Modify: `CLAUDE.md`, `docs/superpowers/specs/2026-08-04-work-dashboard-design.md`
+- Modify: `CLAUDE.md`, `docs/superpowers/specs/2026-08-04-thatapp-design.md`
 
 **Interfaces:**
 - Consumes: `make test-e2e` from Task 2
@@ -362,8 +362,8 @@ jobs:
       - name: Provide a test environment
         run: |
           cp .env.example .env
-          sed -i '/^WD_SECRET_KEY=/d' .env
-          printf 'WD_SECRET_KEY=%s\n' "$(head -c 32 /dev/urandom | base64)" >> .env
+          sed -i '/^THAT_SECRET_KEY=/d' .env
+          printf 'THAT_SECRET_KEY=%s\n' "$(head -c 32 /dev/urandom | base64)" >> .env
 
       - name: Build the frontend and start the stack
         run: |
@@ -389,7 +389,7 @@ Add `make test-e2e` to the commands list. Confirm the existing `docker compose -
 
 - [ ] **Step 3: Correct the design spec**
 
-In `docs/superpowers/specs/2026-08-04-work-dashboard-design.md`, the make-target table says `make test  go test ./... + playwright`. That is not what was built. Correct it to show `make test` as Go only and `make test-e2e` as separate, and note in the Testing section that e2e is deliberately outside the local gate.
+In `docs/superpowers/specs/2026-08-04-thatapp-design.md`, the make-target table says `make test  go test ./... + playwright`. That is not what was built. Correct it to show `make test` as Go only and `make test-e2e` as separate, and note in the Testing section that e2e is deliberately outside the local gate.
 
 - [ ] **Step 4: Verify the whole rig from a genuinely clean state**
 
@@ -399,8 +399,8 @@ paste the real output.
 
 ```bash
 docker compose down -v
-docker volume ls | grep work-dashboard   # expect nothing
-docker image rm work-dashboard-playwright 2>/dev/null || true
+docker volume ls | grep thatapp   # expect nothing
+docker image rm thatapp-playwright 2>/dev/null || true
 
 make build-web
 docker compose up -d app

@@ -9,8 +9,8 @@ test("the app shell boots and the bundle runs", async ({ page }) => {
 
   await page.goto("/");
 
-  await expect(page).toHaveTitle("Work Dashboard");
-  await expect(page.getByRole("heading", { name: "Work Dashboard" })).toBeVisible();
+  await expect(page).toHaveTitle("ThatApp");
+  await expect(page.getByRole("heading", { name: "ThatApp" })).toBeVisible();
 
   // The shell ships an empty #view. Seeing Today's empty state proves the bundle
   // parsed, "/" redirected, and the dynamic import() of a view resolved.
@@ -24,7 +24,7 @@ test("an unknown route still serves the app shell", async ({ page }) => {
   const response = await page.goto("/week");
 
   expect(response?.status()).toBe(200);
-  await expect(page.getByRole("heading", { name: "Work Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ThatApp" })).toBeVisible();
 });
 
 // Every stub in every spec but pwa.spec.ts rests on this. A request a service

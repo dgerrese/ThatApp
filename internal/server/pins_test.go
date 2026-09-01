@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 func getPins(t *testing.T, srv *Server, query string) (*httptest.ResponseRecorder, []pinDTO) {

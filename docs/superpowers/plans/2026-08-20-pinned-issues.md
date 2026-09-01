@@ -8,7 +8,7 @@
 
 **Goal:** Pin issues from any instance through one cross-instance search box, render them in a Pinned card above the assigned issues on Today, and keep their summary and status cached so they paint without a Jira round trip.
 
-**Architecture:** A new `pinned_issues` store layer and `/api/pins` resource, a new `/api/issues/search` fan-out that searches every instance by key and by title, and a `wd-combobox` component driving the form. The three fan-outs in the codebase — assigned issues, pin refresh, search — move onto one extracted `fanOutInstances` helper, re-proved against #5's mutation guard.
+**Architecture:** A new `pinned_issues` store layer and `/api/pins` resource, a new `/api/issues/search` fan-out that searches every instance by key and by title, and a `that-combobox` component driving the form. The three fan-outs in the codebase — assigned issues, pin refresh, search — move onto one extracted `fanOutInstances` helper, re-proved against #5's mutation guard.
 
 **Tech Stack:** Go 1.26 standard library plus `modernc.org/sqlite` and `golang.org/x/sync/errgroup`; vanilla TypeScript with Tailwind v4; Playwright for the UI.
 
@@ -19,7 +19,7 @@
 - **Everything runs in Docker.** No Go, Node or npm on the host. Every command below is a `make` target or `docker compose run`.
 - **No JavaScript frameworks.** Vanilla JS/TS only.
 - **Tailwind CSS v4**, CSS-first. Theme values live in `@theme` in `web/src/styles.css`. Use the semantic tokens (`bg-raised`, `text-ink-muted`, `border-edge`, …), never a stock colour utility.
-- **WebComponents are `wd-*`, light DOM, never shadow DOM.**
+- **WebComponents are `that-*`, light DOM, never shadow DOM.**
 - **TypeScript is `strict` with `noUncheckedIndexedAccess`.** No `any`, no `as any`, no non-null assertion.
 - **No test ever contacts a real Jira instance.** Go tests use `httptest`; Playwright stubs `/api/*` with `page.route`.
 - **Browser support is Firefox and Chromium.** Safari and WebKit are an explicit non-goal.
@@ -41,7 +41,7 @@
 | `internal/server/fanout.go` | `fanOutInstances`, extracted from `issues.go` |
 | `internal/server/pins.go` | `/api/pins` — list, create, delete, refresh |
 | `internal/server/issue_search.go` | `/api/issues/search` |
-| `web/src/components/wd-combobox.ts` | Searchable select with listbox and keyboard nav |
+| `web/src/components/that-combobox.ts` | Searchable select with listbox and keyboard nav |
 | `web/src/views/today.ts` | Pinned card, dedupe, refresh wiring |
 | `.claude/e2e/tests/pins.spec.ts` | The user-visible behaviour this ticket promises |
 
@@ -55,7 +55,7 @@
 - Create: `internal/store/migrations/2026-08-20_100000_pin_status_cache.sql`
 - Create: `internal/store/pins.go`
 - Test: `internal/store/pins_test.go`
-- Modify: `docs/superpowers/specs/2026-08-04-work-dashboard-design.md` (the `pinned_issues` block)
+- Modify: `docs/superpowers/specs/2026-08-04-thatapp-design.md` (the `pinned_issues` block)
 
 **Interfaces:**
 - Consumes: `openTestStore(t)` and `createTestInstance(t, s)` from `internal/store/store_test.go` and `instances_test.go`; the `scanner` interface and `nullable` from `instances.go`.
@@ -450,7 +450,7 @@ Expected: PASS, including the pre-existing `TestOpenCreatesEverySchemaTable` and
 
 - [ ] **Step 6: Update the design of record's schema block**
 
-In `docs/superpowers/specs/2026-08-04-work-dashboard-design.md`, add the column to the `pinned_issues` table so the spec and the database do not drift:
+In `docs/superpowers/specs/2026-08-04-thatapp-design.md`, add the column to the `pinned_issues` table so the spec and the database do not drift:
 
 ```sql
   summary_cache  TEXT,                   -- so pins render without a Jira round trip
@@ -462,7 +462,7 @@ In `docs/superpowers/specs/2026-08-04-work-dashboard-design.md`, add the column 
 ```shell
 git add internal/store/pins.go internal/store/pins_test.go \
   internal/store/migrations/2026-08-20_100000_pin_status_cache.sql \
-  docs/superpowers/specs/2026-08-04-work-dashboard-design.md
+  docs/superpowers/specs/2026-08-04-thatapp-design.md
 git commit -m "feat(store): pins, with both caches and a real duplicate error"
 ```
 
@@ -491,7 +491,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 )
 
 func TestIssueReturnsSummaryAndStatus(t *testing.T) {
@@ -868,7 +868,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // fanOutInstances runs work against every instance concurrently and returns one
@@ -991,7 +991,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 func getPins(t *testing.T, srv *Server, query string) (*httptest.ResponseRecorder, []pinDTO) {
@@ -1151,7 +1151,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // pinDTO is one pin as the Pinned card needs it. InstanceName is joined in here
@@ -1992,8 +1992,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dgerrese/work-dashboard/internal/jira"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // searchLimit caps one instance's summary matches. This backs a type-ahead: a
@@ -2158,7 +2158,7 @@ git commit -m "feat(api): search every instance by key and by title"
 - Test: `.claude/e2e/tests/pins.spec.ts`
 
 **Interfaces:**
-- Consumes: the endpoints from Tasks 5–8; `wd-card`, `wd-alert`, `wd-button`, `wd-ticket-row`.
+- Consumes: the endpoints from Tasks 5–8; `that-card`, `that-alert`, `that-button`, `that-ticket-row`.
 - Produces: `Pin`, `IssueHit`, `InstanceFailure`, `IssueSearchResponse` in `types.ts`; `listPins`, `createPin`, `deletePin`, `searchIssues` in `api.ts`; in `today.ts` the Pinned card, `refreshPins(regions: Regions, options?: { refresh?: boolean }): Promise<void>`, `pinRow(pin: Pin, onUnpin: () => void): HTMLElement`, and `currentPins(regions: Regions): Pin[]` returning the last `listPins()` result. Tasks 10 and 11 call all three by those names.
 
 - [ ] **Step 1: Write the failing spec**
@@ -2223,7 +2223,7 @@ test("pinned issues render above the assigned cards", async ({ page }) => {
 
   await page.goto("/today");
 
-  const card = page.locator("wd-card").filter({ hasText: "Pinned" });
+  const card = page.locator("that-card").filter({ hasText: "Pinned" });
   await expect(card.getByText("SHARED-12")).toBeVisible();
   await expect(card.getByText("Weekly standup")).toBeVisible();
   await expect(card.getByText("Ridgeline")).toBeVisible();
@@ -2294,7 +2294,7 @@ test("no instances configured hides the pinned card entirely", async ({ page }) 
   await page.goto("/today");
 
   await expect(page.getByText("No Jira instances yet.")).toBeVisible();
-  await expect(page.locator("wd-card").filter({ hasText: "Pinned" })).toHaveCount(0);
+  await expect(page.locator("that-card").filter({ hasText: "Pinned" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Pin an issue" })).toHaveCount(0);
 });
 ```
@@ -2396,7 +2396,7 @@ interface Regions {
 }
 ```
 
-`render()` builds the Pinned `wd-card` with `pinnedList` and `pinnedForm` as persistent children, appends it before the header, and starts both fetches independently:
+`render()` builds the Pinned `that-card` with `pinnedList` and `pinnedForm` as persistent children, appends it before the header, and starts both fetches independently:
 
 ```ts
   // Independent on purpose: the Pinned card paints from the store alone and
@@ -2416,11 +2416,11 @@ function pinRow(pin: Pin, onUnpin: () => void): HTMLElement {
   instance.className = "shrink-0 text-sm text-ink-muted";
   instance.textContent = pin.instanceName;
 
-  // wd-ticket-row sets its own className in connectedCallback, so a utility
+  // that-ticket-row sets its own className in connectedCallback, so a utility
   // applied from outside would be discarded; the wrapper carries flex-1.
   const wrapper = document.createElement("div");
   wrapper.className = "min-w-0 flex-1";
-  const row = document.createElement("wd-ticket-row");
+  const row = document.createElement("that-ticket-row");
   row.setAttribute("key", pin.key);
   row.setAttribute("summary", pin.summary);
   row.setAttribute("status", pin.status);
@@ -2443,7 +2443,7 @@ const pinnedKeys = new Set(pins.map((p) => `${p.instanceId}:${p.key}`));
 const visible = group.issues.filter((issue) => !pinnedKeys.has(`${group.id}:${issue.key}`));
 ```
 
-Empty state: a muted `<p>` reading `Nothing pinned.` in `pinnedList`. A failed `listPins()`: a `wd-alert` in `pinnedList` and the form region emptied.
+Empty state: a muted `<p>` reading `Nothing pinned.` in `pinnedList`. A failed `listPins()`: a `that-alert` in `pinnedList` and the form region emptied.
 
 - [ ] **Step 6: Run the spec to verify it passes**
 
@@ -2462,16 +2462,16 @@ git commit -m "feat(web): the Pinned card, rendered from the store alone"
 
 ---
 
-### Task 10: `wd-combobox` and the pin flow
+### Task 10: `that-combobox` and the pin flow
 
 **Files:**
-- Create: `web/src/components/wd-combobox.ts`
+- Create: `web/src/components/that-combobox.ts`
 - Modify: `web/src/views/today.ts`
 - Test: `.claude/e2e/tests/pins.spec.ts`
 
 **Interfaces:**
 - Consumes: `searchIssues`, `createPin` (Task 9).
-- Produces: `<wd-combobox label placeholder>`, emitting three events — `search` (`CustomEvent<string>`, the debounced query), `select` (`CustomEvent<IssueHit>`) and `cancel` (`CustomEvent<void>`) — with the public methods `focusInput(): void`, `setResults(results: IssueHit[], failures: InstanceFailure[]): void`, `setSearching(): void`, `setBusy(busy: boolean): void` and `setDisabledKeys(keys: Set<string>): void`.
+- Produces: `<that-combobox label placeholder>`, emitting three events — `search` (`CustomEvent<string>`, the debounced query), `select` (`CustomEvent<IssueHit>`) and `cancel` (`CustomEvent<void>`) — with the public methods `focusInput(): void`, `setResults(results: IssueHit[], failures: InstanceFailure[]): void`, `setSearching(): void`, `setBusy(busy: boolean): void` and `setDisabledKeys(keys: Set<string>): void`.
 
 - [ ] **Step 1: Write the failing spec**
 
@@ -2653,15 +2653,15 @@ Expected: FAIL — no combobox.
 
 - [ ] **Step 3: Write the component**
 
-Create `web/src/components/wd-combobox.ts`. It owns the input, the listbox and the keyboard; it owns nothing about Jira.
+Create `web/src/components/that-combobox.ts`. It owns the input, the listbox and the keyboard; it owns nothing about Jira.
 
 ```ts
-import "./wd-alert";
+import "./that-alert";
 
 import type { InstanceFailure, IssueHit } from "../types";
 
 /**
- * A searchable select. Light DOM, like every wd-* component.
+ * A searchable select. Light DOM, like every that-* component.
  *
  * It debounces and enforces the two-character floor itself, because each pause
  * costs one Jira call per instance: this is the difference between a search and
@@ -2671,7 +2671,7 @@ import type { InstanceFailure, IssueHit } from "../types";
  * mirrored into aria-activedescendant, which is what makes the pattern work for
  * a screen reader.
  */
-export class WdCombobox extends HTMLElement {
+export class ThatCombobox extends HTMLElement {
   static readonly debounceMs = 350;
   static readonly minQuery = 2;
 
@@ -2693,26 +2693,26 @@ export class WdCombobox extends HTMLElement {
     const label = document.createElement("label");
     label.className = "mb-1 block text-sm font-medium text-ink";
     label.textContent = this.getAttribute("label") ?? "";
-    label.htmlFor = "wd-combobox-input";
+    label.htmlFor = "that-combobox-input";
 
     const wrapper = document.createElement("div");
     wrapper.className = "relative";
 
     this.input = document.createElement("input");
-    this.input.id = "wd-combobox-input";
+    this.input.id = "that-combobox-input";
     this.input.type = "text";
     this.input.autocomplete = "off";
     this.input.role = "combobox";
     this.input.setAttribute("aria-autocomplete", "list");
     this.input.setAttribute("aria-expanded", "false");
-    this.input.setAttribute("aria-controls", "wd-combobox-listbox");
+    this.input.setAttribute("aria-controls", "that-combobox-listbox");
     this.input.placeholder = this.getAttribute("placeholder") ?? "";
     this.input.className =
       "w-full rounded-md border border-edge px-3 py-1.5 text-sm " +
       "focus:border-ink focus:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
     this.listbox = document.createElement("div");
-    this.listbox.id = "wd-combobox-listbox";
+    this.listbox.id = "that-combobox-listbox";
     this.listbox.setAttribute("role", "listbox");
     this.listbox.className =
       "absolute inset-x-0 top-10 z-10 max-h-60 overflow-y-auto rounded-md " +
@@ -2776,7 +2776,7 @@ export class WdCombobox extends HTMLElement {
     window.clearTimeout(this.timer);
     const query = this.input?.value.trim() ?? "";
 
-    if (query.length < WdCombobox.minQuery) {
+    if (query.length < ThatCombobox.minQuery) {
       this.close();
       if (this.hint) this.hint.hidden = false;
       return;
@@ -2786,7 +2786,7 @@ export class WdCombobox extends HTMLElement {
     this.timer = window.setTimeout(() => {
       this.setSearching();
       this.dispatchEvent(new CustomEvent<string>("search", { detail: query }));
-    }, WdCombobox.debounceMs);
+    }, ThatCombobox.debounceMs);
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -2852,7 +2852,7 @@ export class WdCombobox extends HTMLElement {
     // Every instance failed: there is nothing to choose from, so this is an
     // error rather than a footnote under results.
     if (this.results.length === 0 && this.failures.length > 0) {
-      const alert = document.createElement("wd-alert");
+      const alert = document.createElement("that-alert");
       alert.setAttribute("tone", "error");
       alert.setAttribute("message", this.failures[0]?.error.message ?? "The search failed.");
       listbox.append(alert);
@@ -2877,7 +2877,7 @@ export class WdCombobox extends HTMLElement {
     this.results.forEach((hit, index) => {
       const option = document.createElement("button");
       option.type = "button";
-      option.id = `wd-combobox-option-${index}`;
+      option.id = `that-combobox-option-${index}`;
       option.setAttribute("role", "option");
       const pinned = this.disabledKeys.has(`${hit.instanceId}:${hit.key}`);
       option.disabled = pinned;
@@ -2921,21 +2921,21 @@ export class WdCombobox extends HTMLElement {
     listbox.hidden = !open;
     input.setAttribute("aria-expanded", open ? "true" : "false");
     if (open && this.results.length > 0) {
-      input.setAttribute("aria-activedescendant", `wd-combobox-option-${this.active}`);
+      input.setAttribute("aria-activedescendant", `that-combobox-option-${this.active}`);
     } else {
       input.removeAttribute("aria-activedescendant");
     }
   }
 }
 
-customElements.define("wd-combobox", WdCombobox);
+customElements.define("that-combobox", ThatCombobox);
 ```
 
 The `aria-label` the spec queries by comes from the `<label>`'s `for`, so `label` must be set before insertion.
 
 - [ ] **Step 4: Wire the form into `today.ts`**
 
-Add `import "../components/wd-combobox";` to the imports, then replace the collapsed-button-only `pinnedForm` content from Task 9 with these two functions and call `showPinButton(regions)` wherever Task 9 rendered the button:
+Add `import "../components/that-combobox";` to the imports, then replace the collapsed-button-only `pinnedForm` content from Task 9 with these two functions and call `showPinButton(regions)` wherever Task 9 rendered the button:
 
 ```ts
 function showPinButton(regions: Regions): void {
@@ -2948,7 +2948,7 @@ function showPinButton(regions: Regions): void {
 }
 
 function showPinForm(regions: Regions): void {
-  const combobox = document.createElement("wd-combobox") as WdCombobox;
+  const combobox = document.createElement("that-combobox") as ThatCombobox;
   combobox.setAttribute("label", "Find an issue");
   combobox.setAttribute("placeholder", "Search by key or title");
 
@@ -3023,9 +3023,9 @@ function pinnedKeysOf(regions: Regions): Set<string> {
 }
 ```
 
-`currentPins(regions)` is the accessor Task 9 introduced for the last `listPins()` result; if Task 9 stored the pins directly on `Regions`, read them from there instead of adding a second accessor. Import `WdCombobox` as a type from `../components/wd-combobox`, and `IssueHit` from `../types`.
+`currentPins(regions)` is the accessor Task 9 introduced for the last `listPins()` result; if Task 9 stored the pins directly on `Regions`, read them from there instead of adding a second accessor. Import `ThatCombobox` as a type from `../components/that-combobox`, and `IssueHit` from `../types`.
 
-`refreshPins` must call `combobox.setDisabledKeys(...)` when a form is open — simplest is for `refreshPins` to end by calling `pinnedKeysOf` and pushing it into any `wd-combobox` currently inside `regions.pinnedForm`.
+`refreshPins` must call `combobox.setDisabledKeys(...)` when a form is open — simplest is for `refreshPins` to end by calling `pinnedKeysOf` and pushing it into any `that-combobox` currently inside `regions.pinnedForm`.
 
 - [ ] **Step 5: Run the specs to verify they pass**
 
@@ -3038,7 +3038,7 @@ Expected: PASS on both Firefox and Chromium.
 - [ ] **Step 6: Commit**
 
 ```shell
-git add web/src/components/wd-combobox.ts web/src/views/today.ts .claude/e2e/tests/pins.spec.ts
+git add web/src/components/that-combobox.ts web/src/views/today.ts .claude/e2e/tests/pins.spec.ts
 git commit -m "feat(web): pin by searching every instance at once"
 ```
 
@@ -3122,7 +3122,7 @@ Wire `pinRow`'s `onUnpin`. No confirmation dialog: `time_entries` have no foreig
 
 ```ts
 function unpin(regions: Regions, pin: Pin, row: HTMLElement): void {
-  const control = row.querySelector("wd-button");
+  const control = row.querySelector("that-button");
   control?.setAttribute("disabled", "");
 
   void deletePin(pin.id)
@@ -3196,7 +3196,7 @@ git commit -m "feat(web): unpin, and one Refresh for both lists"
 3. **`make verify` and `make test-e2e`**, both green, output pasted.
 4. **Open the pull request.** #5 merged as PR #38 on 2026-08-20 and this branch is rebased onto
    `main`, so there is nothing left to stack on — it is an ordinary pull request against `main`.
-   Its body references `Closes #6`. **No label move follows**: `status:review` was deleted on
+   Its body references `Closes #6`. **No label move follows**: `status/review` was deleted on
    2026-08-20, and the open pull request *is* the review state.
 
 5. **Update the handoff** — `docs/superpowers/plans/2026-08-12-handoff.md` — with #6's state and anything a later session should not have to rediscover. Do not push it separately; it rides the end-of-day batch.

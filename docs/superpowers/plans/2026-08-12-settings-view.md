@@ -6,13 +6,13 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-**Goal:** Ship [#4](https://github.com/dgerrese/work-dashboard/issues/4) — the Settings view, where Jira instances are added, edited, removed and credential-tested, backed by an instance record that finally distinguishes the site URL from the API base.
+**Goal:** Ship [#4](https://codeberg.org/DionGerrese/ThatApp/issues/4) — the Settings view, where Jira instances are added, edited, removed and credential-tested, backed by an instance record that finally distinguishes the site URL from the API base.
 
-**Architecture:** `instances` grows `site_url` and `api_base_url`, both nullable, split by migration. A new `internal/atlassian` package owns cloud-id resolution and the gateway URL template, so `internal/jira` never derives one URL from the other. `internal/server` gains a per-instance client factory that unseals the token, resolves a missing API base on demand, and builds a `jira.Client`. The frontend gains its real shell — router, typed API layer, three `wd-*` components and the Settings view.
+**Architecture:** `instances` grows `site_url` and `api_base_url`, both nullable, split by migration. A new `internal/atlassian` package owns cloud-id resolution and the gateway URL template, so `internal/jira` never derives one URL from the other. `internal/server` gains a per-instance client factory that unseals the token, resolves a missing API base on demand, and builds a `jira.Client`. The frontend gains its real shell — router, typed API layer, three `that-*` components and the Settings view.
 
 **Tech Stack:** Go standard library + `modernc.org/sqlite`; vanilla TypeScript bundled by esbuild; Tailwind CSS v4; Playwright.
 
-**Design of record:** [`../specs/2026-08-12-settings-view-design.md`](../specs/2026-08-12-settings-view-design.md), which elaborates [`../specs/2026-08-04-work-dashboard-design.md`](../specs/2026-08-04-work-dashboard-design.md).
+**Design of record:** [`../specs/2026-08-12-settings-view-design.md`](../specs/2026-08-12-settings-view-design.md), which elaborates [`../specs/2026-08-04-thatapp-design.md`](../specs/2026-08-04-thatapp-design.md).
 
 ## Global Constraints
 
@@ -21,7 +21,7 @@ Every task's requirements implicitly include this section.
 - **Everything runs in Docker.** There is no Go, Node or npm on the host. Never run them bare.
 - **No JavaScript frameworks.** Vanilla JS only; TypeScript for typing.
 - **Tailwind CSS v4**, CSS-first. No `tailwind.config.js`; theme values live in `@theme` in `web/src/styles.css`.
-- **Reusable UI is a native WebComponent** registered as `wd-*`, **light DOM, never shadow DOM**.
+- **Reusable UI is a native WebComponent** registered as `that-*`, **light DOM, never shadow DOM**.
 - **Keep the initial HTTP response under 14kB.** Views load through dynamic `import()`.
 - **Browser support is Firefox and Chromium.** Safari and WebKit are an explicit non-goal — never add WebKit to the Playwright matrix.
 - **No test ever contacts a real Jira instance.** Use `httptest.Server` in Go and `page.route` in Playwright.
@@ -32,7 +32,7 @@ Every task's requirements implicitly include this section.
 - **The test code blocks below omit their `import` blocks.** Wherever a pasted test calls `context.Background()`, add `"context"` to that file's imports; likewise `"database/sql"`, `"errors"`, `"strconv"` and any other package the pasted code uses. This bit Tasks 1 and 2 — it is transcription friction, not a design question, so just add the import and carry on.
 - **Comments are rare and earn their place** — a non-obvious "why", a workaround, a subtle invariant. Never narrate the next line.
 - **Naming:** a function's name must let a reader predict what it returns. Bare verbs (`process`, `handle`, `build`) fail that test.
-- **Adding a `WD_*` variable is a public API change.** This ticket adds none.
+- **Adding a `THAT_*` variable is a public API change.** This ticket adds none.
 
 **Verification commands** (all run through Compose; never bare):
 
@@ -1351,7 +1351,7 @@ func main() {
 
 	srv := server.New(cfg, web.Assets(), db, sealer)
 
-	log.Printf("work-dashboard listening on %s (%s)", cfg.Addr, cfg.Location)
+	log.Printf("thatapp listening on %s (%s)", cfg.Addr, cfg.Location)
 	if err := http.ListenAndServe(cfg.Addr, srv); err != nil {
 		log.Fatalf("server: %v", err)
 	}
@@ -1411,8 +1411,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/atlassian"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/atlassian"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // tenantInfoServer stands in for a Jira site's unauthenticated tenant-info
@@ -1555,10 +1555,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/dgerrese/work-dashboard/internal/atlassian"
-	"github.com/dgerrese/work-dashboard/internal/crypto"
-	"github.com/dgerrese/work-dashboard/internal/jira"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/atlassian"
+	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // instanceClients builds a Jira client for a stored instance: unseal the token,
@@ -1719,7 +1719,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // jiraSiteServer stands in for a whole Jira site: the unauthenticated
@@ -1971,9 +1971,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/atlassian"
-	"github.com/dgerrese/work-dashboard/internal/jira"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/atlassian"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // instanceDTO is the response shape. It is written out rather than reusing
@@ -2292,7 +2292,7 @@ func TestDeleteInstanceWorksWithJiraUnreachable(t *testing.T) {
 
 **Where the cascade is covered:** in `internal/store`, by `TestDeleteInstanceCascadesToChildren` in Task 1. It belongs there because a child row must be inserted directly and `Store.db` is unexported — a test in package `server` cannot reach it, and `internal/store` has no `CreateTimeEntry` until #7. The handler test above asserts only what the handler itself adds.
 
-Imports to add to `instances_test.go`: `"strconv"` and `"github.com/dgerrese/work-dashboard/internal/crypto"`.
+Imports to add to `instances_test.go`: `"strconv"` and `"codeberg.org/DionGerrese/ThatApp/internal/crypto"`.
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -2980,7 +2980,7 @@ Replace the `<main>` block in `web/index.html`:
 ```html
     <main class="mx-auto max-w-3xl p-6">
       <header class="mb-6 flex items-baseline justify-between">
-        <h1 class="text-2xl font-semibold">Work Dashboard</h1>
+        <h1 class="text-2xl font-semibold">ThatApp</h1>
         <nav>
           <a
             href="/settings"
@@ -3017,31 +3017,31 @@ so the shell was promising routing that did not exist."
 
 ---
 
-### Task 11: The `wd-*` components
+### Task 11: The `that-*` components
 
 **Files:**
-- Create: `web/src/components/wd-card.ts`
-- Create: `web/src/components/wd-button.ts`
-- Create: `web/src/components/wd-alert.ts`
+- Create: `web/src/components/that-card.ts`
+- Create: `web/src/components/that-button.ts`
+- Create: `web/src/components/that-alert.ts`
 
 **Interfaces:**
 - Produces three custom elements, all light DOM:
-  - `<wd-card>` — a titled container. Attribute: `heading`.
-  - `<wd-button>` — attributes `variant` (`primary` | `secondary` | `danger`), `disabled`. Emits ordinary click events.
-  - `<wd-alert>` — attributes `tone` (`success` | `error` | `warning`), `message`.
+  - `<that-card>` — a titled container. Attribute: `heading`.
+  - `<that-button>` — attributes `variant` (`primary` | `secondary` | `danger`), `disabled`. Emits ordinary click events.
+  - `<that-alert>` — attributes `tone` (`success` | `error` | `warning`), `message`.
 
 **Light DOM, never shadow DOM.** A shadow root stops Tailwind's utility classes reaching component internals, which would force per-component style duplication.
 
 - [ ] **Step 1: Write the card**
 
-Create `web/src/components/wd-card.ts`:
+Create `web/src/components/that-card.ts`:
 
 ```ts
 /**
  * A titled container. Light DOM: children stay in the document, so Tailwind
  * utilities on them keep working and the card adds only its own wrapper classes.
  */
-export class WdCard extends HTMLElement {
+export class ThatCard extends HTMLElement {
   connectedCallback(): void {
     this.className = "block rounded-lg border border-neutral-200 bg-white p-4 shadow-sm";
 
@@ -3056,12 +3056,12 @@ export class WdCard extends HTMLElement {
   }
 }
 
-customElements.define("wd-card", WdCard);
+customElements.define("that-card", ThatCard);
 ```
 
 - [ ] **Step 2: Write the button**
 
-Create `web/src/components/wd-button.ts`:
+Create `web/src/components/that-button.ts`:
 
 ```ts
 const VARIANTS: Record<string, string> = {
@@ -3075,7 +3075,7 @@ const VARIANTS: Record<string, string> = {
  * keyboard activation, form participation and the disabled state come from the
  * platform instead of being reimplemented.
  */
-export class WdButton extends HTMLElement {
+export class ThatButton extends HTMLElement {
   static get observedAttributes(): string[] {
     return ["variant", "disabled", "label"];
   }
@@ -3111,12 +3111,12 @@ export class WdButton extends HTMLElement {
   }
 }
 
-customElements.define("wd-button", WdButton);
+customElements.define("that-button", ThatButton);
 ```
 
 - [ ] **Step 3: Write the alert**
 
-Create `web/src/components/wd-alert.ts`:
+Create `web/src/components/that-alert.ts`:
 
 ```ts
 const TONES: Record<string, string> = {
@@ -3130,7 +3130,7 @@ const TONES: Record<string, string> = {
  * of something the user just did, so they should not interrupt a screen reader
  * mid-sentence.
  */
-export class WdAlert extends HTMLElement {
+export class ThatAlert extends HTMLElement {
   static get observedAttributes(): string[] {
     return ["tone", "message"];
   }
@@ -3151,7 +3151,7 @@ export class WdAlert extends HTMLElement {
   }
 }
 
-customElements.define("wd-alert", WdAlert);
+customElements.define("that-alert", ThatAlert);
 ```
 
 - [ ] **Step 4: Type-check and lint**
@@ -3168,7 +3168,7 @@ Expected: clean. `noUncheckedIndexedAccess` is why every `VARIANTS[...]` lookup 
 
 ```bash
 git add web/src/components
-git commit -m "feat(web): add the wd-card, wd-button and wd-alert components
+git commit -m "feat(web): add the that-card, that-button and that-alert components
 
 Light DOM throughout: a shadow root would stop Tailwind utilities
 reaching component internals."
@@ -3197,9 +3197,9 @@ reaching component internals."
 Create `web/src/views/settings.ts`:
 
 ```ts
-import "../components/wd-alert";
-import "../components/wd-button";
-import "../components/wd-card";
+import "../components/that-alert";
+import "../components/that-button";
+import "../components/that-card";
 
 import { ApiError, createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
 import type { Instance } from "../types";
@@ -3227,7 +3227,7 @@ async function refresh(container: HTMLElement): Promise<void> {
 }
 
 function instanceList(container: HTMLElement, instances: Instance[]): HTMLElement {
-  const card = document.createElement("wd-card");
+  const card = document.createElement("that-card");
   card.setAttribute("heading", "Jira instances");
 
   if (instances.length === 0) {
@@ -3336,7 +3336,7 @@ async function removeInstance(
 }
 
 function instanceForm(container: HTMLElement, editing: Instance | undefined): HTMLElement {
-  const card = document.createElement("wd-card");
+  const card = document.createElement("that-card");
   card.setAttribute("heading", editing ? `Edit ${editing.name}` : "Add an instance");
 
   const form = document.createElement("form");
@@ -3363,7 +3363,7 @@ function instanceForm(container: HTMLElement, editing: Instance | undefined): HT
     event.preventDefault();
     void save();
   });
-  // wd-button renders a real <button type="button">, so it does not submit the
+  // that-button renders a real <button type="button">, so it does not submit the
   // form on its own.
   submit.addEventListener("click", () => {
     void save();
@@ -3423,7 +3423,7 @@ function field(name: string, label: string, type: string, value: string): Field 
 }
 
 function button(label: string, variant: string): HTMLElement {
-  const element = document.createElement("wd-button");
+  const element = document.createElement("that-button");
   element.setAttribute("label", label);
   element.setAttribute("variant", variant);
 
@@ -3431,7 +3431,7 @@ function button(label: string, variant: string): HTMLElement {
 }
 
 function alertFor(tone: string, message: string): HTMLElement {
-  const alert = document.createElement("wd-alert");
+  const alert = document.createElement("that-alert");
   alert.setAttribute("tone", tone);
   alert.setAttribute("message", message);
 
@@ -3650,15 +3650,15 @@ the server has its own httptest coverage."
 1. **Whole-branch review.** `superpowers:requesting-code-review` across the entire diff, not per task. Ticket 1's seven task reviews all passed while the branch still shipped a Critical defect that only a cross-task read could see.
 2. **Both gates green, output pasted.** `make verify` and `make test-e2e`.
 3. **`superpowers:finishing-a-development-branch`** — push and open the pull request with `Closes #4`.
-4. **Move the ticket to `status:review`** in the same breath:
+4. **Move the ticket to `status/review`** in the same breath:
    ```shell
-   gh issue edit 4 --remove-label status:ready --add-label status:review
+   gh issue edit 4 --remove-label status/ready --add-label status/review
    ```
 5. **Stop.** Review → done is the owner's move alone, and no amount of green changes that.
 
 ## Blockers
 
-Any of these is a hard stop under the `ticket-workflow` skill — move #4 to `status:blocked`, say what happened, and stop. Do not lower a threshold, skip a test, or reshape the scope to get past one.
+Any of these is a hard stop under the `ticket-workflow` skill — move #4 to `status/blocked`, say what happened, and stop. Do not lower a threshold, skip a test, or reshape the scope to get past one.
 
 - A dependency outside `modernc.org/sqlite` and `golang.org/x/sync` appears necessary.
 - `tsconfig.json` would have to be weakened, or `any` / a non-null assertion used, to type something.

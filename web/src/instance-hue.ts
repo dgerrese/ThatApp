@@ -27,7 +27,7 @@ export function instanceHue(position: number): number {
  * monochrome screen and a colour deficiency both.
  */
 export function paintInstanceDot(element: HTMLElement, position: number, name: string): void {
-  element.classList.add("wd-dot");
+  element.classList.add("that-dot");
   element.style.setProperty("--h", String(instanceHue(position)));
   element.title = name;
   element.setAttribute("role", "img");

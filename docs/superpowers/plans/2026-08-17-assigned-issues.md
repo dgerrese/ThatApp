@@ -4,7 +4,7 @@
 
 **Goal:** `GET /api/issues` fans out to every configured Jira instance concurrently, and a Today view at `/today` renders each instance's assigned issues in its own card.
 
-**Architecture:** A new `internal/server/issues.go` loads the stored instances, then fetches each one's assigned issues in its own goroutine under `errgroup`, writing into a preallocated slot so the response order is the store's order. Every goroutine returns `nil` — a per-instance failure becomes an `error` field on that instance's group rather than a failed request. The frontend adds a `wd-ticket-row` component and a `today.ts` view that renders one `wd-card` per instance, and the router gains a redirect so `/` lands on `/today`.
+**Architecture:** A new `internal/server/issues.go` loads the stored instances, then fetches each one's assigned issues in its own goroutine under `errgroup`, writing into a preallocated slot so the response order is the store's order. Every goroutine returns `nil` — a per-instance failure becomes an `error` field on that instance's group rather than a failed request. The frontend adds a `that-ticket-row` component and a `today.ts` view that renders one `that-card` per instance, and the router gains a redirect so `/` lands on `/today`.
 
 **Tech Stack:** Go 1.26 standard library plus `golang.org/x/sync/errgroup`; `modernc.org/sqlite` through the existing store; vanilla TypeScript with native WebComponents in light DOM; Tailwind CSS v4 semantic tokens; Playwright for the browser suite. Everything runs in Docker.
 
@@ -15,7 +15,7 @@
 - **Everything runs in Docker.** There is no Go, Node or npm on the host. Never run them bare.
 - **No JavaScript frameworks.** Vanilla TS only.
 - **Tailwind v4, semantic tokens only.** Use `bg-surface`, `bg-raised`, `text-ink`, `text-ink-muted`, `text-link`, `border-edge`, `divide-edge`, and the tone families (`border-danger-edge`, `bg-danger-tint`, `text-danger-ink`, …). **A stock colour utility — `bg-white`, `text-gray-700`, `text-red-600` — or a `dark:` variant is a regression** against #30's criterion.
-- **WebComponents use light DOM, never shadow DOM.** Register as `wd-*`.
+- **WebComponents use light DOM, never shadow DOM.** Register as `that-*`.
 - **`index.html` stays under 14kB.** It is 1314 bytes; this plan adds one nav link.
 - **TypeScript is `strict` with `noUncheckedIndexedAccess`.** No `any`, no `as any`, no non-null assertion (`!`) to get past a type error.
 - **Go: standard library first.** The only permitted non-stdlib additions are `modernc.org/sqlite` and `golang.org/x/sync`. Wrap errors with `%w` and context about what was attempted. Table-driven tests with `t.Run` where there are cases to table; `httptest` rather than real network.
@@ -36,7 +36,7 @@
 | `go.mod`, `go.sum` *(modify)* | Add `golang.org/x/sync`. |
 | `web/src/types.ts` *(modify)* | `Issue`, `InstanceIssues`, `IssuesResponse`. |
 | `web/src/api.ts` *(modify)* | `listIssues()`. |
-| `web/src/components/wd-ticket-row.ts` *(create)* | One issue row: key, summary, status, and the Jira link when there is one. |
+| `web/src/components/that-ticket-row.ts` *(create)* | One issue row: key, summary, status, and the Jira link when there is one. |
 | `web/src/views/today.ts` *(create)* | The view: header with Refresh, one card per instance, four view states. |
 | `web/src/router.ts` *(modify)* | The `/today` route, the `/` redirect, and the reworded unknown-path fallback. |
 | `web/index.html` *(modify)* | A Today link in the shell nav. |
@@ -86,7 +86,7 @@ Expected: `go.mod` gains `require golang.org/x/sync v0.22.0` and `go.sum` gains 
 
 **Do not run `go mod tidy` yet.** Nothing imports the package until Step 5, and `tidy` removes a module no file imports — it would delete the requirement you just added and leave you debugging a missing import. Step 7 runs it, after `issues.go` exists.
 
-If the `go get` fails with a network error, that is a **blocker**: stop, move the ticket to `status:blocked` and report it. Do not vendor the package by hand and do not hand-roll the fan-out with `sync.WaitGroup` to avoid the dependency — the acceptance criterion names `errgroup`.
+If the `go get` fails with a network error, that is a **blocker**: stop, move the ticket to `status/blocked` and report it. Do not vendor the package by hand and do not hand-roll the fan-out with `sync.WaitGroup` to avoid the dependency — the acceptance criterion names `errgroup`.
 
 - [ ] **Step 2: Split the instance error mapping**
 
@@ -143,8 +143,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/crypto"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // jiraSearchServer stands in for one Jira site's search endpoint. keyPrefix
@@ -384,7 +384,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // issueFetchTimeout bounds one instance's fetch. jira.Client allows itself 30s
@@ -566,7 +566,7 @@ EOF
 ### Task 2: The Today view at `/today`
 
 **Files:**
-- Create: `web/src/components/wd-ticket-row.ts`
+- Create: `web/src/components/that-ticket-row.ts`
 - Create: `web/src/views/today.ts`
 - Create: `.claude/e2e/tests/today.spec.ts`
 - Modify: `web/src/types.ts` (append)
@@ -574,14 +574,14 @@ EOF
 - Modify: `web/src/router.ts:10-12` (add the route)
 
 **Interfaces:**
-- Consumes: `GET /api/issues` from Task 1, exactly as its shape is written there; `request<T>` and `ApiError` from `api.ts`; `ApiErrorBody` from `types.ts`; the `wd-card` (attribute `heading`), `wd-button` (attributes `label`, `variant`, `disabled`) and `wd-alert` (attributes `tone`, `message`) components.
-- Produces: `render(root: HTMLElement): Promise<void>` from `views/today.ts`, the shape `router.ts` requires; `listIssues(): Promise<IssuesResponse>`; the `wd-ticket-row` element with attributes `key`, `summary`, `status`, `url`; the types `Issue`, `InstanceIssues`, `IssuesResponse`. Task 3 consumes the route registration and nothing else from this task.
+- Consumes: `GET /api/issues` from Task 1, exactly as its shape is written there; `request<T>` and `ApiError` from `api.ts`; `ApiErrorBody` from `types.ts`; the `that-card` (attribute `heading`), `that-button` (attributes `label`, `variant`, `disabled`) and `that-alert` (attributes `tone`, `message`) components.
+- Produces: `render(root: HTMLElement): Promise<void>` from `views/today.ts`, the shape `router.ts` requires; `listIssues(): Promise<IssuesResponse>`; the `that-ticket-row` element with attributes `key`, `summary`, `status`, `url`; the types `Issue`, `InstanceIssues`, `IssuesResponse`. Task 3 consumes the route registration and nothing else from this task.
 
 - [ ] **Step 1: Write the failing spec**
 
 Create `.claude/e2e/tests/today.spec.ts`.
 
-**Read this before writing the stub.** `make test-e2e` runs the `app` service against the `wd-data` volume — the developer's dev database, which holds real Jira instances with real sealed tokens. A spec that renders Today **without** stubbing `/api/issues` makes the server fan out to a real Jira site, which breaks `CLAUDE.md`'s "no test ever contacts a real Jira instance" and makes the spec slow and flaky. Every test that reaches Today stubs `/api/issues`. No exceptions.
+**Read this before writing the stub.** `make test-e2e` runs the `app` service against the `that-data` volume — the developer's dev database, which holds real Jira instances with real sealed tokens. A spec that renders Today **without** stubbing `/api/issues` makes the server fan out to a real Jira site, which breaks `CLAUDE.md`'s "no test ever contacts a real Jira instance" and makes the spec slow and flaky. Every test that reaches Today stubs `/api/issues`. No exceptions.
 
 ```ts
 import { expect, test, type Page } from "@playwright/test";
@@ -779,7 +779,7 @@ export function listIssues(): Promise<IssuesResponse> {
 
 - [ ] **Step 5: Write the row component**
 
-Create `web/src/components/wd-ticket-row.ts`:
+Create `web/src/components/that-ticket-row.ts`:
 
 ```ts
 /**
@@ -787,10 +787,10 @@ Create `web/src/components/wd-ticket-row.ts`:
  * append a timer and a duration field to it without a slot.
  *
  * Its own content lives in a wrapper the component owns and re-renders, rather
- * than in the host's children — the same shape wd-button uses — so that anything
+ * than in the host's children — the same shape that-button uses — so that anything
  * a later ticket appends survives an attribute change.
  */
-export class WdTicketRow extends HTMLElement {
+export class ThatTicketRow extends HTMLElement {
   static get observedAttributes(): string[] {
     return ["key", "summary", "status", "url"];
   }
@@ -867,7 +867,7 @@ export class WdTicketRow extends HTMLElement {
   }
 }
 
-customElements.define("wd-ticket-row", WdTicketRow);
+customElements.define("that-ticket-row", ThatTicketRow);
 ```
 
 - [ ] **Step 6: Write the view**
@@ -875,10 +875,10 @@ customElements.define("wd-ticket-row", WdTicketRow);
 Create `web/src/views/today.ts`:
 
 ```ts
-import "../components/wd-alert";
-import "../components/wd-button";
-import "../components/wd-card";
-import "../components/wd-ticket-row";
+import "../components/that-alert";
+import "../components/that-button";
+import "../components/that-card";
+import "../components/that-ticket-row";
 
 import { ApiError, listIssues } from "../api";
 import type { InstanceIssues, IssuesResponse } from "../types";
@@ -954,8 +954,8 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
 }
 
 function instanceCard(group: InstanceIssues): HTMLElement {
-  const card = document.createElement("wd-card");
-  // wd-card has no observedAttributes, so the heading must be set before the
+  const card = document.createElement("that-card");
+  // that-card has no observedAttributes, so the heading must be set before the
   // element is inserted; changing it afterwards silently does nothing.
   card.setAttribute("heading", group.name);
 
@@ -978,7 +978,7 @@ function instanceCard(group: InstanceIssues): HTMLElement {
   list.className = "divide-y divide-edge";
   for (const issue of group.issues) {
     const item = document.createElement("li");
-    const row = document.createElement("wd-ticket-row");
+    const row = document.createElement("that-ticket-row");
     row.setAttribute("key", issue.key);
     row.setAttribute("summary", issue.summary);
     row.setAttribute("status", issue.status);
@@ -1024,7 +1024,7 @@ function noInstances(): HTMLElement {
 // functions. Extract once #29 has merged.
 
 function button(label: string, variant: string): HTMLElement {
-  const element = document.createElement("wd-button");
+  const element = document.createElement("that-button");
   // label is the sole source of the inner button's accessible name; without it
   // role-based queries cannot find the button at all.
   element.setAttribute("label", label);
@@ -1034,7 +1034,7 @@ function button(label: string, variant: string): HTMLElement {
 }
 
 function alertFor(tone: string, message: string): HTMLElement {
-  const alert = document.createElement("wd-alert");
+  const alert = document.createElement("that-alert");
   alert.setAttribute("tone", tone);
   alert.setAttribute("message", message);
 
@@ -1099,7 +1099,7 @@ git diff --stat
 Expected: only the files this task touched. Then:
 
 ```shell
-git add web/src/components/wd-ticket-row.ts web/src/views/today.ts web/src/types.ts \
+git add web/src/components/that-ticket-row.ts web/src/views/today.ts web/src/types.ts \
   web/src/api.ts web/src/router.ts .claude/e2e/tests/today.spec.ts
 git commit -m "$(cat <<'EOF'
 feat(web): the Today view, one card per instance
@@ -1108,7 +1108,7 @@ A card per instance rather than one merged list, so an instance's failure
 renders where its issues would have been, and jira.Issue needs no updated
 field to sort a merged list by.
 
-wd-ticket-row renders into a wrapper it owns rather than into the host's
+that-ticket-row renders into a wrapper it owns rather than into the host's
 children, so the timer and duration field #7 and #8 append survive an
 attribute change.
 EOF
@@ -1296,8 +1296,8 @@ test("the app shell boots and the bundle runs", async ({ page }) => {
 
   await page.goto("/");
 
-  await expect(page).toHaveTitle("Work Dashboard");
-  await expect(page.getByRole("heading", { name: "Work Dashboard" })).toBeVisible();
+  await expect(page).toHaveTitle("ThatApp");
+  await expect(page.getByRole("heading", { name: "ThatApp" })).toBeVisible();
 
   // The shell ships an empty #view. Seeing Today's empty state proves the bundle
   // parsed, "/" redirected, and the dynamic import() of a view resolved.
@@ -1328,7 +1328,7 @@ test("settings is reachable from the shell nav", async ({ page }) => {
 });
 ```
 
-**Both `exact: true` locators in that file stay.** They are load-bearing for two independent reasons — `getByText("Work")` collides with the shell's `<h1>Work Dashboard</h1>`, and the Settings link collides with an "Open Settings" link that Today's empty state still provides. Do not tidy either away.
+**Both `exact: true` locators in that file stay.** They are load-bearing for two independent reasons — `getByText("Work")` collides with the shell's `<h1>ThatApp</h1>`, and the Settings link collides with an "Open Settings" link that Today's empty state still provides. Do not tidy either away.
 
 - [ ] **Step 7: Run the spec, then the whole suite**
 
@@ -1384,7 +1384,7 @@ EOF
 
 ## Self-review against the spec
 
-**Spec coverage.** Every section maps to a task: the response envelope, the shared error mapping, the fan-out, the per-instance timeout and `errgroup`'s deliberate non-use of error propagation are Task 1; `types.ts`, `api.ts`, `wd-ticket-row`, `today.ts` and the four view states are Task 2; the redirect, the reworded fallback and the nav link are Task 3. Both test sections are covered, Go in Task 1 Step 3 and Playwright across Tasks 2 and 3.
+**Spec coverage.** Every section maps to a task: the response envelope, the shared error mapping, the fan-out, the per-instance timeout and `errgroup`'s deliberate non-use of error propagation are Task 1; `types.ts`, `api.ts`, `that-ticket-row`, `today.ts` and the four view states are Task 2; the redirect, the reworded fallback and the nav link are Task 3. Both test sections are covered, Go in Task 1 Step 3 and Playwright across Tasks 2 and 3.
 
 **One thing the spec did not foresee**, found while planning and handled in Task 3 Step 6: five existing tests navigate to `/`, and because `make test-e2e` runs the app against the dev database, an unstubbed Today would fan out to real Jira instances — breaking `CLAUDE.md`'s rule that no test ever contacts one. The plan stubs `/api/issues` in every spec that reaches Today. **The deeper fix is a disposable database for the e2e profile**, which is a rig change worth its own intake ticket rather than a silent widening of this one.
 

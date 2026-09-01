@@ -10,7 +10,7 @@ import (
 )
 
 // KeySize is the AES-256 key length callers must supply. config validates
-// WD_SECRET_KEY to this length at boot.
+// THAT_SECRET_KEY to this length at boot.
 const KeySize = 32
 
 // Sealer encrypts and decrypts tokens with AES-GCM under one key.

@@ -8,14 +8,14 @@
  * spend the 14kB budget on a view nobody has opened yet — the same reasoning
  * entries-changed.ts documents for the dialog.
  *
- * `wd-`, per the same prefixing rule: every custom event this app raises is
+ * `that-`, per the same prefixing rule: every custom event this app raises is
  * prefixed, so it cannot collide with a native one in light DOM.
  */
 // A type-only import, erased at compile time — nothing of Today reaches the
 // shell bundle through this file.
 import type { PushResponse } from "./types";
 
-const PUSH_REPORTED = "wd-push-reported";
+const PUSH_REPORTED = "that-push-reported";
 
 /**
  * Fired on `document`, not bubbled: the rail that triggers a push is a sibling

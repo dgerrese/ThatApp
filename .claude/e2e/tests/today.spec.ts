@@ -36,7 +36,7 @@ async function stubIssues(page: Page, ...responses: StubGroup[][]): Promise<void
 // Today now fetches /api/pins on every render too (#6's Task 9). This suite is
 // not about pins, so every test gets an empty answer here rather than each one
 // stubbing it, or — worse — relying on the dev store actually having none: a
-// stray pin would add a wd-ticket-row and a wd-card ul the geometry and count
+// stray pin would add a that-ticket-row and a that-card ul the geometry and count
 // assertions below never budgeted for.
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
@@ -69,7 +69,7 @@ test("both instances' issues render under their own headings", async ({ page }) 
   await stubIssues(page, [group(1, "Work", [workIssue]), group(2, "Personal", [personalIssue])]);
   await page.goto("/today");
 
-  // exact: true — the app shell's permanent <h1>Work Dashboard</h1> is a
+  // exact: true — the app shell's permanent <h1>ThatApp</h1> is a
   // substring match for "Work" under Playwright's default name matching.
   await expect(page.getByRole("heading", { name: "Work", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Personal" })).toBeVisible();
@@ -242,11 +242,11 @@ test("a long summary truncates instead of pushing the status out of the card", a
   ]);
   await page.goto("/today");
 
-  const row = page.locator("wd-ticket-row").first();
+  const row = page.locator("that-ticket-row").first();
   await expect(row).toBeVisible();
 
   const overflow = await row.evaluate((element) => {
-    const card = element.closest("wd-card") as HTMLElement;
+    const card = element.closest("that-card") as HTMLElement;
     const inner =
       card.getBoundingClientRect().right - parseFloat(getComputedStyle(card).paddingRight);
     const status = element.querySelector("span:last-child") as HTMLElement;
@@ -321,11 +321,11 @@ test("summaries line up down the card whatever the key's length", async ({ page 
     ]),
   ]);
   await page.goto("/today");
-  await expect(page.locator("wd-ticket-row")).toHaveCount(3);
+  await expect(page.locator("that-ticket-row")).toHaveCount(3);
 
-  const lefts = await page.locator("wd-ticket-row").evaluateAll((rows) =>
+  const lefts = await page.locator("that-ticket-row").evaluateAll((rows) =>
     rows.map((row) => {
-      const key = row.querySelector(".wd-key") as HTMLElement;
+      const key = row.querySelector(".that-key") as HTMLElement;
 
       return Math.round((key.nextElementSibling as HTMLElement).getBoundingClientRect().left);
     }),
@@ -365,12 +365,12 @@ test("each instance's list sizes its own key column", async ({ page }) => {
     ]),
   ]);
   await page.goto("/today");
-  await expect(page.locator("wd-ticket-row")).toHaveCount(4);
+  await expect(page.locator("that-ticket-row")).toHaveCount(4);
 
   const columns = await page
-    .locator("wd-card ul")
+    .locator("that-card ul")
     .evaluateAll((lists) =>
-      lists.map((list) => parseFloat((list as HTMLElement).style.getPropertyValue("--wd-key-col"))),
+      lists.map((list) => parseFloat((list as HTMLElement).style.getPropertyValue("--that-key-col"))),
     );
 
   expect(columns).toHaveLength(2);

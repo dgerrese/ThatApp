@@ -1,12 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // The rig runs inside Compose and reaches the app over the service network, so
-// it behaves identically here and in CI and does not depend on WD_PORT. This
-// uses the wd-app alias, not the app service name: "app" is a real gTLD on
+// it behaves identically here and in CI and does not depend on THAT_PORT. This
+// uses the that-app alias, not the app service name: "app" is a real gTLD on
 // Chromium and Firefox's built-in HSTS preload list, so a browser silently
 // upgrades http://app to https and breaks navigation to the plain-HTTP dev
 // server. See the `app` service's network alias in docker-compose.yml.
-const baseURL = process.env.WD_BASE_URL ?? "http://wd-app:8080";
+const baseURL = process.env.THAT_BASE_URL ?? "http://that-app:8080";
 
 // The service worker (#12) only registers in a secure context, and plain
 // http:// on a Compose service alias is not one — browsers special-case only

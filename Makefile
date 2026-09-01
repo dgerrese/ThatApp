@@ -3,8 +3,8 @@
 # The dev containers run as this user so the SQLite database under ./data, and
 # anything written into the bind-mounted tree, belong to whoever runs `make`
 # rather than to root. Exported, so every recipe's compose call sees them.
-export WD_UID := $(shell id -u)
-export WD_GID := $(shell id -g)
+export THAT_UID := $(shell id -u)
+export THAT_GID := $(shell id -g)
 
 COMPOSE := docker compose
 # --build, for the same reason test-e2e uses it: `run` reuses a cached image, so

@@ -9,7 +9,7 @@
 **Tech Stack:** Go 1.26, `net/http` stdlib only; TypeScript + esbuild; Tailwind CSS v4 via `@tailwindcss/cli`; golangci-lint 2.12; ESLint 9 flat config; Prettier; Docker Compose; GitHub Actions.
 
 This plan implements **ticket 1** of the sequence in
-`docs/superpowers/specs/2026-08-04-work-dashboard-design.md`. Tickets 2–13 get their own tickets
+`docs/superpowers/specs/2026-08-04-thatapp-design.md`. Tickets 2–13 get their own tickets
 written by the project-manager agent as they are picked up.
 
 > **Historical note, 2026-08-07.** Ticket 1 shipped from this plan and it is kept as the record of
@@ -64,12 +64,12 @@ import (
 )
 
 func main() {
-	log.Println("work-dashboard: starting")
+	log.Println("thatapp: starting")
 }
 ```
 
 The blank `time/tzdata` import is load-bearing, not decoration. The production image is `scratch`
-and contains no zoneinfo files, so `time.LoadLocation` on `WD_TIMEZONE` would fail at runtime
+and contains no zoneinfo files, so `time.LoadLocation` on `THAT_TIMEZONE` would fail at runtime
 without it.
 
 - [ ] **Step 2: Write the Dockerfile**
@@ -92,7 +92,7 @@ COPY go.mod ./
 RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/work-dashboard ./cmd/server
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/thatapp ./cmd/server
 
 FROM golang:1.26-alpine AS dev
 WORKDIR /src
@@ -100,9 +100,9 @@ ENV CGO_ENABLED=0
 
 FROM scratch AS prod
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build /out/work-dashboard /work-dashboard
+COPY --from=build /out/thatapp /thatapp
 EXPOSE 8080
-ENTRYPOINT ["/work-dashboard"]
+ENTRYPOINT ["/thatapp"]
 ```
 
 Copying `ca-certificates.crt` is also load-bearing: `scratch` has no trust store, so every HTTPS
@@ -119,17 +119,17 @@ services:
       context: .
       target: dev
     ports:
-      - "${WD_PORT:-8080}:8080"
+      - "${THAT_PORT:-8080}:8080"
     volumes:
       - .:/src
       - go-mod-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
-      - wd-data:/data
+      - that-data:/data
     environment:
-      WD_ADDR: ":8080"
-      WD_DB_PATH: /data/work-dashboard.db
-      WD_SECRET_KEY: "${WD_SECRET_KEY:-}"
-      WD_TIMEZONE: "${WD_TIMEZONE:-Europe/Amsterdam}"
+      THAT_ADDR: ":8080"
+      THAT_DB_PATH: /data/thatapp.db
+      THAT_SECRET_KEY: "${THAT_SECRET_KEY:-}"
+      THAT_TIMEZONE: "${THAT_TIMEZONE:-Europe/Amsterdam}"
     command: go run -tags dev ./cmd/server
 
   web:
@@ -154,7 +154,7 @@ volumes:
   go-build-cache:
   golangci-cache:
   web-node-modules:
-  wd-data:
+  that-data:
 ```
 
 - [ ] **Step 4: Write the Makefile**
@@ -214,13 +214,13 @@ verify: lint tsc test ## The full merge gate
 ```
 # 32 raw bytes, base64-encoded. Generate with:
 #   docker compose run --rm --no-deps app sh -c 'head -c 32 /dev/urandom | base64'
-WD_SECRET_KEY=
+THAT_SECRET_KEY=
 
 # IANA timezone name. Decides where the day boundary falls for time entries.
-WD_TIMEZONE=Europe/Amsterdam
+THAT_TIMEZONE=Europe/Amsterdam
 
 # Host port the dashboard is published on.
-WD_PORT=8080
+THAT_PORT=8080
 ```
 
 Replace the build-output block in `.gitignore` so that `web/dist` stays present but empty. The
@@ -239,7 +239,7 @@ Then create the empty file `web/dist/.gitkeep`.
 - [ ] **Step 6: Initialise the module and verify the toolchain runs**
 
 ```bash
-docker compose run --rm --no-deps app go mod init github.com/dgerrese/work-dashboard
+docker compose run --rm --no-deps app go mod init codeberg.org/DionGerrese/ThatApp
 make test-go
 ```
 
@@ -282,7 +282,7 @@ package config_test
 import (
 	"testing"
 
-	"github.com/dgerrese/work-dashboard/internal/config"
+	"codeberg.org/DionGerrese/ThatApp/internal/config"
 )
 
 func envFrom(m map[string]string) func(string) string {
@@ -292,8 +292,8 @@ func envFrom(m map[string]string) func(string) string {
 func validEnv() map[string]string {
 	return map[string]string{
 		// 32 zero bytes, base64-encoded
-		"WD_SECRET_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-		"WD_TIMEZONE":   "Europe/Amsterdam",
+		"THAT_SECRET_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		"THAT_TIMEZONE":   "Europe/Amsterdam",
 	}
 }
 
@@ -305,8 +305,8 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.Addr != ":8080" {
 		t.Errorf("Addr = %q, want %q", cfg.Addr, ":8080")
 	}
-	if cfg.DBPath != "/data/work-dashboard.db" {
-		t.Errorf("DBPath = %q, want %q", cfg.DBPath, "/data/work-dashboard.db")
+	if cfg.DBPath != "/data/thatapp.db" {
+		t.Errorf("DBPath = %q, want %q", cfg.DBPath, "/data/thatapp.db")
 	}
 	if cfg.Location.String() != "Europe/Amsterdam" {
 		t.Errorf("Location = %q, want %q", cfg.Location, "Europe/Amsterdam")
@@ -318,11 +318,11 @@ func TestLoadAppliesDefaults(t *testing.T) {
 
 func TestLoadRejectsBadInput(t *testing.T) {
 	cases := map[string]func(map[string]string){
-		"missing secret":     func(m map[string]string) { delete(m, "WD_SECRET_KEY") },
-		"secret not base64":  func(m map[string]string) { m["WD_SECRET_KEY"] = "not!base64" },
-		"secret wrong size":  func(m map[string]string) { m["WD_SECRET_KEY"] = "AAAA" },
-		"missing timezone":   func(m map[string]string) { delete(m, "WD_TIMEZONE") },
-		"unparseable tzname": func(m map[string]string) { m["WD_TIMEZONE"] = "Mars/Olympus" },
+		"missing secret":     func(m map[string]string) { delete(m, "THAT_SECRET_KEY") },
+		"secret not base64":  func(m map[string]string) { m["THAT_SECRET_KEY"] = "not!base64" },
+		"secret wrong size":  func(m map[string]string) { m["THAT_SECRET_KEY"] = "AAAA" },
+		"missing timezone":   func(m map[string]string) { delete(m, "THAT_TIMEZONE") },
+		"unparseable tzname": func(m map[string]string) { m["THAT_TIMEZONE"] = "Mars/Olympus" },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -337,8 +337,8 @@ func TestLoadRejectsBadInput(t *testing.T) {
 
 func TestLoadHonoursOverrides(t *testing.T) {
 	env := validEnv()
-	env["WD_ADDR"] = ":9999"
-	env["WD_DB_PATH"] = "/tmp/other.db"
+	env["THAT_ADDR"] = ":9999"
+	env["THAT_DB_PATH"] = "/tmp/other.db"
 
 	cfg, err := config.Load(envFrom(env))
 	if err != nil {
@@ -389,23 +389,23 @@ type Config struct {
 // Load reads configuration through getenv and validates it. Callers pass
 // os.Getenv in production; tests pass a map lookup.
 func Load(getenv func(string) string) (*Config, error) {
-	secret, err := decodeSecret(getenv("WD_SECRET_KEY"))
+	secret, err := decodeSecret(getenv("THAT_SECRET_KEY"))
 	if err != nil {
 		return nil, err
 	}
 
-	tzName := getenv("WD_TIMEZONE")
+	tzName := getenv("THAT_TIMEZONE")
 	if tzName == "" {
-		return nil, fmt.Errorf("WD_TIMEZONE is required (an IANA name such as Europe/Amsterdam)")
+		return nil, fmt.Errorf("THAT_TIMEZONE is required (an IANA name such as Europe/Amsterdam)")
 	}
 	loc, err := time.LoadLocation(tzName)
 	if err != nil {
-		return nil, fmt.Errorf("WD_TIMEZONE %q is not a known timezone: %w", tzName, err)
+		return nil, fmt.Errorf("THAT_TIMEZONE %q is not a known timezone: %w", tzName, err)
 	}
 
 	return &Config{
-		Addr:     orDefault(getenv("WD_ADDR"), ":8080"),
-		DBPath:   orDefault(getenv("WD_DB_PATH"), "/data/work-dashboard.db"),
+		Addr:     orDefault(getenv("THAT_ADDR"), ":8080"),
+		DBPath:   orDefault(getenv("THAT_DB_PATH"), "/data/thatapp.db"),
 		Secret:   secret,
 		Location: loc,
 	}, nil
@@ -413,14 +413,14 @@ func Load(getenv func(string) string) (*Config, error) {
 
 func decodeSecret(raw string) ([]byte, error) {
 	if raw == "" {
-		return nil, fmt.Errorf("WD_SECRET_KEY is required (%d base64-encoded bytes)", secretKeyLen)
+		return nil, fmt.Errorf("THAT_SECRET_KEY is required (%d base64-encoded bytes)", secretKeyLen)
 	}
 	secret, err := base64.StdEncoding.DecodeString(raw)
 	if err != nil {
-		return nil, fmt.Errorf("WD_SECRET_KEY is not valid base64: %w", err)
+		return nil, fmt.Errorf("THAT_SECRET_KEY is not valid base64: %w", err)
 	}
 	if len(secret) != secretKeyLen {
-		return nil, fmt.Errorf("WD_SECRET_KEY decodes to %d bytes, want %d", len(secret), secretKeyLen)
+		return nil, fmt.Errorf("THAT_SECRET_KEY decodes to %d bytes, want %d", len(secret), secretKeyLen)
 	}
 	return secret, nil
 }
@@ -481,8 +481,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/dgerrese/work-dashboard/internal/config"
-	"github.com/dgerrese/work-dashboard/internal/server"
+	"codeberg.org/DionGerrese/ThatApp/internal/config"
+	"codeberg.org/DionGerrese/ThatApp/internal/server"
 )
 
 func newTestServer() *server.Server {
@@ -590,7 +590,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/dgerrese/work-dashboard/internal/config"
+	"codeberg.org/DionGerrese/ThatApp/internal/config"
 )
 
 // Server routes API requests and serves the PWA's static assets.
@@ -751,9 +751,9 @@ import (
 
 	_ "time/tzdata" // embed the zoneinfo database; the scratch image has none
 
-	"github.com/dgerrese/work-dashboard/internal/config"
-	"github.com/dgerrese/work-dashboard/internal/server"
-	"github.com/dgerrese/work-dashboard/web"
+	"codeberg.org/DionGerrese/ThatApp/internal/config"
+	"codeberg.org/DionGerrese/ThatApp/internal/server"
+	"codeberg.org/DionGerrese/ThatApp/web"
 )
 
 func main() {
@@ -764,7 +764,7 @@ func main() {
 
 	srv := server.New(cfg, web.Assets())
 
-	log.Printf("work-dashboard listening on %s (%s)", cfg.Addr, cfg.Location)
+	log.Printf("thatapp listening on %s (%s)", cfg.Addr, cfg.Location)
 	if err := http.ListenAndServe(cfg.Addr, srv); err != nil {
 		log.Fatalf("server: %v", err)
 	}
@@ -813,7 +813,7 @@ git commit -m "feat: select embedded or on-disk assets by build tag"
 
 ```json
 {
-  "name": "work-dashboard-web",
+  "name": "thatapp-web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -933,13 +933,13 @@ the CSS entry point, which the next step sets up.
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Work Dashboard</title>
+    <title>ThatApp</title>
     <link rel="stylesheet" href="/app.css" />
     <script type="module" src="/app.js"></script>
   </head>
   <body class="bg-neutral-50 text-neutral-900">
     <main id="app" class="mx-auto max-w-3xl p-6">
-      <h1 class="text-2xl font-semibold">Work Dashboard</h1>
+      <h1 class="text-2xl font-semibold">ThatApp</h1>
       <p id="status" class="mt-2 text-neutral-600">Checking the server…</p>
     </main>
   </body>
@@ -984,7 +984,7 @@ ls -la web/dist/
 ```bash
 cp .env.example .env
 docker compose run --rm --no-deps app sh -c 'head -c 32 /dev/urandom | base64'
-# paste the output into WD_SECRET_KEY in .env, then:
+# paste the output into THAT_SECRET_KEY in .env, then:
 docker compose up -d app
 curl -s localhost:8080/api/health
 curl -s localhost:8080/ | head -5
@@ -1140,7 +1140,7 @@ jobs:
       - name: Provide a test environment
         run: |
           cp .env.example .env
-          printf 'WD_SECRET_KEY=%s\n' "$(head -c 32 /dev/urandom | base64)" >> .env
+          printf 'THAT_SECRET_KEY=%s\n' "$(head -c 32 /dev/urandom | base64)" >> .env
 
       - name: Run the merge gate
         run: make verify

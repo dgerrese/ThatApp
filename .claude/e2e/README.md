@@ -17,7 +17,7 @@ up and waits for `/api/health`. It leaves the stack running afterwards — that 
 what `make down` is for. If the stack is already up from `make up`, the suite
 just attaches to it.
 
-`.env` must exist and carry a valid `WD_SECRET_KEY` first (`cp .env.example .env`).
+`.env` must exist and carry a valid `THAT_SECRET_KEY` first (`cp .env.example .env`).
 The server refuses to boot without one, so the healthcheck never passes and the
 suite fails with an opaque `dependency failed to start: container ... is
 unhealthy` rather than anything about configuration.
@@ -47,9 +47,9 @@ and healthy, which means building the frontend and waiting on a healthcheck.
 Wiring `test-e2e` into `test` or `verify` would put that cost and that
 dependency inside the fast loop. `make test-e2e` is a separate, deliberate step.
 
-## Why the base URL says `wd-app`, not `app`
+## Why the base URL says `that-app`, not `app`
 
-`WD_BASE_URL` points at `http://wd-app:8080`, a network alias for the `app`
+`THAT_BASE_URL` points at `http://that-app:8080`, a network alias for the `app`
 service, rather than at `app` directly. `app` collides with the `.app` gTLD on
 Chromium and Firefox's HSTS preload list, so a bare `http://app` gets silently
 rewritten to `https://` before the request leaves the browser and every test

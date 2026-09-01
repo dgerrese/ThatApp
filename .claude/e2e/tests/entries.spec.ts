@@ -167,11 +167,11 @@ function trigger(page: Page, key: string) {
 }
 
 function dialog(page: Page) {
-  return page.locator("wd-entry-dialog dialog");
+  return page.locator("that-entry-dialog dialog");
 }
 
 function dialogTotal(page: Page) {
-  return page.locator("#wd-entry-dialog-total");
+  return page.locator("#that-entry-dialog-total");
 }
 
 function durationField(page: Page) {
@@ -571,5 +571,5 @@ test("the split names every instance with time against it", async ({ page }) => 
   await expect(page.locator("#rail-split")).toContainText("1h 00m");
   await expect(page.locator("#rail-split")).toContainText("0h 30m");
   // One segment per instance, sized by its share.
-  await expect(page.locator("#rail-split .wd-split-bar > span")).toHaveCount(2);
+  await expect(page.locator("#rail-split .that-split-bar > span")).toHaveCount(2);
 });

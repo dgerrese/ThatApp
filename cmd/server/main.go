@@ -1,4 +1,4 @@
-// Command server runs the work-dashboard HTTP server.
+// Command server runs the thatapp HTTP server.
 package main
 
 import (
@@ -8,11 +8,11 @@ import (
 
 	_ "time/tzdata" // embed the zoneinfo database; the scratch image has none
 
-	"github.com/dgerrese/work-dashboard/internal/config"
-	"github.com/dgerrese/work-dashboard/internal/crypto"
-	"github.com/dgerrese/work-dashboard/internal/server"
-	"github.com/dgerrese/work-dashboard/internal/store"
-	"github.com/dgerrese/work-dashboard/web"
+	"codeberg.org/DionGerrese/ThatApp/internal/config"
+	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/server"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/web"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func main() {
 
 	srv := server.New(cfg, web.Assets(), db, sealer)
 
-	log.Printf("work-dashboard listening on %s (%s)", cfg.Addr, cfg.Location)
+	log.Printf("thatapp listening on %s (%s)", cfg.Addr, cfg.Location)
 	if err := http.ListenAndServe(cfg.Addr, srv); err != nil {
 		log.Fatalf("server: %v", err)
 	}

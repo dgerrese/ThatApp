@@ -1,0 +1,126 @@
+name: E2E
+
+# The Playwright suite, without Compose.
+#
+# Locally the rig reaches the app over the Compose network at http://that-app:8080.
+# Here there is no such network, so it runs everything on one machine and points
+# the rig at localhost through THAT_BASE_URL — the override playwright.config.ts
+# already reads. No test and no config change is needed for that.
+#
+# Running on localhost is not merely equivalent, it is simpler. The Firefox
+# `dom.securecontext.allowlist` pref and the Chromium `--host-resolver-rules`
+# argument in playwright.config.ts exist only because a Compose alias is not a
+# secure origin, so the service worker will not register against it. Browsers
+# special-case localhost as secure, so on this path both settings evaluate to
+# no-ops and the worker runs in a genuine secure context.
+#
+# Same path gate as the Compose-based workflow it replaces, and for the same
+# reason (#16): the rig depends on more than .claude/e2e, so every file it
+# depends on has to be named here or a change to one will skip its own tests.
+# The Dockerfile and docker-compose.yml stay on the list because the app the
+# suite exercises is still built from them locally.
+
+# The two lists are duplicated rather than shared through a YAML anchor:
+# GitHub Actions rejects anchors outright, and relying on Forgejo's parser
+# accepting them would make this file silently unportable. Keep them in step.
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - ".claude/e2e/**"
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - "Makefile"
+      - ".env.example"
+      - ".forgejo/workflows/e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".claude/e2e/**"
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - "Makefile"
+      - ".env.example"
+      - ".forgejo/workflows/e2e.yml"
+
+# Browser download plus two toolchains is a slow cold start; superseded runs are
+# not worth the queue time on shared infrastructure.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: codeberg-medium
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v5
+
+      - uses: https://data.forgejo.org/actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: https://data.forgejo.org/actions/setup-node@v4
+        with:
+          node-version: 26
+
+      # Must precede the server build: web/embed.go embeds web/dist at compile
+      # time, so a binary built before this step would serve an empty tree.
+      - name: Build the frontend
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      # The default build tag embeds web/dist (web/embed.go, //go:build !dev),
+      # which is what makes the server a single file with no assets to locate at
+      # runtime. Locally the stack uses `go run -tags dev` and reads them from
+      # disk instead.
+      - name: Build the server
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/that-server" ./cmd/server
+
+      # Only the two supported engines. WebKit is an explicit non-goal, which is
+      # also why this does not use the official Playwright image.
+      - name: Install Playwright and browsers
+        working-directory: .claude/e2e
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps firefox chromium
+
+      - name: Run the end-to-end suite
+        working-directory: .claude/e2e
+        env:
+          THAT_BASE_URL: http://localhost:8080
+          CI: "true"
+        run: |
+          # Config is validated at boot and the server refuses to start without
+          # these. The key is throwaway: this database is created empty, used by
+          # one run, and discarded with the runner.
+          THAT_ADDR=":8080" \
+          THAT_DB_PATH="$RUNNER_TEMP/e2e.db" \
+          THAT_SECRET_KEY="$(head -c 32 /dev/urandom | base64)" \
+          THAT_TIMEZONE="Europe/Amsterdam" \
+            "$RUNNER_TEMP/that-server" &
+          echo "$!" > "$RUNNER_TEMP/server.pid"
+
+          # Wait for the port rather than sleeping: a fixed sleep is either slow
+          # or flaky, and this reports which of the two failure modes happened.
+          for _ in $(seq 1 60); do
+            curl -sf http://localhost:8080/api/health >/dev/null && break
+            sleep 0.5
+          done
+          curl -sf http://localhost:8080/api/health \
+            || { echo "server did not become healthy"; exit 1; }
+
+          npx playwright test
+
+      - name: Stop the server
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/server.pid")" 2>/dev/null || true
+
+      - name: Upload traces on failure
+        if: failure()
+        uses: https://data.forgejo.org/actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: .claude/e2e/test-results/

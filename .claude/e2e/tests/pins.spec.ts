@@ -75,7 +75,7 @@ test("pinned issues render above the assigned cards", async ({ page }) => {
 
   await page.goto("/today");
 
-  const card = page.locator("wd-card").filter({ hasText: "Pinned" });
+  const card = page.locator("that-card").filter({ hasText: "Pinned" });
   await expect(card.getByText("SHARED-12")).toBeVisible();
   await expect(card.getByText("Weekly standup")).toBeVisible();
   // A pinned row names its instance by dot alone (accessible via role="img"),
@@ -103,7 +103,7 @@ test("the pinned card paints before the assigned fan-out answers", async ({ page
 
   await page.goto("/today");
 
-  const card = page.locator("wd-card").filter({ hasText: "Pinned" });
+  const card = page.locator("that-card").filter({ hasText: "Pinned" });
   await expect(card.getByText("SHARED-12")).toBeVisible();
   await expect(page.getByText("Loading…")).toBeVisible();
 });
@@ -140,8 +140,8 @@ test("an issue that is both pinned and assigned appears once", async ({ page }) 
   // Ridgeline's assigned list specifically. The heading attribute (rather than
   // hasText) picks out the assigned card unambiguously, since the Pinned card
   // also shows "Ridgeline" as the pinned row's instance label.
-  const pinnedCard = page.locator("wd-card").filter({ hasText: "Pinned" });
-  const assignedCard = page.locator('wd-card[heading="Ridgeline"]');
+  const pinnedCard = page.locator("that-card").filter({ hasText: "Pinned" });
+  const assignedCard = page.locator('that-card[heading="Ridgeline"]');
   await expect(pinnedCard.getByText("SHARED-12")).toBeVisible();
   await expect(assignedCard.getByText("SHARED-12")).toHaveCount(0);
   await expect(page.getByText("WORK-412")).toHaveCount(1);
@@ -182,7 +182,7 @@ test("no instances configured hides the pinned card entirely", async ({ page }) 
   await page.goto("/today");
 
   await expect(page.getByText("No Jira instances yet.")).toBeVisible();
-  await expect(page.locator("wd-card").filter({ hasText: "Pinned" })).toHaveCount(0);
+  await expect(page.locator("that-card").filter({ hasText: "Pinned" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Pin an issue" })).toHaveCount(0);
 });
 
@@ -202,7 +202,7 @@ test("two pinned instances render two different dot hues", async ({ page }) => {
 
   await page.goto("/today");
 
-  const card = page.locator("wd-card").filter({ hasText: "Pinned" });
+  const card = page.locator("that-card").filter({ hasText: "Pinned" });
   const dots = card.getByRole("img");
   await expect(dots).toHaveCount(2);
 
@@ -497,7 +497,7 @@ test("Cancel restores the Pin an issue button", async ({ page }) => {
 });
 
 // A pending debounce timer that outlives the form closing would fire on a
-// detached wd-combobox, dispatch wd-search anyway, and start an un-abortable
+// detached that-combobox, dispatch that-search anyway, and start an un-abortable
 // fan-out the user can no longer see — this is what disconnectedCallback's
 // clearTimeout (and close()'s) exists to prevent.
 test("Cancel within the debounce window makes no request", async ({ page }) => {
@@ -828,7 +828,7 @@ test("a failing pins call during Refresh leaves the typed query intact", async (
 
   // The error is what proves this reached refreshPins' catch branch, not its
   // try — the branch whose wipe of pinnedForm this guards against.
-  const pinnedCard = page.locator("wd-card").filter({ hasText: "Pinned" });
+  const pinnedCard = page.locator("that-card").filter({ hasText: "Pinned" });
   await expect(pinnedCard.getByText("the Jira site could not be reached")).toBeVisible();
   await expect(box).toHaveValue("security");
   await expect(page.getByRole("option")).toHaveCount(1);

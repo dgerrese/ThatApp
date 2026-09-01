@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dgerrese/work-dashboard/internal/jira"
-	"github.com/dgerrese/work-dashboard/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 // pinDTO is one pin as the Pinned card needs it. InstanceName is joined in here

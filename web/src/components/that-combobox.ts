@@ -1,10 +1,10 @@
-import "./wd-alert";
+import "./that-alert";
 
 import { paintInstanceDot } from "../instance-hue";
 import type { InstanceFailure, IssueHit } from "../types";
 
 /**
- * A searchable select. Light DOM, like every wd-* component.
+ * A searchable select. Light DOM, like every that-* component.
  *
  * It debounces and enforces the two-character floor itself, because each pause
  * costs one Jira call per instance: this is the difference between a search and
@@ -14,7 +14,7 @@ import type { InstanceFailure, IssueHit } from "../types";
  * mirrored into aria-activedescendant, which is what makes the pattern work for
  * a screen reader.
  */
-export class WdCombobox extends HTMLElement {
+export class ThatCombobox extends HTMLElement {
   static readonly debounceMs = 350;
   static readonly minQuery = 2;
 
@@ -39,19 +39,19 @@ export class WdCombobox extends HTMLElement {
     const label = document.createElement("label");
     label.className = "mb-1 block text-sm font-medium text-ink";
     label.textContent = this.getAttribute("label") ?? "";
-    label.htmlFor = "wd-combobox-input";
+    label.htmlFor = "that-combobox-input";
 
     const wrapper = document.createElement("div");
     wrapper.className = "relative";
 
     this.input = document.createElement("input");
-    this.input.id = "wd-combobox-input";
+    this.input.id = "that-combobox-input";
     this.input.type = "text";
     this.input.autocomplete = "off";
     this.input.role = "combobox";
     this.input.setAttribute("aria-autocomplete", "list");
     this.input.setAttribute("aria-expanded", "false");
-    this.input.setAttribute("aria-controls", "wd-combobox-listbox");
+    this.input.setAttribute("aria-controls", "that-combobox-listbox");
     this.input.placeholder = this.getAttribute("placeholder") ?? "";
     this.input.className =
       "w-full rounded-md border border-edge px-3 py-1.5 text-sm " +
@@ -69,7 +69,7 @@ export class WdCombobox extends HTMLElement {
     this.popup.hidden = true;
 
     this.list = document.createElement("ul");
-    this.list.id = "wd-combobox-listbox";
+    this.list.id = "that-combobox-listbox";
     this.list.setAttribute("role", "listbox");
 
     this.notice = document.createElement("div");
@@ -97,7 +97,7 @@ export class WdCombobox extends HTMLElement {
   }
 
   /** A pending debounce timer outlives removal from the DOM unless cleared
-   *  here: otherwise it fires on a detached element, dispatches wd-search, and
+   *  here: otherwise it fires on a detached element, dispatches that-search, and
    *  today.ts starts a fan-out the user has no way left to see or abort. */
   disconnectedCallback(): void {
     window.clearTimeout(this.timer);
@@ -145,7 +145,7 @@ export class WdCombobox extends HTMLElement {
     window.clearTimeout(this.timer);
     const query = this.input?.value.trim() ?? "";
 
-    if (query.length < WdCombobox.minQuery) {
+    if (query.length < ThatCombobox.minQuery) {
       this.close();
       if (this.hint) this.hint.hidden = false;
       return;
@@ -154,8 +154,8 @@ export class WdCombobox extends HTMLElement {
 
     this.timer = window.setTimeout(() => {
       this.setSearching();
-      this.dispatchEvent(new CustomEvent<string>("wd-search", { detail: query }));
-    }, WdCombobox.debounceMs);
+      this.dispatchEvent(new CustomEvent<string>("that-search", { detail: query }));
+    }, ThatCombobox.debounceMs);
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -175,7 +175,7 @@ export class WdCombobox extends HTMLElement {
     }
     if (event.key === "Escape") {
       event.preventDefault();
-      this.dispatchEvent(new CustomEvent("wd-cancel"));
+      this.dispatchEvent(new CustomEvent("that-cancel"));
       return;
     }
     if (event.key === "Tab") {
@@ -186,7 +186,7 @@ export class WdCombobox extends HTMLElement {
 
   private choose(hit: IssueHit): void {
     if (this.disabledKeys.has(`${hit.instanceId}:${hit.key}`)) return;
-    this.dispatchEvent(new CustomEvent<IssueHit>("wd-select", { detail: hit }));
+    this.dispatchEvent(new CustomEvent<IssueHit>("that-select", { detail: hit }));
   }
 
   private close(): void {
@@ -234,7 +234,7 @@ export class WdCombobox extends HTMLElement {
     // Every instance failed: there is nothing to choose from, so this is an
     // error rather than a footnote under results.
     if (this.results.length === 0 && this.failures.length > 0) {
-      const alert = document.createElement("wd-alert");
+      const alert = document.createElement("that-alert");
       alert.setAttribute("tone", "error");
       alert.setAttribute("message", this.failures[0]?.error.message ?? "The search failed.");
       notice.append(alert);
@@ -262,7 +262,7 @@ export class WdCombobox extends HTMLElement {
     this.results.forEach((hit, index) => {
       const option = document.createElement("button");
       option.type = "button";
-      option.id = `wd-combobox-option-${index}`;
+      option.id = `that-combobox-option-${index}`;
       option.setAttribute("role", "option");
       // Not part of the tab order: Tab must leave the popup by moving focus
       // out of the input, not by walking into these buttons one at a time.
@@ -322,7 +322,7 @@ export class WdCombobox extends HTMLElement {
     popup.hidden = !open;
     input.setAttribute("aria-expanded", open ? "true" : "false");
     if (open && this.results.length > 0) {
-      input.setAttribute("aria-activedescendant", `wd-combobox-option-${this.active}`);
+      input.setAttribute("aria-activedescendant", `that-combobox-option-${this.active}`);
       // Focus never leaves the input, so the browser will not scroll the
       // active option into view on its own — and with up to searchLimit×N
       // instances of results stacked in a max-h-60 popup, ↓ past the visible
@@ -334,4 +334,4 @@ export class WdCombobox extends HTMLElement {
   }
 }
 
-customElements.define("wd-combobox", WdCombobox);
+customElements.define("that-combobox", ThatCombobox);
