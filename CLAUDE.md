@@ -206,7 +206,7 @@ no bespoke agent team — the `.claude/agents/` definitions were removed once ti
 through this loop instead.
 
 **Invoke the `ticket-workflow` skill** whenever work starts, a ticket changes status, or a blocker
-appears. It holds the label mechanics, the `gh` commands, what each status requires and the loop in
+appears. It holds the label mechanics, the `tea` commands, what each status requires and the loop in
 full — including the standing decision on worktrees and why the whole-branch review is not
 optional.
 
@@ -216,3 +216,9 @@ reopen, and what is still open. It carries **no dated entries** — the day-by-d
 day only to learn how something came to be. Anything a later session must not rediscover gets
 promoted from the day's file into `handoff.md` on the day it happens, so no daily file is ever
 load-bearing.
+
+**Invoke the `eod` skill when the day ends** — the owner saying "eod", "that's me for today" or
+"shutting down". The end of the day propagates: running subagents are signalled to wrap up and
+report, and their reports go into the day's handoff. It then leaves nothing running, nothing that
+exists only on this machine, and a `handoff.md` whose claims have been checked rather than assumed.
+It pushes and it reports; it never merges, deletes a branch, force-pushes or closes anything.
