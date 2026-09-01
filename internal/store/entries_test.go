@@ -517,3 +517,57 @@ func TestDeletingAnInstanceCascadesToItsEntries(t *testing.T) {
 		t.Errorf("surviving entry = %q, want kept", entries[0].Comment)
 	}
 }
+
+func TestMarkEntryPushedRecordsTheWorklogWithoutTouchingUpdatedAt(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+	inst := createTestInstance(t, s)
+
+	created, err := s.CreateEntry(ctx, EntryInput{
+		InstanceID: inst.ID,
+		IssueKey:   "RIDGE-1",
+		Day:        "2026-08-31",
+		StartedAt:  time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC),
+		Seconds:    3600,
+		Comment:    "morning",
+	})
+	if err != nil {
+		t.Fatalf("creating entry: %v", err)
+	}
+
+	pushedAt := created.UpdatedAt.Add(time.Second)
+	if err := s.MarkEntryPushed(ctx, created.ID, "10123", pushedAt); err != nil {
+		t.Fatalf("MarkEntryPushed: %v", err)
+	}
+
+	got, err := s.Entry(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("reading entry back: %v", err)
+	}
+
+	if got.WorklogID != "10123" {
+		t.Errorf("WorklogID = %q, want %q", got.WorklogID, "10123")
+	}
+	if got.PushedAt == nil {
+		t.Fatal("PushedAt is nil; the push did not record when it happened")
+	}
+	if !got.PushedAt.Equal(pushedAt) {
+		t.Errorf("PushedAt = %v, want %v", got.PushedAt, pushedAt)
+	}
+	if !got.UpdatedAt.Equal(created.UpdatedAt) {
+		t.Errorf("UpdatedAt = %v, want it unchanged at %v — a push that stamps "+
+			"updated_at can mark its own entry dirty", got.UpdatedAt, created.UpdatedAt)
+	}
+	if got.Seconds != created.Seconds || got.Comment != created.Comment {
+		t.Errorf("MarkEntryPushed altered the entry's data: %+v", got)
+	}
+}
+
+func TestMarkEntryPushedOnAMissingRowReportsIt(t *testing.T) {
+	s := openTestStore(t)
+
+	err := s.MarkEntryPushed(context.Background(), 9999, "10123", time.Now())
+	if err == nil {
+		t.Fatal("MarkEntryPushed on a missing id returned nil; the caller would record a push that did not happen")
+	}
+}

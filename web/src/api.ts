@@ -9,6 +9,7 @@ import type {
   IssueSearchResponse,
   IssuesResponse,
   Pin,
+  PushResponse,
 } from "./types";
 
 /**
@@ -167,4 +168,10 @@ export function updateEntry(id: number, edit: EntryEdit): Promise<Entry> {
 
 export function deleteEntry(id: number): Promise<void> {
   return request<void>(`/api/entries/${id}`, { method: "DELETE" });
+}
+
+export function pushDay(day?: string): Promise<PushResponse> {
+  const query = day === undefined ? "" : `?day=${encodeURIComponent(day)}`;
+
+  return request<PushResponse>(`/api/push${query}`, { method: "POST" });
 }

@@ -307,7 +307,8 @@ export class WdEntryDialog extends HTMLElement {
       }),
     );
 
-    row.append(started, duration, comment, actions);
+    const badge = pushBadge(entry.pushState);
+    row.append(started, duration, comment, ...(badge ? [badge] : []), actions);
 
     return row;
   }
@@ -422,6 +423,35 @@ export class WdEntryDialog extends HTMLElement {
   private clearNotice(): void {
     this.notice?.replaceChildren();
   }
+}
+
+/**
+ * The badge an entry wears for its push state. "unpushed" deliberately renders
+ * nothing: it is the ordinary state of a fresh entry, and a chip on every row
+ * would say least where it appeared most.
+ */
+function pushBadge(state: Entry["pushState"]): HTMLElement | null {
+  // Each badged state is named, and anything else gets no badge — never a
+  // default of "Pushed". pushState crosses the network and is only typed at
+  // compile time, so a state this build does not recognise (a cached shell
+  // against a newer server, a response that lost the field) reaches here as
+  // something neither branch below should claim. Telling someone their time
+  // reached Jira when it did not is the one wrong answer indistinguishable
+  // from a true one; no badge merely says nothing.
+  if (state !== "pushed" && state !== "dirty") return null;
+
+  const badge = document.createElement("span");
+  badge.className = "shrink-0 text-xs font-medium";
+
+  if (state === "dirty") {
+    badge.classList.add("text-pending");
+    badge.textContent = "Edited since push";
+  } else {
+    badge.classList.add("text-running");
+    badge.textContent = "Pushed";
+  }
+
+  return badge;
 }
 
 function rowAction(label: string, description: string, act: () => void): HTMLElement {

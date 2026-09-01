@@ -1,17 +1,21 @@
-import { listEntries } from "./api";
-import { onEntriesChanged } from "./entries-changed";
+import { listEntries, pushDay } from "./api";
+import { announceEntriesChanged, onEntriesChanged } from "./entries-changed";
 import { totalFigure } from "./format";
 import { instanceHue } from "./instance-hue";
-import type { Entry } from "./types";
+import { announcePushReported } from "./push-reported";
+import { navigate } from "./router";
+import type { Entry, PushResponse } from "./types";
 
 /**
- * The rail's two live regions: the day's total, and the split of it across
- * instances.
+ * The rail's live regions: the day's total, the split of it across instances,
+ * and the unpushed count with the control that pushes it.
  *
  * It lives in the shell rather than in Today, and that is the whole point. The
  * rail is the instrument — the same figure in the same place whatever view you
  * are on — so it has to stay right on Settings, and on #11's Week view, without
- * either of them knowing it exists.
+ * either of them knowing it exists. Push belongs here for the same reason: it
+ * sits beside the day total it sends, reachable from every view rather than
+ * only from Today.
  *
  * It never computes a date. It sums rows the server already stamped with a day
  * resolved in WD_TIMEZONE, which is the only way the total agrees with the
@@ -26,7 +30,9 @@ const MAX_RETRY_MS = 30_000;
 export function startRail(): void {
   const total = document.querySelector<HTMLElement>("#rail-total");
   const split = document.querySelector<HTMLElement>("#rail-split");
-  if (!total || !split) return;
+  const unpushed = document.querySelector<HTMLElement>("#rail-unpushed");
+  const push = document.querySelector<HTMLButtonElement>("#rail-push");
+  if (!total || !split || !unpushed || !push) return;
 
   // Supersession, the same job searchIssues' AbortController does: a slow read
   // must not land after a newer one — or after an announcement that carried
@@ -36,11 +42,45 @@ export function startRail(): void {
   let retryTimer: number | undefined;
   let retryDelay = FIRST_RETRY_MS;
 
+  // What paint() last found unpushed, and whether a push is in flight right
+  // now. The button's disabled state is a function of both — never written
+  // directly — so a push in progress cannot be raced by an unrelated repaint.
+  let pending: Entry[] = [];
+  let pushing = false;
+
+  const syncPushButton = (): void => {
+    push.disabled = pushing || pending.length === 0;
+  };
+
+  /**
+   * Owns #rail-unpushed's resting text and colour. A failure inside
+   * handlePush writes its own message directly to the element instead — see
+   * showPushError — so this must never run between that write and the repaint
+   * that is meant to supersede it.
+   */
+  const paintUnpushed = (): void => {
+    unpushed.classList.remove("text-failed-rail");
+    unpushed.classList.add("text-rail-muted");
+    unpushed.textContent =
+      pending.length === 0
+        ? "Nothing to push"
+        : `${String(pending.length)} ${pending.length === 1 ? "entry" : "entries"} to push`;
+  };
+
+  const showPushError = (message: string): void => {
+    unpushed.classList.remove("text-rail-muted");
+    unpushed.classList.add("text-failed-rail");
+    unpushed.textContent = message;
+  };
+
   const paint = (entries: Entry[]): void => {
     painted = true;
     retryDelay = FIRST_RETRY_MS;
     total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
     drawSplit(split, sliceByInstance(entries));
+    pending = entries.filter((entry) => entry.pushState === "unpushed");
+    paintUnpushed();
+    syncPushButton();
   };
 
   /**
@@ -92,6 +132,102 @@ export function startRail(): void {
     void refresh();
   });
   void refresh();
+
+  /**
+   * Confirms, pushes, then hands the result to whoever is listening for it —
+   * Today, if it is mounted, per push-reported.ts.
+   *
+   * The button is disabled for the whole call, confirmation included, for the
+   * same reason #9's original Today implementation disabled its own: a second
+   * click while one push is already in flight (or its confirmation still
+   * open) is the realistic way to fire two concurrent POST /api/push
+   * requests, and a duplicate Jira worklog is exactly the harm this ticket
+   * exists to avoid. See the mutex in internal/server/push.go for the other
+   * half.
+   *
+   * A failure at either await — the pre-push read or the push itself — has
+   * nowhere else to go: the rail has no alert surface of its own, so it is
+   * written directly into #rail-unpushed via showPushError, in the
+   * failed-rail colour reserved for exactly this in the theme. Today's report
+   * region stays reserved for a completed PushResponse, which a rejected call
+   * never produces.
+   */
+  const handlePush = async (): Promise<void> => {
+    if (pending.length === 0) return;
+
+    pushing = true;
+    syncPushButton();
+    try {
+      let entries: Entry[];
+      try {
+        entries = await listEntries();
+      } catch {
+        showPushError("Could not check what's pending — press Push to Jira to retry.");
+        return;
+      }
+
+      const due = entries.filter((entry) => entry.pushState === "unpushed");
+      if (due.length === 0) {
+        // Nothing schedules a repaint on this path — refresh() runs at boot, on
+        // the pre-paint retry timer and on an entries announcement, none of
+        // which fires here — so without this the rail keeps offering "N entries
+        // to push" on a button that does nothing, indefinitely.
+        pending = due;
+        paintUnpushed();
+        syncPushButton();
+
+        return;
+      }
+
+      const { confirmDestructive } = await import("./components/wd-confirm");
+      const seconds = due.reduce((sum, entry) => sum + entry.seconds, 0);
+      const label = `${String(due.length)} ${due.length === 1 ? "entry" : "entries"}`;
+      const sites = new Set(due.map((entry) => entry.instanceId)).size;
+      const confirmed = await confirmDestructive({
+        heading: "Push today's time to Jira?",
+        body:
+          `${label} totalling ${totalFigure(seconds)} will be created as worklogs on ` +
+          `${String(sites)} ${sites === 1 ? "site" : "sites"}.`,
+        confirmLabel: "Push",
+      });
+      if (!confirmed) return;
+
+      // Before pushing, not after: the per-entry report needs Today on screen
+      // to land on, and the push itself is what the confirmation just agreed to.
+      // Awaited, because mounting Today goes through a dynamic import() and its
+      // onPushReported subscription only exists on the far side of it — an
+      // announcement fired during that gap is heard by nobody, and a partial
+      // failure answers 200, so nothing else would report it either.
+      if (window.location.pathname !== "/today") {
+        await navigate("/today");
+      }
+
+      let response: PushResponse;
+      try {
+        response = await pushDay();
+      } catch {
+        showPushError("Push failed — press Push to Jira to retry.");
+        return;
+      }
+
+      announcePushReported(response);
+
+      try {
+        announceEntriesChanged(await listEntries());
+      } catch {
+        // The push itself already succeeded and is reported above; a failed
+        // re-read here only means the rail's own total is stale until the
+        // next one, not that the push failed.
+      }
+    } finally {
+      pushing = false;
+      syncPushButton();
+    }
+  };
+
+  push.addEventListener("click", () => {
+    void handlePush();
+  });
 }
 
 /** One instance's share of the day. */

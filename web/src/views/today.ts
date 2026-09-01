@@ -21,8 +21,9 @@ import { LOG_TIME } from "../components/wd-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
 import { clockTime } from "../format";
 import { paintInstanceDot } from "../instance-hue";
+import { onPushReported } from "../push-reported";
 import type { RegisterTeardown } from "../router";
-import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
+import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin, PushResponse } from "../types";
 
 /**
  * The regions that outlive a fetch, plus the two caches (pins, the last issues
@@ -41,6 +42,9 @@ interface Regions {
   /** One banner above both lists, per the design spec's singular "the
    *  warning" — not one per list. See renderCombinedStale. */
   stale: HTMLElement;
+  /** The result of the last push attempt: a success alert, a failure alert, or
+   *  a failure alert plus the list of entries that did not make it. */
+  pushReport: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
   pinsCachedAt: Date | null;
@@ -61,6 +65,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // view with 16px of dead space above the Pinned card. A display:none box
   // contributes none.
   stale.hidden = true;
+
+  const pushReport = document.createElement("div");
+  // Same reasoning as stale above: empty but present would still claim a
+  // space-y-4 margin.
+  pushReport.hidden = true;
 
   const pinnedCard = document.createElement("wd-card");
   pinnedCard.setAttribute("heading", "Pinned");
@@ -91,7 +100,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   results.className = "space-y-4";
   results.append(loadingLine());
 
-  container.append(stale, pinnedCard, header, results);
+  container.append(stale, pinnedCard, header, pushReport, results);
   root.append(container);
 
   const regions: Regions = {
@@ -102,6 +111,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     refresh,
     results,
     stale,
+    pushReport,
     pins: [],
     lastIssues: null,
     pinsCachedAt: null,
@@ -143,6 +153,14 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     void refreshTotals(regions, entries);
   });
   registerTeardown(stopListening);
+
+  // The rail triggers the push; this only renders what it hears. Same
+  // outlives-the-view reasoning as the subscription above, and the same
+  // teardown so a navigation away cannot leave it painting a detached view.
+  const stopPushListening = onPushReported((response) => {
+    renderPushReport(regions, response);
+  });
+  registerTeardown(stopPushListening);
 
   // Independent on purpose: the Pinned card paints from the store alone and
   // must not wait on a fan-out that may be slow or failing.
@@ -481,9 +499,14 @@ function renderCombinedStale(regions: Regions): void {
     return;
   }
 
-  const oldest = moments.reduce((older, moment) => (moment.getTime() < older.getTime() ? moment : older));
+  const oldest = moments.reduce((older, moment) =>
+    moment.getTime() < older.getTime() ? moment : older,
+  );
   regions.stale.replaceChildren(
-    alertFor("warning", `Showing what was here at ${clockTime(oldest)} — no connection to the server.`),
+    alertFor(
+      "warning",
+      `Showing what was here at ${clockTime(oldest)} — no connection to the server.`,
+    ),
   );
   regions.stale.hidden = false;
 }
@@ -497,6 +520,91 @@ async function refreshEverything(regions: Regions): Promise<void> {
   } finally {
     regions.refresh.removeAttribute("disabled");
   }
+}
+
+/** Replaces pushReport's content and reveals it — the one place both steps
+ *  happen, since every push outcome (a read failure, "already pushed", a
+ *  push failure, a push result) needs both. */
+function showPushReport(regions: Regions, ...nodes: Node[]): void {
+  regions.pushReport.replaceChildren(...nodes);
+  regions.pushReport.hidden = false;
+}
+
+/**
+ * Names every entry that did not reach Jira. A count alone would be the blanket
+ * status the spec calls a defect: with several entries against one ticket, "2
+ * failed" does not say which two.
+ *
+ * A failure whose code is `store_failed` is reported apart from the rest, and
+ * that split is the point of reading the code at all. Those entries did reach
+ * Jira — only the local record of them did not — so the retry that is right for
+ * every other failure is exactly wrong for them: pressing Push again logs the
+ * time in Jira twice, and nothing in this app can undo it.
+ */
+function renderPushReport(regions: Regions, response: PushResponse): void {
+  const failed = response.results.filter((result) => result.status === "failed");
+  const pushed = response.results.filter((result) => result.status === "pushed");
+
+  if (failed.length === 0) {
+    showPushReport(
+      regions,
+      alertFor(
+        "success",
+        `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"} to Jira.`,
+      ),
+    );
+    return;
+  }
+
+  const stranded = failed.filter((result) => result.error?.code === "store_failed");
+  const retryable = failed.filter((result) => result.error?.code !== "store_failed");
+  const nodes: Node[] = [];
+
+  if (retryable.length > 0) {
+    nodes.push(
+      alertFor(
+        "warning",
+        `${String(retryable.length)} of ${String(response.results.length)} entries did not ` +
+          "reach Jira. Press Push to Jira again to retry them.",
+      ),
+      failureList(
+        retryable.map(
+          (result) => `${result.issueKey} — ${result.error?.message ?? "unknown error"}`,
+        ),
+      ),
+    );
+  }
+
+  if (stranded.length > 0) {
+    nodes.push(
+      alertFor(
+        "error",
+        `${String(stranded.length)} ${stranded.length === 1 ? "entry" : "entries"} reached Jira ` +
+          "but could not be recorded here. Check the issue in Jira before pushing again — " +
+          "pushing now would log the time twice.",
+      ),
+      failureList(stranded.map((result) => result.issueKey)),
+    );
+  }
+
+  showPushReport(regions, ...nodes);
+}
+
+/**
+ * A sibling of the alert it follows, never a child of it: wd-alert renders by
+ * calling this.replaceChildren(mark, message), so anything appended inside it
+ * is discarded the next time an attribute changes.
+ */
+function failureList(lines: string[]): HTMLElement {
+  const list = document.createElement("ul");
+  list.className = "mt-2 ml-6 space-y-1 text-sm";
+  for (const line of lines) {
+    const item = document.createElement("li");
+    item.textContent = line;
+    list.append(item);
+  }
+
+  return list;
 }
 
 function renderResponse(regions: Regions, response: IssuesResponse): void {

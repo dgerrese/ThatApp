@@ -14,9 +14,10 @@ import (
 // stored separately because the container's clock is almost certainly UTC, so
 // neither can be derived from the other after the fact.
 //
-// WorklogID and PushedAt belong to the push (#9). This package reads them and
-// never writes them: whether an entry is unpushed, clean or dirty is computed
-// from those two columns and UpdatedAt, never stored as a flag.
+// WorklogID and PushedAt belong to the push (#9). MarkEntryPushed is the only
+// writer of either, and it names no other column: whether an entry is unpushed,
+// clean or dirty is computed from those two and UpdatedAt on every read, never
+// stored as a flag.
 type Entry struct {
 	ID         int64
 	InstanceID int64
@@ -202,6 +203,33 @@ func (s *Store) DeleteEntry(ctx context.Context, id int64) error {
 	}
 
 	return errNoRowsIfUnaffected(result, "deleting entry", id)
+}
+
+// MarkEntryPushed records the Jira worklog an entry became.
+//
+// It names only worklog_id and pushed_at. Stamping updated_at here would race
+// pushed_at and could leave a just-pushed entry reading as dirty, since the
+// spec derives dirty from updated_at > pushed_at.
+func (s *Store) MarkEntryPushed(
+	ctx context.Context, id int64, worklogID string, pushedAt time.Time,
+) error {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE time_entries SET worklog_id = ?, pushed_at = ? WHERE id = ?`,
+		worklogID, pushedAt.UTC().Truncate(time.Second).Format(time.RFC3339), id,
+	)
+	if err != nil {
+		return fmt.Errorf("recording worklog %s for entry %d: %w", worklogID, id, err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("counting rows updated for entry %d: %w", id, err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("recording worklog %s: no entry %d", worklogID, id)
+	}
+
+	return nil
 }
 
 // Entry reads one entry by id. A missing id yields an error wrapping

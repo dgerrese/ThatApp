@@ -65,17 +65,25 @@ export function startRouter(root: HTMLElement): void {
     }
 
     event.preventDefault();
-    navigate(new URL(link.href).pathname);
+    void navigate(new URL(link.href).pathname);
   });
 
   void renderCurrent();
 }
 
-export function navigate(path: string): void {
+/**
+ * Resolves once the view for `path` is mounted. The promise matters to a caller
+ * that navigates in order to be heard there: mounting awaits a dynamic import(),
+ * and an announcement fired during that gap reaches a view whose listeners do
+ * not exist yet. Callers with nothing to say afterwards can ignore it — see the
+ * link handler above.
+ */
+export function navigate(path: string): Promise<void> {
   if (path !== window.location.pathname) {
     window.history.pushState({}, "", path);
   }
-  void renderCurrent();
+
+  return renderCurrent();
 }
 
 async function renderCurrent(): Promise<void> {
