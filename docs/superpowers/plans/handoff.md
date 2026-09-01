@@ -1116,9 +1116,10 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Left over from the forge move, 2026-09-01:**
 
-- **Local `main` is stale and only the owner may move it** — still the pre-rename GitHub tip
-  `71c8c2f` while the project is at `afa098e`. Until it moves, branching from local `main` produces
+- **Local `main` is stale and only the owner may move it** — still the pre-rename tip `d07f4ec` while the project is at `afa098e`. Until it moves, branching from local `main` produces
   a branch with the old names, the old module path and the deleted GitHub workflows.
+  Its SHA is `d07f4ec` and not the `71c8c2f` the day log mentions: the author-email rewrite
+  re-hashed every branch, `main` included, so the commit is the same work under a new hash.
 - **`retro-skill` and `worktrees-without-the-tax` are pushed but have no pull request.** Their work
   survived the move; the GitHub pull requests holding them did not. Both predate the rename, so
   either will need `THAT_*`/`that-*` applied before it can merge.
@@ -1223,7 +1224,7 @@ request at the end-of-day signal. PR #78 (`retro-skill`) is open and waiting on 
   in the move. Claude runs locally through the superpowers skills, which is how the work was always
   actually done.
 - Local `main` may sit well behind the forge; branch from the remote, not from it. **As of
-  2026-09-01 it is badly stale — still on the pre-rename GitHub tip `71c8c2f` while the project is
+  2026-09-01 it is badly stale — still on the pre-rename tip `d07f4ec` while the project is
   at `afa098e`** on Codeberg. Advancing it is the owner's call, since `CLAUDE.md` forbids a session
   moving `main`.
 - **SSH authentication was down on 2026-08-17** and no git traffic reached GitHub all session:
