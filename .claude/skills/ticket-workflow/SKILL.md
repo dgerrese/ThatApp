@@ -179,6 +179,17 @@ tea api "repos/{owner}/{repo}/labels" \
   -d '{"name":"status/todo","color":"#0e8a16","exclusive":true}'
 ```
 
+### Two Codeberg limits worth knowing before you hit them
+
+**Issue creation is rate limited to 17 in 5 minutes.** Creating issues in bulk — a batch of intake
+tickets, a migration — must be paced at roughly one every 20 seconds or the API starts returning
+`NewIssue: ... rate limited` mid-run. Ordinary single-ticket work never notices this.
+
+**The token cannot create or delete repositories.** Those endpoints require the `write:user` scope,
+which this project's token deliberately does not carry: the ticket workflow never needs it, and a
+standing credential that can delete repositories is a poor trade for saving a manual step. Create
+and delete repositories in the web interface.
+
 Never leave an **open** issue with no `status/*` label, and never leave a **closed** one carrying a
 `status/*` label at all. Two statuses at once is no longer possible — the scope is exclusive — so
 the only failure left is the absent one. If you find an issue in either state, say so rather than
