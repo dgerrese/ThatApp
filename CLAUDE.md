@@ -222,3 +222,8 @@ load-bearing.
 report, and their reports go into the day's handoff. It then leaves nothing running, nothing that
 exists only on this machine, and a `handoff.md` whose claims have been checked rather than assumed.
 It pushes and it reports; it never merges, deletes a branch, force-pushes or closes anything.
+
+**Invoke the `retro` skill** when the owner asks for a retrospective. It reads finished tickets for
+the failures that recurred or cost something, and puts each proposed rule change to the owner one at
+a time. It changes how the project is *run* and nothing else — anything it wants changed in the
+product is an intake ticket like any other.
