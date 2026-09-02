@@ -6,8 +6,9 @@ import { expect, test, type Page } from "@playwright/test";
  * shares the dev database, so a real read would report whatever the owner
  * actually logged and two parallel browsers would disagree with each other.
  *
- * The stub answers per `start`, so moving between weeks is a genuine round trip
- * and Back is a genuine navigation rather than a repaint of one fixture.
+ * The stub answers per `start` and reads its fixtures at request time, so a
+ * test can change what the next read returns — which is how "the grid settles
+ * after a push" is provable at all.
  */
 type PushState = "unpushed" | "pushed" | "dirty" | null;
 
@@ -131,7 +132,13 @@ function rollup(start: string, rows: StubRow[]): StubRollup {
   };
 }
 
-function entry(id: number, issueKey: string, day: string, seconds: number, state: StubEntry["pushState"]): StubEntry {
+function entry(
+  id: number,
+  issueKey: string,
+  day: string,
+  seconds: number,
+  state: StubEntry["pushState"],
+): StubEntry {
   return {
     id,
     instanceId: 1,
@@ -146,10 +153,26 @@ function entry(id: number, issueKey: string, day: string, seconds: number, state
   };
 }
 
+function pushed(entryId: number, issueKey: string) {
+  return { entryId, issueKey, instanceId: 1, status: "pushed", worklogId: `wl-${String(entryId)}` };
+}
+
+function unreachable(entryId: number, issueKey: string) {
+  return {
+    entryId, issueKey, instanceId: 1, status: "failed",
+    error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
+  };
+}
+
+/**
+ * `rollups` is read on every request rather than captured, so a test can swap a
+ * fixture in mid-flight and the next read sees it.
+ */
 async function openWeek(
   page: Page,
   rollups: Record<string, StubRollup>,
   entries: StubEntry[] = [],
+  path = "/week",
 ): Promise<void> {
   await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: entries }));
 
@@ -157,20 +180,29 @@ async function openWeek(
     const start = new URL(route.request().url()).searchParams.get("start") ?? THIS_WEEK;
     const body = rollups[start];
     if (!body) {
+      // The real handler's own words for a start it will not serve — see
+      // handleWeek in internal/server/week.go.
       return route.fulfill({
         status: 400,
-        json: { code: "start_not_monday", message: `no fixture for ${start}` },
+        json: { code: "start_not_monday", message: "start must be a Monday, of the form YYYY-MM-DD" },
       });
     }
 
     return route.fulfill({ status: 200, json: body });
   });
 
-  await page.goto("/week");
+  await page.goto(path);
 }
 
 function ticketRow(page: Page, issueKey: string) {
   return page.locator("tbody tr", { hasText: issueKey });
+}
+
+/** The rail owns the only "Push to Jira" button, and it now sends every day the
+ *  week holds rather than only today. */
+async function pushEverything(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push", exact: true }).click();
 }
 
 test("a ticket logged on two days shows both cells and a row total that adds them up", async ({
@@ -198,6 +230,9 @@ test("a ticket logged on two days shows both cells and a row total that adds the
  * The cheapest possible guard on the rule that format carries meaning:
  * `timerFigure` (H:MM) is for a timer you can start and stop, and every figure
  * in a rollup is a sum. A colon anywhere in this grid is a bug.
+ *
+ * The positive assertion beside it is not decoration: a table rendering no
+ * digits at all would satisfy the negative one on its own.
  */
 test("no figure in the grid wears a timer's colon", async ({ page }) => {
   await openWeek(page, {
@@ -211,8 +246,11 @@ test("no figure in the grid wears a timer's colon", async ({ page }) => {
   });
 
   await expect(page.locator("table")).toBeVisible();
+  const text = await page.locator("table").innerText();
 
-  expect(await page.locator("table").innerText()).not.toMatch(/\d:\d/);
+  // 45000 seconds is twelve and a half hours, spelled as a sum.
+  expect(text).toContain("12h 30m");
+  expect(text).not.toMatch(/\d:\d/);
 });
 
 /**
@@ -260,34 +298,16 @@ test("pushing from the Week view reports below the grid and names the day that f
 
   await page.route("**/api/push**", (route) => {
     const day = new URL(route.request().url()).searchParams.get("day") ?? "";
-    if (day === "2026-09-07") {
-      return route.fulfill({
-        status: 200,
-        json: {
-          day,
-          results: [
-            { entryId: 1, issueKey: "RIDGE-1", instanceId: 1, status: "pushed", worklogId: "wl-1" },
-          ],
-        },
-      });
-    }
 
     return route.fulfill({
       status: 200,
       json: {
         day,
-        results: [
-          {
-            entryId: 2, issueKey: "RIDGE-2", instanceId: 1, status: "failed",
-            error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
-          },
-        ],
+        results: [day === "2026-09-07" ? pushed(1, "RIDGE-1") : unreachable(2, "RIDGE-2")],
       },
     });
   });
 
-  // The rail owns the only "Push to Jira" button, and it now sends every day the
-  // week holds rather than only today.
   await page.getByRole("button", { name: "Push to Jira" }).click();
   await expect(page.getByText(/2 entries totalling 1h 30m across 2 days/)).toBeVisible();
   await page.getByRole("button", { name: "Push", exact: true }).click();
@@ -303,6 +323,113 @@ test("pushing from the Week view reports below the grid and names the day that f
   expect(table).not.toBeNull();
   expect(line).not.toBeNull();
   expect(line?.y ?? 0).toBeGreaterThan((table?.y ?? 0) + (table?.height ?? 0));
+});
+
+/**
+ * The failed marker is the one thing in this grid that does not come from
+ * /api/week — it comes from the push response, because a re-read reports those
+ * entries as unpushed again, which is true and not what the reader needs in the
+ * seconds after pressing Push. It lives for exactly the paint that reports the
+ * push, so the read after that one shows the rollup's own answer again.
+ */
+test("a failed cell is marked, and the read after the reporting one clears it", async ({ page }) => {
+  await openWeek(
+    page,
+    {
+      [THIS_WEEK]: rollup(THIS_WEEK, [
+        row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+        row("RIDGE-2", [{ at: 2, seconds: 1800, pushState: "unpushed" }]),
+      ]),
+    },
+    [
+      entry(1, "RIDGE-1", "2026-09-07", 3600, "unpushed"),
+      entry(2, "RIDGE-2", "2026-09-09", 1800, "unpushed"),
+    ],
+  );
+
+  let wednesdayAttempts = 0;
+  await page.route("**/api/push**", (route) => {
+    const day = new URL(route.request().url()).searchParams.get("day") ?? "";
+    if (day === "2026-09-07") {
+      return route.fulfill({ status: 200, json: { day, results: [pushed(1, "RIDGE-1")] } });
+    }
+
+    // Unreachable the first time and reachable the second, so the retry that the
+    // report asks for is the thing that clears the marker.
+    wednesdayAttempts += 1;
+    const result = wednesdayAttempts === 1 ? unreachable(2, "RIDGE-2") : pushed(2, "RIDGE-2");
+
+    return route.fulfill({ status: 200, json: { day, results: [result] } });
+  });
+
+  const wednesday = ticketRow(page, "RIDGE-2").locator("td").nth(2);
+  await expect(wednesday).toContainText("not pushed to Jira");
+
+  await pushEverything(page);
+  await expect(wednesday).toContainText("did not reach Jira");
+
+  await pushEverything(page);
+  await expect(wednesday).not.toContainText("did not reach Jira");
+});
+
+/**
+ * void show() after a push is the only thing that settles the grid, and without
+ * a fixture that changes underneath it nothing here would fail if it were
+ * deleted.
+ */
+test("the grid settles once the push has gone through", async ({ page }) => {
+  const rollups: Record<string, StubRollup> = {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+    ]),
+  };
+  await openWeek(page, rollups, [entry(1, "RIDGE-1", "2026-09-07", 3600, "unpushed")]);
+
+  await page.route("**/api/push**", (route) => {
+    rollups[THIS_WEEK] = rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]);
+
+    return route.fulfill({
+      status: 200,
+      json: { day: "2026-09-07", results: [pushed(1, "RIDGE-1")] },
+    });
+  });
+
+  const monday = ticketRow(page, "RIDGE-1").locator("td").first();
+  await expect(monday).toContainText("not pushed to Jira");
+
+  await pushEverything(page);
+
+  await expect(page.getByText("Pushed 1 entry to Jira.")).toBeVisible();
+  await expect(monday).toHaveText("1h 00m");
+});
+
+test("a week with nothing logged says so rather than drawing an empty grid", async ({ page }) => {
+  await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
+
+  await expect(page.getByText("Nothing logged this week.")).toBeVisible();
+  await expect(page.locator("table")).toHaveCount(0);
+  // A week off is not an error, and the week either side is still one press away.
+  await expect(page.getByRole("button", { name: "Previous week" })).toBeVisible();
+});
+
+/** /week?start=<not a Monday> is a reachable address the server rejects on
+ *  purpose, so the view has to leave a way out of it. */
+test("a week the server refuses still offers a way back to this one", async ({ page }) => {
+  await openWeek(
+    page,
+    { [THIS_WEEK]: rollup(THIS_WEEK, [row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }])]) },
+    [],
+    "/week?start=2026-09-08",
+  );
+
+  await expect(page.getByText("start must be a Monday, of the form YYYY-MM-DD")).toBeVisible();
+
+  await page.getByRole("button", { name: "This week" }).click();
+
+  await expect(page.getByRole("heading", { name: "7–13 Sep" })).toBeVisible();
+  await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
 });
 
 test("the previous week is a place you can go back from", async ({ page }) => {

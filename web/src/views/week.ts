@@ -1,5 +1,4 @@
 import "../components/that-alert";
-import "../components/that-button";
 
 import { ApiError, getWeek } from "../api";
 import { totalFigure } from "../format";
@@ -9,7 +8,7 @@ import { onPushReported } from "../push-reported";
 import { setRailPeriod } from "../rail";
 import { navigate } from "../router";
 import type { RegisterTeardown } from "../router";
-import type { WeekCell, WeekRollup } from "../types";
+import type { PushResponse, WeekCell, WeekRollup } from "../types";
 import { weekLabel } from "../week-label";
 
 /**
@@ -18,6 +17,19 @@ import { weekLabel } from "../week-label";
  * is what lets the grid be labelled without a Date being constructed.
  */
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/**
+ * The entries a push left behind, keyed to the cells they belong to. A failed
+ * result names its row by instance and issue key, and its column by the day of
+ * the response that carried it — `/api/week` cannot say this, because a re-read
+ * reports those entries as unpushed again, which is what they are.
+ */
+interface Failures {
+  cells: Set<string>;
+  days: Set<string>;
+}
+
+const NOTHING_FAILED: Failures = { cells: new Set(), days: new Set() };
 
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   const container = document.createElement("div");
@@ -37,10 +49,10 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   grid.append(loadingLine());
 
   const report = document.createElement("div");
-  // Below the grid, and hidden rather than merely empty: the container's
-  // space-y-4 gives every non-last child a bottom margin, so an empty box would
-  // reserve 16px under the table for a report that has not happened. Nothing
-  // may shift when one does — the grid must not move under a press.
+  // Below the grid, which is the part that matters: a press must move nothing
+  // above it. Hidden purely because there is no report yet — unlike Today's,
+  // this one is the container's last child, so it claims no space-y margin
+  // either way and hiding it reclaims nothing.
   report.hidden = true;
 
   container.append(header, grid, report);
@@ -52,31 +64,58 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // rather than whatever "this week" has become in the meantime.
   let showing = new URLSearchParams(window.location.search).get("start") ?? undefined;
 
+  // Supersession, the same job rail.ts's epoch does for the same reason: the
+  // mount's read and the one a push fires can be in flight together, and the
+  // older resolving second would paint the week as it was before the push.
+  let epoch = 0;
+
+  // Consumed by the one paint that reports the push producing it. The design
+  // gives this marker no life beyond that: it does not come from the rollup, so
+  // the read after the reporting one paints the truth again — and navigating
+  // away drops it with the rest of this mount's state.
+  let failures: Failures = NOTHING_FAILED;
+
   const show = async (): Promise<WeekRollup | null> => {
+    const mine = ++epoch;
+
     let rollup: WeekRollup;
     try {
       rollup = await getWeek(showing);
     } catch (error) {
+      if (mine !== epoch) return null;
+      // A first read that fails leaves nothing to navigate by — and
+      // /week?start=<not a Monday> is a reachable address the server rejects on
+      // purpose — so offer the one destination that needs no response to name.
+      // A later failure keeps whatever week is already on screen.
+      if (controls.childElementCount === 0) {
+        label.textContent = "Week";
+        controls.append(weekButton({ label: "This week", path: "/week" }));
+      }
       grid.replaceChildren(alertFor("error", messageOf(error)));
 
       return null;
     }
+    if (mine !== epoch) return null;
+
+    const marked = failures;
+    failures = NOTHING_FAILED;
 
     showing = rollup.start;
     label.textContent = weekLabel(rollup.start, rollup.end);
     controls.replaceChildren(...weekControls(rollup));
-    grid.replaceChildren(rollup.rows.length === 0 ? emptyWeek() : gridTable(rollup));
+    grid.replaceChildren(rollup.rows.length === 0 ? emptyWeek() : gridTable(rollup, marked));
 
     return rollup;
   };
 
   // Registered before the first read, so a push that lands while it is still in
   // flight is still heard. The rail owns the Push; this only renders what came
-  // back, and then re-reads — every marker in the grid comes off the rollup, so
-  // nothing settles until the rollup is asked again.
+  // back, and then re-reads — every marker the rollup knows about settles only
+  // when the rollup is asked again.
   const stopPushListening = onPushReported((responses) => {
     report.replaceChildren(...pushReportNodes(responses, { nameDays: true }));
     report.hidden = false;
+    failures = failuresIn(responses);
     void show();
   });
 
@@ -108,33 +147,73 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   });
 }
 
+/** Where a failed result lands: the row it names, and the column its response carried. */
+function cellKey(instanceId: number, issueKey: string, day: string): string {
+  return `${String(instanceId)}:${issueKey}:${day}`;
+}
+
+function failuresIn(responses: PushResponse[]): Failures {
+  const cells = new Set<string>();
+  const days = new Set<string>();
+
+  for (const response of responses) {
+    for (const result of response.results) {
+      if (result.status !== "failed") continue;
+      cells.add(cellKey(result.instanceId, result.issueKey, response.day));
+      days.add(response.day);
+    }
+  }
+
+  return { cells, days };
+}
+
 /**
- * Buttons rather than links, and that is not a styling choice: the router's
- * anchor handler navigates to `new URL(link.href).pathname`, which drops the
- * query — so an <a href="/week?start=…"> would land on this week every time.
- * Each still goes through navigate(), so each week keeps its own history entry.
+ * Arrows either side of "This week", as the design drew them.
+ *
+ * Plain buttons rather than that-button: CLAUDE.md reserves `that-*` for
+ * reusable UI, and these are one-off controls in one view — which is what lets
+ * the arrows carry an aria-label while that-button's accessible name is
+ * whatever it renders. Buttons rather than links for a separate reason: the
+ * router's anchor handler navigates to `new URL(link.href).pathname` and would
+ * drop the query, landing every press on this week.
  */
 function weekControls(rollup: WeekRollup): HTMLElement[] {
   return [
-    weekButton("Previous week", `/week?start=${rollup.prevStart}`),
-    weekButton("This week", "/week"),
-    weekButton("Next week", `/week?start=${rollup.nextStart}`),
+    weekButton({ glyph: "←", label: "Previous week", path: `/week?start=${rollup.prevStart}` }),
+    weekButton({ label: "This week", path: "/week" }),
+    weekButton({ glyph: "→", label: "Next week", path: `/week?start=${rollup.nextStart}` }),
   ];
 }
 
 /** The neighbouring starts come off the response; nothing here adds seven days. */
-function weekButton(label: string, path: string): HTMLElement {
-  const element = document.createElement("that-button");
-  element.setAttribute("label", label);
-  element.setAttribute("variant", "secondary");
-  element.addEventListener("click", () => {
-    void navigate(path);
+function weekButton(control: { glyph?: string; label: string; path: string }): HTMLElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className =
+    "inline-flex cursor-pointer items-center rounded-[9px] px-3 py-1.5 text-base font-bold " +
+    "text-ink-muted hover:bg-surface hover:text-ink";
+
+  if (control.glyph === undefined) {
+    button.textContent = control.label;
+  } else {
+    // The glyph is decorative; the name it stands for is not, and a screen
+    // reader would otherwise announce "leftwards arrow".
+    button.setAttribute("aria-label", control.label);
+    button.title = control.label;
+    const glyph = document.createElement("span");
+    glyph.setAttribute("aria-hidden", "true");
+    glyph.textContent = control.glyph;
+    button.append(glyph);
+  }
+
+  button.addEventListener("click", () => {
+    void navigate(control.path);
   });
 
-  return element;
+  return button;
 }
 
-function gridTable(rollup: WeekRollup): HTMLElement {
+function gridTable(rollup: WeekRollup, failures: Failures): HTMLElement {
   const table = document.createElement("table");
   // that-tnum on the table, so every figure under it is tabular — figures that
   // sit above one another have to align or the column reads as noise.
@@ -178,9 +257,10 @@ function gridTable(rollup: WeekRollup): HTMLElement {
     ticket.append(holder);
     tr.append(ticket);
 
-    for (const cell of row.cells) {
-      tr.append(cellNode(cell));
-    }
+    row.cells.forEach((cell, index) => {
+      const day = rollup.days[index]?.day ?? "";
+      tr.append(cellNode(cell, failures.cells.has(cellKey(row.instanceId, row.issueKey, day))));
+    });
     tr.append(totalCell(row.seconds));
     body.append(tr);
   }
@@ -195,7 +275,7 @@ function gridTable(rollup: WeekRollup): HTMLElement {
   // A day's own worst-wins state, the same rule the cells above follow, so the
   // footer says which days still hold time Jira has not got.
   for (const day of rollup.days) {
-    footRow.append(cellNode(day));
+    footRow.append(cellNode(day, failures.days.has(day.day)));
   }
   footRow.append(totalCell(rollup.seconds));
 
@@ -209,7 +289,22 @@ function gridTable(rollup: WeekRollup): HTMLElement {
 }
 
 /**
- * One cell. Three things are load-bearing here and none of them is obvious:
+ * How each state marks a cell. Filled against hollow, so unpushed and dirty
+ * differ in shape as well as hue; failed reuses the palette's own red 25 rather
+ * than naming a second colour for a state the design language already has.
+ *
+ * The words are not decoration. They are what a reader who cannot see the
+ * marker hears, and — through the marker's title — what a reader who can see it
+ * has instead of a legend the grid does not have room for.
+ */
+const MARKERS: Record<string, { className: string; words: string }> = {
+  unpushed: { className: "bg-pending", words: "not pushed to Jira" },
+  dirty: { className: "border-[1.5px] border-dirty", words: "edited since it was pushed" },
+  failed: { className: "bg-failed", words: "did not reach Jira" },
+};
+
+/**
+ * One cell. Four things are load-bearing here and none of them is obvious:
  *
  * `totalFigure`, never `timerFigure` — format.ts reserves the colon for a
  * timer, and a colon somewhere you cannot press play is a bug rather than a
@@ -221,8 +316,13 @@ function gridTable(rollup: WeekRollup): HTMLElement {
  * The marker is inline with no reserved width. The column is right-aligned, so
  * the figure ends at the same edge either way and the marker hangs off to the
  * left; a reserved gutter would fix a drift that does not happen.
+ *
+ * `failed` outranks whatever the rollup said, because it is newer than the
+ * rollup: it comes off the push that just happened, and a re-read reports those
+ * entries as unpushed again — true, but not the thing the reader needs to know
+ * in the seconds after pressing Push.
  */
-function cellNode(cell: WeekCell): HTMLTableCellElement {
+function cellNode(cell: WeekCell, failed: boolean): HTMLTableCellElement {
   const td = document.createElement("td");
   td.className = "px-2 py-1.5 text-right";
 
@@ -233,23 +333,20 @@ function cellNode(cell: WeekCell): HTMLTableCellElement {
     return td;
   }
 
-  if (cell.pushState === "unpushed" || cell.pushState === "dirty") {
+  const marker = MARKERS[failed ? "failed" : (cell.pushState ?? "pushed")];
+  if (marker) {
     const mark = document.createElement("span");
-    // Filled against hollow, so the two states differ in shape as well as hue.
-    mark.className =
-      cell.pushState === "unpushed"
-        ? "mr-1.5 inline-block size-1.5 rounded-full bg-pending align-[1px]"
-        : "mr-1.5 inline-block size-1.5 rounded-full border-[1.5px] border-dirty align-[1px]";
+    mark.className = `mr-1.5 inline-block size-1.5 rounded-full align-[1px] ${marker.className}`;
     mark.setAttribute("aria-hidden", "true");
+    mark.title = marker.words;
     td.append(mark);
 
-    const state = document.createElement("span");
-    state.className = "sr-only";
+    const words = document.createElement("span");
+    words.className = "sr-only";
     // Named for a reader who cannot see the marker. "Dirty" is the code's word,
     // not a person's.
-    state.textContent =
-      cell.pushState === "unpushed" ? "not pushed to Jira, " : "edited since it was pushed, ";
-    td.append(state);
+    words.textContent = `${marker.words}, `;
+    td.append(words);
   }
 
   td.append(document.createTextNode(totalFigure(cell.seconds)));
