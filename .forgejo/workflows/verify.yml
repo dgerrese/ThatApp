@@ -78,10 +78,20 @@ jobs:
         working-directory: web
         run: npm run lint
 
-      # Both projects, matching the `tsc` target in the Makefile: the second
-      # covers the service worker, which has its own lib set.
+      # Three projects, matching the `tsc` target in the Makefile: the service
+      # worker has its own lib set, and the unit tests their own extension and
+      # `types` licence. The base project pins `types` to none, so a
+      # devDependency's ambient globals (e.g. @types/node) can't reach it.
       - name: Type-check
         working-directory: web
         run: |
           npx tsc --noEmit
           npx tsc --noEmit -p tsconfig.worker.json
+          npx tsc --noEmit -p tsconfig.test.json
+
+      # The `test-web` target, which `make test` and therefore `make verify` now
+      # run. Node runs the .ts directly, so there is nothing to build first —
+      # the glob is quoted because node expands it, not the shell.
+      - name: Test
+        working-directory: web
+        run: node --test 'src/**/*.test.ts'

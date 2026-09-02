@@ -1,29 +1,9 @@
-/**
- * RUDIMENTARY, AND KNOWN TO BE. #51 owns the frontend test runner properly:
- * where the gate lives, what the conventions are, and bringing this file into
- * them. It is not wired into `make verify`, because choosing that gate is #51's
- * decision rather than a side effect of #44.
- *
- * It exists anyway because the format rule is the one thing here that tickets
- * 7 to 11 all depend on and that no other gate would catch eroding.
- *
- * Run it with: make test-web
- *
- * It is excluded from tsconfig's `include`, so tsc does not type-check this
- * file. That is not a loosening of strict mode — nothing checked got weaker —
- * but it is a real gap, and it is here because the alternatives both belong to
- * #51: node's ESM resolver requires the `.ts` extension below, which tsc
- * rejects without `allowImportingTsExtensions`, and `node:test` has no types
- * without adding `@types/node`. Picking either is #51's call, not a side effect
- * of a design ticket.
- */
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { clockTime, timerFigure, totalFigure } from "./format.ts";
 
-test("a timer is always HH:MM", () => {
+test("a timer is always HH:MM", async (t) => {
   const cases: [number, string][] = [
     [0, "00:00"],
     [59, "00:00"],
@@ -34,11 +14,14 @@ test("a timer is always HH:MM", () => {
   ];
 
   for (const [seconds, want] of cases) {
-    assert.equal(timerFigure(seconds), want, `timerFigure(${seconds})`);
+    await t.test(`${seconds} seconds is ${want}`, () => {
+      const got = timerFigure(seconds);
+      assert.equal(got, want);
+    });
   }
 });
 
-test("a total is always Nh Nm", () => {
+test("a total is always Nh Nm", async (t) => {
   const cases: [number, string][] = [
     [0, "0h 00m"],
     [2700, "0h 45m"],
@@ -49,7 +32,10 @@ test("a total is always Nh Nm", () => {
   ];
 
   for (const [seconds, want] of cases) {
-    assert.equal(totalFigure(seconds), want, `totalFigure(${seconds})`);
+    await t.test(`${seconds} seconds is ${want}`, () => {
+      const got = totalFigure(seconds);
+      assert.equal(got, want);
+    });
   }
 });
 
@@ -58,13 +44,18 @@ test("a total is always Nh Nm", () => {
  * stop. A total growing one would tell the reader a control exists where none
  * does, which is the failure this whole convention is built to prevent.
  */
-test("a total never carries a colon", () => {
-  for (const seconds of [0, 59, 60, 3599, 3600, 18900, 359999]) {
-    assert.ok(!totalFigure(seconds).includes(":"), `totalFigure(${seconds}) grew a colon`);
+test("a total never carries a colon", async (t) => {
+  const cases: number[] = [0, 59, 60, 3599, 3600, 18900, 359999];
+
+  for (const seconds of cases) {
+    await t.test(`${seconds} seconds`, () => {
+      const got = totalFigure(seconds);
+      assert.ok(!got.includes(":"), `${got} grew a colon`);
+    });
   }
 });
 
-test("a clock time is always zero-padded HH:MM", () => {
+test("a clock time is always zero-padded HH:MM", async (t) => {
   const cases: [Date, string][] = [
     [new Date(2026, 0, 1, 14, 32), "14:32"],
     [new Date(2026, 0, 1, 0, 5), "00:05"],
@@ -74,7 +65,10 @@ test("a clock time is always zero-padded HH:MM", () => {
   ];
 
   for (const [date, want] of cases) {
-    assert.equal(clockTime(date), want, `clockTime(${date.toISOString()})`);
+    await t.test(`${date.getHours()}h${date.getMinutes()} is ${want}`, () => {
+      const got = clockTime(date);
+      assert.equal(got, want);
+    });
   }
 });
 
