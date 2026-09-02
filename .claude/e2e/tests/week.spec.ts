@@ -164,6 +164,14 @@ function unreachable(entryId: number, issueKey: string) {
   };
 }
 
+/** The one failure a retry must not be offered for: Jira has the worklog, this app does not. */
+function storeFailed(entryId: number, issueKey: string) {
+  return {
+    entryId, issueKey, instanceId: 1, status: "failed",
+    error: { code: "store_failed", message: "the worklog could not be recorded locally" },
+  };
+}
+
 /**
  * `rollups` is read on every request rather than captured, so a test can swap a
  * fixture in mid-flight and the next read sees it.
@@ -321,6 +329,11 @@ test("pushing from the Week view reports below the grid and names the day that f
     });
   });
 
+  // The rail describes the view beside it, which is the whole point of decision
+  // 6: the period is named, and the figure is the week's rather than Monday's.
+  await expect(page.locator("#rail-period")).toHaveText("Week · 7–13 Sep");
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+
   await page.getByRole("button", { name: "Push to Jira" }).click();
   await expect(page.getByText(/2 entries totalling 1h 30m across 2 days/)).toBeVisible();
   await page.getByRole("button", { name: "Push", exact: true }).click();
@@ -336,6 +349,90 @@ test("pushing from the Week view reports below the grid and names the day that f
   expect(table).not.toBeNull();
   expect(line).not.toBeNull();
   expect(line?.y ?? 0).toBeGreaterThan((table?.y ?? 0) + (table?.height ?? 0));
+});
+
+/**
+ * store_failed is the one failure where the report must argue against the retry
+ * every other failure asks for: those entries reached Jira and only the local
+ * record of them did not, so pressing Push again logs the time in Jira twice
+ * and nothing here can undo it.
+ */
+test("an entry Jira took but the store lost says not to push again", async ({ page }) => {
+  await openWeek(
+    page,
+    {
+      [THIS_WEEK]: rollup(THIS_WEEK, [
+        row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+      ]),
+    },
+    [entry(1, "RIDGE-1", "2026-09-07", 3600, "unpushed")],
+  );
+
+  await page.route("**/api/push**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { day: "2026-09-07", results: [storeFailed(1, "RIDGE-1")] },
+    }),
+  );
+
+  await pushEverything(page);
+
+  const alert = page.locator("that-alert[tone='error']");
+  await expect(alert).toContainText(
+    "1 entry reached Jira but could not be recorded here. Check the issue in Jira before " +
+      "pushing again — pushing now would log the time twice.",
+  );
+  await expect(page.getByText("2026-09-07 · RIDGE-1")).toBeVisible();
+  // The retry line belongs to every other failure and would be actively harmful
+  // here, so its absence is as much the assertion as the words above.
+  await expect(page.getByText(/again to retry them/)).toHaveCount(0);
+});
+
+/**
+ * A day whose request never comes back produces no result to count either way.
+ * Reporting only what came back would find no failures in the two days that
+ * answered and print the success line over a push that half finished — on the
+ * screen the week is signed off from, which is the worst place for it.
+ */
+test("a day whose push never answered is named rather than counted as pushed", async ({ page }) => {
+  await openWeek(
+    page,
+    {
+      [THIS_WEEK]: rollup(THIS_WEEK, [
+        row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+        row("RIDGE-2", [{ at: 1, seconds: 1800, pushState: "unpushed" }]),
+        row("RIDGE-3", [{ at: 2, seconds: 900, pushState: "unpushed" }]),
+      ]),
+    },
+    [
+      entry(1, "RIDGE-1", "2026-09-07", 3600, "unpushed"),
+      entry(2, "RIDGE-2", "2026-09-08", 1800, "unpushed"),
+      entry(3, "RIDGE-3", "2026-09-09", 900, "unpushed"),
+    ],
+  );
+
+  await page.route("**/api/push**", (route) => {
+    const day = new URL(route.request().url()).searchParams.get("day") ?? "";
+    // The middle day, so the days either side of it do answer and the report has
+    // two successes it could otherwise have called the whole push by.
+    if (day === "2026-09-08") return route.abort();
+
+    const id = day === "2026-09-07" ? 1 : 3;
+
+    return route.fulfill({
+      status: 200,
+      json: { day, results: [pushed(id, `RIDGE-${String(id)}`)] },
+    });
+  });
+
+  await pushEverything(page);
+
+  await expect(page.locator("that-alert[tone='warning']")).toContainText(
+    "1 day did not answer, so what happened to its time is not known here. " +
+      "Press Push to Jira again.",
+  );
+  await expect(page.getByText("2026-09-08", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Pushed \d+ entr/)).toHaveCount(0);
 });
 
 /**

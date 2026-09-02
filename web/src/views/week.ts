@@ -124,8 +124,8 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // flight is still heard. The rail owns the Push; this only renders what came
   // back, and then re-reads — every marker the rollup knows about settles only
   // when the rollup is asked again.
-  const stopPushListening = onPushReported((responses) => {
-    report.replaceChildren(...pushReportNodes(responses, { nameDays: true }));
+  const stopPushListening = onPushReported((responses, unanswered) => {
+    report.replaceChildren(...pushReportNodes(responses, unanswered, { nameDays: true }));
     report.hidden = false;
     failures = failuresIn(responses);
     void show();

@@ -135,6 +135,11 @@ export function startRail(): void {
    * policy inverts — the regions hold index.html's hardcoded 0h 00m, a
    * placeholder rather than a truth worth preserving — so a failed boot read
    * retries until a real figure is up.
+   *
+   * A period change puts the rail back into that pre-paint state on purpose
+   * (see applyPeriod). Keeping the old figures is only defensible while they
+   * belong to the period the label claims, and after a period change they
+   * belong to the one before it.
    */
   const refresh = async (): Promise<void> => {
     const mine = ++epoch;
@@ -180,8 +185,13 @@ export function startRail(): void {
 
   // A period change is a new read, and it moves the epoch so a read still in
   // flight for the previous period cannot land afterwards and paint it back.
+  // Dropping `painted` re-arms the pre-paint retry for exactly the case it was
+  // written for: until this period has painted once, what is on screen is the
+  // previous period's, so a failed read must keep trying rather than strand the
+  // rail on figures the view beside it contradicts. paint() sets it back.
   applyPeriod = () => {
     epoch += 1;
+    painted = false;
     void refresh();
   };
 
@@ -272,11 +282,15 @@ export function startRail(): void {
       // a day that never answered keeps worklog_id null, so the next read
       // still shows it as unpushed and Push can simply be pressed again.
       const responses: PushResponse[] = [];
+      const unanswered: string[] = [];
       for (const day of days) {
         try {
           responses.push(await pushDay(day));
         } catch {
-          // Swallowed on purpose — see the comment above the loop.
+          // Kept rather than swallowed: a day that threw contributes no result
+          // to either count, so a report told only about the responses would
+          // find no failures and call a half-finished push a success.
+          unanswered.push(day);
         }
       }
       if (responses.length === 0) {
@@ -284,7 +298,7 @@ export function startRail(): void {
         return;
       }
 
-      announcePushReported(responses);
+      announcePushReported(responses, unanswered);
 
       try {
         announceEntriesChanged(await listEntries(currentPeriod.range));

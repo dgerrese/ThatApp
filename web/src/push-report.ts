@@ -20,9 +20,14 @@ export interface PushReportOptions {
  * Jira — only the local record of them did not — so the retry that is right for
  * every other failure is exactly wrong for them: pressing Push again logs the
  * time in Jira twice, and nothing in this app can undo it.
+ *
+ * `unanswered` names the days whose request never came back at all. They have
+ * no results to count either way, so a report reading only the responses would
+ * find no failures and print the success line over a push that half finished.
  */
 export function pushReportNodes(
   responses: PushResponse[],
+  unanswered: string[],
   options: PushReportOptions = {},
 ): Node[] {
   const all = responses.flatMap((response) =>
@@ -31,7 +36,7 @@ export function pushReportNodes(
   const failed = all.filter((line) => line.result.status === "failed");
   const pushed = all.filter((line) => line.result.status === "pushed");
 
-  if (failed.length === 0) {
+  if (failed.length === 0 && unanswered.length === 0) {
     return [
       alertFor(
         "success",
@@ -58,6 +63,18 @@ export function pushReportNodes(
             ` — ${line.result.error?.message ?? "unknown error"}`,
         ),
       ),
+    );
+  }
+
+  if (unanswered.length > 0) {
+    nodes.push(
+      alertFor(
+        "warning",
+        `${String(unanswered.length)} ${unanswered.length === 1 ? "day" : "days"} did not ` +
+          `answer, so what happened to ${unanswered.length === 1 ? "its" : "their"} time is ` +
+          "not known here. Press Push to Jira again.",
+      ),
+      failureList(unanswered),
     );
   }
 

@@ -24,15 +24,29 @@ const PUSH_REPORTED = "that-push-reported";
  * The announcement carries the responses themselves — one per day the period
  * held — so the one listener that renders them (Today's report region) does
  * not have to ask the server again for what these calls already returned.
+ *
+ * `unanswered` rides alongside them because a day whose request threw produces
+ * no response at all: it is in neither the pushed nor the failed count, and a
+ * report that only counted responses would call a half-finished push a success.
  */
-export function announcePushReported(responses: PushResponse[]): void {
-  document.dispatchEvent(new CustomEvent<PushResponse[]>(PUSH_REPORTED, { detail: responses }));
+interface PushReported {
+  responses: PushResponse[];
+  unanswered: string[];
+}
+
+export function announcePushReported(responses: PushResponse[], unanswered: string[]): void {
+  document.dispatchEvent(
+    new CustomEvent<PushReported>(PUSH_REPORTED, { detail: { responses, unanswered } }),
+  );
 }
 
 /** Returns the function that stops listening. */
-export function onPushReported(handle: (responses: PushResponse[]) => void): () => void {
+export function onPushReported(
+  handle: (responses: PushResponse[], unanswered: string[]) => void,
+): () => void {
   const listener = (event: Event): void => {
-    handle((event as CustomEvent<PushResponse[]>).detail);
+    const { responses, unanswered } = (event as CustomEvent<PushReported>).detail;
+    handle(responses, unanswered);
   };
   document.addEventListener(PUSH_REPORTED, listener);
 

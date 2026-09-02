@@ -97,10 +97,12 @@ a primary action.
 
 Amber and red are deliberately different things: amber says *warning* — an entry not yet sent is
 one instance, data the shell is showing from cache while offline is another — red says *sent and
-refused*. **Neither ever rests on colour alone** — the triangle and the words stay, so the
-distinction survives a monochrome screen and a red-green deficiency both. Dirty's distinction
-from not-pushed — ring against fill — relies on shape alone because the shapes are inherently
-distinct, unlike amber and red's shared triangle which requires words for distinction.
+refused*. **Neither ever rests on colour alone** — the guarantee is that much and no more. In an
+alert the triangle and the words carry it; where a surface has room for neither, a week grid's
+cell being the case, each state takes a silhouette of its own instead. Either way the distinction
+survives a monochrome screen and a red-green deficiency both. Dirty's distinction from
+not-pushed — ring against fill — relies on shape alone because the shapes are inherently distinct,
+unlike amber and red's shared triangle, which needs words to tell them apart.
 
 ### The `-rail` variants
 
