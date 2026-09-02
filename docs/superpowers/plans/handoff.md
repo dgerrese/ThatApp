@@ -35,12 +35,12 @@ further down is history and says otherwise in places.
 `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
 **In progress: #51**, on `issue-51-frontend-unit-tests` — one commit, a plan, no implementation.
-**No pull request is open**, confirmed on 2026-09-02. #49 (`codeberg-api-limits`) merged on
-2026-09-01, the eod skill followed it as PR #81, and `handoff-2026-09-01` merged as **PR #82**,
-putting remote `main` at `0c1dcfc`. Two branches are pushed with no pull request behind them:
-`retro-skill` and `worktrees-without-the-tax`, carried across the forge move with their work intact.
-The GitHub pull requests that used to hold them did not migrate, so re-opening them on Codeberg is a
-decision waiting to be made. **To do:** #8, #10 and #11. **Needs refinement, ten:** #13 (LAN/HTTPS
+**One pull request is open: PR #85, `retro-skill`**, opened on 2026-09-02 and waiting on the owner.
+Before it, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
+and `handoff-2026-09-01` merged as **PR #82**, putting remote `main` at `0c1dcfc`. That leaves
+**`worktrees-without-the-tax` as the only branch pushed with no pull request behind it**, carried
+across the forge move with its work intact. The GitHub pull request that used to hold it did not
+migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8, #10 and #11. **Needs refinement, ten:** #13 (LAN/HTTPS
 phone access — deferred, and needs the owner's explicit go-ahead even to refine), #19, #35, #39,
 #40, #47, #61, #80, #83 and #84. **Intake, fourteen, every one the owner's to approve or decline:**
 #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as not planned:**
@@ -1137,9 +1137,12 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   pre-rename tip, so branching from it no longer produces the old names and the old module path;
   it is simply behind. **Verify the gap against the API before repeating a number here**, because a
   blocked fetch leaves the local `codeberg/*` refs frozen and makes local `git` quietly wrong.
-- **`retro-skill` and `worktrees-without-the-tax` are pushed but have no pull request.** Their work
-  survived the move; the GitHub pull requests holding them did not. Both predate the rename, so
-  either will need `THAT_*`/`that-*` applied before it can merge.
+- ~~**`retro-skill` and `worktrees-without-the-tax` are pushed but have no pull request.**~~
+  **Half done on 2026-09-02:** `retro-skill` went up as **PR #85**. Rebasing it onto `main` needed
+  the `CLAUDE.md` hunk re-placed against the handoff split and the eod paragraph, and its commands
+  ported from `gh` to `tea` — the pre-move debt the original bullet warned about, and it was an
+  hour's work rather than a rewrite. **`worktrees-without-the-tax` still has none**, still predates
+  the rename, and will need the same treatment.
 - **`upload-artifact` on hosted runners is still unverified.** It only runs on end-to-end failure,
   and that workflow is path-gated, so it has never fired. If it turns out unsupported, the step
   drops with no loss to the gate itself. Everything else in `.forgejo/workflows/` is confirmed
@@ -1159,7 +1162,7 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 - **Seven local branches are merged into `origin/main` and droppable** whenever the owner says so:
   `handoff-2026-08-17`, `handoff-2026-08-20`, `handoff-2026-08-27`, `handoff-2026-08-31`,
   `handoff-post-4`, `issue-12-pwa-shell`, `issue-9-end-of-day-push`. `worktrees-without-the-tax` is
-  kept deliberately (see below); `retro-skill` carries unmerged work and was pushed to Codeberg.
+  kept deliberately (see below); `retro-skill` carries unmerged work and is now PR #85.
   Note these were merged into the *GitHub* `main`, which is now archived — they are contained in
   Codeberg's `main` too, since it descends from the same history.
 
@@ -1224,8 +1227,8 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 **This branch:** `handoff-2026-09-02`, cut from `3f44974` on 2026-09-02 because
 `handoff-2026-09-01` had already merged. It carries the day's narrative, the `enhancement` test
 written into the `ticket-workflow` skill, and this correction pass, and goes out as one pull request
-at the end-of-day signal. **No pull request is open on the repository** — the line that used to
-stand here claiming PR #78 held `retro-skill` was wrong, and that branch still needs one.
+at the end-of-day signal. The line that used to stand here claimed PR #78 held
+`retro-skill`, which was wrong; that branch is now genuinely open as **PR #85**.
 
 ## Environment notes
 
