@@ -103,15 +103,10 @@
             Today
           </a>
 
-          <!--
-            The rail carries three destinations in the design and Week is one of
-            them, so it is here rather than quietly dropped. #11 builds the view;
-            until then this is inert rather than a link to a dead address, on the
-            same reasoning that keeps Push visible and disabled.
-          -->
-          <span
-            class="that-nav text-rail-muted text-md flex h-[38px] items-center gap-[11px] rounded-[9px] px-2.5 font-medium opacity-50"
-            aria-disabled="true"
+          <a
+            href="/week"
+            data-route
+            class="that-nav text-md flex h-[38px] items-center gap-[11px] rounded-[9px] px-2.5"
           >
             <svg
               width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -121,7 +116,7 @@
               <path d="M3.5 10h17M9 5V3M15 5V3" />
             </svg>
             Week
-          </span>
+          </a>
 
           <a
             href="/settings"
