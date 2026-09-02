@@ -27,12 +27,55 @@ import type { Entry, PushResponse } from "./types";
 const FIRST_RETRY_MS = 1_000;
 const MAX_RETRY_MS = 30_000;
 
+/**
+ * What the rail is describing. A view declares this on mount; the rail owns
+ * nothing about which period is current.
+ *
+ * `range` is absent for today rather than computed here, because the rail must
+ * not derive a date — the end-of-day push and the weekly rollup have to agree on
+ * where a day ends with no browser open, and the server is the one that decides.
+ * An absent range is exactly what `listEntries()` already defaults to.
+ */
+export interface RailPeriod {
+  label: string;
+  viewPath: string;
+  range?: { from: string; to: string };
+  pushHeading: string;
+}
+
+export const TODAY_PERIOD: RailPeriod = {
+  label: "Today",
+  viewPath: "/today",
+  pushHeading: "Push today's time to Jira?",
+};
+
+let currentPeriod: RailPeriod = TODAY_PERIOD;
+let applyPeriod: ((period: RailPeriod) => void) | undefined;
+
+/**
+ * Called by a view as it mounts. Before startRail has run there is nothing to
+ * paint, so the period is merely recorded and the boot read picks it up.
+ *
+ * A no-op when the period is already current: startRail in fact always runs
+ * before any view mounts (see main.ts), so every mount of a view that shares
+ * today's period — Today itself, and Settings borrowing it — would otherwise
+ * fire a live re-read of a period the rail is already showing. Reference
+ * equality is enough because every period a view hands in is a shared
+ * constant (TODAY_PERIOD) or freshly built for a genuine change.
+ */
+export function setRailPeriod(period: RailPeriod): void {
+  if (period === currentPeriod) return;
+  currentPeriod = period;
+  applyPeriod?.(period);
+}
+
 export function startRail(): void {
   const total = document.querySelector<HTMLElement>("#rail-total");
   const split = document.querySelector<HTMLElement>("#rail-split");
   const unpushed = document.querySelector<HTMLElement>("#rail-unpushed");
   const push = document.querySelector<HTMLButtonElement>("#rail-push");
-  if (!total || !split || !unpushed || !push) return;
+  const period = document.querySelector<HTMLElement>("#rail-period");
+  if (!total || !split || !unpushed || !push || !period) return;
 
   // Supersession, the same job searchIssues' AbortController does: a slow read
   // must not land after a newer one — or after an announcement that carried
@@ -74,6 +117,7 @@ export function startRail(): void {
   };
 
   const paint = (entries: Entry[]): void => {
+    period.textContent = currentPeriod.label;
     painted = true;
     retryDelay = FIRST_RETRY_MS;
     total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
@@ -101,7 +145,7 @@ export function startRail(): void {
 
     let entries: Entry[];
     try {
-      entries = await listEntries();
+      entries = await listEntries(currentPeriod.range);
     } catch {
       if (!painted && mine === epoch) {
         retryTimer = window.setTimeout(() => {
@@ -121,9 +165,10 @@ export function startRail(): void {
   // No unsubscribe: the shell outlives every view, so this listener is meant to
   // last as long as the page does.
   onEntriesChanged((entries) => {
-    if (entries) {
-      // The announcement carried the day, so there is nothing to fetch — and
-      // the epoch moves so any read still in flight cannot overwrite this.
+    // The announcement carries today's entries. It answers the rail's question
+    // only while today is what the rail is showing; for any other period the
+    // right response is to re-read that period.
+    if (entries && currentPeriod === TODAY_PERIOD) {
       epoch += 1;
       paint(entries);
 
@@ -132,6 +177,13 @@ export function startRail(): void {
     void refresh();
   });
   void refresh();
+
+  // A period change is a new read, and it moves the epoch so a read still in
+  // flight for the previous period cannot land afterwards and paint it back.
+  applyPeriod = () => {
+    epoch += 1;
+    void refresh();
+  };
 
   /**
    * Confirms, pushes, then hands the result to whoever is listening for it —
@@ -184,7 +236,7 @@ export function startRail(): void {
       const label = `${String(due.length)} ${due.length === 1 ? "entry" : "entries"}`;
       const sites = new Set(due.map((entry) => entry.instanceId)).size;
       const confirmed = await confirmDestructive({
-        heading: "Push today's time to Jira?",
+        heading: currentPeriod.pushHeading,
         body:
           `${label} totalling ${totalFigure(seconds)} will be created as worklogs on ` +
           `${String(sites)} ${sites === 1 ? "site" : "sites"}.`,
@@ -198,8 +250,8 @@ export function startRail(): void {
       // onPushReported subscription only exists on the far side of it — an
       // announcement fired during that gap is heard by nobody, and a partial
       // failure answers 200, so nothing else would report it either.
-      if (window.location.pathname !== "/today") {
-        await navigate("/today");
+      if (window.location.pathname !== currentPeriod.viewPath) {
+        await navigate(currentPeriod.viewPath);
       }
 
       let response: PushResponse;

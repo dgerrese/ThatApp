@@ -23,6 +23,7 @@ import { clockTime } from "../format";
 import { paintInstanceDot } from "../instance-hue";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
+import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import type { RegisterTeardown } from "../router";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
@@ -57,6 +58,8 @@ interface Regions {
 }
 
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
+  setRailPeriod(TODAY_PERIOD);
+
   const container = document.createElement("div");
   container.className = "space-y-4";
 
