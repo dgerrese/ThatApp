@@ -1246,6 +1246,13 @@ stand here claiming PR #78 held `retro-skill` was wrong, and that branch still n
   archived; Forgejo has no equivalent, and the `@claude` and automatic-review workflows were deleted
   in the move. Claude runs locally through the superpowers skills, which is how the work was always
   actually done.
+- **Commits here are signed, and git will tell you they are not.** Every commit in this repository
+  carries a `gpgsig` SSH signature, but `gpg.ssh.allowedSignersFile` is unset, so git cannot verify
+  its own work: `git log --show-signature` prints *No signature*, `%G?` reports `N` for all 284
+  commits, and an `allowedSignersFile needs to be configured` error is emitted on the side. **That
+  is a verification gap, not a signing failure** — confirm with `git cat-file commit HEAD | head`,
+  which shows the `gpgsig` header plainly. Do not conclude from `--show-signature` that signing is
+  broken, and do not "fix" signing on that evidence.
 - **When SSH is down, local git does not merely fail — it answers with stale data.** `git fetch`
   failing leaves every `codeberg/*` remote-tracking ref frozen at its last successful fetch, so
   `git branch -vv`, `git log` and any ahead/behind count describe the forge as it was, with no
