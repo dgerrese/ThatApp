@@ -28,8 +28,13 @@ export default defineConfig({
   // runner that call reports the *host's* logical cores rather than the
   // cgroup's share — on codeberg-medium (4 CPU / 8G) it asked for sixteen
   // browsers. Chromium survived it; sixteen Firefox profiles on four CPUs did
-  // not, and the suite failed on timeouts and lost browser contexts. Pin the
-  // pool to the runner's real size. Unset locally, where the default is right.
+  // not, and the suite failed on timeouts and lost browser contexts. Four is
+  // one worker per vCPU, deliberately above the half-CPUs the default
+  // heuristic would pick, chosen because codeberg-medium caps a job at ten
+  // minutes and there is little room to spare. Two is the next step down if
+  // four still thrashes. Tracks the `runs-on: codeberg-medium` in
+  // .forgejo/workflows/e2e.yml — move that runner label and this number
+  // stops being justified. Unset locally, where the default is right.
   workers: process.env.CI ? 4 : undefined,
   use: {
     baseURL,

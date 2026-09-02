@@ -23,8 +23,9 @@ trace-upload step uses an action that refuses to run against a Forgejo instance 
 ## Global Constraints
 
 - **Nothing is weakened to reach green.** `retries` stays at 1. No test is skipped, deleted,
-  given a longer timeout, or marked flaky. If capping concurrency is not enough, that is a
-  finding to report, not a threshold to move.
+  given a longer timeout, or marked flaky. Lowering `workers` further is not on that list: four
+  is a starting figure, not a settled one, and the acceptance criterion is a green run — if four
+  is not enough, drop it further rather than touching anything above.
 - **Local behaviour must not change.** `make test-e2e` runs with `CI` unset (docker-compose.yml
   forwards `CI: "${CI:-}"` from the host, which is empty), so every change here is inside a
   `process.env.CI` branch. The host has 20 cores, so an uncapped local run reports 10 workers.
@@ -126,6 +127,9 @@ runner. After both tasks and the whole-branch review:
 - [ ] Push and open the pull request, then read the E2E run on it. Green with zero failed and zero
       flaky is the acceptance criterion. Anything less is a finding for the owner, not a reason to
       loosen the suite.
+- [ ] A green job status is not the same as "no flaky". `retries` is 1 under CI, so a spec that
+      fails once and passes on retry is reported flaky while the job still exits 0. Read the
+      reporter's summary line, not the job badge.
 
 ## Self-Review
 
@@ -134,6 +138,6 @@ runner. After both tasks and the whole-branch review:
 | E2E completes green on Codeberg, nothing failed or flaky | Verification |
 | `make test-e2e` stays green locally, worker count unchanged | Task 1 Step 3 |
 | `workers` capped only under `CI`, with a comment naming the runner's four CPUs | Task 1 Step 2 |
-| Trace upload succeeds on a failing run, or is removed with the reason recorded | Task 2 |
+| Trace upload succeeds on a failing run, or is removed with the reason recorded | Unverified — the step is `if: failure()`, so this ticket's own green run cannot exercise it; it stays unverified until something fails on Codeberg |
 | The job stays inside the 10-minute cap | Verification |
 | Nothing skipped, weakened, deleted or retried harder; `retries` stays 1 | Global Constraints |
