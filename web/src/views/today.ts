@@ -161,8 +161,8 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // The rail triggers the push; this only renders what it hears. Same
   // outlives-the-view reasoning as the subscription above, and the same
   // teardown so a navigation away cannot leave it painting a detached view.
-  const stopPushListening = onPushReported((response) => {
-    showPushReport(regions, ...pushReportNodes([response]));
+  const stopPushListening = onPushReported((responses) => {
+    showPushReport(regions, ...pushReportNodes(responses));
   });
   registerTeardown(stopPushListening);
 

@@ -21,18 +21,18 @@ const PUSH_REPORTED = "that-push-reported";
  * Fired on `document`, not bubbled: the rail that triggers a push is a sibling
  * of Today, the view that reports it, not an ancestor of it.
  *
- * The announcement carries the response itself, so the one listener that
- * renders it (Today's report region) does not have to ask the server again
- * for what this call already returned.
+ * The announcement carries the responses themselves — one per day the period
+ * held — so the one listener that renders them (Today's report region) does
+ * not have to ask the server again for what these calls already returned.
  */
-export function announcePushReported(response: PushResponse): void {
-  document.dispatchEvent(new CustomEvent<PushResponse>(PUSH_REPORTED, { detail: response }));
+export function announcePushReported(responses: PushResponse[]): void {
+  document.dispatchEvent(new CustomEvent<PushResponse[]>(PUSH_REPORTED, { detail: responses }));
 }
 
 /** Returns the function that stops listening. */
-export function onPushReported(handle: (response: PushResponse) => void): () => void {
+export function onPushReported(handle: (responses: PushResponse[]) => void): () => void {
   const listener = (event: Event): void => {
-    handle((event as CustomEvent<PushResponse>).detail);
+    handle((event as CustomEvent<PushResponse[]>).detail);
   };
   document.addEventListener(PUSH_REPORTED, listener);
 

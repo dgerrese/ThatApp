@@ -212,7 +212,10 @@ export function startRail(): void {
     try {
       let entries: Entry[];
       try {
-        entries = await listEntries();
+        // Scoped to the period, not just today: `due` below drives which days
+        // get pushed, so a check that only ever saw today would silently push
+        // nothing beyond it on any period wider than a day.
+        entries = await listEntries(currentPeriod.range);
       } catch {
         showPushError("Could not check what's pending — press Push to Jira to retry.");
         return;
@@ -231,14 +234,21 @@ export function startRail(): void {
         return;
       }
 
+      // One request per day, in order. `day` comes off the entries the server
+      // stamped, so the rail still derives no date of its own. Sequential rather
+      // than concurrent: the merged report has to be attributable and stably
+      // ordered, and a bad week should not fan a week of requests at Jira at once.
+      const days = [...new Set(due.map((entry) => entry.day))].sort();
+
       const { confirmDestructive } = await import("./components/that-confirm");
       const seconds = due.reduce((sum, entry) => sum + entry.seconds, 0);
       const label = `${String(due.length)} ${due.length === 1 ? "entry" : "entries"}`;
       const sites = new Set(due.map((entry) => entry.instanceId)).size;
+      const across = days.length === 1 ? "" : ` across ${String(days.length)} days`;
       const confirmed = await confirmDestructive({
         heading: currentPeriod.pushHeading,
         body:
-          `${label} totalling ${totalFigure(seconds)} will be created as worklogs on ` +
+          `${label} totalling ${totalFigure(seconds)}${across} will be created as worklogs on ` +
           `${String(sites)} ${sites === 1 ? "site" : "sites"}.`,
         confirmLabel: "Push",
       });
@@ -254,18 +264,30 @@ export function startRail(): void {
         await navigate(currentPeriod.viewPath);
       }
 
-      let response: PushResponse;
-      try {
-        response = await pushDay();
-      } catch {
+      // Each day is its own request against state the server tracks
+      // independently, so one day failing says nothing about the next — unlike
+      // a single confirmation covering days that turn out not to share a fate,
+      // stopping early would cost every later day its chance for no reason tied
+      // to it. Continue rather than break, and report whatever came back;
+      // a day that never answered keeps worklog_id null, so the next read
+      // still shows it as unpushed and Push can simply be pressed again.
+      const responses: PushResponse[] = [];
+      for (const day of days) {
+        try {
+          responses.push(await pushDay(day));
+        } catch {
+          // Swallowed on purpose — see the comment above the loop.
+        }
+      }
+      if (responses.length === 0) {
         showPushError("Push failed — press Push to Jira to retry.");
         return;
       }
 
-      announcePushReported(response);
+      announcePushReported(responses);
 
       try {
-        announceEntriesChanged(await listEntries());
+        announceEntriesChanged(await listEntries(currentPeriod.range));
       } catch {
         // The push itself already succeeded and is reported above; a failed
         // re-read here only means the rail's own total is stale until the
