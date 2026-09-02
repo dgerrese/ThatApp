@@ -79,11 +79,20 @@ See *What this ticket grew into*.
    view *tells* the rail which period it is showing; the rail sums rows the server already stamped.
    Nothing here derives a day from the browser clock.
 
-8. **Push sends every unsettled day in the period, one request per day, in order.** `POST
-   /api/push?day=` is unchanged and stays per-day. On Week, one press issues one call per day whose
-   state is unpushed or dirty, sequentially — sequential so the merged report is attributable and
-   deterministically ordered, and so a bad week does not fan several days of requests at Jira at
-   once.
+8. **Push sends every day holding unpushed entries, one request per day, in order.** `POST
+   /api/push?day=` is unchanged and stays per-day. One press issues one call per such day,
+   sequentially — sequential so the merged report is attributable and deterministically ordered, and
+   so a bad week does not fan several days of requests at Jira at once.
+
+   **A dirty day is not pushable, and must not offer a Push.** `handlePushDay` skips every entry
+   whose state is not `unpushed`, marking it `skipped` — re-pushing an edited entry means a `PUT` to
+   its known `worklog_id`, which is #10's whole subject and does not exist yet. So the hollow marker
+   is informational here: it tells the truth about Jira holding a stale copy, and the fix for it
+   lives in #10. Offering a control that issues a request skipping everything it touches would be
+   worse than offering nothing.
+
+   This is also why the rail's warning counts and totals **unpushed** time only. "Has not reached
+   Jira" is false of a dirty entry — it reached Jira, and then changed.
 
 9. **The phone is deferred to #13.** A seven-column grid of `Nh Nm` figures does not fit 380px.
    Horizontal scroll was rejected because it puts the week total off-screen, and a rollup you cannot
@@ -259,5 +268,7 @@ be updated to match this spec before planning.**
 - **The phone and any narrow layout.** #13, per decision 9.
 - **Editing or deleting entries from the grid.** The week reviews and pushes; it does not edit.
 - **Everything in #10.** Nothing here needs it — `pushStateOf` and `EntriesForDay` both shipped with
-  #9 — and #11 does not wait on it.
+  #9 — and #11 does not wait on it. The visible consequence is that a dirty cell shows its marker and
+  cannot be acted on from here; #10 is what makes it pushable, and when it lands this view gains that
+  for free by the same rule (a day is pushable when a push would do something).
 - **Moving Settings.** Intake #89.
