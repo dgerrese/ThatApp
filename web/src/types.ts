@@ -139,3 +139,40 @@ export interface PushResponse {
   day: string;
   results: PushResult[];
 }
+
+/**
+ * One ticket's time on one day. `pushState` is null exactly when the cell is
+ * empty, which keeps "nothing logged" from becoming a fourth state.
+ */
+export interface WeekCell {
+  seconds: number;
+  pushState: "unpushed" | "pushed" | "dirty" | null;
+}
+
+export interface WeekDay {
+  day: string;
+  seconds: number;
+  pushState: "unpushed" | "pushed" | "dirty" | null;
+}
+
+export interface WeekRow {
+  instanceId: number;
+  instanceName: string;
+  /** 0-based index into the instance list's created_at order — what instanceHue keys its dot off. */
+  instancePosition: number;
+  issueKey: string;
+  /** Exactly seven, index-aligned with the rollup's `days`. */
+  cells: WeekCell[];
+  seconds: number;
+}
+
+export interface WeekRollup {
+  start: string;
+  end: string;
+  /** The Mondays either side, resolved server-side so the browser derives no date. */
+  prevStart: string;
+  nextStart: string;
+  days: WeekDay[];
+  rows: WeekRow[];
+  seconds: number;
+}

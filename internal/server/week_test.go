@@ -196,6 +196,12 @@ func TestWeekSumsCellsRowsAndDays(t *testing.T) {
 	if got.Seconds != 6300 {
 		t.Fatalf("week total: got %d, want 6300", got.Seconds)
 	}
+	// The neighbouring Mondays travel with the rollup so the view can link to
+	// them without doing date arithmetic in the browser.
+	if got.PrevStart != "2026-08-31" || got.NextStart != "2026-09-14" {
+		t.Fatalf("neighbouring weeks: got %q and %q, want 2026-08-31 and 2026-09-14",
+			got.PrevStart, got.NextStart)
+	}
 }
 
 func TestWeekKeepsTheSameKeyInTwoInstancesApart(t *testing.T) {

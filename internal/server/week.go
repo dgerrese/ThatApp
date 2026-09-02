@@ -68,11 +68,17 @@ type weekRowDTO struct {
 // Cells align to Days by position, not by key, and both are always exactly seven
 // long — a client cannot then render a ragged row.
 type weekRollupDTO struct {
-	Start   string       `json:"start"`
-	End     string       `json:"end"`
-	Days    []weekDayDTO `json:"days"`
-	Rows    []weekRowDTO `json:"rows"`
-	Seconds int          `json:"seconds"`
+	Start string `json:"start"`
+	End   string `json:"end"`
+	// The Mondays either side, so moving between weeks costs the browser no date
+	// arithmetic. Sent rather than derived there for the same reason Start
+	// defaults here: THAT_TIMEZONE decides where a day falls, and nothing in the
+	// browser is allowed a second opinion.
+	PrevStart string       `json:"prevStart"`
+	NextStart string       `json:"nextStart"`
+	Days      []weekDayDTO `json:"days"`
+	Rows      []weekRowDTO `json:"rows"`
+	Seconds   int          `json:"seconds"`
 }
 
 const daysInWeek = 7
@@ -171,10 +177,12 @@ func rollUp(
 	})
 
 	rollup := weekRollupDTO{
-		Start: days[0],
-		End:   days[daysInWeek-1],
-		Days:  make([]weekDayDTO, daysInWeek),
-		Rows:  make([]weekRowDTO, 0, len(keys)),
+		Start:     days[0],
+		End:       days[daysInWeek-1],
+		PrevStart: startAt.AddDate(0, 0, -daysInWeek).Format(dayLayout),
+		NextStart: startAt.AddDate(0, 0, daysInWeek).Format(dayLayout),
+		Days:      make([]weekDayDTO, daysInWeek),
+		Rows:      make([]weekRowDTO, 0, len(keys)),
 	}
 
 	for i, day := range days {

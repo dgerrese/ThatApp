@@ -10,6 +10,7 @@ import type {
   IssuesResponse,
   Pin,
   PushResponse,
+  WeekRollup,
 } from "./types";
 
 /**
@@ -168,6 +169,17 @@ export function updateEntry(id: number, edit: EntryEdit): Promise<Entry> {
 
 export function deleteEntry(id: number): Promise<void> {
   return request<void>(`/api/entries/${id}`, { method: "DELETE" });
+}
+
+/**
+ * A Monday-to-Sunday rollup, pre-aggregated. An absent `start` means the current
+ * week's Monday resolved in THAT_TIMEZONE — the same reason listEntries' bounds
+ * default server-side, so the browser never works out which week it is in.
+ */
+export function getWeek(start?: string): Promise<WeekRollup> {
+  const query = start === undefined ? "" : `?start=${encodeURIComponent(start)}`;
+
+  return request<WeekRollup>(`/api/week${query}`);
 }
 
 export function pushDay(day?: string): Promise<PushResponse> {
