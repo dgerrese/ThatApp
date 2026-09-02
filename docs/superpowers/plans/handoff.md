@@ -34,10 +34,11 @@ further down is history and says otherwise in places.
 **Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #73 — none carries a
 `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
-**In progress: #51**, on `issue-51-frontend-unit-tests` — built out on 2026-09-02 and now
-**PR #86**, which is the review state.
-**Two pull requests are open: PR #86 (#51) and PR #85, `retro-skill`**, both opened on 2026-09-02 and
-waiting on the owner.
+**In progress: #51 and #87.** #51 is on `issue-51-frontend-unit-tests` — built out on 2026-09-02
+and now **PR #86**, which is the review state. #87, raised the same day when #86's own end-to-end
+run failed on Codeberg, is on `issue-87-e2e-on-codeberg` and is now **PR #88**.
+**Three pull requests are open: PR #88 (#87), PR #86 (#51) and PR #85, `retro-skill`**, all opened on
+2026-09-02 and waiting on the owner.
 Before it, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
 and `handoff-2026-09-01` merged as **PR #82**, putting remote `main` at `0c1dcfc`. That leaves
 **`worktrees-without-the-tax` as the only branch pushed with no pull request behind it**, carried
@@ -932,6 +933,17 @@ later.** Proven both ways: a scratch module using `process` type-checks without 
 with it. Only the whole-branch review caught this — all five task reviews passed over it, because it
 is invisible unless you read the dependency addition and the base config together.
 
+**Playwright sizes its worker pool from the runner's host, not from the runner.** Its default is
+half of `os.cpus()`, and inside a Forgejo Actions job that call reports the host machine's logical
+cores rather than the container's cgroup share. On Codeberg that meant sixteen workers on a
+`codeberg-medium` box of 4 CPU / 8G, and the end-to-end suite failed on 2026-09-02 with five Firefox
+specs timing out and browser contexts being lost. Chromium barely noticed; Firefox is far heavier
+per instance, which is what makes the failures look engine-specific rather than environmental.
+`playwright.config.ts` now pins `workers: 4` under `CI` (#87). **Any tool that sizes itself from the
+CPU count is suspect on a hosted runner** — check what it actually chose before believing a
+resource-shaped failure is a real one. Counter-intuitively the cap made the suite *faster*: 2.0m
+against 3.3m at sixteen workers.
+
 **The 14kB budget is `index.html` alone.** It is 797 bytes. `app.css` and `app.js` are separate
 requests the browser only discovers after parsing it, so summing all three and comparing to 14336
 overstates the risk badly — this was got wrong mid-session and corrected. There is plenty of headroom.
@@ -1156,10 +1168,13 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   ported from `gh` to `tea` — the pre-move debt the original bullet warned about, and it was an
   hour's work rather than a rewrite. **`worktrees-without-the-tax` still has none**, still predates
   the rename, and will need the same treatment.
-- **`upload-artifact` on hosted runners is still unverified.** It only runs on end-to-end failure,
-  and that workflow is path-gated, so it has never fired. If it turns out unsupported, the step
-  drops with no loss to the gate itself. Everything else in `.forgejo/workflows/` is confirmed
-  working on `codeberg-medium`.
+- **`upload-artifact` on hosted runners is still unfired, but no longer unverified in the same
+  way.** The 2026-09-02 failure finally ran the step, and `actions/upload-artifact@v4` refused
+  outright: it aborts on any non-github.com API with *not currently supported on GHES*, so the
+  traces from the run that needed them most were never stored. #87 swapped it for
+  `forgejo/upload-artifact@v4`, whose reference the runner does resolve. Whether Codeberg has the
+  artifact API enabled at all is still open, because the step is `if: failure()` and every run
+  since has passed. **Do not read a green end-to-end run as evidence this works.**
 - **`make fmt`, `make lint` and the e2e rig were not re-run after the rename beyond the two gates.**
   `make verify` and `make test-e2e` both passed, which is the merge gate; `make fmt` in particular
   was not, and #74 already records that it rewrites committed files.
@@ -1222,9 +1237,12 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Before planning the next ticket:**
 
-- **#51 is built and in review as PR #86**, keeping `status/in-progress` because an open pull
-  request is the review state. That leaves **#8, #10 and #11 as the whole remaining product, and
-  none of them has a design** — so the next ticket starts with a brainstorming round, not a plan.
+- **#51 is in review as PR #86 and #87 as PR #88**, both keeping `status/in-progress` because an
+  open pull request is the review state. **#88 stacks on #86**: it was cut from
+  `issue-51-frontend-unit-tests` because that branch's failing run is what it fixes, and it targets
+  `main`, so its diff carries #51's commits until #86 merges. Merge #86 first. That leaves **#8, #10
+  and #11 as the whole remaining product, and none of them has a design** — so the next ticket
+  starts with a brainstorming round, not a plan.
 - **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
   #9 plan missed and paid for late. **Open `web/index.html` before planning #8.**
