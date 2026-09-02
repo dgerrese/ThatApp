@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
  * The Week view against a stubbed rollup. `/api/week` is stubbed rather than
@@ -198,6 +198,19 @@ function ticketRow(page: Page, issueKey: string) {
   return page.locator("tbody tr", { hasText: issueKey });
 }
 
+/** The state marker inside one cell — the only aria-hidden span a cell holds. */
+function markerIn(page: Page, issueKey: string, column: number): Locator {
+  return ticketRow(page, issueKey).locator("td").nth(column).locator("span[aria-hidden='true']");
+}
+
+async function shapeOf(marker: Locator): Promise<{ radius: string; bottomBorder: string }> {
+  return marker.evaluate((element) => {
+    const style = getComputedStyle(element);
+
+    return { radius: style.borderTopLeftRadius, bottomBorder: style.borderBottomWidth };
+  });
+}
+
 /** The rail owns the only "Push to Jira" button, and it now sends every day the
  *  week holds rather than only today. */
 async function pushEverything(page: Page): Promise<void> {
@@ -370,6 +383,61 @@ test("a failed cell is marked, and the read after the reporting one clears it", 
 
   await pushEverything(page);
   await expect(wednesday).not.toContainText("did not reach Jira");
+});
+
+/**
+ * The visual design language says of amber and red that "neither ever rests on
+ * colour alone". This grid carries neither the triangle-and-words an alert has
+ * nor room for a legend, so the silhouettes are what has to differ — and the
+ * assertion reads what the browser computed rather than which class was written,
+ * so a utility that failed to generate would fail here too.
+ */
+test("a failed marker and an unpushed one differ in shape, not only in hue", async ({ page }) => {
+  await openWeek(
+    page,
+    {
+      [THIS_WEEK]: rollup(THIS_WEEK, [
+        row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+        row("RIDGE-2", [{ at: 2, seconds: 1800, pushState: "unpushed" }]),
+      ]),
+    },
+    [
+      entry(1, "RIDGE-1", "2026-09-07", 3600, "unpushed"),
+      entry(2, "RIDGE-2", "2026-09-09", 1800, "unpushed"),
+    ],
+  );
+
+  await page.route("**/api/push**", (route) => {
+    const day = new URL(route.request().url()).searchParams.get("day") ?? "";
+
+    return route.fulfill({
+      status: 200,
+      json: {
+        day,
+        results: [day === "2026-09-07" ? pushed(1, "RIDGE-1") : unreachable(2, "RIDGE-2")],
+      },
+    });
+  });
+
+  await pushEverything(page);
+
+  // The rollup is unchanged underneath, so Monday still reads unpushed while
+  // Wednesday wears the marker the push left — both on screen at once.
+  const failed = markerIn(page, "RIDGE-2", 2);
+  const unpushed = markerIn(page, "RIDGE-1", 0);
+  await expect(failed).toBeVisible();
+  await expect(unpushed).toBeVisible();
+
+  const failedShape = await shapeOf(failed);
+  const unpushedShape = await shapeOf(unpushed);
+
+  expect(failedShape).not.toEqual(unpushedShape);
+  // A triangle against a disc: the failed marker has a drawn edge and square
+  // corners, the unpushed one is round and has neither.
+  expect(unpushedShape.bottomBorder).toBe("0px");
+  expect(failedShape.bottomBorder).not.toBe("0px");
+  expect(failedShape.radius).toBe("0px");
+  expect(unpushedShape.radius).not.toBe("0px");
 });
 
 /**

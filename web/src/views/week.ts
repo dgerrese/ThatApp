@@ -29,7 +29,11 @@ interface Failures {
   days: Set<string>;
 }
 
-const NOTHING_FAILED: Failures = { cells: new Set(), days: new Set() };
+/** A fresh value every time. A module-level empty constant would be one set of
+ *  Sets shared by every mount, and one edit that mutated them would poison it. */
+function noFailures(): Failures {
+  return { cells: new Set(), days: new Set() };
+}
 
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   const container = document.createElement("div");
@@ -73,7 +77,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // gives this marker no life beyond that: it does not come from the rollup, so
   // the read after the reporting one paints the truth again — and navigating
   // away drops it with the rest of this mount's state.
-  let failures: Failures = NOTHING_FAILED;
+  let failures: Failures = noFailures();
 
   const show = async (): Promise<WeekRollup | null> => {
     const mine = ++epoch;
@@ -95,10 +99,18 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
       return null;
     }
-    if (mine !== epoch) return null;
+    // Superseded reads must not paint — that is the guard's whole point — but the
+    // rollup still goes back to the caller. A push completing during the mount's
+    // first read would otherwise leave setRailPeriod unrun and the rail
+    // describing the view you came from beside a week grid, which is the exact
+    // trap the period-follows-the-view decision exists to close. Both reads
+    // asked for the same `start`, so the range handed over is the same either
+    // way; and returning before the consume below keeps the failure set intact
+    // for the paint that does happen.
+    if (mine !== epoch) return rollup;
 
     const marked = failures;
-    failures = NOTHING_FAILED;
+    failures = noFailures();
 
     showing = rollup.start;
     label.textContent = weekLabel(rollup.start, rollup.end);
@@ -288,19 +300,35 @@ function gridTable(rollup: WeekRollup, failures: Failures): HTMLElement {
   return table;
 }
 
+const MARKER_BASE = "mr-1.5 inline-block align-[1px]";
+
 /**
- * How each state marks a cell. Filled against hollow, so unpushed and dirty
- * differ in shape as well as hue; failed reuses the palette's own red 25 rather
- * than naming a second colour for a state the design language already has.
+ * How each state marks a cell: one silhouette each, so no pair of them is told
+ * apart by hue. The visual language is explicit that amber and red "never rest
+ * on colour alone", and a grid has no room for the triangle-and-words an alert
+ * carries — so the shape has to do it here.
  *
- * The words are not decoration. They are what a reader who cannot see the
- * marker hears, and — through the marker's title — what a reader who can see it
- * has instead of a legend the grid does not have room for.
+ * Disc for unpushed, ring for dirty, triangle for failed. The triangle is the
+ * glyph that document already associates with failure, drawn out of borders
+ * rather than set as ▲ so its size is the grid's rather than the font's.
+ *
+ * Both colours are the palette's own — red 25 and amber 85 — rather than a
+ * second name for a state it already has.
+ *
+ * The words are not decoration either. They are what a reader who cannot see
+ * the marker hears, and — through the marker's title — what a reader who can
+ * see it has instead of a legend the grid does not have room for.
  */
 const MARKERS: Record<string, { className: string; words: string }> = {
-  unpushed: { className: "bg-pending", words: "not pushed to Jira" },
-  dirty: { className: "border-[1.5px] border-dirty", words: "edited since it was pushed" },
-  failed: { className: "bg-failed", words: "did not reach Jira" },
+  unpushed: { className: "size-1.5 rounded-full bg-pending", words: "not pushed to Jira" },
+  dirty: {
+    className: "size-1.5 rounded-full border-[1.5px] border-dirty",
+    words: "edited since it was pushed",
+  },
+  failed: {
+    className: "size-0 border-x-[3px] border-b-[5px] border-x-transparent border-b-failed",
+    words: "did not reach Jira",
+  },
 };
 
 /**
@@ -336,7 +364,7 @@ function cellNode(cell: WeekCell, failed: boolean): HTMLTableCellElement {
   const marker = MARKERS[failed ? "failed" : (cell.pushState ?? "pushed")];
   if (marker) {
     const mark = document.createElement("span");
-    mark.className = `mr-1.5 inline-block size-1.5 rounded-full align-[1px] ${marker.className}`;
+    mark.className = `${MARKER_BASE} ${marker.className}`;
     mark.setAttribute("aria-hidden", "true");
     mark.title = marker.words;
     td.append(mark);
