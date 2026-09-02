@@ -1238,11 +1238,11 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 **Before planning the next ticket:**
 
 - **#51 is in review as PR #86 and #87 as PR #88**, both keeping `status/in-progress` because an
-  open pull request is the review state. **#88 stacks on #86**: it was cut from
-  `issue-51-frontend-unit-tests` because that branch's failing run is what it fixes, and it targets
-  `main`, so its diff carries #51's commits until #86 merges. Merge #86 first. That leaves **#8, #10
-  and #11 as the whole remaining product, and none of them has a design** — so the next ticket
-  starts with a brainstorming round, not a plan.
+  open pull request is the review state. **#88 targets `issue-51-frontend-unit-tests`, not `main`**,
+  so #88 merges first and #86 second. That ordering is not a preference: #86's own end-to-end run is
+  red for a reason #51 did not cause, and merging #88 into its branch is what makes it green. That
+  leaves **#8, #10 and #11 as the whole remaining product, and none of them has a design** — so the
+  next ticket starts with a brainstorming round, not a plan.
 - **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
   #9 plan missed and paid for late. **Open `web/index.html` before planning #8.**
