@@ -34,8 +34,10 @@ further down is history and says otherwise in places.
 **Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #73 — none carries a
 `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
-**In progress: #51**, on `issue-51-frontend-unit-tests` — one commit, a plan, no implementation.
-**One pull request is open: PR #85, `retro-skill`**, opened on 2026-09-02 and waiting on the owner.
+**In progress: #51**, on `issue-51-frontend-unit-tests` — built out on 2026-09-02 and now
+**PR #86**, which is the review state.
+**Two pull requests are open: PR #86 (#51) and PR #85, `retro-skill`**, both opened on 2026-09-02 and
+waiting on the owner.
 Before it, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
 and `handoff-2026-09-01` merged as **PR #82**, putting remote `main` at `0c1dcfc`. That leaves
 **`worktrees-without-the-tax` as the only branch pushed with no pull request behind it**, carried
@@ -913,11 +915,22 @@ and `outdir` instead of `outfile`; `entryNames: "app"` keeps the entry at `dist/
 `index.html` needs no change. **Done in #4's Task 9, and verified empirically:** `dist/app.js` is 955
 bytes and references `import("./chunk-*.js")`, with the settings view's strings in the chunk.
 
-**`make verify` does not run Playwright.** It is lint + tsc + `go test ./...`; e2e is a separate
-target and workflow. **A green `verify` can therefore sit on top of a red branch**, and did: #4's Task
+**`make verify` does not run Playwright.** Since #51 it is lint + tsc over three TypeScript
+projects + `go test ./...` + the frontend `node --test` suite; e2e is still a separate target and
+workflow. **A green `verify` can therefore sit on top of a red branch**, and did: #4's Task
 10 removed the `/api/health` poller and `#status` from `index.html`, which broke the pre-existing
 `smoke.spec.ts` assertion, while `verify` stayed green through several commits. Anything touching the
 frontend needs both gates before it is called done.
+
+**Adding any `@types/*` package widens every TypeScript project that does not pin `types`.** When
+`types` is unspecified, TypeScript auto-includes everything under `node_modules/@types`. #51 added
+`@types/node` for the test project and it silently reached the browser project and, by inheritance,
+`tsconfig.worker.json` — so a component could have used `process.env`, passed all three `tsc`
+projects and eslint, and thrown `ReferenceError` in Firefox. `web/tsconfig.json` now carries
+`"types": []` for exactly this reason. **Do not remove it, and pin `types` in any project added
+later.** Proven both ways: a scratch module using `process` type-checks without the line and fails
+with it. Only the whole-branch review caught this — all five task reviews passed over it, because it
+is invisible unless you read the dependency addition and the base config together.
 
 **The 14kB budget is `index.html` alone.** It is 797 bytes. `app.css` and `app.js` are separate
 requests the browser only discovers after parsing it, so summing all three and comparing to 14336
@@ -1047,8 +1060,8 @@ the existing repo-hygiene note below to add `rm -rf dist` *into* `build.mjs` wou
 unless it also creates the directory. Raised as **#40**. Until it lands, measure with
 `rm -rf dist && mkdir dist && npm run build`.
 
-**`make verify` has no formatting gate.** It is eslint + tsc + `go test ./...`; nothing runs Prettier
-in check mode. `web/src/views/settings.ts` currently carries formatting drift that `npm run fmt`
+**`make verify` has no formatting gate.** Since #51 it is eslint + tsc + `go test ./...` + the
+frontend unit suite; nothing runs Prettier in check mode. `web/src/views/settings.ts` currently carries formatting drift that `npm run fmt`
 would rewrite, and `verify` stays green over it. Anything running `npm run fmt` while working on
 another file will see that file appear in its diff — revert it rather than folding an unrelated
 reformat into a ticket. Discovered during #5; no ticket raised, because whether to add a format check
@@ -1209,11 +1222,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Before planning the next ticket:**
 
-- **#51 is `status/in-progress`**, and `issue-51-frontend-unit-tests` is cut and pushed at
-  `ce3623c` — one commit carrying a plan, no implementation, and no pull request. This section long
-  said `status/todo` with no branch, which the ledger above always contradicted; the ledger was
-  right. It is still the only started ticket with a settled design, and **#8, #10 and #11 have
-  none**, so they are `status/todo` in the literal sense: nobody has begun them.
+- **#51 is built and in review as PR #86**, keeping `status/in-progress` because an open pull
+  request is the review state. That leaves **#8, #10 and #11 as the whole remaining product, and
+  none of them has a design** — so the next ticket starts with a brainstorming round, not a plan.
 - **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
   #9 plan missed and paid for late. **Open `web/index.html` before planning #8.**
