@@ -23,28 +23,41 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-01.** This ledger is the authority on status; the narrative further down is
-history and says otherwise in places.
+**Verified on 2026-09-02**, against the Codeberg API rather than against local git — see
+*Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
+further down is history and says otherwise in places.
 
 > **The forge changed on 2026-09-01.** Issue and pull-request numbers below were verified against
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-**Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #73 — none carries a
-`status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
-2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
-**In progress: #51**, on `issue-51-frontend-unit-tests` — one commit, a plan, no implementation.
-**No pull request is open:** #49 (`codeberg-api-limits`) merged on 2026-09-01, and the eod skill
-followed it as PR #81. The `retro-skill` and
-`worktrees-without-the-tax` branches were carried across the forge move with their work intact but
-**no pull request open on either** — the GitHub pull requests that used to hold them did not migrate,
-so re-opening them on Codeberg is a decision waiting to be made. **To do:** #8, #10
-and #11. **Needs refinement:** #13 (LAN/HTTPS phone access — deferred, and needs the owner's explicit
-go-ahead even to refine), #19, #35, #39, #40, #47, #61 and #80. **Intake, fourteen, every one the owner's
-to approve or decline:** #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as
-not planned:** #21, #22 — folded into #4, not rejected; both labelled `wontfix`.
+**Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #51, #73, #87 —
+none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20,
+#6 and #44 on 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and
+#9 as PR #76.
+**In progress: #11**, on `issue-11-week-view` — built out on 2026-09-02 and now **PR #90**, which is
+the review state. It is the only open pull request.
+Before it, #51 merged as **PR #86** and #87 as
+**PR #88** on 2026-09-02, along with `retro-skill` as **PR #85**. #88 merged into #86's branch
+rather than into `main`, because #86 could not go green on its own — see *Decisions taken*. Remote
+`main` is at **`62e3c3d`**; the merge style is rebase-merge, so every one of those commits has a new
+SHA on `main`.
+Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
+and `handoff-2026-09-01` merged as **PR #82**. That leaves
+**`worktrees-without-the-tax` as the only branch pushed with no pull request behind it**, carried
+across the forge move with its work intact. The GitHub pull request that used to hold it did not
+migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8 and #10. **Needs refinement, ten:** #13 (LAN/HTTPS
+phone access — deferred, and needs the owner's explicit go-ahead even to refine), #19, #35, #39,
+#40, #47, #61, #80, #83 and #84. **Intake, fourteen, every one the owner's to approve or decline:**
+#41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as not planned:**
+#21, #22 — folded into #4, not rejected; both labelled `wontfix`.
 
-**#8, #10 and #11 are the whole remaining product**, and none of them has a design yet.
+**The board's own hygiene was audited on 2026-09-02 and is clean**: all 28 open issues carry exactly
+one `status/*` label, and no closed issue carries one. The type axis was corrected in the same pass;
+the `enhancement` test that decided it is in the `ticket-workflow` skill.
+
+**#8 and #10 are the whole remaining product**, and neither has a design yet. #11 has one —
+`docs/superpowers/specs/2026-09-02-week-view-design.md` — and is in review as PR #90.
 
 ### Two things needing the owner
 
@@ -469,9 +482,11 @@ started, and the plan is not written** — the next action is the owner's read o
   know rounding to nearest gives nothing.
 - **`started_at` is never edited** — the start time does not matter in practice — so `PATCH` carries
   `seconds` and `comment` only, and the design of record's line 238 is corrected by this ticket.
-- **The rail owns its own data**, fetching today's entries and re-rendering on an `entries-changed`
-  event, so it stays right on Settings and on #11's week view. #44's table assigns it both the 46px
-  total and the per-instance split — scope #7's issue body does not currently mention.
+- **The rail owns its own data**, re-rendering on an `entries-changed` event, so it stays right on
+  Settings and on the week view. #44's table assigns it both the 46px total and the per-instance
+  split — scope #7's issue body does not currently mention. **It no longer fetches *today's*
+  entries**: #11 made the period the mounted view's, so read that entry with the rail's new contract
+  below rather than as written.
 - **The API must not enforce the 15-minute grid**, because #8's timer will produce 7m13s. A test
   pins that so the tightening fails a gate rather than the next ticket.
 
@@ -494,6 +509,24 @@ its priority is now higher: #6 added the second by-index concurrent write site a
 the third.
 
 ## Decisions taken — do not reopen
+
+**A branch cut from another branch merges back into it, not into `main`.** Settled on 2026-09-02 by
+the owner, against a session that had opened #88 against `main` on the reasoning that a stacked pull
+request is fragile when the forge deletes branches after merge. That reasoning missed the point:
+#88 fixed the rig failure that made #86's own checks red, so targeting `main` would have left the
+owner merging a red pull request with no route to green. Retargeting is a one-line API call —
+`tea api -X PATCH /repos/{owner}/{repo}/pulls/<n> -f base=<branch>` — and it kept the checks, which
+attach to the head commit rather than to the base. **When a branch repairs the branch it was cut
+from, it merges into it and goes first.**
+
+**`enhancement` means an addition, not merely new work.** The owner's test, given on 2026-09-02:
+it is an enhancement when the ticket is *clearly an addition* and either *is not necessary to keep
+the app running* or *is not in the initial design*. Two consequences settle most cases — the
+13-ticket sequence *is* the initial design, so its own tickets carry no type, and the axis is about
+the product, so rig, gate, refactor and documentation tickets stay untyped. **The full test lives in
+`.claude/skills/ticket-workflow/SKILL.md`**, which is the authority; it is recorded here only so a
+session knows it was settled rather than open. Applied across the board it moved exactly one ticket,
+#19.
 
 **The forge is Codeberg, and the project is called ThatApp.** Moved on 2026-09-01 from
 `github.com/dgerrese/work-dashboard` to `codeberg.org/DionGerrese/ThatApp`. The GitHub repository is
@@ -898,11 +931,56 @@ and `outdir` instead of `outfile`; `entryNames: "app"` keeps the entry at `dist/
 `index.html` needs no change. **Done in #4's Task 9, and verified empirically:** `dist/app.js` is 955
 bytes and references `import("./chunk-*.js")`, with the settings view's strings in the chunk.
 
-**`make verify` does not run Playwright.** It is lint + tsc + `go test ./...`; e2e is a separate
-target and workflow. **A green `verify` can therefore sit on top of a red branch**, and did: #4's Task
+**`make verify` does not run Playwright.** Since #51 it is lint + tsc over three TypeScript
+projects + `go test ./...` + the frontend `node --test` suite; e2e is still a separate target and
+workflow. **A green `verify` can therefore sit on top of a red branch**, and did: #4's Task
 10 removed the `/api/health` poller and `#status` from `index.html`, which broke the pre-existing
 `smoke.spec.ts` assertion, while `verify` stayed green through several commits. Anything touching the
 frontend needs both gates before it is called done.
+
+**Adding any `@types/*` package widens every TypeScript project that does not pin `types`.** When
+`types` is unspecified, TypeScript auto-includes everything under `node_modules/@types`. #51 added
+`@types/node` for the test project and it silently reached the browser project and, by inheritance,
+`tsconfig.worker.json` — so a component could have used `process.env`, passed all three `tsc`
+projects and eslint, and thrown `ReferenceError` in Firefox. `web/tsconfig.json` now carries
+`"types": []` for exactly this reason. **Do not remove it, and pin `types` in any project added
+later.** Proven both ways: a scratch module using `process` type-checks without the line and fails
+with it. Only the whole-branch review caught this — all five task reviews passed over it, because it
+is invisible unless you read the dependency addition and the base config together.
+
+**The rail describes the view you are in, not today.** Changed by #11, rewriting a contract #7 and
+#9 shipped. A view declares its period on mount with `setRailPeriod`; the rail renders that period's
+total, split and unpushed count, and its Push sends every day the period holds, one
+`POST /api/push?day=` per day in order. `TODAY_PERIOD` carries no range on purpose — an absent range
+is what `listEntries()` already defaults to, so the rail still never computes a date. **A view with
+no period of its own falls back to today**, which is what the rail already did, and that clause is
+deliberately not load-bearing: intake #89 may move Settings out of the nav entirely, at which point
+it becomes dead code. `setRailPeriod` carries a reference-equality guard, without which Today
+declaring its period on every render re-read the day and broke "one save costs one read of the day".
+
+**`git rev-list --count main..<branch>` is the wrong test for whether a branch's work is safe.** The
+forge merges with rebase-merge, so a merged branch's commits keep their old SHAs locally and are
+never literally contained in `main` — `issue-51-frontend-unit-tests` and `issue-87-e2e-on-codeberg`
+both read as seven and twelve unmerged commits on 2026-09-02, hours after they merged. **Use
+`git cherry codeberg/main <branch>`**, which marks a commit `-` when an equivalent change is already
+upstream and `+` when it is genuinely absent. The eod skill's survey still uses the `rev-list` count,
+so read its output through this.
+
+**`pwa.spec.ts` segfaults on Chromium roughly one run in three.** Three sightings on 2026-09-02, all
+on browser launch — `Target page, context or browser has been closed`, or a bare SIGSEGV — never on
+an assertion, and always clean on an immediate re-run. It is environmental, and nothing in #11
+touched the service worker or that spec. Re-run once before investigating; do not chase it.
+
+**Playwright sizes its worker pool from the runner's host, not from the runner.** Its default is
+half of `os.cpus()`, and inside a Forgejo Actions job that call reports the host machine's logical
+cores rather than the container's cgroup share. On Codeberg that meant sixteen workers on a
+`codeberg-medium` box of 4 CPU / 8G, and the end-to-end suite failed on 2026-09-02 with five Firefox
+specs timing out and browser contexts being lost. Chromium barely noticed; Firefox is far heavier
+per instance, which is what makes the failures look engine-specific rather than environmental.
+`playwright.config.ts` now pins `workers: 4` under `CI` (#87). **Any tool that sizes itself from the
+CPU count is suspect on a hosted runner** — check what it actually chose before believing a
+resource-shaped failure is a real one. Counter-intuitively the cap made the suite *faster*: 2.0m
+against 3.3m at sixteen workers.
 
 **The 14kB budget is `index.html` alone.** It is 797 bytes. `app.css` and `app.js` are separate
 requests the browser only discovers after parsing it, so summing all three and comparing to 14336
@@ -1032,8 +1110,8 @@ the existing repo-hygiene note below to add `rm -rf dist` *into* `build.mjs` wou
 unless it also creates the directory. Raised as **#40**. Until it lands, measure with
 `rm -rf dist && mkdir dist && npm run build`.
 
-**`make verify` has no formatting gate.** It is eslint + tsc + `go test ./...`; nothing runs Prettier
-in check mode. `web/src/views/settings.ts` currently carries formatting drift that `npm run fmt`
+**`make verify` has no formatting gate.** Since #51 it is eslint + tsc + `go test ./...` + the
+frontend unit suite; nothing runs Prettier in check mode. `web/src/views/settings.ts` currently carries formatting drift that `npm run fmt`
 would rewrite, and `verify` stays green over it. Anything running `npm run fmt` while working on
 another file will see that file appear in its diff — revert it rather than folding an unrelated
 reformat into a ticket. Discovered during #5; no ticket raised, because whether to add a format check
@@ -1110,32 +1188,39 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   #73 moved the database to a `./data` bind mount on 2026-08-31, so it survives `make down` and only
   has to be added once. **Basic auth fails silently on the site host: the instance must point at the
   API gateway.**
-- **Then a real week of use, then #11.** The route to a usable app: the week of use above → #11 (the
-  weekly rollup, the deadline the app exists to serve) → #10 (corrections after a push) → #8 (the
-  timer). #8 is not a prerequisite for #9 despite the spec's ordering — manual entry already
+- **Then a real week of use.** #11 — the weekly rollup, the deadline the app exists to serve — is
+  built and in review as PR #90, so what remains of the route to a usable app is the week of use
+  above → #10 (corrections after a push) → #8 (the timer). #8 is not a prerequisite for #9 despite the spec's ordering — manual entry already
   produces the entries a push sends.
 
 **Left over from the forge move, 2026-09-01:**
 
-- **Local `main` is stale and only the owner may move it** — still the pre-rename tip `d07f4ec` while the project is at `afa098e`. Until it moves, branching from local `main` produces
-  a branch with the old names, the old module path and the deleted GitHub workflows.
-  Its SHA is `d07f4ec` and not the `71c8c2f` the day log mentions: the author-email rewrite
-  re-hashed every branch, `main` included, so the commit is the same work under a new hash.
-- **`retro-skill` and `worktrees-without-the-tax` are pushed but have no pull request.** Their work
-  survived the move; the GitHub pull requests holding them did not. Both predate the rename, so
-  either will need `THAT_*`/`that-*` applied before it can merge.
-- **`upload-artifact` on hosted runners is still unverified.** It only runs on end-to-end failure,
-  and that workflow is path-gated, so it has never fired. If it turns out unsupported, the step
-  drops with no loss to the gate itself. Everything else in `.forgejo/workflows/` is confirmed
-  working on `codeberg-medium`.
+- **Local `main` lags the forge and only the owner may move it.** As of 2026-09-02 it is at
+  `41b60b1` while remote `main` is at `0c1dcfc`, one merge ahead — PR #82. It is no longer the
+  pre-rename tip, so branching from it no longer produces the old names and the old module path;
+  it is simply behind. **Verify the gap against the API before repeating a number here**, because a
+  blocked fetch leaves the local `codeberg/*` refs frozen and makes local `git` quietly wrong.
+- ~~**`retro-skill` and `worktrees-without-the-tax` are pushed but have no pull request.**~~
+  **`retro-skill` merged as PR #85 on 2026-09-02.** Rebasing it onto `main` first needed the
+  `CLAUDE.md` hunk re-placed against the handoff split and the eod paragraph, and its commands
+  ported from `gh` to `tea` — the pre-move debt the original bullet warned about, and it was an
+  hour's work rather than a rewrite. **`worktrees-without-the-tax` still has no pull request**,
+  still predates the rename, and will need the same treatment.
+- **`upload-artifact` on hosted runners is still unfired, but no longer unverified in the same
+  way.** The 2026-09-02 failure finally ran the step, and `actions/upload-artifact@v4` refused
+  outright: it aborts on any non-github.com API with *not currently supported on GHES*, so the
+  traces from the run that needed them most were never stored. #87 swapped it for
+  `forgejo/upload-artifact@v4`, whose reference the runner does resolve. Whether Codeberg has the
+  artifact API enabled at all is still open, because the step is `if: failure()` and every run
+  since has passed. **Do not read a green end-to-end run as evidence this works.**
 - **`make fmt`, `make lint` and the e2e rig were not re-run after the rename beyond the two gates.**
   `make verify` and `make test-e2e` both passed, which is the merge gate; `make fmt` in particular
   was not, and #74 already records that it rewrites committed files.
 
 **Waiting on the owner:**
 
-- **The intake queue is thirteen and is the longest it has been:** #41, #42, #43, #53, #55, #56,
-  #57, #58, #59, #66, #67, #71, #74. Approving or declining them is the owner's move alone, and
+- **The intake queue is fourteen and is the longest it has been:** #41, #42, #43, #53, #55, #56,
+  #57, #58, #59, #66, #67, #71, #74, #79. Approving or declining them is the owner's move alone, and
   **nothing has come off the queue since it was opened.**
 - **Whether the owner's other repo mirrors this label set** is still unanswered, and the gap widened
   on 2026-08-20: this repo now has five statuses plus `bug`/`enhancement`/`wontfix`, having deleted
@@ -1143,7 +1228,8 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 - **Seven local branches are merged into `origin/main` and droppable** whenever the owner says so:
   `handoff-2026-08-17`, `handoff-2026-08-20`, `handoff-2026-08-27`, `handoff-2026-08-31`,
   `handoff-post-4`, `issue-12-pwa-shell`, `issue-9-end-of-day-push`. `worktrees-without-the-tax` is
-  kept deliberately (see below); `retro-skill` carries unmerged work and was pushed to Codeberg.
+  kept deliberately (see below). Three more joined them on 2026-09-02, their remote branches deleted
+  by the merge: `retro-skill`, `issue-51-frontend-unit-tests` and `issue-87-e2e-on-codeberg`.
   Note these were merged into the *GitHub* `main`, which is now archived — they are contained in
   Codeberg's `main` too, since it descends from the same history.
 
@@ -1190,8 +1276,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Before planning the next ticket:**
 
-- **#51 is `status/todo`, refined and unblocked**, and its branch has not been cut. It is the only
-  ready ticket with a settled design; #8, #10 and #11 still have none.
+- **#51 and #87 are merged and closed, and #11 is in review as PR #90.** That leaves **#8 and #10
+  as the whole remaining product, and neither has a design** — so the next ticket starts with a
+  brainstorming round, not a plan.
 - **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
   #9 plan missed and paid for late. **Open `web/index.html` before planning #8.**
@@ -1202,8 +1289,11 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   design. Its three open questions are the owner's to answer in a brainstorming round.
 - **Spec §"Decisions deferred"** — unchanged; nothing there blocks the ready tickets.
 
-**This branch:** `handoff-2026-09-01` carries three unpushed commits and goes out as one pull
-request at the end-of-day signal. PR #78 (`retro-skill`) is open and waiting on the owner.
+**This branch:** `handoff-2026-09-02`, cut from `3f44974` on 2026-09-02 because
+`handoff-2026-09-01` had already merged. It carries the day's narrative, the `enhancement` test
+written into the `ticket-workflow` skill, and this correction pass, and goes out as one pull request
+at the end-of-day signal. The line that used to stand here claimed PR #78 held
+`retro-skill`, which was wrong; that branch went up as **PR #85** and merged the same day.
 
 ## Environment notes
 
@@ -1224,10 +1314,27 @@ request at the end-of-day signal. PR #78 (`retro-skill`) is open and waiting on 
   archived; Forgejo has no equivalent, and the `@claude` and automatic-review workflows were deleted
   in the move. Claude runs locally through the superpowers skills, which is how the work was always
   actually done.
+- **Commits here are signed, and git will tell you they are not.** Every commit in this repository
+  carries a `gpgsig` SSH signature, but `gpg.ssh.allowedSignersFile` is unset, so git cannot verify
+  its own work: `git log --show-signature` prints *No signature*, `%G?` reports `N` for all 284
+  commits, and an `allowedSignersFile needs to be configured` error is emitted on the side. **That
+  is a verification gap, not a signing failure** — confirm with `git cat-file commit HEAD | head`,
+  which shows the `gpgsig` header plainly. Do not conclude from `--show-signature` that signing is
+  broken, and do not "fix" signing on that evidence.
+- **When SSH is down, local git does not merely fail — it answers with stale data.** `git fetch`
+  failing leaves every `codeberg/*` remote-tracking ref frozen at its last successful fetch, so
+  `git branch -vv`, `git log` and any ahead/behind count describe the forge as it was, with no
+  warning that they are out of date. On 2026-09-02 that read a merged branch as unpushed and its
+  pull request as missing. **`tea` and the plain HTTPS API are unaffected**, because they carry a
+  token rather than the SSH key, so check real state there before believing local git:
+  `curl -sS "https://codeberg.org/api/v1/repos/DionGerrese/ThatApp/branches?limit=50"` lists what
+  actually exists on the forge, and `tea pr list --state open` lists what is actually waiting.
+  **A remote branch that has disappeared usually means its pull request merged**, not that the push
+  never happened — check the commit against `main` before concluding work was lost.
 - Local `main` may sit well behind the forge; branch from the remote, not from it. **As of
-  2026-09-01 it is badly stale — still on the pre-rename tip `d07f4ec` while the project is
-  at `afa098e`** on Codeberg. Advancing it is the owner's call, since `CLAUDE.md` forbids a session
-  moving `main`.
+  2026-09-02 it is at `41b60b1`, one merge behind the forge's `0c1dcfc`** — no longer the badly
+  stale pre-rename tip it was on 2026-09-01. Advancing it is the owner's call, since `CLAUDE.md`
+  forbids a session moving `main`.
 - **SSH authentication was down on 2026-08-17** and no git traffic reached GitHub all session:
   `sign_and_send_pubkey: signing failed … communication with agent failed`, and `ssh-add -l` reports
   *The agent has no identities* — the agent is running but empty, or its socket is stale from an
