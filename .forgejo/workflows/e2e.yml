@@ -120,8 +120,7 @@ jobs:
 
       # actions/upload-artifact aborts on any non-github.com API ("not
       # currently supported on GHES"), so on Forgejo it stores nothing —
-      # which is why the 2026-09-02 failure left no trace to diagnose. The
-      # fork is the build that runs.
+      # which is why the 2026-09-02 failure left no trace to diagnose.
       - name: Upload traces on failure
         if: failure()
         uses: https://data.forgejo.org/forgejo/upload-artifact@v4
