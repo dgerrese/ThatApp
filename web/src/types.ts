@@ -172,6 +172,10 @@ export interface WeekRollup {
   /** The Mondays either side, resolved server-side so the browser derives no date. */
   prevStart: string;
   nextStart: string;
+  /** ISO 8601 week number of `start`, from Go's time.ISOWeek() — the browser
+   *  never computes one, because ISO week numbering goes wrong in hand-written
+   *  TypeScript exactly at year boundaries. */
+  weekNumber: number;
   days: WeekDay[];
   rows: WeekRow[];
   seconds: number;

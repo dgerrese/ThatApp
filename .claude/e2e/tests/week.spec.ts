@@ -31,6 +31,7 @@ interface StubRollup {
   end: string;
   prevStart: string;
   nextStart: string;
+  weekNumber: number;
   days: { day: string; seconds: number; pushState: PushState }[];
   rows: StubRow[];
   seconds: number;
@@ -55,7 +56,10 @@ interface StubEntry {
  * stub that did its own date arithmetic could agree with a view that had
  * started doing the same.
  */
-const WEEKS: Record<string, { days: string[]; prevStart: string; nextStart: string }> = {
+const WEEKS: Record<
+  string,
+  { days: string[]; prevStart: string; nextStart: string; weekNumber: number }
+> = {
   "2026-08-31": {
     days: [
       "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03",
@@ -63,6 +67,7 @@ const WEEKS: Record<string, { days: string[]; prevStart: string; nextStart: stri
     ],
     prevStart: "2026-08-24",
     nextStart: "2026-09-07",
+    weekNumber: 36,
   },
   "2026-09-07": {
     days: [
@@ -71,6 +76,7 @@ const WEEKS: Record<string, { days: string[]; prevStart: string; nextStart: stri
     ],
     prevStart: "2026-08-31",
     nextStart: "2026-09-14",
+    weekNumber: 37,
   },
 };
 
@@ -126,6 +132,7 @@ function rollup(start: string, rows: StubRow[]): StubRollup {
     end: week.days[6] ?? start,
     prevStart: week.prevStart,
     nextStart: week.nextStart,
+    weekNumber: week.weekNumber,
     days,
     rows,
     seconds: days.reduce((sum, day) => sum + day.seconds, 0),
@@ -331,7 +338,10 @@ test("pushing from the Week view reports below the grid and names the day that f
 
   // The rail describes the view beside it, which is the whole point of decision
   // 6: the period is named, and the figure is the week's rather than Monday's.
-  await expect(page.locator("#rail-period")).toHaveText("Week · 7–13 Sep");
+  // The heading and the rail's period label are composed from the same string
+  // — both carry the ISO week number the server computed.
+  await expect(page.getByRole("heading", { name: "Week 37 · 7–13 Sep" })).toBeVisible();
+  await expect(page.locator("#rail-period")).toHaveText("Week 37 · 7–13 Sep");
   await expect(page.locator("#rail-total")).toHaveText("1h 30m");
 
   await page.getByRole("button", { name: "Push to Jira" }).click();
@@ -593,7 +603,7 @@ test("a week the server refuses still offers a way back to this one", async ({ p
 
   await page.getByRole("button", { name: "This week" }).click();
 
-  await expect(page.getByRole("heading", { name: "7–13 Sep" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Week 37 · 7–13 Sep" })).toBeVisible();
   await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
 });
 
@@ -607,18 +617,18 @@ test("the previous week is a place you can go back from", async ({ page }) => {
     ]),
   });
 
-  await expect(page.getByRole("heading", { name: "7–13 Sep" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Week 37 · 7–13 Sep" })).toBeVisible();
   await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
 
   await page.getByRole("button", { name: "Previous week" }).click();
 
-  await expect(page.getByRole("heading", { name: "31 Aug – 6 Sep" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Week 36 · 31 Aug – 6 Sep" })).toBeVisible();
   await expect(ticketRow(page, "RIDGE-9")).toBeVisible();
   await expect(ticketRow(page, "RIDGE-1")).toHaveCount(0);
   expect(new URL(page.url()).search).toBe("?start=2026-08-31");
 
   await page.goBack();
 
-  await expect(page.getByRole("heading", { name: "7–13 Sep" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Week 37 · 7–13 Sep" })).toBeVisible();
   await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
 });

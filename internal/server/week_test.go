@@ -233,6 +233,36 @@ func TestWeekKeepsTheSameKeyInTwoInstancesApart(t *testing.T) {
 	}
 }
 
+// TestWeekNumberIsISO8601 covers the year-boundary cases where a naive
+// week-of-year computation and time.ISOWeek() diverge: the last week of a year
+// can belong to the year that follows it, or the first days of a year can
+// belong to the week of the year before.
+func TestWeekNumberIsISO8601(t *testing.T) {
+	cases := []struct {
+		name  string
+		start string
+		want  int
+	}{
+		{"an ordinary week", "2026-08-31", 36},
+		{"the last week of the year, though it holds days in the next", "2026-12-28", 53},
+		{"the first week of the following year", "2027-01-04", 1},
+		{"the second week of the following year", "2027-01-11", 2},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, _, _ := serverInZone(t, "Europe/Amsterdam",
+				time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC))
+
+			got := decodeWeek(t, callWeek(t, srv, "/api/week?start="+tc.start))
+
+			if got.WeekNumber != tc.want {
+				t.Fatalf("got week %d, want %d", got.WeekNumber, tc.want)
+			}
+		})
+	}
+}
+
 func TestWeekResolvesTheStartInTheConfiguredZone(t *testing.T) {
 	// 23:30 UTC on Sunday the 13th is already Monday the 14th in Amsterdam, so
 	// "this week" is the one beginning the 14th — not the 7th the UTC clock

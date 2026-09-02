@@ -74,11 +74,16 @@ type weekRollupDTO struct {
 	// arithmetic. Sent rather than derived there for the same reason Start
 	// defaults here: THAT_TIMEZONE decides where a day falls, and nothing in the
 	// browser is allowed a second opinion.
-	PrevStart string       `json:"prevStart"`
-	NextStart string       `json:"nextStart"`
-	Days      []weekDayDTO `json:"days"`
-	Rows      []weekRowDTO `json:"rows"`
-	Seconds   int          `json:"seconds"`
+	PrevStart string `json:"prevStart"`
+	NextStart string `json:"nextStart"`
+	// ISO 8601 week number of Start, from time.ISOWeek() — sent for the same
+	// reason PrevStart and NextStart are: the browser does no calendar
+	// arithmetic, and ISO week numbering goes wrong in hand-written TypeScript
+	// exactly at year boundaries.
+	WeekNumber int          `json:"weekNumber"`
+	Days       []weekDayDTO `json:"days"`
+	Rows       []weekRowDTO `json:"rows"`
+	Seconds    int          `json:"seconds"`
 }
 
 const daysInWeek = 7
@@ -176,13 +181,16 @@ func rollUp(
 		return keys[i].issueKey < keys[j].issueKey
 	})
 
+	_, weekNumber := startAt.ISOWeek()
+
 	rollup := weekRollupDTO{
-		Start:     days[0],
-		End:       days[daysInWeek-1],
-		PrevStart: startAt.AddDate(0, 0, -daysInWeek).Format(dayLayout),
-		NextStart: startAt.AddDate(0, 0, daysInWeek).Format(dayLayout),
-		Days:      make([]weekDayDTO, daysInWeek),
-		Rows:      make([]weekRowDTO, 0, len(keys)),
+		Start:      days[0],
+		End:        days[daysInWeek-1],
+		PrevStart:  startAt.AddDate(0, 0, -daysInWeek).Format(dayLayout),
+		NextStart:  startAt.AddDate(0, 0, daysInWeek).Format(dayLayout),
+		WeekNumber: weekNumber,
+		Days:       make([]weekDayDTO, daysInWeek),
+		Rows:       make([]weekRowDTO, 0, len(keys)),
 	}
 
 	for i, day := range days {

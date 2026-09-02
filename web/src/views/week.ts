@@ -113,7 +113,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     failures = noFailures();
 
     showing = rollup.start;
-    label.textContent = weekLabel(rollup.start, rollup.end);
+    label.textContent = periodLabel(rollup);
     controls.replaceChildren(...weekControls(rollup));
     grid.replaceChildren(rollup.rows.length === 0 ? emptyWeek() : gridTable(rollup, marked));
 
@@ -152,11 +152,21 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // re-read inside a mount — the post-push show() above — does not come through
   // here, so it costs nothing extra.
   setRailPeriod({
-    label: `Week · ${weekLabel(rollup.start, rollup.end)}`,
+    label: periodLabel(rollup),
     viewPath: "/week",
     range: { from: rollup.start, to: rollup.end },
     pushHeading: "Push this week's time to Jira?",
   });
+}
+
+/**
+ * `Week 36 · 31 Aug – 6 Sep` — composed once and used for both the heading and
+ * the rail's period label, which decision 6 requires read as the same string.
+ * `weekNumber` comes off the rollup already computed; nothing here does
+ * calendar arithmetic.
+ */
+function periodLabel(rollup: WeekRollup): string {
+  return `Week ${String(rollup.weekNumber)} · ${weekLabel(rollup.start, rollup.end)}`;
 }
 
 /** Where a failed result lands: the row it names, and the column its response carried. */
