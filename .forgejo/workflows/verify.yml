@@ -80,7 +80,8 @@ jobs:
 
       # Three projects, matching the `tsc` target in the Makefile: the service
       # worker has its own lib set, and the unit tests their own extension and
-      # `types` licence. Neither loosens the base project.
+      # `types` licence. The base project pins `types` to none, so a
+      # devDependency's ambient globals (e.g. @types/node) can't reach it.
       - name: Type-check
         working-directory: web
         run: |

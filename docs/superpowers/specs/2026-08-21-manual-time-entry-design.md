@@ -342,8 +342,8 @@ integer is the class of defect this project keeps finding.
   comment into the foot, Save posts a `PATCH` for that id, and Cancel leaves the entry unchanged.
 
 The parse rule is a pure function and the obvious first customer for
-[#51](https://codeberg.org/DionGerrese/ThatApp/issues/51)'s frontend unit runner, which does not
-exist yet. Until it does, it is covered through Playwright, and #51 should absorb it.
+[#51](https://codeberg.org/DionGerrese/ThatApp/issues/51)'s frontend unit runner, which now
+covers it as `web/src/duration.test.ts`, gated by `make verify`.
 
 ## Out of scope
 

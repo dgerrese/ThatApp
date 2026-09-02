@@ -160,9 +160,11 @@ Create `web/tsconfig.test.json`:
 
 Two lines and no more. `allowImportingTsExtensions` is what lets a test write `./format.ts` — node's
 ESM resolver requires that extension, and tsc rejects it without this flag. It is legal here only
-because the base project sets `noEmit`. `"types": ["node"]` is scoped to this project so app code
-never sees node's globals. `"exclude": []` clears the base project's exclusion of test files, which
-is the whole point of this file; `tsconfig.worker.json` beside it does the same thing for `sw.ts`.
+because the base project sets `noEmit`. `"types": ["node"]` names node's types for this project;
+what actually keeps app code from seeing node's globals is the base project's own `"types": []`,
+which this project inherits from and then overrides. `"exclude": []` clears the base project's
+exclusion of test files, which is the whole point of this file; `tsconfig.worker.json` beside it
+does the same thing for `sw.ts`.
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -998,7 +1000,7 @@ What changed, for the reviewer:
   "not wired into `make verify`" and "run it with `make test-web`" lines are deleted as false.
 - **`caseName` is the only thing added**, and it exists because "is refused" reads as an outcome
   where `is null` reads as a type.
-- **Five tests take an explicit leading name column** — the ones whose assert messages carried
+- **Four tests take an explicit leading name column** — the ones whose assert messages carried
   explanation rather than restating the input. The rest derive their names.
 - **`"any non-zero input keeps at least one step"` gained its two trailing asserts as table rows**
   (`"0"` and `"0000"`), which is a shape change, not a coverage change.
@@ -1042,10 +1044,10 @@ in file order:
 | | | | typing a figure and reading it back | 6 |
 | | | | stepping moves to the next quarter hour | 8 |
 | | | | stepping stops at zero and at a day | 3 |
-| **total** | **24** | | **total** | **69** |
+| **total** | **24** | | **total** | **73** |
 
-So 18 parents and 93 cases. Node's summary counts every node it ran, parents included, so
-`ℹ tests` should read **111** where it read 18 before. If node's totals turn out to count nesting
+So 18 parents and 97 cases. Node's summary counts every node it ran, parents included, so
+`ℹ tests` should read **115** where it read 18 before. If node's totals turn out to count nesting
 differently, **the per-table counts above are the authority** — read them off the indented output
 rather than trusting the summary line, and reconcile any table that differs against
 `/tmp/duration-before.ts` before changing anything.
