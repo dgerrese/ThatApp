@@ -31,16 +31,17 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-**Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #73 — none carries a
-`status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
-2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
-**In progress: #51 and #87.** #51 is on `issue-51-frontend-unit-tests` — built out on 2026-09-02
-and now **PR #86**, which is the review state. #87, raised the same day when #86's own end-to-end
-run failed on Codeberg, is on `issue-87-e2e-on-codeberg` and is now **PR #88**.
-**Three pull requests are open: PR #88 (#87), PR #86 (#51) and PR #85, `retro-skill`**, all opened on
-2026-09-02 and waiting on the owner.
-Before it, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
-and `handoff-2026-09-01` merged as **PR #82**, putting remote `main` at `0c1dcfc`. That leaves
+**Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #51, #73, #87 —
+none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20,
+#6 and #44 on 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and
+#9 as PR #76.
+**Nothing is in progress, and no pull request is open.** #51 merged as **PR #86** and #87 as
+**PR #88** on 2026-09-02, along with `retro-skill` as **PR #85**. #88 merged into #86's branch
+rather than into `main`, because #86 could not go green on its own — see *Decisions taken*. Remote
+`main` is at **`62e3c3d`**; the merge style is rebase-merge, so every one of those commits has a new
+SHA on `main`.
+Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
+and `handoff-2026-09-01` merged as **PR #82**. That leaves
 **`worktrees-without-the-tax` as the only branch pushed with no pull request behind it**, carried
 across the forge move with its work intact. The GitHub pull request that used to hold it did not
 migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8, #10 and #11. **Needs refinement, ten:** #13 (LAN/HTTPS
@@ -503,6 +504,15 @@ its priority is now higher: #6 added the second by-index concurrent write site a
 the third.
 
 ## Decisions taken — do not reopen
+
+**A branch cut from another branch merges back into it, not into `main`.** Settled on 2026-09-02 by
+the owner, against a session that had opened #88 against `main` on the reasoning that a stacked pull
+request is fragile when the forge deletes branches after merge. That reasoning missed the point:
+#88 fixed the rig failure that made #86's own checks red, so targeting `main` would have left the
+owner merging a red pull request with no route to green. Retargeting is a one-line API call —
+`tea api -X PATCH /repos/{owner}/{repo}/pulls/<n> -f base=<branch>` — and it kept the checks, which
+attach to the head commit rather than to the base. **When a branch repairs the branch it was cut
+from, it merges into it and goes first.**
 
 **`enhancement` means an addition, not merely new work.** The owner's test, given on 2026-09-02:
 it is an enhancement when the ticket is *clearly an addition* and either *is not necessary to keep
@@ -1163,11 +1173,11 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   it is simply behind. **Verify the gap against the API before repeating a number here**, because a
   blocked fetch leaves the local `codeberg/*` refs frozen and makes local `git` quietly wrong.
 - ~~**`retro-skill` and `worktrees-without-the-tax` are pushed but have no pull request.**~~
-  **Half done on 2026-09-02:** `retro-skill` went up as **PR #85**. Rebasing it onto `main` needed
-  the `CLAUDE.md` hunk re-placed against the handoff split and the eod paragraph, and its commands
+  **`retro-skill` merged as PR #85 on 2026-09-02.** Rebasing it onto `main` first needed the
+  `CLAUDE.md` hunk re-placed against the handoff split and the eod paragraph, and its commands
   ported from `gh` to `tea` — the pre-move debt the original bullet warned about, and it was an
-  hour's work rather than a rewrite. **`worktrees-without-the-tax` still has none**, still predates
-  the rename, and will need the same treatment.
+  hour's work rather than a rewrite. **`worktrees-without-the-tax` still has no pull request**,
+  still predates the rename, and will need the same treatment.
 - **`upload-artifact` on hosted runners is still unfired, but no longer unverified in the same
   way.** The 2026-09-02 failure finally ran the step, and `actions/upload-artifact@v4` refused
   outright: it aborts on any non-github.com API with *not currently supported on GHES*, so the
@@ -1190,7 +1200,8 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 - **Seven local branches are merged into `origin/main` and droppable** whenever the owner says so:
   `handoff-2026-08-17`, `handoff-2026-08-20`, `handoff-2026-08-27`, `handoff-2026-08-31`,
   `handoff-post-4`, `issue-12-pwa-shell`, `issue-9-end-of-day-push`. `worktrees-without-the-tax` is
-  kept deliberately (see below); `retro-skill` carries unmerged work and is now PR #85.
+  kept deliberately (see below). Three more joined them on 2026-09-02, their remote branches deleted
+  by the merge: `retro-skill`, `issue-51-frontend-unit-tests` and `issue-87-e2e-on-codeberg`.
   Note these were merged into the *GitHub* `main`, which is now archived — they are contained in
   Codeberg's `main` too, since it descends from the same history.
 
@@ -1237,12 +1248,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Before planning the next ticket:**
 
-- **#51 is in review as PR #86 and #87 as PR #88**, both keeping `status/in-progress` because an
-  open pull request is the review state. **#88 targets `issue-51-frontend-unit-tests`, not `main`**,
-  so #88 merges first and #86 second. That ordering is not a preference: #86's own end-to-end run is
-  red for a reason #51 did not cause, and merging #88 into its branch is what makes it green. That
-  leaves **#8, #10 and #11 as the whole remaining product, and none of them has a design** — so the
-  next ticket starts with a brainstorming round, not a plan.
+- **#51 and #87 are merged and closed.** That leaves **#8, #10 and #11 as the whole remaining
+  product, and none of them has a design** — so the next ticket starts with a brainstorming round,
+  not a plan.
 - **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
   #9 plan missed and paid for late. **Open `web/index.html` before planning #8.**
@@ -1257,7 +1265,7 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 `handoff-2026-09-01` had already merged. It carries the day's narrative, the `enhancement` test
 written into the `ticket-workflow` skill, and this correction pass, and goes out as one pull request
 at the end-of-day signal. The line that used to stand here claimed PR #78 held
-`retro-skill`, which was wrong; that branch is now genuinely open as **PR #85**.
+`retro-skill`, which was wrong; that branch went up as **PR #85** and merged the same day.
 
 ## Environment notes
 
