@@ -35,7 +35,9 @@ further down is history and says otherwise in places.
 none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20,
 #6 and #44 on 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and
 #9 as PR #76.
-**Nothing is in progress, and no pull request is open.** #51 merged as **PR #86** and #87 as
+**In progress: #11**, on `issue-11-week-view` — built out on 2026-09-02 and now **PR #90**, which is
+the review state. It is the only open pull request.
+Before it, #51 merged as **PR #86** and #87 as
 **PR #88** on 2026-09-02, along with `retro-skill` as **PR #85**. #88 merged into #86's branch
 rather than into `main`, because #86 could not go green on its own — see *Decisions taken*. Remote
 `main` is at **`62e3c3d`**; the merge style is rebase-merge, so every one of those commits has a new
@@ -44,7 +46,7 @@ Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill fol
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
 **`worktrees-without-the-tax` as the only branch pushed with no pull request behind it**, carried
 across the forge move with its work intact. The GitHub pull request that used to hold it did not
-migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8, #10 and #11. **Needs refinement, ten:** #13 (LAN/HTTPS
+migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8 and #10. **Needs refinement, ten:** #13 (LAN/HTTPS
 phone access — deferred, and needs the owner's explicit go-ahead even to refine), #19, #35, #39,
 #40, #47, #61, #80, #83 and #84. **Intake, fourteen, every one the owner's to approve or decline:**
 #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as not planned:**
@@ -54,7 +56,8 @@ phone access — deferred, and needs the owner's explicit go-ahead even to refin
 one `status/*` label, and no closed issue carries one. The type axis was corrected in the same pass;
 the `enhancement` test that decided it is in the `ticket-workflow` skill.
 
-**#8, #10 and #11 are the whole remaining product**, and none of them has a design yet.
+**#8 and #10 are the whole remaining product**, and neither has a design yet. #11 has one —
+`docs/superpowers/specs/2026-09-02-week-view-design.md` — and is in review as PR #90.
 
 ### Two things needing the owner
 
@@ -479,9 +482,11 @@ started, and the plan is not written** — the next action is the owner's read o
   know rounding to nearest gives nothing.
 - **`started_at` is never edited** — the start time does not matter in practice — so `PATCH` carries
   `seconds` and `comment` only, and the design of record's line 238 is corrected by this ticket.
-- **The rail owns its own data**, fetching today's entries and re-rendering on an `entries-changed`
-  event, so it stays right on Settings and on #11's week view. #44's table assigns it both the 46px
-  total and the per-instance split — scope #7's issue body does not currently mention.
+- **The rail owns its own data**, re-rendering on an `entries-changed` event, so it stays right on
+  Settings and on the week view. #44's table assigns it both the 46px total and the per-instance
+  split — scope #7's issue body does not currently mention. **It no longer fetches *today's*
+  entries**: #11 made the period the mounted view's, so read that entry with the rail's new contract
+  below rather than as written.
 - **The API must not enforce the 15-minute grid**, because #8's timer will produce 7m13s. A test
   pins that so the tightening fails a gate rather than the next ticket.
 
@@ -943,6 +948,29 @@ later.** Proven both ways: a scratch module using `process` type-checks without 
 with it. Only the whole-branch review caught this — all five task reviews passed over it, because it
 is invisible unless you read the dependency addition and the base config together.
 
+**The rail describes the view you are in, not today.** Changed by #11, rewriting a contract #7 and
+#9 shipped. A view declares its period on mount with `setRailPeriod`; the rail renders that period's
+total, split and unpushed count, and its Push sends every day the period holds, one
+`POST /api/push?day=` per day in order. `TODAY_PERIOD` carries no range on purpose — an absent range
+is what `listEntries()` already defaults to, so the rail still never computes a date. **A view with
+no period of its own falls back to today**, which is what the rail already did, and that clause is
+deliberately not load-bearing: intake #89 may move Settings out of the nav entirely, at which point
+it becomes dead code. `setRailPeriod` carries a reference-equality guard, without which Today
+declaring its period on every render re-read the day and broke "one save costs one read of the day".
+
+**`git rev-list --count main..<branch>` is the wrong test for whether a branch's work is safe.** The
+forge merges with rebase-merge, so a merged branch's commits keep their old SHAs locally and are
+never literally contained in `main` — `issue-51-frontend-unit-tests` and `issue-87-e2e-on-codeberg`
+both read as seven and twelve unmerged commits on 2026-09-02, hours after they merged. **Use
+`git cherry codeberg/main <branch>`**, which marks a commit `-` when an equivalent change is already
+upstream and `+` when it is genuinely absent. The eod skill's survey still uses the `rev-list` count,
+so read its output through this.
+
+**`pwa.spec.ts` segfaults on Chromium roughly one run in three.** Three sightings on 2026-09-02, all
+on browser launch — `Target page, context or browser has been closed`, or a bare SIGSEGV — never on
+an assertion, and always clean on an immediate re-run. It is environmental, and nothing in #11
+touched the service worker or that spec. Re-run once before investigating; do not chase it.
+
 **Playwright sizes its worker pool from the runner's host, not from the runner.** Its default is
 half of `os.cpus()`, and inside a Forgejo Actions job that call reports the host machine's logical
 cores rather than the container's cgroup share. On Codeberg that meant sixteen workers on a
@@ -1160,9 +1188,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   #73 moved the database to a `./data` bind mount on 2026-08-31, so it survives `make down` and only
   has to be added once. **Basic auth fails silently on the site host: the instance must point at the
   API gateway.**
-- **Then a real week of use, then #11.** The route to a usable app: the week of use above → #11 (the
-  weekly rollup, the deadline the app exists to serve) → #10 (corrections after a push) → #8 (the
-  timer). #8 is not a prerequisite for #9 despite the spec's ordering — manual entry already
+- **Then a real week of use.** #11 — the weekly rollup, the deadline the app exists to serve — is
+  built and in review as PR #90, so what remains of the route to a usable app is the week of use
+  above → #10 (corrections after a push) → #8 (the timer). #8 is not a prerequisite for #9 despite the spec's ordering — manual entry already
   produces the entries a push sends.
 
 **Left over from the forge move, 2026-09-01:**
@@ -1248,9 +1276,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Before planning the next ticket:**
 
-- **#51 and #87 are merged and closed.** That leaves **#8, #10 and #11 as the whole remaining
-  product, and none of them has a design** — so the next ticket starts with a brainstorming round,
-  not a plan.
+- **#51 and #87 are merged and closed, and #11 is in review as PR #90.** That leaves **#8 and #10
+  as the whole remaining product, and neither has a design** — so the next ticket starts with a
+  brainstorming round, not a plan.
 - **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
   #9 plan missed and paid for late. **Open `web/index.html` before planning #8.**
