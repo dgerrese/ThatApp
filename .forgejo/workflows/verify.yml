@@ -87,3 +87,10 @@ jobs:
           npx tsc --noEmit
           npx tsc --noEmit -p tsconfig.worker.json
           npx tsc --noEmit -p tsconfig.test.json
+
+      # The `test-web` target, which `make test` and therefore `make verify` now
+      # run. Node runs the .ts directly, so there is nothing to build first —
+      # the glob is quoted because node expands it, not the shell.
+      - name: Test
+        working-directory: web
+        run: node --test 'src/**/*.test.ts'

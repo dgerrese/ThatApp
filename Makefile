@@ -41,13 +41,13 @@ build-web: install-web ## Build the frontend into web/dist
 test-go: ## Run the Go test suite
 	$(APP) go test ./...
 
-test: test-go ## Run all tests
+test: test-go test-web ## Run all tests
 
-# Deliberately NOT part of `verify`. #51 owns the frontend test runner — where
-# its gate belongs and what its conventions are — and wiring one in here would
-# be deciding that by accident. Node runs the .ts directly, so this adds no
-# dependency. Until #51 lands, this target is run by hand.
-test-web: install-web ## Run the frontend unit tests (see #51)
+# Part of `verify`, through `test` above. Node runs the .ts directly under its
+# own type stripping, so the suite carries no test dependency — the runner is
+# the standard library. Scope is the DOM-free modules; anything reaching for
+# `document` is the e2e rig's, not this target's.
+test-web: install-web ## Run the frontend unit tests
 	$(WEB) node --test 'src/**/*.test.ts'
 
 # --build, because `run` reuses a cached image: without it a bump to
