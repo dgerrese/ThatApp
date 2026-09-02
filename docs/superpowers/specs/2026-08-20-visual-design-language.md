@@ -76,7 +76,9 @@ therefore near-identical across the two.
 
 The primary and the three state tones are **separate**, decided after one accent doing both jobs was
 rejected. That rejection is the whole reason this section exists: when brand and failure shared a
-hue, failure had to borrow a triangle to be distinguishable at all.
+hue, failure had to borrow a triangle to be distinguishable at all. Dirty shares Primary's hue
+because it marks a primary action's stale consequence, not an independent state; the hollow ring
+is what keeps it from reading as Primary.
 
 | Role | Hue | Token | Light | Dark |
 | --- | --- | --- | --- | --- |
@@ -97,7 +99,8 @@ a primary action.
 Amber and red are deliberately different things: amber says *warning* — an entry not yet sent is
 one instance, data the shell is showing from cache while offline is another — red says *sent and
 refused*. **Neither ever rests on colour alone** — the triangle and the words stay, so the
-distinction survives a monochrome screen and a red-green deficiency both.
+distinction survives a monochrome screen and a red-green deficiency both. Dirty's distinction
+from not-pushed—ring against fill—relies on shape alone and requires neither colour nor words.
 
 ### The `-rail` variants
 
