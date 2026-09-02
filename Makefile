@@ -71,6 +71,7 @@ lint: lint-go lint-web ## Lint everything
 tsc: install-web ## Type-check the frontend
 	$(WEB) npx tsc --noEmit
 	$(WEB) npx tsc --noEmit -p tsconfig.worker.json
+	$(WEB) npx tsc --noEmit -p tsconfig.test.json
 
 verify: lint tsc test ## The full merge gate
 	@echo "verify: OK"

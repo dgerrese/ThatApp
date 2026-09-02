@@ -78,10 +78,12 @@ jobs:
         working-directory: web
         run: npm run lint
 
-      # Both projects, matching the `tsc` target in the Makefile: the second
-      # covers the service worker, which has its own lib set.
+      # Three projects, matching the `tsc` target in the Makefile: the service
+      # worker has its own lib set, and the unit tests their own extension and
+      # `types` licence. Neither loosens the base project.
       - name: Type-check
         working-directory: web
         run: |
           npx tsc --noEmit
           npx tsc --noEmit -p tsconfig.worker.json
+          npx tsc --noEmit -p tsconfig.test.json
