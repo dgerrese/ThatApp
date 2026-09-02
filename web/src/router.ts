@@ -29,6 +29,7 @@ interface View {
 const routes: Record<string, () => Promise<View>> = {
   "/settings": () => import("./views/settings"),
   "/today": () => import("./views/today"),
+  "/week": () => import("./views/week"),
 };
 
 /**
@@ -79,7 +80,12 @@ export function startRouter(root: HTMLElement): void {
  * link handler above.
  */
 export function navigate(path: string): Promise<void> {
-  if (path !== window.location.pathname) {
+  // `path` may carry a query string — a week is an address, not just a view —
+  // so the comparison is against the whole of what is showing, not the pathname
+  // alone. Without this, moving from one week to the next would replace no
+  // history entry and Back would skip the week you came from.
+  const current = window.location.pathname + window.location.search;
+  if (path !== current) {
     window.history.pushState({}, "", path);
   }
 

@@ -50,10 +50,16 @@
   --color-primary-ink: light-dark(oklch(0.99 0.004 70), oklch(0.16 0.02 330));
 
   /* State, never identity. Amber is "not sent yet", red is "sent and refused" —
-     and neither ever carries the difference alone; the words stay. */
+     and neither ever carries the difference on hue alone: the words beside an
+     alert's triangle, a silhouette of its own where a grid has room for neither. */
   --color-running: light-dark(oklch(0.5 0.15 150), oklch(0.74 0.14 150));
   --color-pending: light-dark(oklch(0.52 0.13 75), oklch(0.8 0.12 85));
   --color-failed: light-dark(oklch(0.51 0.19 25), oklch(0.72 0.17 25));
+  /* Pushed, then edited: Jira holds a stale copy. The primary's hue used as a
+     state, which the visual language otherwise forbids — a deliberate extension
+     rather than a reuse, and the hollow ring it draws is what keeps it from
+     reading as a primary action. See 2026-09-02-week-view-design.md, decision 3. */
+  --color-dirty: light-dark(oklch(0.52 0.19 330), oklch(0.7 0.17 330));
 
   /* Lighter variants, used only on the dark rail ground. */
   --color-primary-rail: light-dark(oklch(0.66 0.19 330), oklch(0.7 0.17 330));

@@ -27,12 +27,55 @@ import type { Entry, PushResponse } from "./types";
 const FIRST_RETRY_MS = 1_000;
 const MAX_RETRY_MS = 30_000;
 
+/**
+ * What the rail is describing. A view declares this on mount; the rail owns
+ * nothing about which period is current.
+ *
+ * `range` is absent for today rather than computed here, because the rail must
+ * not derive a date — the end-of-day push and the weekly rollup have to agree on
+ * where a day ends with no browser open, and the server is the one that decides.
+ * An absent range is exactly what `listEntries()` already defaults to.
+ */
+export interface RailPeriod {
+  label: string;
+  viewPath: string;
+  range?: { from: string; to: string };
+  pushHeading: string;
+}
+
+export const TODAY_PERIOD: RailPeriod = {
+  label: "Today",
+  viewPath: "/today",
+  pushHeading: "Push today's time to Jira?",
+};
+
+let currentPeriod: RailPeriod = TODAY_PERIOD;
+let applyPeriod: ((period: RailPeriod) => void) | undefined;
+
+/**
+ * Called by a view as it mounts. Before startRail has run there is nothing to
+ * paint, so the period is merely recorded and the boot read picks it up.
+ *
+ * A no-op when the period is already current: startRail in fact always runs
+ * before any view mounts (see main.ts), so every mount of a view that shares
+ * today's period — Today itself, and Settings borrowing it — would otherwise
+ * fire a live re-read of a period the rail is already showing. Reference
+ * equality is enough because every period a view hands in is a shared
+ * constant (TODAY_PERIOD) or freshly built for a genuine change.
+ */
+export function setRailPeriod(period: RailPeriod): void {
+  if (period === currentPeriod) return;
+  currentPeriod = period;
+  applyPeriod?.(period);
+}
+
 export function startRail(): void {
   const total = document.querySelector<HTMLElement>("#rail-total");
   const split = document.querySelector<HTMLElement>("#rail-split");
   const unpushed = document.querySelector<HTMLElement>("#rail-unpushed");
   const push = document.querySelector<HTMLButtonElement>("#rail-push");
-  if (!total || !split || !unpushed || !push) return;
+  const period = document.querySelector<HTMLElement>("#rail-period");
+  if (!total || !split || !unpushed || !push || !period) return;
 
   // Supersession, the same job searchIssues' AbortController does: a slow read
   // must not land after a newer one — or after an announcement that carried
@@ -74,6 +117,7 @@ export function startRail(): void {
   };
 
   const paint = (entries: Entry[]): void => {
+    period.textContent = currentPeriod.label;
     painted = true;
     retryDelay = FIRST_RETRY_MS;
     total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
@@ -91,6 +135,11 @@ export function startRail(): void {
    * policy inverts — the regions hold index.html's hardcoded 0h 00m, a
    * placeholder rather than a truth worth preserving — so a failed boot read
    * retries until a real figure is up.
+   *
+   * A period change puts the rail back into that pre-paint state on purpose
+   * (see applyPeriod). Keeping the old figures is only defensible while they
+   * belong to the period the label claims, and after a period change they
+   * belong to the one before it.
    */
   const refresh = async (): Promise<void> => {
     const mine = ++epoch;
@@ -101,7 +150,7 @@ export function startRail(): void {
 
     let entries: Entry[];
     try {
-      entries = await listEntries();
+      entries = await listEntries(currentPeriod.range);
     } catch {
       if (!painted && mine === epoch) {
         retryTimer = window.setTimeout(() => {
@@ -121,9 +170,10 @@ export function startRail(): void {
   // No unsubscribe: the shell outlives every view, so this listener is meant to
   // last as long as the page does.
   onEntriesChanged((entries) => {
-    if (entries) {
-      // The announcement carried the day, so there is nothing to fetch — and
-      // the epoch moves so any read still in flight cannot overwrite this.
+    // The announcement carries today's entries. It answers the rail's question
+    // only while today is what the rail is showing; for any other period the
+    // right response is to re-read that period.
+    if (entries && currentPeriod === TODAY_PERIOD) {
       epoch += 1;
       paint(entries);
 
@@ -132,6 +182,18 @@ export function startRail(): void {
     void refresh();
   });
   void refresh();
+
+  // A period change is a new read, and it moves the epoch so a read still in
+  // flight for the previous period cannot land afterwards and paint it back.
+  // Dropping `painted` re-arms the pre-paint retry for exactly the case it was
+  // written for: until this period has painted once, what is on screen is the
+  // previous period's, so a failed read must keep trying rather than strand the
+  // rail on figures the view beside it contradicts. paint() sets it back.
+  applyPeriod = () => {
+    epoch += 1;
+    painted = false;
+    void refresh();
+  };
 
   /**
    * Confirms, pushes, then hands the result to whoever is listening for it —
@@ -160,7 +222,10 @@ export function startRail(): void {
     try {
       let entries: Entry[];
       try {
-        entries = await listEntries();
+        // Scoped to the period, not just today: `due` below drives which days
+        // get pushed, so a check that only ever saw today would silently push
+        // nothing beyond it on any period wider than a day.
+        entries = await listEntries(currentPeriod.range);
       } catch {
         showPushError("Could not check what's pending — press Push to Jira to retry.");
         return;
@@ -179,14 +244,21 @@ export function startRail(): void {
         return;
       }
 
+      // One request per day, in order. `day` comes off the entries the server
+      // stamped, so the rail still derives no date of its own. Sequential rather
+      // than concurrent: the merged report has to be attributable and stably
+      // ordered, and a bad week should not fan a week of requests at Jira at once.
+      const days = [...new Set(due.map((entry) => entry.day))].sort();
+
       const { confirmDestructive } = await import("./components/that-confirm");
       const seconds = due.reduce((sum, entry) => sum + entry.seconds, 0);
       const label = `${String(due.length)} ${due.length === 1 ? "entry" : "entries"}`;
       const sites = new Set(due.map((entry) => entry.instanceId)).size;
+      const across = days.length === 1 ? "" : ` across ${String(days.length)} days`;
       const confirmed = await confirmDestructive({
-        heading: "Push today's time to Jira?",
+        heading: currentPeriod.pushHeading,
         body:
-          `${label} totalling ${totalFigure(seconds)} will be created as worklogs on ` +
+          `${label} totalling ${totalFigure(seconds)}${across} will be created as worklogs on ` +
           `${String(sites)} ${sites === 1 ? "site" : "sites"}.`,
         confirmLabel: "Push",
       });
@@ -198,22 +270,38 @@ export function startRail(): void {
       // onPushReported subscription only exists on the far side of it — an
       // announcement fired during that gap is heard by nobody, and a partial
       // failure answers 200, so nothing else would report it either.
-      if (window.location.pathname !== "/today") {
-        await navigate("/today");
+      if (window.location.pathname !== currentPeriod.viewPath) {
+        await navigate(currentPeriod.viewPath);
       }
 
-      let response: PushResponse;
-      try {
-        response = await pushDay();
-      } catch {
+      // Each day is its own request against state the server tracks
+      // independently, so one day failing says nothing about the next — unlike
+      // a single confirmation covering days that turn out not to share a fate,
+      // stopping early would cost every later day its chance for no reason tied
+      // to it. Continue rather than break, and report whatever came back;
+      // a day that never answered keeps worklog_id null, so the next read
+      // still shows it as unpushed and Push can simply be pressed again.
+      const responses: PushResponse[] = [];
+      const unanswered: string[] = [];
+      for (const day of days) {
+        try {
+          responses.push(await pushDay(day));
+        } catch {
+          // Kept rather than swallowed: a day that threw contributes no result
+          // to either count, so a report told only about the responses would
+          // find no failures and call a half-finished push a success.
+          unanswered.push(day);
+        }
+      }
+      if (responses.length === 0) {
         showPushError("Push failed — press Push to Jira to retry.");
         return;
       }
 
-      announcePushReported(response);
+      announcePushReported(responses, unanswered);
 
       try {
-        announceEntriesChanged(await listEntries());
+        announceEntriesChanged(await listEntries(currentPeriod.range));
       } catch {
         // The push itself already succeeded and is reported above; a failed
         // re-read here only means the rail's own total is stale until the

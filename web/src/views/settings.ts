@@ -5,6 +5,7 @@ import "../components/that-confirm";
 
 import { ApiError, createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
 import { confirmDestructive } from "../components/that-confirm";
+import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import { setThemePreference, themePreference } from "../theme";
 import type { Instance } from "../types";
 import type { ThemePreference } from "../theme";
@@ -16,6 +17,8 @@ interface Regions {
 }
 
 export async function render(root: HTMLElement): Promise<void> {
+  setRailPeriod(TODAY_PERIOD);
+
   const regions: Regions = {
     errorSlot: document.createElement("div"),
     listCard: document.createElement("div"),

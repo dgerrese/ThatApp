@@ -76,7 +76,8 @@ therefore near-identical across the two.
 
 The primary and the three state tones are **separate**, decided after one accent doing both jobs was
 rejected. That rejection is the whole reason this section exists: when brand and failure shared a
-hue, failure had to borrow a triangle to be distinguishable at all.
+hue, failure had to borrow a triangle to be distinguishable at all. Dirty shares Primary's hue
+because it marks a primary action's stale consequence, not an independent state.
 
 | Role | Hue | Token | Light | Dark |
 | --- | --- | --- | --- | --- |
@@ -85,15 +86,23 @@ hue, failure had to borrow a triangle to be distinguishable at all.
 | Running | 150 | `--color-running` | `oklch(0.50 0.15 150)` | `oklch(0.74 0.14 150)` |
 | Not pushed | 85 | `--color-pending` | `oklch(0.52 0.13 75)` | `oklch(0.80 0.12 85)` |
 | Failed | 25 | `--color-failed` | `oklch(0.51 0.19 25)` | `oklch(0.72 0.17 25)` |
+| Dirty | 330 | `--color-dirty` | `oklch(0.52 0.19 330)` | `oklch(0.70 0.17 330)` |
 
 **Primary** carries the wordmark, Push, links and focus rings — identity, never state.
 **Running** is the live timer and its stop control, and nothing else. **Not pushed** marks an entry
-still local. **Failed** marks one Jira rejected, and an unreachable instance.
+still local. **Failed** marks one Jira rejected, and an unreachable instance. **Dirty** marks an
+entry pushed to Jira and then edited locally, where Jira's copy is stale. It renders as a hollow
+ring, never filled, so shape carries the distinction alongside hue and it cannot be mistaken for
+a primary action.
 
 Amber and red are deliberately different things: amber says *warning* — an entry not yet sent is
 one instance, data the shell is showing from cache while offline is another — red says *sent and
-refused*. **Neither ever rests on colour alone** — the triangle and the words stay, so the
-distinction survives a monochrome screen and a red-green deficiency both.
+refused*. **Neither ever rests on colour alone** — the guarantee is that much and no more. In an
+alert the triangle and the words carry it; where a surface has room for neither, a week grid's
+cell being the case, each state takes a silhouette of its own instead. Either way the distinction
+survives a monochrome screen and a red-green deficiency both. Dirty's distinction from
+not-pushed — ring against fill — relies on shape alone because the shapes are inherently distinct,
+unlike amber and red's shared triangle, which needs words to tell them apart.
 
 ### The `-rail` variants
 
