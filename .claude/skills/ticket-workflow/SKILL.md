@@ -77,16 +77,30 @@ applied and removed by hand.
 
 ### Type: `bug` and `enhancement`
 
-A second, independent axis: **is this a defect or new capability?**
+A second, independent axis: **is this a defect, or an addition?**
 
 | Label | Means |
 |---|---|
 | `bug` | The product misbehaves relative to its spec or its own intent. |
-| `enhancement` | New capability the product does not have yet. |
+| `enhancement` | A clear addition that is not needed to keep the app running, or is not in the initial design. |
 
 Unlike status, type is **optional and at most one**. Plenty of tickets are neither — a refactor, a
 test-infrastructure change, a documentation ticket. Do not force one on for the sake of symmetry;
 an unlabelled issue is a legitimate answer.
+
+**`enhancement` is narrower than "new work".** The owner's test, given on 2026-09-02: it is an
+enhancement when the ticket is *clearly an addition* and either *is not necessary to keep the app
+running* or *is not in the initial design*. Two consequences that catch most misfilings:
+
+- **The design of record's own tickets are not enhancements.** The 13-ticket sequence *is* the
+  initial design, so #8, #10, #11 and #13 carry no type. Neither does a ticket that builds
+  something the visual design language already specifies, such as the phone layout. Building what
+  was designed is not an addition to it.
+- **The axis is about the product.** A test-rig change, a formatting gate, a refactor or an API
+  reference document is not an addition to the app, whatever else it is. Those stay untyped.
+
+A ticket whose own body says it *widens* an agreed contract rather than correcting it is the clean
+case for `enhancement` — #19 is the worked example.
 
 **Cutting the branch is what moves a ticket to `status/in-progress`.** The trigger is the branch
 existing — not the first line of implementation code, and not a judgement about how far the work has

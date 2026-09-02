@@ -23,8 +23,9 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-01.** This ledger is the authority on status; the narrative further down is
-history and says otherwise in places.
+**Verified on 2026-09-02**, against the Codeberg API rather than against local git — see
+*Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
+further down is history and says otherwise in places.
 
 > **The forge changed on 2026-09-01.** Issue and pull-request numbers below were verified against
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
@@ -34,15 +35,20 @@ history and says otherwise in places.
 `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20, #6 and #44 on
 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and #9 as PR #76.
 **In progress: #51**, on `issue-51-frontend-unit-tests` — one commit, a plan, no implementation.
-**No pull request is open:** #49 (`codeberg-api-limits`) merged on 2026-09-01, and the eod skill
-followed it as PR #81. The `retro-skill` and
-`worktrees-without-the-tax` branches were carried across the forge move with their work intact but
-**no pull request open on either** — the GitHub pull requests that used to hold them did not migrate,
-so re-opening them on Codeberg is a decision waiting to be made. **To do:** #8, #10
-and #11. **Needs refinement:** #13 (LAN/HTTPS phone access — deferred, and needs the owner's explicit
-go-ahead even to refine), #19, #35, #39, #40, #47, #61 and #80. **Intake, fourteen, every one the owner's
-to approve or decline:** #41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as
-not planned:** #21, #22 — folded into #4, not rejected; both labelled `wontfix`.
+**No pull request is open**, confirmed on 2026-09-02. #49 (`codeberg-api-limits`) merged on
+2026-09-01, the eod skill followed it as PR #81, and `handoff-2026-09-01` merged as **PR #82**,
+putting remote `main` at `0c1dcfc`. Two branches are pushed with no pull request behind them:
+`retro-skill` and `worktrees-without-the-tax`, carried across the forge move with their work intact.
+The GitHub pull requests that used to hold them did not migrate, so re-opening them on Codeberg is a
+decision waiting to be made. **To do:** #8, #10 and #11. **Needs refinement, ten:** #13 (LAN/HTTPS
+phone access — deferred, and needs the owner's explicit go-ahead even to refine), #19, #35, #39,
+#40, #47, #61, #80, #83 and #84. **Intake, fourteen, every one the owner's to approve or decline:**
+#41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as not planned:**
+#21, #22 — folded into #4, not rejected; both labelled `wontfix`.
+
+**The board's own hygiene was audited on 2026-09-02 and is clean**: all 28 open issues carry exactly
+one `status/*` label, and no closed issue carries one. The type axis was corrected in the same pass;
+the `enhancement` test that decided it is in the `ticket-workflow` skill.
 
 **#8, #10 and #11 are the whole remaining product**, and none of them has a design yet.
 
@@ -494,6 +500,15 @@ its priority is now higher: #6 added the second by-index concurrent write site a
 the third.
 
 ## Decisions taken — do not reopen
+
+**`enhancement` means an addition, not merely new work.** The owner's test, given on 2026-09-02:
+it is an enhancement when the ticket is *clearly an addition* and either *is not necessary to keep
+the app running* or *is not in the initial design*. Two consequences settle most cases — the
+13-ticket sequence *is* the initial design, so its own tickets carry no type, and the axis is about
+the product, so rig, gate, refactor and documentation tickets stay untyped. **The full test lives in
+`.claude/skills/ticket-workflow/SKILL.md`**, which is the authority; it is recorded here only so a
+session knows it was settled rather than open. Applied across the board it moved exactly one ticket,
+#19.
 
 **The forge is Codeberg, and the project is called ThatApp.** Moved on 2026-09-01 from
 `github.com/dgerrese/work-dashboard` to `codeberg.org/DionGerrese/ThatApp`. The GitHub repository is
@@ -1117,10 +1132,11 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Left over from the forge move, 2026-09-01:**
 
-- **Local `main` is stale and only the owner may move it** — still the pre-rename tip `d07f4ec` while the project is at `afa098e`. Until it moves, branching from local `main` produces
-  a branch with the old names, the old module path and the deleted GitHub workflows.
-  Its SHA is `d07f4ec` and not the `71c8c2f` the day log mentions: the author-email rewrite
-  re-hashed every branch, `main` included, so the commit is the same work under a new hash.
+- **Local `main` lags the forge and only the owner may move it.** As of 2026-09-02 it is at
+  `41b60b1` while remote `main` is at `0c1dcfc`, one merge ahead — PR #82. It is no longer the
+  pre-rename tip, so branching from it no longer produces the old names and the old module path;
+  it is simply behind. **Verify the gap against the API before repeating a number here**, because a
+  blocked fetch leaves the local `codeberg/*` refs frozen and makes local `git` quietly wrong.
 - **`retro-skill` and `worktrees-without-the-tax` are pushed but have no pull request.** Their work
   survived the move; the GitHub pull requests holding them did not. Both predate the rename, so
   either will need `THAT_*`/`that-*` applied before it can merge.
@@ -1134,8 +1150,8 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Waiting on the owner:**
 
-- **The intake queue is thirteen and is the longest it has been:** #41, #42, #43, #53, #55, #56,
-  #57, #58, #59, #66, #67, #71, #74. Approving or declining them is the owner's move alone, and
+- **The intake queue is fourteen and is the longest it has been:** #41, #42, #43, #53, #55, #56,
+  #57, #58, #59, #66, #67, #71, #74, #79. Approving or declining them is the owner's move alone, and
   **nothing has come off the queue since it was opened.**
 - **Whether the owner's other repo mirrors this label set** is still unanswered, and the gap widened
   on 2026-08-20: this repo now has five statuses plus `bug`/`enhancement`/`wontfix`, having deleted
@@ -1190,8 +1206,11 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Before planning the next ticket:**
 
-- **#51 is `status/todo`, refined and unblocked**, and its branch has not been cut. It is the only
-  ready ticket with a settled design; #8, #10 and #11 still have none.
+- **#51 is `status/in-progress`**, and `issue-51-frontend-unit-tests` is cut and pushed at
+  `ce3623c` — one commit carrying a plan, no implementation, and no pull request. This section long
+  said `status/todo` with no branch, which the ledger above always contradicted; the ledger was
+  right. It is still the only started ticket with a settled design, and **#8, #10 and #11 have
+  none**, so they are `status/todo` in the literal sense: nobody has begun them.
 - **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
   #9 plan missed and paid for late. **Open `web/index.html` before planning #8.**
@@ -1202,8 +1221,11 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   design. Its three open questions are the owner's to answer in a brainstorming round.
 - **Spec §"Decisions deferred"** — unchanged; nothing there blocks the ready tickets.
 
-**This branch:** `handoff-2026-09-01` carries three unpushed commits and goes out as one pull
-request at the end-of-day signal. PR #78 (`retro-skill`) is open and waiting on the owner.
+**This branch:** `handoff-2026-09-02`, cut from `3f44974` on 2026-09-02 because
+`handoff-2026-09-01` had already merged. It carries the day's narrative, the `enhancement` test
+written into the `ticket-workflow` skill, and this correction pass, and goes out as one pull request
+at the end-of-day signal. **No pull request is open on the repository** — the line that used to
+stand here claiming PR #78 held `retro-skill` was wrong, and that branch still needs one.
 
 ## Environment notes
 
@@ -1224,10 +1246,20 @@ request at the end-of-day signal. PR #78 (`retro-skill`) is open and waiting on 
   archived; Forgejo has no equivalent, and the `@claude` and automatic-review workflows were deleted
   in the move. Claude runs locally through the superpowers skills, which is how the work was always
   actually done.
+- **When SSH is down, local git does not merely fail — it answers with stale data.** `git fetch`
+  failing leaves every `codeberg/*` remote-tracking ref frozen at its last successful fetch, so
+  `git branch -vv`, `git log` and any ahead/behind count describe the forge as it was, with no
+  warning that they are out of date. On 2026-09-02 that read a merged branch as unpushed and its
+  pull request as missing. **`tea` and the plain HTTPS API are unaffected**, because they carry a
+  token rather than the SSH key, so check real state there before believing local git:
+  `curl -sS "https://codeberg.org/api/v1/repos/DionGerrese/ThatApp/branches?limit=50"` lists what
+  actually exists on the forge, and `tea pr list --state open` lists what is actually waiting.
+  **A remote branch that has disappeared usually means its pull request merged**, not that the push
+  never happened — check the commit against `main` before concluding work was lost.
 - Local `main` may sit well behind the forge; branch from the remote, not from it. **As of
-  2026-09-01 it is badly stale — still on the pre-rename tip `d07f4ec` while the project is
-  at `afa098e`** on Codeberg. Advancing it is the owner's call, since `CLAUDE.md` forbids a session
-  moving `main`.
+  2026-09-02 it is at `41b60b1`, one merge behind the forge's `0c1dcfc`** — no longer the badly
+  stale pre-rename tip it was on 2026-09-01. Advancing it is the owner's call, since `CLAUDE.md`
+  forbids a session moving `main`.
 - **SSH authentication was down on 2026-08-17** and no git traffic reached GitHub all session:
   `sign_and_send_pubkey: signing failed … communication with agent failed`, and `ssh-add -l` reports
   *The agent has no identities* — the agent is running but empty, or its socket is stale from an
