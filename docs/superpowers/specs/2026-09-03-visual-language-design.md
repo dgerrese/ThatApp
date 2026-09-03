@@ -299,13 +299,61 @@ the font the design chose: coverage varies, metrics vary, and a face that lacks 
 back to something else entirely or draws nothing. An icon that changes shape with the font is not a
 component.
 
-**This reaches shipped code.** `that-alert` sets its marks as text — `●` for success and `▲` for both
-warning and failed. That also means warning and failed are **told apart by colour alone today**,
-which this language forbids in its own words. Drawing them is the moment to give them different
-shapes, and that is a decision for the ticket that does the work, not for this document.
+**This reaches shipped code in four files.** Every one was found by reading the source, not guessed:
+
+| File | Glyph | Standing in for |
+| --- | --- | --- |
+| `that-alert.ts` | `●` | the success mark |
+| `that-alert.ts` | `▲` | **both** warning and failed |
+| `that-entry-dialog.ts` | `×` | close |
+| `that-entry-dialog.ts` | `×` | stop editing |
+| `that-duration.ts` | `−` | fifteen minutes less |
+| `that-duration.ts` | `+` | fifteen minutes more |
+| `views/week.ts` | `←` `→` | previous and next week |
+
+The alert row matters twice over: warning and failed **share one glyph and are told apart by colour
+alone**, which this language forbids in its own words. Drawing them is the moment to give them
+different shapes, and that is a decision for the ticket that does the work.
+
+**Punctuation is not an icon.** An em dash meaning "no value" in a table cell, and a middot
+separating two facts on one line, are typography and stay as characters. The rule is about a
+character standing in for a *drawn mark*, not a licence to redraw punctuation.
 
 The set the app needs: pin, pin-off, search, sortable, ascending, descending, pushed, warning,
 failed, success, and the three nav marks already drawn in `index.html`.
+
+## Decision 9 — one surface reacts at a time
+
+Where a row and the controls inside it both respond to hover, hovering a control paints the control's
+wash *on top of* the row's. The same mix lands twice and reads as roughly double, which is a
+different colour from either state and belongs to neither.
+
+So a container's hover **stands down** while one of its own controls is hovered:
+
+```css
+.row:hover { background: var(--hover); }
+.row:hover:has(.control:hover) { background: transparent; }
+```
+
+`:has()` is supported in both target browsers, and where it is not the two washes simply stack —
+the old behaviour, not a broken one. A control that changes only its colour, such as a linked key,
+is deliberately **not** in that list: it never competes with the row, so the row should stay lit
+while the pointer is travelling toward it.
+
+## Decision 10 — a revealed control either reserves its space or does not, and context decides
+
+The duration control carries a `Log` hint that appears on hover. There are only two honest bargains,
+and the right one depends on what sits next to it:
+
+- **Reserve.** The hint always occupies its width and fades in. Nothing moves. Correct in a table,
+  where the neighbour is a status column that would otherwise jump on every hover.
+- **Reveal.** The hint has no width until wanted, and expands. Correct in a narrow panel such as the
+  search results, where reserved width is taken straight out of the summary being read.
+
+**This reverses a decision recorded in the first edition.** That document says the owner chose the
+shifting arrangement on 2026-08-21 over three that hold the row still, and that reserving the width
+"means going back to the owner first". That happened on 2026-09-03: the tables now reserve. The
+reveal behaviour survives as the modifier used where width is scarce.
 
 ## Decision 7 — a tooltip lives in the top layer
 
