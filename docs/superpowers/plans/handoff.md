@@ -543,6 +543,10 @@ about two hours before that edit**, and Forgejo keeps content history for edited
 - **The design source for #95 is a committed prototype**,
   `docs/superpowers/prototypes/2026-09-03-app-prototype.html`. It is the authority where it and the
   spec disagree.
+- **Unset means the system.** With nothing stored the app follows `prefers-color-scheme`, so a
+  machine set to light opens light. "Dark is the default" means only that the root declares
+  `color-scheme: dark light` — which decides the no-preference case alone — and that dark is the
+  ground the palette was authored and measured in. A stored preference beats both.
 - **The 2026-08-21 decision on the Log hint is reversed**: tables reserve its width. The reveal
   behaviour survives as a modifier for narrow panels.
 
@@ -1258,10 +1262,6 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Waiting on the owner:**
 
-- **What "unset" means for the theme, now dark is the default.** The app ships `color-scheme: light
-  dark` with *Auto* as the unset state, following the operating system. If dark is the default and
-  nothing is stored, does the app open light on a light machine? #89 draws it as *unset means dark,
-  following the system is opt-in*, and that is **a behaviour change the owner has not confirmed**.
 - **The intake queue was fourteen and is now one: #74.** The owner triaged the whole queue on
   2026-09-02, ticket by ticket — thirteen approved through to `status/needs-refinement`, and #59
   declined with `wontfix` and closed. Approving and declining remain the owner's moves alone.
