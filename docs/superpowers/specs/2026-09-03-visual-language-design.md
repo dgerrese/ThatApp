@@ -57,6 +57,24 @@ day, in an office, and a permanently dark screen is a cost paid every day for a 
 of the time. Light-first was rejected as too literal a reading of the brief — the same app in a
 sharper suit rather than a different one.
 
+### What "default" means, precisely
+
+Settled 2026-09-03, because the phrase is ambiguous and the ambiguity is a behaviour change.
+
+The theme control offers **Light, Dark and System**, and **System is the unset state**. With nothing
+stored, the app follows `prefers-color-scheme`. **A machine set to light opens the app light**, and
+that is correct, not a bug for a later ticket to fix.
+
+"Dark first" is therefore two narrower claims, not one broad one:
+
+- The root declares **`color-scheme: dark light`** rather than `light dark`. The order only decides
+  what happens where the platform expresses no preference at all, and there dark wins.
+- Dark is the ground the design was **authored and measured in**. Light is derived from it and held
+  to the same floors, rather than the other way round.
+
+A stored preference beats both. The boot script is unchanged: an absent `data-theme` attribute is the
+System state, so a failed storage read lands on following the platform rather than on a guess.
+
 **The consequence is decision 2**, and it is the whole reason this edition exists rather than being a
 palette swap.
 
