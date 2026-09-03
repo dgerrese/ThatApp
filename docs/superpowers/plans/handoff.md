@@ -1247,8 +1247,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   **`retro-skill` merged as PR #85 on 2026-09-02.** Rebasing it onto `main` first needed the
   `CLAUDE.md` hunk re-placed against the handoff split and the eod paragraph, and its commands
   ported from `gh` to `tea` — the pre-move debt the original bullet warned about, and it was an
-  hour's work rather than a rewrite. **`worktrees-without-the-tax` still has no pull request**,
-  still predates the rename, and will need the same treatment.
+  hour's work rather than a rewrite. **`worktrees-without-the-tax` was pushed to Codeberg on 2026-09-03** — it
+  had never been, and its only copy was local. It still has **no pull request**, still predates the
+  rename, and will need the same rebase treatment.
 - **`upload-artifact` on hosted runners is still unfired, but no longer unverified in the same
   way.** The 2026-09-02 failure finally ran the step, and `actions/upload-artifact@v4` refused
   outright: it aborts on any non-github.com API with *not currently supported on GHES*, so the
@@ -1339,8 +1340,10 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **This branch:** `handoff-2026-09-03`, cut from `c7ee06a` on 2026-09-03, `main`'s tip once PR #93
 had merged. It carries the day's narrative and goes out as one pull request at the end-of-day
-signal. **Two product branches sit beside it unpushed** — `issue-94-visual-language` and
-`issue-95-today-and-week` — each with its spec committed and no pull request yet.
+signal. **Two product branches went up beside it** — `issue-94-visual-language` and
+`issue-95-today-and-week` — each with its spec committed and **no pull request yet**, because a
+ticket reaches review when it is done, not when a day ends. `worktrees-without-the-tax` went up too:
+its only copy was on this machine, since the GitHub branch that held it never migrated.
 
 ## Environment notes
 
