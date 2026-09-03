@@ -35,21 +35,22 @@ further down is history and says otherwise in places.
 none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20,
 #6 and #44 on 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and
 #9 as PR #76.
-**In progress: #11**, on `issue-11-week-view` — built out on 2026-09-02 and now **PR #90**, which is
-the review state. It is the only open pull request.
+**#11 merged as PR #90 on 2026-09-02**, closing it. **Nothing is in progress, and there are no open
+pull requests** — verified against the Codeberg API at end of day.
 Before it, #51 merged as **PR #86** and #87 as
 **PR #88** on 2026-09-02, along with `retro-skill` as **PR #85**. #88 merged into #86's branch
 rather than into `main`, because #86 could not go green on its own — see *Decisions taken*. Remote
-`main` is at **`62e3c3d`**; the merge style is rebase-merge, so every one of those commits has a new
-SHA on `main`.
+`main` is at **`bbbb79f`**, the merge of PR #90; the merge style is rebase-merge, so every one of
+those commits has a new SHA on `main`.
 Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
 **`worktrees-without-the-tax` as the only branch pushed with no pull request behind it**, carried
 across the forge move with its work intact. The GitHub pull request that used to hold it did not
-migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8 and #10. **Needs refinement, ten:** #13 (LAN/HTTPS
+migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8 and #10. **Needs refinement, twenty-four:** #13 (LAN/HTTPS
 phone access — deferred, and needs the owner's explicit go-ahead even to refine), #19, #35, #39,
-#40, #47, #61, #80, #83 and #84. **Intake, fourteen, every one the owner's to approve or decline:**
-#41, #42, #43, #53, #55, #56, #57, #58, #59, #66, #67, #71, #74, #79. **Closed as not planned:**
+#40, #41, #42, #43, #47, #53, #55, #56, #57, #58, #61, #66, #67, #71, #79, #80, #83, #84, #89 and
+#91. Thirteen of those arrived on 2026-09-02, when the owner triaged the whole intake queue one
+ticket at a time. **Intake, one:** #74. **Declined on 2026-09-02:** #59, `wontfix` and closed. **Closed as not planned:**
 #21, #22 — folded into #4, not rejected; both labelled `wontfix`.
 
 **The board's own hygiene was audited on 2026-09-02 and is clean**: all 28 open issues carry exactly
@@ -1370,3 +1371,30 @@ at the end-of-day signal. The line that used to stand here claimed PR #78 held
   wrong. It was started again later on 2026-09-01: signing and push both worked for the handoff
   commits that afternoon, so the pattern is "broken at the start of every session, fixed by the
   owner once asked" rather than anything intermittent.
+- **A clone on this machine may still point at GitHub, and the two histories are unrelated.** Found
+  on 2026-09-02: the working copy at `/home/dion/Projects/work-dashboard` still had `origin` on
+  `git@github.com:dgerrese/work-dashboard.git`, so every `gh` and `git fetch` had been failing or
+  answering from stale refs. Repointing it revealed the important part — **the Codeberg repository
+  was re-imported, not mirrored.** `git merge-base main origin/main` returns nothing: local root
+  `ab6624d` against remote root `f3849e1`, 139 commits against 324, sharing none. **A stale clone
+  cannot be rebased or fast-forwarded onto the new remote; it can only be replaced**, with
+  `git checkout -B main origin/main`. Anything that reads "behind by N commits" here is meaningless.
+- **Codeberg's SSH host keys were not in `known_hosts`**, so git over SSH failed with
+  `Host key verification failed` and an `ssh_askpass` error that hides the real cause. All three
+  fingerprints from `ssh-keyscan codeberg.org` were checked against the published list at
+  `docs.codeberg.org/security/ssh-fingerprint/` and matched exactly before being added
+  (ED25519 `SHA256:mIlxA9k46MmM6qdJOdMnAQpzGxF4WIVVL+fj+wZbw0g`). Verify rather than
+  `StrictHostKeyChecking=accept-new`; the check costs one command.
+- **The remote here is named `origin`, not `codeberg`.** The `eod` skill's survey and push commands
+  are written against a remote called `codeberg`, so they silently find nothing on this machine —
+  `git rev-list --count codeberg/main..$b` fails outright. Either rename the remote or generalise
+  the skill; until then, translate the commands. Recorded 2026-09-02 after running the skill.
+- **A `.env` carried across the rename will be silently wrong.** Config is validated at boot, so a
+  file still holding `WD_SECRET_KEY`, `WD_TIMEZONE` and `WD_PORT` stops the server rather than
+  half-working. `sed -i 's/^WD_/THAT_/' .env` is the fix, and **the values must be preserved** —
+  `SECRET_KEY` is what decrypts the sealed Jira tokens already in the database, so a freshly
+  generated key orphans them with no error.
+- **`docker compose ps` fails bare, by design.** `required variable THAT_UID is missing` is not a
+  broken checkout: `make` fills `THAT_UID`/`THAT_GID` from `id -u`/`id -g`, and `.env.example`
+  states there is deliberately no default because guessing wrong dies later with EACCES. Drive
+  Compose through `make`, or set the two variables in `.env` as that file describes.
