@@ -7,7 +7,8 @@ parts named below
 
 The first edition settled a vocabulary and it held through tickets 5 to 11. This edition changes four
 things in it — the ground, the rail's reason for standing apart, the corner geometry and the type —
-and leaves everything else exactly as it was.
+adds three it never had — an icon rule, a tooltip, a breakpoint scale — and leaves everything else
+exactly as it was.
 
 **It is a revision, not a rewrite.** §*What the first edition still governs* lists what carries over
 untouched, and that list is longer than what changes here. Where the two documents disagree on a
@@ -286,6 +287,57 @@ render if `--color-primary-rail` were dropped, kept in the table as the evidence
 
 **The dot rows are the ones to re-measure first** if the ramp or the grounds ever move. The light
 theme's worst hue clears by 0.54, which is the smallest margin in the table.
+
+## Decision 6 — an icon is drawn, never typed
+
+**No glyph may stand in for an icon.** Not a dingbat, not a geometric shape from the text stream, not
+an emoji. Every mark that carries meaning is inline SVG on a 24px grid, `1.9` stroke, round caps and
+joins, `currentColor`, rendered at 16px in the rail's nav and 18px in a row control.
+
+The reason is not taste. A typed character is rendered by whichever font resolves it, and that is not
+the font the design chose: coverage varies, metrics vary, and a face that lacks the codepoint falls
+back to something else entirely or draws nothing. An icon that changes shape with the font is not a
+component.
+
+**This reaches shipped code.** `that-alert` sets its marks as text — `●` for success and `▲` for both
+warning and failed. That also means warning and failed are **told apart by colour alone today**,
+which this language forbids in its own words. Drawing them is the moment to give them different
+shapes, and that is a decision for the ticket that does the work, not for this document.
+
+The set the app needs: pin, pin-off, search, sortable, ascending, descending, pushed, warning,
+failed, success, and the three nav marks already drawn in `index.html`.
+
+## Decision 7 — a tooltip lives in the top layer
+
+Row controls that carry no label — the pin and unpin buttons — need a tooltip, and a tooltip parented
+to its trigger can always be clipped by some ancestor: a scrolling region, a dialog, a card that
+later gains `overflow: hidden`. That failure is invisible until the day it is not.
+
+**So a tooltip is a `popover`**, promoted to the top layer where no ancestor can clip it, positioned
+against its trigger in script. Both target browsers support the attribute.
+
+Two rules come with it. A tooltip is **never the accessible name** — the button carries `aria-label`
+regardless, because a tooltip that only appears on hover reaches neither a keyboard nor a screen
+reader on its own. And a tooltip on a **trailing** control anchors to its right edge rather than
+centring on it, or it hangs past the card.
+
+## Decision 8 — the breakpoint scale, and one collision it walks into
+
+Tailwind v4's defaults are used unmodified — `sm` 40rem, `md` 48rem, `lg` 64rem, `xl` 80rem, `2xl`
+96rem — with **one addition**:
+
+```css
+@theme { --breakpoint-3xl: 120rem; }
+```
+
+It exists because the owner's screen is 2560px wide and every default stops far short of it. It is
+the **cap** on the content column, not a third column of cards.
+
+**The collision:** `max-w-3xl` already means 48rem. Tailwind's container scale and its breakpoint
+scale are separate namespaces that happen to share names, and adding `--breakpoint-3xl` does not
+change `max-w-3xl`. Writing `max-w-3xl` for the cap would silently produce a 768px page. The cap must
+be an explicit `max-w-[120rem]` or a container token whose name is not a breakpoint name. This is
+recorded because it reads correctly and behaves wrongly, which is the worst combination.
 
 ## What the first edition still governs
 
