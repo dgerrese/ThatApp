@@ -2,7 +2,9 @@
 
 **Date:** 2026-08-20
 **Supersedes:** nothing
-**Superseded by:** nothing
+**Superseded by:** [`2026-09-03-visual-language-design.md`](2026-09-03-visual-language-design.md),
+in the ground, the rail's separation, the corner geometry and the type. Everything else in this
+document still governs — that document names which parts.
 
 The vocabulary every view is built out of. It exists because tickets 6–12 each add a surface —
 pins, timers, per-entry push state, a partial-failure report, a week grid — and each of those needs

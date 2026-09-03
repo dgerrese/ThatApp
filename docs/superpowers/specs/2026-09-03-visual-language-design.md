@@ -1,0 +1,327 @@
+# The visual language, second edition
+
+**Date:** 2026-09-03
+**Supersedes:** [`2026-08-20-visual-design-language.md`](2026-08-20-visual-design-language.md), in the
+parts named below
+**Superseded by:** nothing
+
+The first edition settled a vocabulary and it held through tickets 5 to 11. This edition changes four
+things in it — the ground, the rail's reason for standing apart, the corner geometry and the type —
+and leaves everything else exactly as it was.
+
+**It is a revision, not a rewrite.** §*What the first edition still governs* lists what carries over
+untouched, and that list is longer than what changes here. Where the two documents disagree on a
+token, a radius or a typeface, this one wins; on anything else, the first edition is still the
+source.
+
+**This document is derived from a design session**, run on 2026-09-03 in the browser companion under
+`.superpowers/brainstorm/`. Every decision below was chosen against alternatives that were built and
+compared side by side, not described. The alternatives and their costs are recorded here because the
+reasons are what a later reader needs, not the winners alone.
+
+## The brief
+
+An **opposite identity** to a **reference brand** — an evil twin in *manners, not function*. Same
+craft, opposite temperament: where the reference is polite, daylit and soft, this is nocturnal and
+crisp.
+
+The reference is a brand the owner sees every working day and is deliberately not named here; what
+matters to a later reader is its *shape*, which the table below records in full.
+
+Its values, read from its own stylesheet rather than from an impression of it:
+
+| | |
+| --- | --- |
+| Brand | `#1469ae`, focus `#0127b2` |
+| Dark ground | `#000828` |
+| Page | `#f3f3f3`, secondary `#efeeeb` |
+| Ink | `#141414`, muted `#5e5c5a` |
+| Supports | `#b2c3ff`, `#dce1f5` |
+| Typeface | Inter, one family, no second register |
+| Radii | Five named steps: 2, 4, 8, 12, 20 |
+
+The app already disagreed with most of that — warm against cool, a grotesque against Inter, magenta
+against trust-blue — but it had arrived there without deciding to. This edition makes the opposition
+deliberate, and in two places it turns out the better move is to **inherit the reference's system and
+invert the app's position within it** rather than to invent something new.
+
+## Decision 1 — dark is the default, light is a peer
+
+Three grounds were built: dark-first with light kept, dark-only, and light-first with a darker
+character. **Dark-first wins.** Both themes stay selectable, both stay tested, and neither is a
+courtesy.
+
+Dark-only was rejected for one reason that is not aesthetic: this app is used through the working
+day, in an office, and a permanently dark screen is a cost paid every day for a preference held some
+of the time. Light-first was rejected as too literal a reading of the brief — the same app in a
+sharper suit rather than a different one.
+
+**The consequence is decision 2**, and it is the whole reason this edition exists rather than being a
+palette swap.
+
+## Decision 2 — the rail separates by value alone
+
+The rail has been dark in both themes since the first edition, because it is the instrument. On a
+light page that was self-enforcing: it was the only dark thing. **On a dark page it is not**, and the
+rule needs a mechanism.
+
+Four were built:
+
+| Treatment | Why it lost |
+| --- | --- |
+| **Value alone** — the rail goes further down than the page and stays neutral | **Chosen.** |
+| Hue — near-black with a plum cast the ground never uses | Adds a second identity hue to the system, sitting close enough to magenta 330 that the wordmark has less room against it |
+| A hot edge — a 2px magenta rule down the boundary | Spends the primary on furniture. Magenta is identity; the same argument keeps it off a row key |
+| Inversion — the rail becomes a pale slab on a dark page | The sharpest reading of the twin, and the most expensive: it rewrites the rule instead of tuning it, glares at night, and makes the light theme answer the question backwards |
+
+**Value alone is the fragile choice and was taken with that stated.** It rests on one variable, so any
+later ticket that darkens `--color-surface` erodes it. The gap is `0.105` against `0.178` — a 1.62:1
+luminance relationship, decorative by tier and therefore protected by nothing. **A change to either
+value is a change to this decision** and must be treated as one.
+
+### The rail no longer inverts, in a stronger sense than before
+
+The rail now carries **one set of tones in both themes**. It is the only region of the app that does
+not change when the theme does. In the first edition "the rail does not invert" meant its two theme
+values were near-identical; here they are the same value, because the ground moved underneath it and
+near-identical would no longer read as deliberate.
+
+## Decision 3 — the reference's radius ruler, stood on at the bottom
+
+The reference declares five radius steps and then lives in the top two: cards at 20, buttons at 12,
+inputs at 8, and the bottom two steps never used at all. Half its scale is decoration.
+
+The app, by contrast, had **no scale**: 16px came out of a Tailwind class, 11 and 9 were picked by
+hand, and nothing said which was meant to match which.
+
+So the ruler is inherited whole and the app stands at the other end of it.
+
+| Step | Value | This app | The reference |
+| --- | --- | --- | --- |
+| `--radius-xs` | 2px | Nav rows | — |
+| `--radius-sm` | 4px | Buttons, inputs | — |
+| `--radius-md` | 8px | Cards, dialog | Inputs |
+| `--radius-lg` | 12px | — | Buttons |
+| `--radius-xl` | 20px | — | Cards, media |
+
+The names are the reference's own and are deliberately generic — they name a size, not a role, so a later
+ticket can re-map which component uses which step without renaming anything.
+
+**No component may carry a radius literal.** Every one refers to a step by name. The two exceptions
+are marks rather than containers and stay fully round: `.that-dot` and the split bar's segments keep
+`999px`, and the phone's 44px touch targets are unaffected — radius is a manner, hit area is not.
+
+## Decision 4 — two faces: Chivo and Chivo Mono
+
+The app is mostly numbers: a 46px total, a per-instance split, a running clock, a duration on every
+row, a key on every row. The first edition set all of that in the same face as the prose.
+
+**Words are Chivo. Figures are Chivo Mono.** A genuine pair, cut from the same grotesque, so it reads
+as a change of register rather than a clash.
+
+Both are variable across the weights used, so this is **one file per family** — the same font budget
+as the single face it replaces, not double.
+
+### Figures means exactly this list
+
+The day total · the per-instance split figures · the running timer · a row's duration · a ticket key.
+Nothing else. A figure inside a sentence stays in Chivo.
+
+Tabular numerals stay on everywhere a figure can change in place, which is what stops the running
+clock jittering. That rule is unchanged from the first edition.
+
+### Inter was considered and rejected
+
+Inter reads better at 13px than anything else tried, and it has **no monospaced companion** — no Inter
+Mono, no mono axis; it ships as one variable family with weight and an optical-size axis. Its designer
+points at IBM Plex Mono and Roboto Mono instead.
+
+It was rejected on the brief rather than on quality: **the reference brand is set in Inter.** Adopting
+it would put the twin in the parent's own face and discard the one typographic thing the app already
+did differently.
+
+IBM Plex Sans, Red Hat Text and Recursive were the other finalists. Plex lost on ubiquity, Red Hat on
+being well-mannered — a description of the reference, not of its twin — and Recursive on risk: its
+`MONO` and `CASL` axes are a genuinely elegant fit, and a stray axis value would silently restyle the
+app.
+
+## Decision 5 — the small end of the ramp moves up a pixel
+
+Chivo is the loudest of the candidates at display size and the weakest at small size. This app spends
+most of its pixels at small size, so the ramp absorbs it: **the three smallest steps each gain a
+pixel.** Nothing at 15px or above moves, including the 46px total.
+
+**This merges two steps.** `--text-base` rising from 13 to 14 lands on `--text-md`, which is already
+14, so `--text-md` is **retired** and its callers move to `--text-base`. The ramp gets shorter, which
+is the correct outcome — two names for one value would be worse than either.
+
+| Token | Was | Now |
+| --- | --- | --- |
+| `--text-xs` | 11px | **12px** |
+| `--text-sm` | 12px | **13px** |
+| `--text-base` | 13px | **14px** |
+| `--text-md` | 14px | **retired** — callers move to `--text-base` |
+| `--text-lg` | 15px | 15px |
+| `--text-xl` | 17px | 17px |
+| `--text-2xl` | 30px | 30px |
+| `--text-hero` | 46px | 46px |
+
+Thirteen `text-md` usages and seven `text-base` usages are affected; the second group is the shift
+this decision is actually for.
+
+## Tokens
+
+`light-dark(light, dark)` as `@theme` declares them. **Note the order: the first value is still the
+light one**, because `light-dark()` is defined that way. Dark being the default is a `color-scheme`
+decision, not a token-order one.
+
+### Ground and ink
+
+| Token | Light | Dark |
+| --- | --- | --- |
+| `--color-surface` | `oklch(0.972 0.008 60)` | `oklch(0.178 0.012 40)` |
+| `--color-raised` | `oklch(0.995 0.004 70)` | `oklch(0.228 0.014 40)` |
+| `--color-ink` | `oklch(0.195 0.009 55)` | `oklch(0.962 0.005 70)` |
+| `--color-ink-muted` | `oklch(0.465 0.010 55)` | `oklch(0.725 0.012 55)` |
+| `--color-ink-faint` | `oklch(0.620 0.008 60)` | `oklch(0.560 0.012 50)` |
+| `--color-edge` | `oklch(0.905 0.007 65)` | `oklch(0.300 0.012 40)` |
+
+### The rail — one value, both themes
+
+| Token | Both |
+| --- | --- |
+| `--color-rail` | `oklch(0.105 0.006 60)` |
+| `--color-rail-ink` | `oklch(0.962 0.005 70)` |
+| `--color-rail-muted` | `oklch(0.660 0.010 60)` |
+| `--color-rail-active` | `oklch(0.205 0.008 60)` |
+| `--color-primary-rail` | `oklch(0.720 0.19 330)` |
+| `--color-primary-rail-ink` | `oklch(0.160 0.02 330)` |
+| `--color-running-rail` | `oklch(0.750 0.15 150)` |
+| `--color-pending-rail` | `oklch(0.800 0.13 85)` |
+| `--color-failed-rail` | `oklch(0.720 0.17 25)` |
+
+These are written as plain values rather than `light-dark()` pairs, so the fact that they do not
+change is visible in the stylesheet rather than something a reader has to notice by comparing two
+numbers.
+
+### Roles
+
+| Token | Light | Dark |
+| --- | --- | --- |
+| `--color-primary` | `oklch(0.500 0.21 330)` | `oklch(0.720 0.19 330)` |
+| `--color-primary-ink` | `oklch(0.990 0.004 70)` | `oklch(0.160 0.02 330)` |
+| `--color-running` | `oklch(0.480 0.15 150)` | `oklch(0.750 0.15 150)` |
+| `--color-pending` | `oklch(0.500 0.13 75)` | `oklch(0.800 0.13 85)` |
+| `--color-failed` | `oklch(0.490 0.19 25)` | `oklch(0.720 0.17 25)` |
+| `--color-dirty` | tracks `--color-primary` | tracks `--color-primary` |
+
+**The `-rail` variants survive, and stop being pairs.** With one rail ground in both themes each
+becomes a single value — the dark-theme tone, which is what the rail's ground calls for whichever
+theme is active.
+
+They were nearly retired here on the reasoning that one ground needs only one set. That was right
+about the count and wrong about which set: dropping them would have made the light theme's
+`--color-primary` the wordmark's colour, and **`oklch(0.5 0.21 330)` on the rail measures 3.03:1**
+against a 4.5:1 text floor. The wordmark is text. The variant is what keeps that pair legal, and it
+is recorded here so the same simplification is not attempted again.
+
+### Type
+
+| Token | Value |
+| --- | --- |
+| `--font-sans` | `"Chivo", ui-sans-serif, system-ui, sans-serif` |
+| `--font-mono` | `"Chivo Mono", ui-monospace, monospace` |
+
+Both self-hosted from `/fonts/`, one variable `.woff2` per family, latin subset, preloaded. No font
+CDN — the app is offline-capable and that is not negotiable.
+
+## Measured contrast
+
+Computed from the OKLCh values above, converted to linear sRGB and clamped to gamut. Text pairs must
+clear 4.5:1; marks that carry meaning must clear 3:1; hairlines and the rail's active fill are
+decorative and have no floor. **Every pair clears.**
+
+| Pair | Ratio | Floor | Clears |
+| --- | --- | --- | --- |
+| Dark · ink on surface | 16.92:1 | 4.5 | yes |
+| Dark · ink on raised | 15.24:1 | 4.5 | yes |
+| Dark · ink-muted on surface | 7.74:1 | 4.5 | yes |
+| Dark · ink-muted on raised | 6.97:1 | 4.5 | yes |
+| Dark · ink-faint on raised (mark) | 3.65:1 | 3.0 | yes |
+| Dark · running on raised | 8.12:1 | 4.5 | yes |
+| Dark · pending on raised | 9.05:1 | 4.5 | yes |
+| Dark · failed on raised | 6.38:1 | 4.5 | yes |
+| Dark · edge on raised (decorative) | 1.24:1 | — | n/a |
+| Rail · rail-ink on rail | 18.38:1 | 4.5 | yes |
+| Rail · rail-muted on rail | 6.58:1 | 4.5 | yes |
+| Rail · primary on rail | 7.57:1 | 4.5 | yes |
+| Rail · primary-ink on primary | 7.18:1 | 4.5 | yes |
+| Rail · rail-ink on rail-active | 16.05:1 | 4.5 | yes |
+| Rail · running on rail | 9.78:1 | 4.5 | yes |
+| Rail · pending on rail | 10.91:1 | 4.5 | yes |
+| Rail · failed on rail | 7.68:1 | 4.5 | yes |
+| Rail · rail-active on rail (decorative) | 1.14:1 | — | n/a |
+| Rail · light `--color-primary` on rail — *why the `-rail` variant exists* | 3.03:1 | 4.5 | **no** |
+| Light · ink on surface | 16.86:1 | 4.5 | yes |
+| Light · ink on raised | 18.04:1 | 4.5 | yes |
+| Light · ink-muted on surface | 6.44:1 | 4.5 | yes |
+| Light · ink-muted on raised | 6.89:1 | 4.5 | yes |
+| Light · ink-faint on raised (mark) | 3.59:1 | 3.0 | yes |
+| Light · running on raised | 5.91:1 | 4.5 | yes |
+| Light · pending on raised | 6.02:1 | 4.5 | yes |
+| Light · failed on raised | 6.82:1 | 4.5 | yes |
+| Light · primary on surface | 6.24:1 | 4.5 | yes |
+| Light · primary-ink on primary | 6.58:1 | 4.5 | yes |
+| Light · edge on raised (decorative) | 1.31:1 | — | n/a |
+| Dot · on rail, worst hue (295) | 7.37:1 | 3.0 | yes |
+| Dot · dark, on raised, worst hue (295) | 6.62:1 | 3.0 | yes |
+| Dot · light, on raised, worst hue (205) | 3.54:1 | 3.0 | yes |
+
+**`--color-ink-faint` is still not a text colour.** At 3.65:1 dark and 3.59:1 light it clears the mark
+floor and fails the text floor, exactly as in the first edition, and for the same reason it is the
+token a tired implementer reaches for. Words use `ink` or `ink-muted`; there is no third option.
+
+The one **failing** row is deliberate: it is not a pair the app renders, it is the pair the app would
+render if `--color-primary-rail` were dropped, kept in the table as the evidence for keeping it.
+
+**The dot rows are the ones to re-measure first** if the ramp or the grounds ever move. The light
+theme's worst hue clears by 0.54, which is the smallest margin in the table.
+
+## What the first edition still governs
+
+Unchanged, and this document does not restate them. Read
+[`2026-08-20-visual-design-language.md`](2026-08-20-visual-design-language.md) for each:
+
+- **The three contrast tiers** and what falls in each. The floors here are those floors.
+- **Instance identity** — the hue ramp `265, 175, 295, 205, 115, 235`, the rule that lightness and
+  chroma are fixed and only hue moves, and the `--h` custom-property mechanism with its documented
+  trap. The dot's own lightness values are unchanged: `0.6` light, `0.72` dark, `0.7` on the rail.
+- **The rail's regions and their resting states**, its 216px width, and Push being disabled rather
+  than hidden.
+- **Nav** — three destinations, 38px rows, current shown by fill *and* weight, driven from
+  `aria-current`.
+- **The ticket row** — the 76px key column and why it is a floor rather than a width, the summary's
+  `min-width: 0`, and the rule that a row key never wears the primary.
+- **Format carries meaning**, the **five screen states**, **the phone**, and **manual entry** as a
+  native `<dialog>` with its two carried-over rules.
+- **State never rides on hue alone.** Every state tone is accompanied by a word or a shape.
+
+## Out of scope
+
+- **The phone layout** — #53 owns building it. This edition changes tokens it will consume; it does
+  not change the phone design.
+- **Moving Settings out of the nav** — #89.
+- **Copy and tone of voice.** This changes how the app looks, not what it says.
+- **The wordmark.** It keeps its current treatment, in the new primary.
+
+## The risk worth restating
+
+Two decisions here are load-bearing and quiet, and both will look like arbitrary numbers to whoever
+reads the stylesheet next:
+
+1. **`--color-surface` at `0.178` and `--color-rail` at `0.105`.** The whole rail-separation rule is
+   the distance between them. Nothing enforces it and no test will fail if it closes.
+2. **`--text-md` is gone**, not renamed. A component that reaches for it gets nothing, which in
+   Tailwind v4 is a silently dropped class rather than an error.
+
+Both are worth a comment at the declaration site rather than a note in this file alone.
