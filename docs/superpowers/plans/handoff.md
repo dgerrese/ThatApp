@@ -35,12 +35,13 @@ further down is history and says otherwise in places.
 none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20,
 #6 and #44 on 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and
 #9 as PR #76.
-**#11 merged as PR #90 on 2026-09-02**, closing it. **Nothing is in progress, and there are no open
-pull requests** — verified against the Codeberg API at end of day.
+**#11 merged as PR #90 on 2026-09-02**, closing it, and the handoff pull request **#93** merged
+after it. **Nothing is in progress, and there are no open pull requests** — verified against the
+Codeberg API on 2026-09-03.
 Before it, #51 merged as **PR #86** and #87 as
 **PR #88** on 2026-09-02, along with `retro-skill` as **PR #85**. #88 merged into #86's branch
 rather than into `main`, because #86 could not go green on its own — see *Decisions taken*. Remote
-`main` is at **`bbbb79f`**, the merge of PR #90; the merge style is rebase-merge, so every one of
+`main` is at **`c7ee06a`**, the merge of PR #93; the merge style is rebase-merge, so every one of
 those commits has a new SHA on `main`.
 Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
@@ -53,8 +54,10 @@ phone access — deferred, and needs the owner's explicit go-ahead even to refin
 ticket at a time. **Intake, one:** #74. **Declined on 2026-09-02:** #59, `wontfix` and closed. **Closed as not planned:**
 #21, #22 — folded into #4, not rejected; both labelled `wontfix`.
 
-**The board's own hygiene was audited on 2026-09-02 and is clean**: all 28 open issues carry exactly
-one `status/*` label, and no closed issue carries one. The type axis was corrected in the same pass;
+**The board's own hygiene was re-audited on 2026-09-03 and is clean**: all 27 open issues carry
+exactly one `status/*` label, and no closed issue carries one. **Merging a pull request does not
+strip the status label** — PR #90 left `status/in-progress` on the closed #11, and it was removed by
+hand on the morning of 2026-09-03. Check the label after every merge. The type axis was corrected in the same pass;
 the `enhancement` test that decided it is in the `ticket-workflow` skill.
 
 **#8 and #10 are the whole remaining product**, and neither has a design yet. #11 has one —
@@ -1196,8 +1199,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Left over from the forge move, 2026-09-01:**
 
-- **Local `main` lags the forge and only the owner may move it.** As of 2026-09-02 it is at
-  `41b60b1` while remote `main` is at `0c1dcfc`, one merge ahead — PR #82. It is no longer the
+- **Local `main` lags the forge and only the owner may move it.** As of 2026-09-03 it is at
+  `41b60b1` while remote `main` is at `c7ee06a`, six merges ahead — PRs #82, #85, #86, #90, #92
+  and #93. It is no longer the
   pre-rename tip, so branching from it no longer produces the old names and the old module path;
   it is simply behind. **Verify the gap against the API before repeating a number here**, because a
   blocked fetch leaves the local `codeberg/*` refs frozen and makes local `git` quietly wrong.
@@ -1220,19 +1224,24 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Waiting on the owner:**
 
-- **The intake queue is fourteen and is the longest it has been:** #41, #42, #43, #53, #55, #56,
-  #57, #58, #59, #66, #67, #71, #74, #79. Approving or declining them is the owner's move alone, and
-  **nothing has come off the queue since it was opened.**
+- **The intake queue was fourteen and is now one: #74.** The owner triaged the whole queue on
+  2026-09-02, ticket by ticket — thirteen approved through to `status/needs-refinement`, and #59
+  declined with `wontfix` and closed. Approving and declining remain the owner's moves alone.
 - **Whether the owner's other repo mirrors this label set** is still unanswered, and the gap widened
   on 2026-08-20: this repo now has five statuses plus `bug`/`enhancement`/`wontfix`, having deleted
   `review`, `done` and `declined` and renamed two more. Ask before assuming the two still match.
-- **Seven local branches are merged into `origin/main` and droppable** whenever the owner says so:
+- **Seventeen local branches are contained in Codeberg's `main` and droppable** whenever the owner
+  says so, verified on 2026-09-03: `codeberg-api-limits`, `eod-skill`, `full-status-set`,
   `handoff-2026-08-17`, `handoff-2026-08-20`, `handoff-2026-08-27`, `handoff-2026-08-31`,
-  `handoff-post-4`, `issue-12-pwa-shell`, `issue-9-end-of-day-push`. `worktrees-without-the-tax` is
-  kept deliberately (see below). Three more joined them on 2026-09-02, their remote branches deleted
-  by the merge: `retro-skill`, `issue-51-frontend-unit-tests` and `issue-87-e2e-on-codeberg`.
-  Note these were merged into the *GitHub* `main`, which is now archived — they are contained in
-  Codeberg's `main` too, since it descends from the same history.
+  `handoff-2026-09-01`, `handoff-2026-09-02`, `handoff-post-4`, `issue-9-end-of-day-push`,
+  `issue-11-week-view`, `issue-12-pwa-shell`, `issue-51-frontend-unit-tests`,
+  `issue-87-e2e-on-codeberg`, `move-to-codeberg`, `retro-skill`. `worktrees-without-the-tax` is the
+  only one genuinely unmerged, and is kept deliberately (see below).
+  **`git branch --merged` under-reports this, and will keep doing so.** Rebase-merge rewrites the
+  SHAs, so a branch whose content is on `main` is not an ancestor of it: four of the seventeen —
+  `handoff-2026-09-02`, `issue-11-week-view`, `issue-51-frontend-unit-tests` and
+  `issue-87-e2e-on-codeberg` — are invisible to that command. `git cherry codeberg/main <branch>` is
+  the one to use; every commit prefixed `-` is already upstream by patch.
 
 **Decided but not built:**
 
@@ -1277,8 +1286,8 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Before planning the next ticket:**
 
-- **#51 and #87 are merged and closed, and #11 is in review as PR #90.** That leaves **#8 and #10
-  as the whole remaining product, and neither has a design** — so the next ticket starts with a
+- **#11 merged as PR #90 on 2026-09-02**, following #51 and #87. That leaves **#8 and #10 as the
+  whole remaining product, and neither has a design** — so the next ticket starts with a
   brainstorming round, not a plan.
 - **#8's markup is already reserved.** `web/index.html` carries `#rail-timer` with
   `<!-- #8 makes this the running timer. -->`, exactly as it carried `#rail-push` for #9 — which the
@@ -1290,11 +1299,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   design. Its three open questions are the owner's to answer in a brainstorming round.
 - **Spec §"Decisions deferred"** — unchanged; nothing there blocks the ready tickets.
 
-**This branch:** `handoff-2026-09-02`, cut from `3f44974` on 2026-09-02 because
-`handoff-2026-09-01` had already merged. It carries the day's narrative, the `enhancement` test
-written into the `ticket-workflow` skill, and this correction pass, and goes out as one pull request
-at the end-of-day signal. The line that used to stand here claimed PR #78 held
-`retro-skill`, which was wrong; that branch went up as **PR #85** and merged the same day.
+**This branch:** `handoff-2026-09-03`, cut from `c7ee06a` on 2026-09-03, `main`'s tip once PR #93
+had merged. It carries the day's narrative and goes out as one pull request at the end-of-day
+signal.
 
 ## Environment notes
 
