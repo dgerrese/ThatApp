@@ -36,8 +36,14 @@ none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as P
 #6 and #44 on 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and
 #9 as PR #76.
 **#11 merged as PR #90 on 2026-09-02**, closing it, and the handoff pull request **#93** merged
-after it. **Nothing is in progress, and there are no open pull requests** — verified against the
-Codeberg API on 2026-09-03.
+after it.
+
+**In progress, two, both on unpushed local branches:** **#94** (the visual language, second edition)
+on `issue-94-visual-language`, and **#95** (applying it to Today and Week) on
+`issue-95-today-and-week`. Both carry committed specs and neither has a pull request yet.
+**#61 was closed on 2026-09-03** on the owner's instruction, `wontfix`, folded into #95 rather than
+rejected. **#89 was widened** the same day from "move Settings out of the nav" into the full Settings
+redesign, and holds its settled design.
 Before it, #51 merged as **PR #86** and #87 as
 **PR #88** on 2026-09-02, along with `retro-skill` as **PR #85**. #88 merged into #86's branch
 rather than into `main`, because #86 could not go green on its own — see *Decisions taken*. Remote
@@ -511,6 +517,34 @@ doing), #57 (three named gaps in the pins handler tests), #58 (`that-combobox` b
 ever exists), #59 (the pin flow's canvas source contradicts #44's spec). #43 gained a comment arguing
 its priority is now higher: #6 added the second by-index concurrent write site and #9's push will be
 the third.
+
+### The 2026-09-03 design session — settled, do not reopen
+
+An **opposite identity to a reference brand**, in *manners, not function*. The brand is deliberately
+not named in the repository; its shape is recorded in
+`docs/superpowers/specs/2026-09-03-visual-language-design.md`, and references to it were removed from
+the spec, the commit history and issue #94 on the owner's instruction. **The issue was public for
+about two hours before that edit**, and Forgejo keeps content history for edited issues.
+
+- **Dark is the default, light is a full peer.** Not dark-only.
+- **The rail separates from the page by value alone** — `0.105` against `0.178`. Chosen knowing it is
+  the fragile option: it rests on one variable and nothing enforces it. **A change to either value is
+  a change to this decision.**
+- **The rail carries one set of tones in both themes**, and the `-rail` colour variants survive as
+  single values. Retiring them fails the wordmark at 3.03:1.
+- **The radius ruler is inherited and stood on at its bottom end** — cards `md` 8, buttons `sm` 4, nav
+  `xs` 2.
+- **Chivo and Chivo Mono**, one variable file each. Inter was rejected on the brief, and has no
+  monospaced companion in any case.
+- **Icons are drawn, never typed.** Eight characters across four shipped files are doing an icon's
+  job. Punctuation is excluded.
+- **Design sessions run on the local superpowers browser companion.** Not a cloud artifact. A canvas
+  was published on 2026-09-03, stopped by the owner, and deleted.
+- **The design source for #95 is a committed prototype**,
+  `docs/superpowers/prototypes/2026-09-03-app-prototype.html`. It is the authority where it and the
+  spec disagree.
+- **The 2026-08-21 decision on the Log hint is reversed**: tables reserve its width. The reveal
+  behaviour survives as a modifier for narrow panels.
 
 ## Decisions taken — do not reopen
 
@@ -1224,6 +1258,10 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Waiting on the owner:**
 
+- **What "unset" means for the theme, now dark is the default.** The app ships `color-scheme: light
+  dark` with *Auto* as the unset state, following the operating system. If dark is the default and
+  nothing is stored, does the app open light on a light machine? #89 draws it as *unset means dark,
+  following the system is opt-in*, and that is **a behaviour change the owner has not confirmed**.
 - **The intake queue was fourteen and is now one: #74.** The owner triaged the whole queue on
   2026-09-02, ticket by ticket — thirteen approved through to `status/needs-refinement`, and #59
   declined with `wontfix` and closed. Approving and declining remain the owner's moves alone.
@@ -1301,7 +1339,8 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **This branch:** `handoff-2026-09-03`, cut from `c7ee06a` on 2026-09-03, `main`'s tip once PR #93
 had merged. It carries the day's narrative and goes out as one pull request at the end-of-day
-signal.
+signal. **Two product branches sit beside it unpushed** — `issue-94-visual-language` and
+`issue-95-today-and-week` — each with its spec committed and no pull request yet.
 
 ## Environment notes
 
