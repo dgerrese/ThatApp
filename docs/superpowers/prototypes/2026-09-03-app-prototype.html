@@ -1,0 +1,614 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;500;700&family=Chivo+Mono:wght@400;700&display=swap">
+
+<h2>The app, second pass</h2>
+<p class="subtitle">
+  Every item from your list. <strong>One root cause explained four of them</strong>: my button reset was
+  <span class="mono">.pt button &#123; all: unset &#125;</span>, which outranks the
+  <span class="mono">.iconbtn</span> and <span class="mono">.addbtn</span> rules that follow it, so
+  <span class="mono">all</span> was wiping their display, size and alignment. The pin misalignment, the
+  missing padding on icon buttons and the unaligned plus were that one line.
+</p>
+
+<style>
+  .pt { --surface: oklch(0.178 0.012 40); --raised: oklch(0.228 0.014 40);
+        --ink: oklch(0.962 0.005 70); --ink-muted: oklch(0.725 0.012 55); --edge: oklch(0.300 0.012 40);
+        --rail: oklch(0.105 0.006 60); --rail-ink: oklch(0.962 0.005 70); --rail-muted: oklch(0.660 0.010 60); --rail-active: oklch(0.205 0.008 60);
+        --pri: oklch(0.720 0.19 330); --pri-ink: oklch(0.160 0.02 330);
+        --run: oklch(0.750 0.15 150); --pend: oklch(0.800 0.13 85); --fail: oklch(0.720 0.17 25);
+        --r-xs: 2px; --r-sm: 4px; --r-md: 8px; --gap: 20px;
+        --hover: color-mix(in oklab, var(--ink) 11%, transparent);
+        --hover-rail: color-mix(in oklab, var(--rail-ink) 13%, transparent);
+        font-family: 'Chivo', system-ui, sans-serif; letter-spacing: -0.011em; }
+  .pt .mono { font-family: 'Chivo Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  /* an author display: rule beats the UA sheet's [hidden], so say it again louder */
+  .pt [hidden] { display: none !important; }
+  :where(.pt button) { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; text-align: inherit; }
+  .pt a { color: inherit; text-decoration: none; }
+
+  .app { position: relative; display: flex; height: 880px; border-radius: var(--r-md); overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,.3), 0 24px 52px -26px rgba(0,0,0,.65); }
+  .rail { width: 216px; flex: none; box-sizing: border-box; padding: 22px 14px; background: var(--rail); color: var(--rail-ink); display: flex; flex-direction: column; gap: 26px; }
+  .wmrow { display: flex; align-items: center; gap: 8px; }
+  .wm { font-size: 16px; font-weight: 700; letter-spacing: -.02em; color: var(--pri); }
+  .cog { position: relative; width: 34px; height: 34px; margin-right: -8px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-sm); color: var(--rail-muted); }
+  .cog:hover, .cog:focus-visible { background: var(--hover-rail); color: var(--rail-ink); }
+  .readout { display: flex; flex-direction: column; gap: 8px; }
+  .per { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--rail-muted); }
+  .hero { font-family: 'Chivo Mono', monospace; font-size: 46px; font-weight: 700; letter-spacing: -.045em; line-height: .88; font-variant-numeric: tabular-nums; }
+  .sbar { display: flex; gap: 3px; height: 6px; margin-top: 4px; }
+  .sbar i { display: block; border-radius: 999px; }
+  .sline { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--rail-muted); }
+  .sline b { margin-left: auto; color: var(--rail-ink); font-family: 'Chivo Mono', monospace; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dot { width: 7px; height: 7px; border-radius: 999px; flex: none; display: inline-block; }
+  .hr { height: 2px; background: var(--rail-active); border-radius: 1px; margin: 4px 0; }
+  .push { height: 44px; display: flex; align-items: center; justify-content: center; border-radius: var(--r-sm); background: var(--pri); color: var(--pri-ink); font-size: 14px; font-weight: 700; }
+  .push:hover { filter: brightness(1.07); }
+  nav.rn { display: flex; flex-direction: column; gap: 2px; }
+  nav.rn button { height: 38px; display: flex; align-items: center; gap: 11px; padding: 0 10px; border-radius: var(--r-xs); font-size: 14px; color: var(--rail-muted); font-weight: 500; width: 100%; }
+  nav.rn button:hover { background: var(--rail-active); color: var(--rail-ink); }
+  nav.rn button.on { background: var(--rail-active); color: var(--rail-ink); font-weight: 700; }
+
+  .viewport { flex: 1; min-width: 0; background: var(--surface); color: var(--ink); overflow-y: auto; container-type: inline-size; }
+  .pad { padding: 22px 28px; max-width: 120rem; margin-inline: auto; }
+  .view { display: none; } .view.on { display: block; }
+  .pageh { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .pageh h3 { margin: 0; font-size: 15px; font-weight: 500; }
+  .pageh .sp { flex: 1; }
+  .ctlgroup { display: inline-flex; align-items: center; gap: 4px; }
+
+  .tcard { background: var(--raised); border-radius: var(--r-md); padding: 14px 20px; box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.62); }
+  .grouph { display: flex; align-items: center; gap: 9px; margin: 0 2px 6px; font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); }
+  .grouph .n { margin-left: auto; letter-spacing: 0; font-weight: 400; text-transform: none; opacity: .75; }
+  .instgrid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @container (min-width: 80rem) { .instgrid { grid-template-columns: 1fr 1fr; } }
+
+  table.tbl { width: 100%; border-collapse: collapse; }
+  .tbl th, .tbl td { padding: 0; text-align: left; vertical-align: baseline; }
+  .tbl th + th, .tbl td + td { padding-left: var(--gap); }
+  .tbl th { padding-block: 9px; border-bottom: 1px solid var(--edge); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); white-space: nowrap; }
+  .tbl td { padding-block: 11px; border-bottom: 1px solid var(--edge); font-size: 15px; height: 44px; }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .tbl .c-key, .tbl .c-status, .tbl .c-today, .tbl .c-act { width: 1%; white-space: nowrap; }
+  .tbl .c-today, .tbl th.c-today { text-align: right; }
+  .tbl .c-key { font-family: 'Chivo Mono', monospace; font-size: 13px; font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .tbl .c-status { font-size: 13px; color: var(--ink-muted); }
+  .tbl .c-sum { min-width: 0; }
+  .tbl .c-sum .clip { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tbl .c-key a:hover { color: var(--ink); }
+  .kw { display: inline-flex; align-items: center; gap: 8px; }
+  .tbl td.c-act { vertical-align: middle; padding-block: 5px; }
+  .sortbtn { display: inline-flex; align-items: center; gap: 6px; }
+  .sortbtn:hover { color: var(--ink); }
+  th.sorted { color: var(--ink); }
+
+  .durbtn { display: inline-flex; align-items: baseline; gap: 0; border-radius: var(--r-sm); padding: 9px 13px; margin: -9px -13px -9px 0; }
+  .durbtn:hover { background: var(--hover); }
+  .durbtn .fig { font-family: 'Chivo Mono', monospace; font-size: 14px; font-variant-numeric: tabular-nums; }
+  /* the width is reserved, always: the hint fades in without moving the status
+     column. This reverses the 2026-08-21 decision, which accepted the shift. */
+  .durbtn .hint { color: var(--pri); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+                 margin-right: 10px; opacity: 0; white-space: nowrap; transition: opacity 140ms ease; }
+  .durbtn:hover .hint, .durbtn:focus-visible .hint { opacity: 1; }
+  /* .reveal is the other bargain: the hint claims no width until it is wanted.
+     Right for a narrow panel, where reserving it would come out of the summary;
+     wrong in a table, where it would shift the column beside it on every hover. */
+  .durbtn.reveal .hint { max-width: 0; margin-right: 0; overflow: hidden;
+                         transition: max-width 150ms ease, margin-right 150ms ease, opacity 150ms ease; }
+  .durbtn.reveal:hover .hint, .durbtn.reveal:focus-visible .hint { max-width: 3rem; margin-right: 10px; }
+  .iconbtn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-right: -8px; border-radius: var(--r-sm); color: var(--ink-muted); vertical-align: middle; }
+  .iconbtn:hover, .iconbtn:focus-visible { background: var(--hover); color: var(--ink); }
+  .iconbtn.on { color: var(--pri); }
+  ul.inst .iconbtn:hover { color: var(--pri); }
+  .iconbtn.danger:hover, ul.inst .iconbtn.danger:hover { color: var(--fail); }
+  .tip { position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%); background: oklch(0.06 0.004 60); color: oklch(0.96 0.004 70); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; padding: 5px 9px; border-radius: var(--r-xs); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 120ms; z-index: 8; }
+  .tip.end { left: auto; right: -8px; transform: none; }
+  .tip.right { left: calc(100% + 9px); right: auto; bottom: auto; top: 50%; transform: translateY(-50%); }
+  .tip.below { bottom: auto; top: calc(100% + 7px); }
+  .iconbtn:hover .tip, .iconbtn:focus-visible .tip, .cog:hover .tip, .cog:focus-visible .tip, .wctl:hover .tip, .cell:hover .tip, .cell:focus-visible .tip { opacity: 1; }
+
+  .field { position: relative; display: flex; align-items: center; gap: 8px; background: var(--raised); border: 1px solid var(--edge); border-radius: var(--r-sm); padding: 8px 11px; color: var(--ink-muted); width: 300px; }
+  .field:focus-within { border-color: var(--pri); }
+  .field input { all: unset; flex: 1; font-family: inherit; font-size: 14px; color: var(--ink); }
+  .results { position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: var(--raised); border-radius: var(--r-md); box-shadow: 0 2px 6px rgba(0,0,0,.45), 0 18px 40px -16px rgba(0,0,0,.7); padding: 6px; z-index: 9; display: none; }
+  .field:focus-within .results { display: block; }
+  .rgroup { font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); padding: 7px 9px 4px; display: flex; align-items: center; gap: 7px; }
+  .rrow { display: flex; align-items: center; gap: 10px; padding: 6px 9px; border-radius: var(--r-sm); transition: background 110ms ease; }
+  .rrow:hover { background: var(--hover); }
+  /* One surface reacts at a time. A control inside the row paints its own wash,
+     so the row stands down rather than stacking a second one underneath it —
+     otherwise the same 11% mix lands twice and reads as 22%. The key is not
+     listed: it changes colour only, so it never competes with the row. */
+  .rrow:hover:has(.durbtn:hover, .iconbtn:hover) { background: transparent; }
+  .rrow .rk { font-family: 'Chivo Mono', monospace; font-size: 12px; font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .rrow .rk:hover { color: var(--ink); }
+  .rrow .rs { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .rfoot { font-size: 11.5px; color: var(--ink-muted); padding: 7px 9px 4px; border-top: 1px solid var(--edge); margin-top: 4px; }
+
+  .grid { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .grid th, .grid td { padding: 0; text-align: right; vertical-align: middle; }
+  .grid th + th, .grid td + td { padding-left: 10px; }
+  .grid thead th { padding-bottom: 9px; border-bottom: 1px solid var(--edge); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); white-space: nowrap; }
+  .grid tbody td, .grid tbody th { border-bottom: 1px solid var(--edge); font-size: 15px; height: 46px; }
+  .grid th.tk { text-align: left; white-space: nowrap; width: 1%; font-weight: 400; padding-right: 10px; }
+  .grid .kk { font-family: 'Chivo Mono', monospace; font-size: 13px; font-weight: 700; color: var(--ink-muted); }
+  .grid .kk:hover { color: var(--ink); }
+  .grid .fig { font-family: 'Chivo Mono', monospace; }
+  .grid .tot { font-weight: 700; padding-left: 18px; }
+  .grid tfoot th, .grid tfoot td { padding-block: 12px; border-top: 1px solid var(--edge); font-weight: 700; font-size: 15px; }
+  .grid tfoot th { text-align: left; }
+  .cell { position: relative; display: inline-flex; align-items: center; justify-content: flex-end; gap: 7px; border-radius: var(--r-sm); padding: 9px 13px; margin: -9px -13px; }
+  .cell:hover, .cell:focus-visible { background: var(--hover); }
+  .cell.empty { color: var(--ink-muted); }
+  .m-unpushed { width: 7px; height: 7px; border-radius: 999px; background: var(--pend); flex: none; }
+  .m-dirty { width: 7px; height: 7px; border-radius: 999px; border: 1.5px solid var(--pri); flex: none; }
+  .m-failed { width: 0; height: 0; border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; border-bottom: 8px solid var(--fail); flex: none; }
+  .wctl { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: var(--r-sm); font-size: 14px; font-weight: 700; color: var(--ink-muted); }
+  .wctl:hover { background: var(--hover); color: var(--ink); }
+  .wctl.icon { width: 36px; padding: 0; }
+
+  .scroller { position: absolute; inset: 0; overflow-y: auto; background: rgba(0,0,0,.5); display: none; flex-direction: column; padding: 28px; box-sizing: border-box; z-index: 20; }
+  .scroller.open { display: flex; }
+  .sheet { width: 620px; max-width: 100%; margin: auto; flex: none; background: var(--raised); border-radius: var(--r-md); border: 1px solid var(--edge); box-shadow: 0 14px 44px -10px rgba(0,0,0,.75); }
+  .sheeth { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--edge); }
+  .sheeth h3 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.015em; color: var(--ink); }
+  .sheeth .sp { flex: 1; }
+  .sect { padding: 15px 20px; border-bottom: 1px solid var(--edge); }
+  .sect:last-child { border-bottom: 0; }
+  .secth h4 { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); }
+  ul.inst { list-style: none; margin: 0; padding: 0; }
+  ul.inst > li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--surface); margin-bottom: 7px; }
+  .iid { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .iname { font-size: 15px; font-weight: 500; color: var(--ink); }
+  .ihost { font-family: 'Chivo Mono', monospace; font-size: 12.5px; color: var(--ink-muted); }
+  .health { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; flex: none; }
+  .health.ok { color: var(--run); } .health.un { color: var(--ink-muted); }
+  .iacts { display: flex; gap: 4px; flex: none; }
+  /* 12px matches ul.inst > li's own padding, so the two hover boxes share a left edge
+     and neither escapes the dialog's 20px gutter */
+  .addbtn { display: inline-flex; align-items: center; gap: 12px; border-radius: var(--r-sm); padding: 10px 12px; margin: 6px 0 0 0; font-size: 14px; font-weight: 700; color: var(--pri); }
+  .addbtn:hover { background: var(--hover); }
+  .addbtn svg { flex: none; }
+  .seg { display: inline-flex; background: var(--surface); border-radius: var(--r-sm); padding: 3px; gap: 3px; }
+  .seg button { padding: 7px 15px; border-radius: 2px; font-size: 13.5px; color: var(--ink-muted); }
+  .seg button:hover { color: var(--ink); }
+  .seg button.on { background: var(--raised); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.35); }
+  .rowline { display: flex; align-items: center; gap: 14px; }
+  .rowline .lbl { font-size: 14px; color: var(--ink); }
+  .rowline .sp { flex: 1; }
+  .esheet { width: 580px; }
+  .ehead { padding: 16px 20px 14px; border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; }
+  .eidrow { display: flex; align-items: center; gap: 9px; }
+  .eidrow .sp { flex: 1; }
+  .einst { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); }
+  .ekey { font-family: 'Chivo Mono', monospace; font-size: 13px; font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .etotal { font-family: 'Chivo Mono', monospace; font-size: 22px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; flex: none; margin-left: auto; }
+  .etitle { display: block; width: 100%; margin: 5px 0 0; font-size: 14px; font-weight: 400; letter-spacing: -.005em; color: var(--ink-muted); line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
+  .esep { color: var(--ink-muted); flex: none; font-size: 13px; line-height: 1; }
+
+  .elist { list-style: none; margin: 0; padding: 8px 14px; }
+  .elist > li { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: var(--r-sm); }
+  .elist > li + li { margin-top: 2px; }
+  .elist > li.active { background: var(--hover); box-shadow: inset 2px 0 0 var(--pri); }
+  .edur { font-family: 'Chivo Mono', monospace; font-weight: 700; width: 68px; flex: none; font-variant-numeric: tabular-nums; }
+  .ecomment { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .ecomment.none { color: oklch(0.56 0.012 50); }
+  .estate { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; }
+  .estate:hover .tip, .estate:focus-visible .tip { opacity: 1; }
+  .eacts { display: flex; gap: 6px; flex: none; align-items: center; }
+  .eacts .iconbtn { margin-right: 0; }
+  .eempty { margin: 0; padding: 10px 20px 16px; font-size: 14px; color: var(--ink-muted); }
+
+  .efoot { padding: 14px 20px 16px; border-top: 1px solid var(--edge); }
+  .erow { display: flex; align-items: center; gap: 12px; }
+  .erow .ecomment-in { flex: 1 1 auto; }
+  .erow .btn.primary { margin-left: auto; }
+  .durgroup { display: inline-flex; align-items: stretch; overflow: hidden; border: 1px solid var(--edge); border-radius: var(--r-sm); flex: none; }
+  .durgroup:focus-within { border-color: var(--pri); }
+  .durgroup .step { display: inline-flex; align-items: center; justify-content: center; padding: 0 9px; color: var(--ink-muted); }
+  .durgroup .step:hover { background: var(--hover); color: var(--ink); }
+  .durgroup .step:first-child { border-right: 1px solid var(--edge); }
+  .durgroup .step:last-child { border-left: 1px solid var(--edge); }
+  .durgroup input { all: unset; box-sizing: border-box; width: 64px; padding: 9px 8px; text-align: center; font-family: 'Chivo Mono', monospace; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .ecomment-in { all: unset; box-sizing: border-box; flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r-sm); padding: 10px 12px; font-size: 15px; color: var(--ink); }
+  .ecomment-in:focus { border-color: var(--pri); }
+  .ecomment-in::placeholder { color: var(--ink-muted); opacity: .85; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; height: 38px; padding: 0 16px; border-radius: var(--r-sm); font-size: 14px; font-weight: 700; flex: none; }
+  .btn.primary { background: var(--pri); color: var(--pri-ink); }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn.quiet { color: var(--ink-muted); }
+  .btn.quiet:hover { background: var(--hover); color: var(--ink); }
+
+  /* subgrid: label, helper and input each get their own row across all four
+     fields, so a two-line helper cannot push one input out of line */
+  /* inputs share a baseline by sitting at the bottom of their row; a longer
+     helper pushes its own label up rather than everyone's input down */
+  .ifields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: end; }
+  .fld { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .fld label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); }
+  .fld .help { font-size: 12px; color: var(--ink-muted); opacity: .8; line-height: 1.4; margin-bottom: 1px; }
+  .fld .help:empty { display: none; }
+  .fld input { all: unset; box-sizing: border-box; width: 100%; background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r-sm); padding: 9px 12px; font-size: 15px; color: var(--ink); font-family: 'Chivo Mono', monospace; }
+  .fld input.plain { font-family: 'Chivo', system-ui, sans-serif; }
+  .fld input:focus { border-color: var(--pri); }
+  .fld input::placeholder { color: var(--ink-muted); opacity: .8; }
+  .ifacts { display: flex; gap: 8px; margin-top: 16px; }
+  .cap { font-size: 10.5px; opacity: .64; margin-top: 10px; line-height: 1.7; }
+  .cap b { color: oklch(0.80 0.13 85); }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <g id="p-gear"><path d="M9.62 5.10 L10.33 2.55 L13.67 2.55 L14.38 5.10 A 7.30 7.30 0 0 1 15.20 5.44 L17.51 4.14 L19.86 6.49 L18.56 8.80 A 7.30 7.30 0 0 1 18.90 9.62 L21.45 10.33 L21.45 13.67 L18.90 14.38 A 7.30 7.30 0 0 1 18.56 15.20 L19.86 17.51 L17.51 19.86 L15.20 18.56 A 7.30 7.30 0 0 1 14.38 18.90 L13.67 21.45 L10.33 21.45 L9.62 18.90 A 7.30 7.30 0 0 1 8.80 18.56 L6.49 19.86 L4.14 17.51 L5.44 15.20 A 7.30 7.30 0 0 1 5.10 14.38 L2.55 13.67 L2.55 10.33 L5.10 9.62 A 7.30 7.30 0 0 1 5.44 8.80 L4.14 6.49 L6.49 4.14 L8.80 5.44 A 7.30 7.30 0 0 1 9.62 5.10 Z"/><circle cx="12" cy="12" r="3.3"/></g>
+  <g id="p-pin"><path d="M8.6 3.5h6.8M10.2 3.5v5.3l-2.7 3.2a1 1 0 0 0 .77 1.64h7.46a1 1 0 0 0 .77-1.64L13.8 8.8V3.5M12 13.64V20.5"/></g>
+  <g id="p-pinoff"><path d="M8.6 3.5h6.8M13.8 3.5v5.3l2.7 3.2a1 1 0 0 1-.77 1.64h-3.4M10.2 5.4v3.4l-2.7 3.2a1 1 0 0 0 .77 1.64h3.2M12 13.64V20.5M4.2 4.2 19.8 19.8"/></g>
+  <g id="p-search"><circle cx="11" cy="11" r="6.6"/><path d="M15.9 15.9 20.5 20.5"/></g>
+  <g id="p-sort"><path d="M7.5 9.5 11 6l3.5 3.5M7.5 14.5 11 18l3.5-3.5"/></g>
+  <g id="p-desc"><path d="M12 4.5V19M6.4 13.4 12 19l5.6-5.6"/></g>
+  <g id="p-clock"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></g>
+  <g id="p-cal"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M9 5V3M15 5V3"/></g>
+  <g id="p-refresh"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3.5V9h-5.5"/></g>
+  <g id="p-prev"><path d="M14.5 5.5 8 12l6.5 6.5"/></g>
+  <g id="p-next"><path d="M9.5 5.5 16 12l-6.5 6.5"/></g>
+  <g id="p-close"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></g>
+  <g id="p-check"><path d="M4.5 12.6 9.6 17.7 19.5 6.9"/></g>
+  <g id="p-plug"><path d="M9 3.5v5M15 3.5v5M6.5 8.5h11v3a5.5 5.5 0 0 1-5.5 5.5A5.5 5.5 0 0 1 6.5 11.5Z"/><path d="M12 17v3.5"/></g>
+  <g id="p-edit"><path d="M4.5 19.5h4l10-10a2.1 2.1 0 0 0-3-3l-10 10Z"/><path d="M14 6.5l3 3"/></g>
+  <g id="p-trash"><path d="M4.5 6.5h15M9.5 6.5V4.2h5v2.3M6.5 6.5l1 13h9l1-13M10.5 10v6M13.5 10v6"/></g>
+  <g id="p-plus"><path d="M12 5.5v13M5.5 12h13"/></g>
+  <g id="p-minus"><path d="M5.5 12h13"/></g>
+</defs></svg>
+
+<div class="pt">
+<div class="app" id="app">
+  <div class="rail">
+    <div class="wmrow"><span class="wm">ThatApp</span><span style="flex:1"></span>
+      <button class="cog" id="cog" aria-label="Settings"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><use href="#p-gear"/></svg><span class="tip right">Settings</span></button></div>
+    <div class="readout">
+      <span class="per" id="railper">TODAY</span>
+      <span class="hero" id="railhero">6h 45m</span>
+      <span class="sbar"><i id="sb1" style="flex:255;background:oklch(0.70 0.13 265)"></i><i id="sb2" style="flex:150;background:oklch(0.70 0.13 175)"></i></span>
+      <span class="sline"><i class="dot" style="background:oklch(0.70 0.13 265)"></i>Ridgeline<b id="s1">4h 15m</b></span>
+      <span class="sline"><i class="dot" style="background:oklch(0.70 0.13 175)"></i>Northwind<b id="s2">2h 30m</b></span>
+      <span class="hr"></span>
+      <span class="sline" id="railtimer"><i class="dot" style="background:var(--run)"></i>RIDGE-5325<b style="color:var(--run)">42:18</b></span>
+      <span class="sline" style="font-size:13px;color:var(--pend)" id="railunpushed">3 entries not pushed</span>
+      <button class="push" id="pushbtn">Push to Jira</button>
+      <span class="hr"></span>
+    </div>
+    <nav class="rn">
+      <button class="on" data-view="today"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><use href="#p-clock"/></svg>Today</button>
+      <button data-view="week"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><use href="#p-cal"/></svg>Week</button>
+    </nav>
+  </div>
+
+  <div class="viewport"><div class="pad">
+    <section class="view on" id="v-today">
+      <div class="pageh"><h3>Pinned</h3></div>
+      <div class="tcard"><table class="tbl"><thead><tr><th class="c-key"><button class="sortbtn">Key <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-sum"><button class="sortbtn">Summary <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-status"><button class="sortbtn">Status <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-today sorted"><button class="sortbtn">Today <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#p-desc"/></svg></button></th><th class="c-act"></th></tr></thead><tbody><tr><td class="c-key"><span class="kw"><i class="dot" style="background:oklch(0.72 0.12 265)"></i><a href="#" title="Open RIDGE-5325 in Jira">RIDGE-5325</a></span></td><td class="c-sum"><span class="clip">Rebuild the worklog sync queue</span></td><td class="c-status">In Progress</td><td class="c-today"><button class="durbtn"><span class="fig">2:15</span></button></td><td class="c-act"><button class="iconbtn on" aria-label="unpin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pinoff"/></svg><span class="tip end">unpin ticket</span></button></td></tr><tr><td class="c-key"><span class="kw"><i class="dot" style="background:oklch(0.72 0.12 175)"></i><a href="#" title="Open NW-812 in Jira">NW-812</a></span></td><td class="c-sum"><span class="clip">Migrate the billing cron to the new scheduler</span></td><td class="c-status">In Review</td><td class="c-today"><button class="durbtn"><span class="fig">2:00</span></button></td><td class="c-act"><button class="iconbtn on" aria-label="unpin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pinoff"/></svg><span class="tip end">unpin ticket</span></button></td></tr></tbody></table></div>
+      <div class="pageh" style="margin-top:20px">
+        <h3>Assigned issues</h3>
+        <button class="iconbtn" style="margin-right:0" aria-label="Refresh"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-refresh"/></svg><span class="tip below">refresh</span></button>
+        <span class="sp"></span><span class="field"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><use href="#p-search"/></svg>
+  <input placeholder="Search all instances">
+  <div class="results">
+    <div class="rgroup"><i class="dot" style="background:oklch(0.72 0.12 265)"></i>Ridgeline</div>
+    <div class="rrow"><a class="rk" href="#" title="Open RIDGE-5140 in Jira">RIDGE-5140</a><span class="rs">Capacity planning spreadsheet is out of date</span><button class="durbtn reveal"><span class="hint">Log</span><span class="fig">0:00</span></button><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></div>
+    <div class="rrow"><a class="rk" href="#" title="Open RIDGE-4977 in Jira">RIDGE-4977</a><span class="rs">Retire the capacity forecast cron job</span><button class="durbtn reveal"><span class="fig">0:00</span></button><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></div>
+    <div class="rgroup"><i class="dot" style="background:oklch(0.72 0.12 175)"></i>Northwind</div>
+    <div class="rrow"><a class="rk" href="#" title="Open NW-1204 in Jira">NW-1204</a><span class="rs">Capacity alerts fire twice for the same threshold</span><button class="durbtn reveal"><span class="hint">Log</span><span class="fig">0:00</span></button><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></div>
+    <div class="rfoot">Searching all instances by key and summary. Not limited to issues assigned to you.</div></div></span>
+      </div>
+      <div class="instgrid">
+        <div><div class="grouph"><i class="dot" style="background:oklch(0.72 0.12 265)"></i>Ridgeline<span class="n">3 issues &middot; 4h 15m</span></div>
+          <div class="tcard"><table class="tbl"><thead><tr><th class="c-key"><button class="sortbtn">Key <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-sum"><button class="sortbtn">Summary <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-status"><button class="sortbtn">Status <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-today sorted"><button class="sortbtn">Today <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#p-desc"/></svg></button></th><th class="c-act"></th></tr></thead><tbody><tr><td class="c-key"><a href="#" title="Open RIDGE-5301 in Jira">RIDGE-5301</a></td><td class="c-sum"><span class="clip">Timesheet export drops the last day of the month</span></td><td class="c-status">In Progress</td><td class="c-today"><button class="durbtn"><span class="fig">1:30</span></button></td><td class="c-act"><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></td></tr><tr><td class="c-key"><a href="#" title="Open RIDGE-4880 in Jira">RIDGE-4880</a></td><td class="c-sum"><span class="clip">Update the on-call rota document</span></td><td class="c-status">To Do</td><td class="c-today"><button class="durbtn"><span class="hint">Log</span><span class="fig">0:30</span></button></td><td class="c-act"><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></td></tr><tr><td class="c-key"><a href="#" title="Open RIDGE-4102 in Jira">RIDGE-4102</a></td><td class="c-sum"><span class="clip">Investigate the nightly index rebuild timing out under load</span></td><td class="c-status">Blocked</td><td class="c-today"><button class="durbtn"><span class="fig">0:00</span></button></td><td class="c-act"><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></td></tr></tbody></table></div></div>
+        <div><div class="grouph"><i class="dot" style="background:oklch(0.72 0.12 175)"></i>Northwind<span class="n">2 issues &middot; 2h 30m</span></div>
+          <div class="tcard"><table class="tbl"><thead><tr><th class="c-key"><button class="sortbtn">Key <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-sum"><button class="sortbtn">Summary <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-status"><button class="sortbtn">Status <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-today sorted"><button class="sortbtn">Today <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#p-desc"/></svg></button></th><th class="c-act"></th></tr></thead><tbody><tr><td class="c-key"><a href="#" title="Open NW-806 in Jira">NW-806</a></td><td class="c-sum"><span class="clip">Review the Q3 capacity plan</span></td><td class="c-status">In Review</td><td class="c-today"><button class="durbtn"><span class="fig">0:30</span></button></td><td class="c-act"><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></td></tr><tr><td class="c-key"><a href="#" title="Open NW-1204 in Jira">NW-1204</a></td><td class="c-sum"><span class="clip">Capacity alerts fire twice for the same threshold</span></td><td class="c-status">To Do</td><td class="c-today"><button class="durbtn"><span class="fig">0:00</span></button></td><td class="c-act"><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></td></tr></tbody></table></div></div>
+      </div>
+    </section>
+
+    <section class="view" id="v-week">
+      <div class="pageh">
+        <h3>Week 36 &middot; 31 Aug &ndash; 6 Sep</h3>
+        <button class="iconbtn" style="margin-right:0" aria-label="Refresh"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-refresh"/></svg><span class="tip below">refresh</span></button>
+        <span class="sp"></span><span class="field"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><use href="#p-search"/></svg>
+  <input placeholder="Add a ticket to this week">
+  <div class="results">
+    <div class="rgroup"><i class="dot" style="background:oklch(0.72 0.12 265)"></i>Ridgeline</div>
+    <div class="rrow"><a class="rk" href="#" title="Open RIDGE-5140 in Jira">RIDGE-5140</a><span class="rs">Capacity planning spreadsheet is out of date</span><button class="durbtn reveal"><span class="hint">Log</span><span class="fig">0:00</span></button><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></div>
+    <div class="rrow"><a class="rk" href="#" title="Open RIDGE-4977 in Jira">RIDGE-4977</a><span class="rs">Retire the capacity forecast cron job</span><button class="durbtn reveal"><span class="fig">0:00</span></button><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></div>
+    <div class="rgroup"><i class="dot" style="background:oklch(0.72 0.12 175)"></i>Northwind</div>
+    <div class="rrow"><a class="rk" href="#" title="Open NW-1204 in Jira">NW-1204</a><span class="rs">Capacity alerts fire twice for the same threshold</span><button class="durbtn reveal"><span class="hint">Log</span><span class="fig">0:00</span></button><button class="iconbtn" aria-label="pin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pin"/></svg><span class="tip end">pin ticket</span></button></div>
+    <div class="rfoot">Searching all instances. Logging against a result adds it to this week.</div></div></span>
+        <span class="ctlgroup">
+          <button class="wctl icon" aria-label="Previous week"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-prev"/></svg><span class="tip">previous week</span></button>
+          <button class="wctl">This week</button>
+          <button class="wctl icon" aria-label="Next week"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-next"/></svg><span class="tip">next week</span></button>
+        </span>
+      </div>
+      <div class="tcard"><table class="grid">
+        <thead><tr><th class="tk">Ticket</th><th>Mon 31</th><th>Tue 1</th><th>Wed 2</th><th>Thu 3</th><th>Fri 4</th><th>Sat 5</th><th>Sun 6</th><th>Total</th></tr></thead>
+        <tbody><tr><th class="tk" scope="row"><span class="kw"><i class="dot" style="background:oklch(0.72 0.12 265)"></i><a class="kk" href="#" title="Open RIDGE-5325 in Jira">RIDGE-5325</a></span></th><td><button class="cell"><span class="fig">3h 00m</span><span class="tip">3h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><i class="m-unpushed"></i><span class="fig">2h 15m</span><span class="tip">2h 15m &middot; not pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><span class="fig">4h 00m</span><span class="tip">4h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><i class="m-dirty"></i><span class="fig">1h 30m</span><span class="tip">1h 30m &middot; edited since it was pushed &middot; click to edit</span></button></td><td><button class="cell"><span class="fig">2h 45m</span><span class="tip">2h 45m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td class="fig tot">13h 30m</td></tr><tr><th class="tk" scope="row"><span class="kw"><i class="dot" style="background:oklch(0.72 0.12 265)"></i><a class="kk" href="#" title="Open RIDGE-5301 in Jira">RIDGE-5301</a></span></th><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><span class="fig">1h 30m</span><span class="tip">1h 30m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><i class="m-unpushed"></i><span class="fig">1h 20m</span><span class="tip">1h 20m &middot; not pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><span class="fig">2h 00m</span><span class="tip">2h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td class="fig tot">4h 50m</td></tr><tr><th class="tk" scope="row"><span class="kw"><i class="dot" style="background:oklch(0.72 0.12 175)"></i><a class="kk" href="#" title="Open NW-812 in Jira">NW-812</a></span></th><td><button class="cell"><span class="fig">2h 00m</span><span class="tip">2h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><i class="m-failed"></i><span class="fig">1h 45m</span><span class="tip">1h 45m &middot; did not reach Jira &middot; click to edit</span></button></td><td><button class="cell"><span class="fig">3h 00m</span><span class="tip">3h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td class="fig tot">6h 45m</td></tr><tr><th class="tk" scope="row"><span class="kw"><i class="dot" style="background:oklch(0.72 0.12 175)"></i><a class="kk" href="#" title="Open NW-806 in Jira">NW-806</a></span></th><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><span class="fig">1h 10m</span><span class="tip">1h 10m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><i class="m-unpushed"></i><span class="fig">1h 30m</span><span class="tip">1h 30m &middot; not pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><span class="fig">1h 00m</span><span class="tip">1h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td class="fig tot">3h 40m</td></tr></tbody>
+        <tfoot><tr><th class="tk">Total</th><td class="fig">5h 00m</td><td class="fig">4h 55m</td><td class="fig">7h 05m</td><td class="fig">6h 00m</td><td class="fig">5h 45m</td><td class="fig">&mdash;</td><td class="fig">&mdash;</td><td class="fig">28h 45m</td></tr></tfoot>
+      </table></div>
+    </section>
+  </div></div>
+
+  <div class="scroller" id="scroller"><div class="sheet">
+    <div class="sheeth"><h3>Settings</h3><span class="sp"></span>
+      <button class="iconbtn" id="closebtn" style="margin-right:0" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><use href="#p-close"/></svg></button></div>
+    <div class="sect"><div class="secth"><h4>Jira instances</h4></div>
+      <ul class="inst"><li><i class="dot" style="background:oklch(0.72 0.12 265);width:8px;height:8px"></i><span class="iid"><span class="iname">Ridgeline</span><span class="ihost">ridgeline.atlassian.net &middot; dion@this.nl</span></span><span class="health ok"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><use href="#p-check"/></svg>Connected &middot; 14:22</span><span class="iacts"><button class="iconbtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-plug"/></svg><span class="tip end">test connection</span></button><button class="iconbtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-edit"/></svg><span class="tip end">edit instance</span></button><button class="iconbtn danger"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-trash"/></svg><span class="tip end">remove instance</span></button></span></li><li><i class="dot" style="background:oklch(0.72 0.12 175);width:8px;height:8px"></i><span class="iid"><span class="iname">Northwind</span><span class="ihost">northwind.atlassian.net &middot; dion@this.nl</span></span><span class="health un">Not tested</span><span class="iacts"><button class="iconbtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-plug"/></svg><span class="tip end">test connection</span></button><button class="iconbtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-edit"/></svg><span class="tip end">edit instance</span></button><button class="iconbtn danger"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-trash"/></svg><span class="tip end">remove instance</span></button></span></li></ul>
+      <button class="addbtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#p-plus"/></svg>Add an instance</button></div>
+    <div class="sect" id="instform" hidden>
+      <div class="secth"><h4 id="if-head">Add an instance</h4></div>
+      <div class="ifields">
+        <span class="fld"><label for="if-name">Name</label><span class="help"></span><input class="plain" id="if-name" placeholder="Ridgeline"></span>
+        <span class="fld"><label for="if-url">Site URL</label><span class="help"></span><input id="if-url" placeholder="https://…atlassian.net"></span>
+        <span class="fld"><label for="if-mail">Account email</label><span class="help"></span><input class="plain" id="if-mail" placeholder="you@example.com"></span>
+        <span class="fld"><label for="if-token">API token</label><span class="help" id="if-help"></span><input id="if-token" type="password" placeholder="••••••••••••"></span>
+      </div>
+      <div class="ifacts">
+        <button class="btn primary" id="if-submit">Add instance</button>
+        <button class="btn quiet" id="if-cancel">Cancel</button>
+      </div>
+    </div>
+    <div class="sect"><div class="secth"><h4>Appearance</h4></div>
+      <div class="rowline"><span class="lbl">Theme</span><span class="sp"></span>
+        <span class="seg" id="seg"><button class="on">Dark</button><button>Light</button><button>System</button></span></div></div>
+  </div></div>
+  <div class="scroller" id="entry"><div class="sheet esheet">
+    <div class="ehead">
+      <div class="eidrow">
+        <i class="dot" id="e-dot" style="background:oklch(0.72 0.12 265)"></i>
+        <span class="einst" id="e-inst">Ridgeline</span>
+        <span class="esep" aria-hidden="true">&middot;</span>
+        <span class="ekey" id="e-key">RIDGE-5301</span>
+        <span class="sp"></span>
+        <span class="etotal" id="e-total">1h 30m</span>
+        <button class="iconbtn" id="e-close" style="margin-right:0" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><use href="#p-close"/></svg></button>
+      </div>
+      <div class="etitle" id="e-sum">Timesheet export drops the last day of the month</div>
+    </div>
+
+    <ul class="elist" id="e-list"></ul>
+    <p class="eempty" id="e-empty" hidden>Nothing logged against this ticket today.</p>
+
+    <div class="efoot">
+      <div class="erow">
+        <span class="durgroup">
+          <button class="step" tabindex="-1" aria-label="Fifteen minutes less"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><use href="#p-minus"/></svg></button>
+          <input id="e-dur" inputmode="numeric" aria-label="Duration" value="0:30">
+          <button class="step" tabindex="-1" aria-label="Fifteen minutes more"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><use href="#p-plus"/></svg></button>
+        </span>
+        <input class="ecomment-in" id="e-comment" placeholder="What did you work on?">
+        <button class="btn primary" id="e-submit">Add entry</button>
+        <button class="iconbtn" id="e-canceledit" style="margin-right:0" hidden aria-label="cancel editing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><use href="#p-close"/></svg><span class="tip end">cancel editing</span></button>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<p class="cap">
+  <b>Today</b> &mdash; refresh is an icon beside the title, summaries link and underline in magenta on
+  hover, the pinned dot sits 8px from its key exactly as Week's does, and the Log hint has 10px of air.
+  <b>Both tables</b> &mdash; the duration and icon controls grew their padding and handed the space back
+  as negative margin, so the hit area is larger and nothing moved.
+  <b>Week</b> &mdash; the three week controls share one 36px height, every cell is a button including the
+  empty ones, each carries a popover naming its state, the legend is gone because the popovers replaced
+  it, the failed triangle went from 6&times;5 to 9&times;8, and the search is here for putting a new ticket
+  into the week. Totals stay inert.
+</p>
+</div>
+
+<script>
+(function () {
+  var app = document.getElementById('app');
+  if (!app || app.dataset.wired) return;
+  app.dataset.wired = '1';
+  var scroller = document.getElementById('scroller');
+  var views = { today: document.getElementById('v-today'), week: document.getElementById('v-week') };
+  var per = document.getElementById('railper'), hero = document.getElementById('railhero');
+  var s1 = document.getElementById('s1'), s2 = document.getElementById('s2');
+  var sb1 = document.getElementById('sb1'), sb2 = document.getElementById('sb2');
+  var timer = document.getElementById('railtimer'), unp = document.getElementById('railunpushed');
+  var push = document.getElementById('pushbtn');
+  var DATA = {
+    today: { per: 'TODAY', hero: '6h 45m', a: '4h 15m', b: '2h 30m', fa: 255, fb: 150, unp: '3 entries not pushed', push: 'Push to Jira', timer: true },
+    week:  { per: 'WEEK 36 · 31 AUG – 6 SEP', hero: '28h 45m', a: '18h 20m', b: '10h 25m', fa: 1740, fb: 985, unp: '6 entries not pushed', push: 'Push this week', timer: false }
+  };
+  app.querySelectorAll('nav.rn button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var name = b.dataset.view;
+      app.querySelectorAll('nav.rn button').forEach(function (o) { o.classList.toggle('on', o === b); });
+      Object.keys(views).forEach(function (k) { views[k].classList.toggle('on', k === name); });
+      var d = DATA[name];
+      per.textContent = d.per; hero.textContent = d.hero;
+      s1.textContent = d.a; s2.textContent = d.b;
+      sb1.style.flex = d.fa; sb2.style.flex = d.fb;
+      unp.textContent = d.unp; push.textContent = d.push;
+      timer.hidden = !d.timer;
+      app.querySelector('.viewport').scrollTop = 0;
+    });
+  });
+  function open() { scroller.classList.add('open'); }
+  function close() { scroller.classList.remove('open'); }
+  document.getElementById('cog').addEventListener('click', open);
+  document.getElementById('closebtn').addEventListener('click', close);
+  scroller.addEventListener('click', function (e) { if (e.target === scroller) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && scroller.classList.contains('open')) close(); });
+  document.getElementById('seg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    this.querySelectorAll('button').forEach(function (o) { o.classList.toggle('on', o === b); });
+  });
+  app.querySelectorAll('.iconbtn').forEach(function (b) {
+    var u = b.querySelector('use[href="#p-pin"], use[href="#p-pinoff"]');
+    if (!u) return;
+    b.addEventListener('click', function () {
+      var pinned = u.getAttribute('href') === '#p-pinoff';
+      u.setAttribute('href', pinned ? '#p-pin' : '#p-pinoff');
+      b.classList.toggle('on', !pinned);
+      var t = b.querySelector('.tip');
+      if (t) t.textContent = pinned ? 'pin ticket' : 'unpin ticket';
+      b.setAttribute('aria-label', pinned ? 'pin ticket' : 'unpin ticket');
+    });
+  });
+  app.querySelectorAll('.c-key a, .grid .kk, .rrow .rk').forEach(function (a) {
+    a.addEventListener('click', function (e) { e.preventDefault(); });
+  });
+
+  // every duration control gets the collapsing Log hint, not just the drawn one
+  app.querySelectorAll('.durbtn').forEach(function (b) {
+    if (b.querySelector('.hint')) return;
+    var h = document.createElement('span');
+    h.className = 'hint'; h.textContent = 'Log'; h.setAttribute('aria-hidden', 'true');
+    b.insertBefore(h, b.firstChild);
+  });
+
+  var entry = document.getElementById('entry');
+  var eSum = document.getElementById('e-sum'), eInst = document.getElementById('e-inst');
+  var eKey = document.getElementById('e-key'), eDot = document.getElementById('e-dot');
+  var eTotal = document.getElementById('e-total'), eList = document.getElementById('e-list');
+  var eEmpty = document.getElementById('e-empty'), eDur = document.getElementById('e-dur');
+  var eComment = document.getElementById('e-comment'), eSubmit = document.getElementById('e-submit');
+  var eCancelEdit = document.getElementById('e-canceledit');
+
+  var SAMPLE = [
+    { dur: '0h 45m', comment: 'Traced the duplicate worklog', state: 'pushed' },
+    { dur: '0h 45m', comment: '', state: 'unpushed' }
+  ];
+  var STATE = {
+    pushed:   { tip: 'pushed to Jira',            svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--run)"><use href="#p-check"/></svg>' },
+    unpushed: { tip: 'not pushed to Jira',        svg: '<i class="m-unpushed"></i>' },
+    dirty:    { tip: 'edited since it was pushed', svg: '<i class="m-dirty"></i>' }
+  };
+
+  function stopEditing() {
+    eSubmit.textContent = 'Add entry';
+    eCancelEdit.hidden = true;
+    eDur.value = '0:30'; eComment.value = '';
+    eList.querySelectorAll('li').forEach(function (li) { li.classList.remove('active'); });
+  }
+
+  function paintEntries(rows) {
+    eList.innerHTML = '';
+    eEmpty.hidden = rows.length > 0;
+    rows.forEach(function (r) {
+      var st = STATE[r.state] || STATE.unpushed;
+      var li = document.createElement('li');
+      li.innerHTML =
+        '<span class="edur">' + r.dur + '</span>' +
+        '<span class="ecomment' + (r.comment ? '' : ' none') + '">' + (r.comment || 'No comment') + '</span>' +
+        '<span class="estate" tabindex="0" role="img" aria-label="' + st.tip + '">' + st.svg + '<span class="tip">' + st.tip + '</span></span>' +
+        '<span class="eacts">' +
+          '<button class="iconbtn" data-act="edit" aria-label="edit entry"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-edit"/></svg><span class="tip end">edit entry</span></button>' +
+          '<button class="iconbtn danger" data-act="delete" aria-label="delete entry"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-trash"/></svg><span class="tip end">delete entry</span></button>' +
+        '</span>';
+      li.querySelector('[data-act="edit"]').addEventListener('click', function () {
+        eList.querySelectorAll('li').forEach(function (o) { o.classList.remove('active'); });
+        li.classList.add('active');
+        eSubmit.textContent = 'Save';
+        eCancelEdit.hidden = false;
+        eDur.value = r.dur.replace(/^0h /, '').replace('h ', ':').replace('m', '');
+        eComment.value = r.comment;
+        eDur.focus();
+      });
+      li.querySelector('[data-act="delete"]').addEventListener('click', function () {
+        li.remove();
+        eEmpty.hidden = eList.children.length > 0;
+      });
+      eList.appendChild(li);
+    });
+  }
+
+  function openEntry(o) {
+    eInst.textContent = o.instance;
+    eKey.textContent = o.key;
+    eDot.style.background = o.hue;
+    eSum.textContent = o.summary || o.key;
+    eTotal.textContent = o.existing ? o.total : '0h 00m';
+    paintEntries(o.existing ? SAMPLE : []);
+    stopEditing();
+    entry.classList.add('open');
+  }
+  function closeEntry() { entry.classList.remove('open'); }
+  document.getElementById('e-close').addEventListener('click', closeEntry);
+  eCancelEdit.addEventListener('click', stopEditing);
+  entry.addEventListener('click', function (e) { if (e.target === entry) closeEntry(); });
+
+  function hueOf(el) {
+    var d = el && el.querySelector('.dot');
+    return d ? d.style.background : 'oklch(0.72 0.12 265)';
+  }
+
+  app.querySelectorAll('.durbtn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var row = b.closest('tr'), res = b.closest('.rrow');
+      var key = '', summary = '', inst = 'Ridgeline', hue = 'oklch(0.72 0.12 265)';
+      if (row) {
+        key = (row.querySelector('.c-key a') || {}).textContent || '';
+        summary = (row.querySelector('.c-sum .clip') || {}).textContent || '';
+        var g = b.closest('.instgrid > div');
+        if (g && g.querySelector('.grouph')) {
+          inst = g.querySelector('.grouph').childNodes[1].textContent.trim();
+          hue = hueOf(g.querySelector('.grouph'));
+        } else if (row.querySelector('.c-key .dot')) {
+          hue = row.querySelector('.c-key .dot').style.background;
+          inst = key.indexOf('NW') === 0 ? 'Northwind' : 'Ridgeline';
+        }
+      } else if (res) {
+        key = (res.querySelector('.rk') || {}).textContent || '';
+        summary = (res.querySelector('.rs') || {}).textContent || '';
+        var grp = res.previousElementSibling;
+        while (grp && !grp.classList.contains('rgroup')) grp = grp.previousElementSibling;
+        if (grp) { inst = grp.textContent.trim(); hue = hueOf(grp); }
+      }
+      var fig = (b.querySelector('.fig') || {}).textContent || '0:00';
+      openEntry({ key: key, summary: summary, instance: inst, hue: hue,
+                  total: fig.replace(':', 'h ') + 'm', existing: fig !== '0:00' });
+    });
+  });
+
+  app.querySelectorAll('.grid .cell').forEach(function (c) {
+    c.addEventListener('click', function () {
+      var row = c.closest('tr');
+      var key = (row.querySelector('.kk') || {}).textContent || '';
+      var fig = (c.querySelector('.fig') || {}).textContent || '';
+      openEntry({ key: key, summary: '', instance: key.indexOf('NW') === 0 ? 'Northwind' : 'Ridgeline',
+                  hue: hueOf(row.querySelector('.tk')), total: fig, existing: !!fig });
+    });
+  });
+
+  // Settings: the instance form
+  var instform = document.getElementById('instform');
+  var ifHead = document.getElementById('if-head'), ifSubmit = document.getElementById('if-submit');
+  var ifHelp = document.getElementById('if-help');
+  var ifName = document.getElementById('if-name'), ifUrl = document.getElementById('if-url'), ifMail = document.getElementById('if-mail');
+  function showForm(editing) {
+    instform.hidden = false;
+    if (editing) {
+      ifHead.textContent = 'Edit ' + editing.name;
+      ifSubmit.textContent = 'Save changes';
+      ifHelp.textContent = 'Leave blank to keep the stored one';
+      ifName.value = editing.name; ifUrl.value = 'https://' + editing.host; ifMail.value = 'dion@this.nl';
+    } else {
+      ifHead.textContent = 'Add an instance';
+      ifSubmit.textContent = 'Add instance';
+      ifHelp.textContent = 'Stored encrypted. It is never shown again.';
+      ifName.value = ''; ifUrl.value = ''; ifMail.value = '';
+    }
+    instform.scrollIntoView({ block: 'nearest' });
+  }
+  document.querySelector('.addbtn').addEventListener('click', function () { showForm(null); });
+  document.getElementById('if-cancel').addEventListener('click', function () { instform.hidden = true; });
+  app.querySelectorAll('ul.inst > li').forEach(function (li) {
+    var edit = li.querySelectorAll('.iconbtn')[1];
+    if (!edit) return;
+    edit.addEventListener('click', function () {
+      showForm({ name: li.querySelector('.iname').textContent, host: li.querySelector('.ihost').textContent.split(' ')[0] });
+    });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && entry.classList.contains('open')) closeEntry();
+  });
+})();
+</script>
