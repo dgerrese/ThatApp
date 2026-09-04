@@ -7,6 +7,7 @@ import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "..
 import { confirmDestructive } from "./that-confirm";
 import { announceEntriesChanged } from "../entries-changed";
 import { totalFigure } from "../format";
+import { iconMarkup } from "../icons";
 import type { Entry } from "../types";
 import type { ThatDuration } from "./that-duration";
 
@@ -66,7 +67,7 @@ export class ThatEntryDialog extends HTMLElement {
   private build(ticket: EntryTicket): HTMLDialogElement {
     const dialog = document.createElement("dialog");
     dialog.className =
-      "bg-raised text-ink shadow-card m-auto w-[560px] max-w-[calc(100vw-2rem)] rounded-2xl p-5";
+      "bg-raised text-ink shadow-dialog m-auto w-[560px] max-w-[calc(100vw-2rem)] rounded-md p-5";
     dialog.setAttribute("aria-labelledby", "that-entry-dialog-heading");
 
     dialog.append(this.header(ticket), this.entryList(), this.footForm());
@@ -112,7 +113,7 @@ export class ThatEntryDialog extends HTMLElement {
     // total and an entry's duration can read the same figure — which leaves
     // nothing else to tell them apart.
     total.id = "that-entry-dialog-total";
-    total.className = "that-tnum text-[22px] leading-none font-bold tracking-[-0.02em]";
+    total.className = "that-tnum font-mono text-[22px] leading-none font-bold tracking-[-0.02em]";
     total.textContent = totalFigure(0);
     this.total = total;
 
@@ -127,9 +128,9 @@ export class ThatEntryDialog extends HTMLElement {
     close.type = "button";
     close.setAttribute("aria-label", "Close");
     close.className =
-      "text-ink-muted hover:bg-surface hover:text-ink flex h-7 w-7 cursor-pointer " +
-      "items-center justify-center rounded-full text-md";
-    close.textContent = "×";
+      "text-ink-muted hover:bg-hover hover:text-ink flex h-7 w-7 cursor-pointer " +
+      "items-center justify-center rounded-full text-base";
+    close.innerHTML = iconMarkup("close");
     close.addEventListener("click", () => {
       this.dialog?.close();
     });
@@ -184,8 +185,8 @@ export class ThatEntryDialog extends HTMLElement {
     const cancel = document.createElement("button");
     cancel.type = "button";
     cancel.setAttribute("aria-label", "Stop editing");
-    cancel.className = "text-ink-muted hover:text-ink cursor-pointer px-1 text-md leading-none";
-    cancel.textContent = "×";
+    cancel.className = "text-ink-muted hover:text-ink cursor-pointer px-1 text-base leading-none";
+    cancel.innerHTML = iconMarkup("close");
     cancel.addEventListener("click", () => {
       this.stopEditing();
     });
@@ -208,7 +209,7 @@ export class ThatEntryDialog extends HTMLElement {
     comment.type = "text";
     comment.placeholder = "What did you work on?";
     comment.className =
-      "border-edge min-w-0 flex-1 rounded-md border px-3 py-1.5 text-sm " +
+      "border-edge min-w-0 flex-1 rounded-sm border px-3 py-1.5 text-sm " +
       "focus:border-ink focus:outline-none";
     comment.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
@@ -285,11 +286,11 @@ export class ThatEntryDialog extends HTMLElement {
     started.textContent = clockTime(entry.startedAt);
 
     const duration = document.createElement("span");
-    duration.className = "that-tnum w-16 shrink-0 font-bold";
+    duration.className = "that-tnum font-mono w-16 shrink-0 font-bold";
     duration.textContent = totalFigure(entry.seconds);
 
     const comment = document.createElement("span");
-    comment.className = "min-w-0 flex-1 truncate text-md";
+    comment.className = "min-w-0 flex-1 truncate text-base";
     comment.textContent = entry.comment;
     if (entry.comment === "") {
       comment.classList.add("text-ink-faint");
@@ -460,7 +461,7 @@ function rowAction(label: string, description: string, act: () => void): HTMLEle
   button.textContent = label;
   button.setAttribute("aria-label", description);
   button.className =
-    "text-ink-muted hover:bg-surface hover:text-ink cursor-pointer rounded-md px-2 py-1 text-sm";
+    "text-ink-muted hover:bg-hover hover:text-ink cursor-pointer rounded-sm px-2 py-1 text-sm";
   button.addEventListener("click", act);
 
   return button;
@@ -468,7 +469,7 @@ function rowAction(label: string, description: string, act: () => void): HTMLEle
 
 function emptyLine(): HTMLElement {
   const line = document.createElement("li");
-  line.className = "text-ink-muted py-2 text-md";
+  line.className = "text-ink-muted py-2 text-base";
   line.textContent = "Nothing logged against this ticket today.";
 
   return line;

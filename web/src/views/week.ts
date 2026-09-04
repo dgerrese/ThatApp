@@ -2,6 +2,7 @@ import "../components/that-alert";
 
 import { ApiError, getWeek } from "../api";
 import { totalFigure } from "../format";
+import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
@@ -201,31 +202,38 @@ function failuresIn(responses: PushResponse[]): Failures {
  */
 function weekControls(rollup: WeekRollup): HTMLElement[] {
   return [
-    weekButton({ glyph: "←", label: "Previous week", path: `/week?start=${rollup.prevStart}` }),
+    weekButton({
+      mark: iconMarkup("arrow-left"),
+      label: "Previous week",
+      path: `/week?start=${rollup.prevStart}`,
+    }),
     weekButton({ label: "This week", path: "/week" }),
-    weekButton({ glyph: "→", label: "Next week", path: `/week?start=${rollup.nextStart}` }),
+    weekButton({
+      mark: iconMarkup("arrow-right"),
+      label: "Next week",
+      path: `/week?start=${rollup.nextStart}`,
+    }),
   ];
 }
 
 /** The neighbouring starts come off the response; nothing here adds seven days. */
-function weekButton(control: { glyph?: string; label: string; path: string }): HTMLElement {
+function weekButton(control: { mark?: string; label: string; path: string }): HTMLElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className =
-    "inline-flex cursor-pointer items-center rounded-[9px] px-3 py-1.5 text-base font-bold " +
-    "text-ink-muted hover:bg-surface hover:text-ink";
+    "inline-flex cursor-pointer items-center rounded-sm px-3 py-1.5 text-base font-bold " +
+    "text-ink-muted hover:bg-hover hover:text-ink";
 
-  if (control.glyph === undefined) {
+  if (control.mark === undefined) {
     button.textContent = control.label;
   } else {
-    // The glyph is decorative; the name it stands for is not, and a screen
-    // reader would otherwise announce "leftwards arrow".
+    // The mark is decorative (icons.ts sets aria-hidden); the name it stands
+    // for is not, and a screen reader would otherwise read the button empty.
     button.setAttribute("aria-label", control.label);
     button.title = control.label;
-    const glyph = document.createElement("span");
-    glyph.setAttribute("aria-hidden", "true");
-    glyph.textContent = control.glyph;
-    button.append(glyph);
+    const mark = document.createElement("span");
+    mark.innerHTML = control.mark;
+    button.append(mark);
   }
 
   button.addEventListener("click", () => {
@@ -319,8 +327,8 @@ const MARKER_BASE = "mr-1.5 inline-block align-[1px]";
  * carries — so the shape has to do it here.
  *
  * Disc for unpushed, ring for dirty, triangle for failed. The triangle is the
- * glyph that document already associates with failure, drawn out of borders
- * rather than set as ▲ so its size is the grid's rather than the font's.
+ * shape this document already associates with failure, drawn out of borders
+ * so its size is the grid's rather than the font's.
  *
  * Both colours are the palette's own — red 25 and amber 85 — rather than a
  * second name for a state it already has.

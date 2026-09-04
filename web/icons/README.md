@@ -13,10 +13,10 @@ the form none of them can misread:
 
 | Token | oklch | sRGB |
 | --- | --- | --- |
-| `--color-rail` (ground) | `oklch(0.215 0.018 55)` | `#201712` |
-| `--color-primary-rail` (stroke) | `oklch(0.66 0.19 330)` | `#d05fc8` |
+| `--color-rail` (ground) | `oklch(0.105 0.006 60)` | `#050403` |
+| `--color-primary-rail` (stroke) | `oklch(0.72 0.19 330)` | `#e472dc` |
 
-Converted through the standard OKLab matrices. `#201712` is also `manifest.json`'s `theme_color` and
+Converted through the standard OKLab matrices. `#050403` is also `manifest.json`'s `theme_color` and
 `background_color`.
 
 ## Regenerating the PNGs

@@ -17,8 +17,8 @@ test.beforeEach(async ({ page }) => {
  * engines rather than assumed; if an engine ever converts to rgb() instead,
  * these two constants are the only thing that has to change.
  */
-const LIGHT_GROUND = "oklch(0.975 0.006 70)";
-const DARK_GROUND = "oklch(0.165 0.008 60)";
+const LIGHT_GROUND = "oklch(0.972 0.008 60)";
+const DARK_GROUND = "oklch(0.178 0.012 40)";
 function bodyBackground(page: Page): Promise<string> {
   return page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 }
@@ -153,24 +153,24 @@ test("cards and buttons take the dark palette too", async ({ page }) => {
   // border colour left to assert. The shadow is what proves the treatment
   // survived, and a stylesheet that never loaded leaves it "none".
   const card = page.locator("that-card").first();
-  await expect(card).toHaveCSS("background-color", "oklch(0.215 0.01 60)");
+  await expect(card).toHaveCSS("background-color", "oklch(0.228 0.014 40)");
   await expect(card).not.toHaveCSS("box-shadow", "none");
 
   const addButton = page.getByRole("button", { name: "Add instance" });
-  await expect(addButton).toHaveCSS("background-color", "oklch(0.7 0.17 330)");
+  await expect(addButton).toHaveCSS("background-color", "oklch(0.72 0.19 330)");
   await expect(addButton).toHaveCSS("color", "oklch(0.16 0.02 330)");
 });
 
 // The rail is the one surface that does not invert: it is the instrument, and
-// it stays dark under a light OS. A change that flipped it is a regression no
-// other assertion here would catch.
-test("the rail stays dark in both themes", async ({ page }) => {
+// it carries one ground in both themes. A change that split it back into a
+// pair is a regression no other assertion here would catch.
+test("the rail carries one ground in both themes", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await openSettings(page);
-  await expect(page.locator("aside")).toHaveCSS("background-color", "oklch(0.215 0.018 55)");
+  await expect(page.locator("aside")).toHaveCSS("background-color", "oklch(0.105 0.006 60)");
 
   await page.getByRole("radio", { name: "Dark" }).check();
-  await expect(page.locator("aside")).toHaveCSS("background-color", "oklch(0.125 0.008 55)");
+  await expect(page.locator("aside")).toHaveCSS("background-color", "oklch(0.105 0.006 60)");
 });
 
 // The rail's remaining resting regions, until #8 and #9 make them live. #7 made

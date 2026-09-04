@@ -54,7 +54,7 @@ export class ThatCombobox extends HTMLElement {
     this.input.setAttribute("aria-controls", "that-combobox-listbox");
     this.input.placeholder = this.getAttribute("placeholder") ?? "";
     this.input.className =
-      "w-full rounded-md border border-edge px-3 py-1.5 text-sm " +
+      "w-full rounded-sm border border-edge px-3 py-1.5 text-sm " +
       "focus:border-ink focus:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
     // The scrollable, positioned popup. role="listbox" and its id live on the
@@ -65,7 +65,7 @@ export class ThatCombobox extends HTMLElement {
     this.popup = document.createElement("div");
     this.popup.className =
       "absolute inset-x-0 top-10 z-10 max-h-60 overflow-y-auto rounded-md " +
-      "border border-edge bg-raised shadow-lg";
+      "border border-edge bg-raised shadow-popover";
     this.popup.hidden = true;
 
     this.list = document.createElement("ul");

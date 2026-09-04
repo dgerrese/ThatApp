@@ -1,7 +1,8 @@
 import { exactSecondsFromTyped, fieldFigure, secondsFromTyped, steppedSeconds } from "../duration";
+import { iconMarkup, type IconName } from "../icons";
 
 /**
- * A duration you can step or type: `−`, a field, `+`, glued into one bordered
+ * A duration you can step or type: minus, a field, plus, glued into one bordered
  * group. Light DOM, like everything here.
  *
  * The arithmetic is not in this file. `../duration` owns reading a typed figure
@@ -52,11 +53,11 @@ export class ThatDuration extends HTMLElement {
   private build(): void {
     const group = document.createElement("div");
     group.className =
-      "inline-flex items-stretch overflow-hidden rounded-md border border-edge " +
+      "inline-flex items-stretch overflow-hidden rounded-sm border border-edge " +
       "focus-within:border-ink";
 
-    const minus = this.stepButton("−", -1, "Fifteen minutes less");
-    const plus = this.stepButton("+", 1, "Fifteen minutes more");
+    const minus = this.stepButton("minus", -1, "Fifteen minutes less");
+    const plus = this.stepButton("plus", 1, "Fifteen minutes more");
     // The seams. Border on the buttons rather than the input, so the group
     // keeps exactly two hairlines however the input is styled later.
     minus.classList.add("border-edge", "border-r");
@@ -90,16 +91,16 @@ export class ThatDuration extends HTMLElement {
     this.showCommitted();
   }
 
-  private stepButton(glyph: string, direction: 1 | -1, label: string): HTMLButtonElement {
+  private stepButton(icon: IconName, direction: 1 | -1, label: string): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = glyph;
+    button.innerHTML = iconMarkup(icon);
     button.setAttribute("aria-label", label);
     // tabindex="-1" keeps Tab going input to input through a form: the steps
     // these buttons take are already on ArrowUp and ArrowDown in the field.
     button.tabIndex = -1;
     button.className =
-      "text-ink-muted hover:bg-surface hover:text-ink cursor-pointer px-2 text-md " +
+      "text-ink-muted hover:bg-hover hover:text-ink cursor-pointer px-2 text-base " +
       "disabled:cursor-not-allowed disabled:opacity-50";
     button.addEventListener("click", () => {
       this.stepBy(direction);

@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ThatApp</title>
-    <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/chivo-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/chivo-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/app.css" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="/icons/icon.svg" />
@@ -22,7 +23,7 @@
       } catch {}
     </script>
   </head>
-  <body class="bg-surface text-ink font-sans text-md tracking-[-0.011em]">
+  <body class="bg-surface text-ink font-sans text-base tracking-[-0.011em]">
     <div class="grid min-h-screen grid-cols-1 md:grid-cols-[216px_minmax(0,1fr)]">
       <!--
         The rail is the instrument, not a menu: the thing you glance at sits in
@@ -52,7 +53,7 @@
             class="text-rail-muted text-xs font-bold tracking-[0.12em] uppercase"
             >Today</span
           >
-          <div id="rail-total" class="that-tnum text-hero leading-[0.88] font-bold tracking-[-0.035em]">
+          <div id="rail-total" class="that-tnum font-mono text-hero leading-[0.88] font-bold tracking-[-0.035em]">
             0h 00m
           </div>
           <!-- #7 fills this with the split bar and a figure per instance. The
@@ -81,7 +82,7 @@
             id="rail-push"
             type="button"
             disabled
-            class="border-rail-active bg-rail-active text-rail-ink text-md mt-0.5 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-[11px] border font-bold disabled:cursor-not-allowed disabled:bg-transparent disabled:text-rail-muted"
+            class="border-rail-active bg-rail-active text-rail-ink text-base mt-0.5 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm border font-bold disabled:cursor-not-allowed disabled:bg-transparent disabled:text-rail-muted"
           >
             Push to Jira
           </button>
@@ -91,7 +92,7 @@
           <a
             href="/today"
             data-route
-            class="that-nav text-md flex h-[38px] items-center gap-[11px] rounded-[9px] px-2.5"
+            class="that-nav text-base flex h-[38px] items-center gap-[11px] rounded-xs px-2.5"
           >
             <svg
               width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -106,7 +107,7 @@
           <a
             href="/week"
             data-route
-            class="that-nav text-md flex h-[38px] items-center gap-[11px] rounded-[9px] px-2.5"
+            class="that-nav text-base flex h-[38px] items-center gap-[11px] rounded-xs px-2.5"
           >
             <svg
               width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -121,7 +122,7 @@
           <a
             href="/settings"
             data-route
-            class="that-nav text-md flex h-[38px] items-center gap-[11px] rounded-[9px] px-2.5"
+            class="that-nav text-base flex h-[38px] items-center gap-[11px] rounded-xs px-2.5"
           >
             <svg
               width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"

@@ -2,7 +2,7 @@ const VARIANTS: Record<string, string> = {
   primary: "bg-primary text-primary-ink hover:opacity-90",
   // A ghost, not an outlined box: the design keeps quiet actions quiet and
   // spends its one loud colour on Push.
-  secondary: "text-ink-muted hover:bg-surface hover:text-ink",
+  secondary: "text-ink-muted hover:bg-hover hover:text-ink",
   danger: "bg-failed text-state-ink hover:opacity-90",
 };
 
@@ -45,7 +45,7 @@ export class ThatButton extends HTMLElement {
     // disabled variant outranks it on specificity, so a dead button still says
     // so.
     const base =
-      "inline-flex cursor-pointer items-center rounded-[9px] px-3 py-1.5 text-base font-bold " +
+      "inline-flex cursor-pointer items-center rounded-sm px-3 py-1.5 text-base font-bold " +
       "disabled:cursor-not-allowed disabled:opacity-50";
     button.className = `${base} ${VARIANTS[variant] ?? VARIANTS["secondary"] ?? ""}`;
     button.disabled = this.hasAttribute("disabled");

@@ -7,7 +7,7 @@
  */
 export class ThatCard extends HTMLElement {
   connectedCallback(): void {
-    this.className = "bg-raised shadow-card block rounded-2xl px-5 py-4";
+    this.className = "bg-raised shadow-card block rounded-md px-5 py-4";
 
     const heading = this.getAttribute("heading");
     if (heading && !this.querySelector("[data-card-heading]")) {

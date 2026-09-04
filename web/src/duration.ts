@@ -95,7 +95,7 @@ export function fieldFigure(seconds: number): string {
 }
 
 /**
- * The figure one press of `−` or `+` reaches, in seconds. It moves to the next
+ * The figure one press of minus or plus reaches, in seconds. It moves to the next
  * quarter hour in that direction rather than adding a quarter to whatever it
  * was given, which is the same thing for a figure already on the grid and the
  * right thing for one that is not — #8's timer will hand this a run of 7m13s,

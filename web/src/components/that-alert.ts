@@ -1,3 +1,5 @@
+import { iconMarkup, type IconName } from "../icons";
+
 /**
  * A status message. The approved design does not put these in a tinted box: the
  * tone colours a mark, the words stay in ordinary ink, and the mark is what
@@ -7,10 +9,10 @@
  * role="status" rather than "alert": these report the outcome of something the
  * user just did, so they should not interrupt a screen reader mid-sentence.
  */
-const TONES: Record<string, { colour: string; mark: string; label: string }> = {
-  success: { colour: "text-running", mark: "●", label: "Done" },
-  warning: { colour: "text-pending", mark: "▲", label: "Warning" },
-  error: { colour: "text-failed", mark: "▲", label: "Failed" },
+const TONES: Record<string, { colour: string; icon: IconName; label: string }> = {
+  success: { colour: "text-running", icon: "success", label: "Done" },
+  warning: { colour: "text-pending", icon: "warning", label: "Warning" },
+  error: { colour: "text-failed", icon: "failed", label: "Failed" },
 };
 
 export class ThatAlert extends HTMLElement {
@@ -31,13 +33,13 @@ export class ThatAlert extends HTMLElement {
     const tone = TONES[this.getAttribute("tone") ?? "warning"] ?? TONES["warning"];
     if (!tone) return;
 
-    this.className = "text-md text-ink flex items-start gap-3";
+    this.className = "text-base text-ink flex items-start gap-3";
 
     const mark = document.createElement("span");
-    mark.className = `shrink-0 text-sm leading-6 font-bold ${tone.colour}`;
-    mark.textContent = tone.mark;
-    // The glyph is decorative; the word it stands for is not, and a screen
-    // reader would otherwise announce "black up-pointing triangle".
+    mark.className = `shrink-0 leading-6 ${tone.colour}`;
+    mark.innerHTML = iconMarkup(tone.icon);
+    // The mark is decorative on its own account (icons.ts sets aria-hidden);
+    // the word it stands for is not, so the wrapper carries it instead.
     mark.setAttribute("role", "img");
     mark.setAttribute("aria-label", tone.label);
 

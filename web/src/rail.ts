@@ -412,7 +412,7 @@ function figures(slices: Slice[]): HTMLElement {
     name.textContent = slice.name;
 
     const figure = document.createElement("span");
-    figure.className = "that-tnum font-bold";
+    figure.className = "that-tnum font-mono font-bold";
     figure.textContent = totalFigure(slice.seconds);
 
     row.append(dot, name, figure);

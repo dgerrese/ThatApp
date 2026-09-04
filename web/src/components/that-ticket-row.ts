@@ -11,9 +11,8 @@ export const LOG_TIME = "that-log-time";
  * One issue: its key, its summary and its status. Light DOM, so #7 and #8 can
  * append a timer and a duration field to it without a slot.
  *
- * The key is set in the body face rather than a monospace one. Space Grotesk
- * carries tabular figures, so keys still align in a column, and a second family
- * loaded for four characters a row costs bytes the 14kB budget would notice.
+ * The key wears Chivo Mono via `.that-key` in styles.css — it is one of the
+ * figures the second edition sets in the mono face, not the summary's prose.
  *
  * That column is a fixed width rather than the key's own: it is what makes the
  * summaries start at the same x down the whole card, which is the alignment the
@@ -105,8 +104,8 @@ export class ThatTicketRow extends HTMLElement {
     // sentence does not say which ticket it belongs to.
     trigger.setAttribute("aria-label", `Log time against ${key}, ${figure} today`);
     trigger.className =
-      "group hover:bg-surface flex shrink-0 cursor-pointer items-baseline gap-1.5 " +
-      "rounded-md px-1.5 py-0.5";
+      "group hover:bg-hover flex shrink-0 cursor-pointer items-baseline gap-1.5 " +
+      "rounded-sm px-1.5 py-0.5";
 
     // The hint answers the one real weakness of an affordance that exists only
     // on hover, without drawing anything permanent into the resting row. It
@@ -125,7 +124,7 @@ export class ThatTicketRow extends HTMLElement {
     hint.setAttribute("aria-hidden", "true");
 
     const total = document.createElement("span");
-    total.className = "that-tnum text-md";
+    total.className = "that-tnum font-mono text-base";
     total.textContent = figure;
 
     trigger.append(hint, total);
