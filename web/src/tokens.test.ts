@@ -127,7 +127,24 @@ test("the retired ramp step is gone and the ramp starts at 12px", () => {
 });
 
 test("the root declares dark before light", () => {
-  assert.match(css, /color-scheme:\s*dark light/);
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  assert.match(html, /color-scheme:\s*dark light/);
+});
+
+test("styles.css never carries a two-value color-scheme", () => {
+  // The build's minifier reorders a two-value color-scheme, reversing the
+  // dark-before-light decision — see index.html, where it is inlined instead.
+  // Matched per declaration rather than across the file: a pattern that lets
+  // whitespace span lines finds the newline after `light;` and the brace after
+  // it, and reports a single-value declaration as a pair.
+  for (const match of css.matchAll(/color-scheme:([^;\n]*)/g)) {
+    const value = match[1] ?? "";
+    assert.doesNotMatch(
+      value.trim(),
+      /\s/,
+      `styles.css declares "color-scheme:${value}" — a two-value one belongs in index.html`,
+    );
+  }
 });
 
 test("light defines a surface by its edge, dark by depth", () => {

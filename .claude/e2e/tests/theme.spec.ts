@@ -35,6 +35,18 @@ async function stubIssues(page: Page): Promise<void> {
   );
 }
 
+// The unit tests can only read source, so a minifier that reorders the
+// declaration would pass them while shipping the opposite value — which is
+// exactly what happened. This reads the built, computed value instead.
+test("the root's color-scheme survives the build as dark before light", async ({ page }) => {
+  await stubIssues(page);
+  await page.goto("/");
+
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
+  const colorScheme = await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
+  expect(colorScheme).toBe("dark light");
+});
+
 test("follows a light OS when nothing is stored", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await stubIssues(page);
