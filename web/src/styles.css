@@ -101,11 +101,26 @@
   --color-failed-rail: oklch(0.72 0.17 25);
   --color-state-ink: light-dark(oklch(0.99 0.004 70), oklch(0.16 0.01 60));
 
-  /* Cards are borderless and sit on this instead. light-dark() takes colours,
-     not whole shadows, so it wraps each layer's colour rather than the lot. */
+  /* Elevation is the one rule in this language that differs by theme. On light
+     the edge defines the surface and the shadow only ranks it; on dark the
+     shadows do both, as they always have. The hairline is expressed as a colour
+     that is transparent on dark, because light-dark() takes colours and not
+     whole shadows — one string per surface, and no second set to keep in step.
+     It is an inset ring rather than a border so adding it moves nothing. */
+  --color-edge-ring: light-dark(oklch(0.905 0.007 65), transparent);
+
   --shadow-card:
-    0 1px 2px light-dark(oklch(0.35 0.04 60 / 0.05), oklch(0 0 0 / 0.35)),
-    0 10px 26px -14px light-dark(oklch(0.35 0.04 60 / 0.2), oklch(0 0 0 / 0.6));
+    inset 0 0 0 1px var(--color-edge-ring),
+    0 1px 2px light-dark(oklch(0 0 0 / 0.04), oklch(0 0 0 / 0.35)),
+    0 10px 26px -14px light-dark(oklch(0 0 0 / 0), oklch(0 0 0 / 0.6));
+
+  --shadow-popover:
+    inset 0 0 0 1px var(--color-edge-ring),
+    0 6px 16px -8px light-dark(oklch(0 0 0 / 0.12), oklch(0 0 0 / 0.7));
+
+  /* The dialog carries a real border already, which is the same hairline by
+     another mechanism, so it takes no ring of its own. */
+  --shadow-dialog: 0 12px 36px -12px light-dark(oklch(0 0 0 / 0.16), oklch(0 0 0 / 0.75));
 
   /* The owner's screen is 2560px wide and every Tailwind default stops far
      short of it. Beware: max-w-3xl is the container scale's 48rem and has

@@ -65,7 +65,7 @@ export class ThatCombobox extends HTMLElement {
     this.popup = document.createElement("div");
     this.popup.className =
       "absolute inset-x-0 top-10 z-10 max-h-60 overflow-y-auto rounded-md " +
-      "border border-edge bg-raised shadow-lg";
+      "border border-edge bg-raised shadow-popover";
     this.popup.hidden = true;
 
     this.list = document.createElement("ul");

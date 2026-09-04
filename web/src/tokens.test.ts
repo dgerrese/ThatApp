@@ -130,6 +130,16 @@ test("the root declares dark before light", () => {
   assert.match(css, /color-scheme:\s*dark light/);
 });
 
+test("light defines a surface by its edge, dark by depth", () => {
+  const ring = token("color-edge-ring");
+  assert.equal(ring.dark, "transparent", "dark has no hairline: its shadows already define a card");
+  assert.notEqual(ring.light, "transparent", "light needs the hairline — a card is 0.023 off its page");
+  for (const name of ["shadow-card", "shadow-popover", "shadow-dialog"]) {
+    assert.match(css, new RegExp(`--${name}:`), `--${name} is declared`);
+  }
+  assert.match(css, /--shadow-card:[^;]*inset 0 0 0 1px var\(--color-edge-ring\)/s);
+});
+
 test("the hover wash is one formula in both themes", () => {
   const hover = token("color-hover");
   assert.equal(hover.light, hover.dark, "one formula, both themes — a pair can drift apart");

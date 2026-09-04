@@ -66,7 +66,7 @@ export class ThatEntryDialog extends HTMLElement {
   private build(ticket: EntryTicket): HTMLDialogElement {
     const dialog = document.createElement("dialog");
     dialog.className =
-      "bg-raised text-ink shadow-card m-auto w-[560px] max-w-[calc(100vw-2rem)] rounded-md p-5";
+      "bg-raised text-ink shadow-dialog m-auto w-[560px] max-w-[calc(100vw-2rem)] rounded-md p-5";
     dialog.setAttribute("aria-labelledby", "that-entry-dialog-heading");
 
     dialog.append(this.header(ticket), this.entryList(), this.footForm());
