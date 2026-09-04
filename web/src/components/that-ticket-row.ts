@@ -104,7 +104,7 @@ export class ThatTicketRow extends HTMLElement {
     // sentence does not say which ticket it belongs to.
     trigger.setAttribute("aria-label", `Log time against ${key}, ${figure} today`);
     trigger.className =
-      "group hover:bg-surface flex shrink-0 cursor-pointer items-baseline gap-1.5 " +
+      "group hover:bg-hover flex shrink-0 cursor-pointer items-baseline gap-1.5 " +
       "rounded-sm px-1.5 py-0.5";
 
     // The hint answers the one real weakness of an affordance that exists only

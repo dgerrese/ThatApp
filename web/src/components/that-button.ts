@@ -2,7 +2,7 @@ const VARIANTS: Record<string, string> = {
   primary: "bg-primary text-primary-ink hover:opacity-90",
   // A ghost, not an outlined box: the design keeps quiet actions quiet and
   // spends its one loud colour on Push.
-  secondary: "text-ink-muted hover:bg-surface hover:text-ink",
+  secondary: "text-ink-muted hover:bg-hover hover:text-ink",
   danger: "bg-failed text-state-ink hover:opacity-90",
 };
 

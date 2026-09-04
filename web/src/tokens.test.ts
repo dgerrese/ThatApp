@@ -130,6 +130,14 @@ test("the root declares dark before light", () => {
   assert.match(css, /color-scheme:\s*dark light/);
 });
 
+test("the hover wash is one formula in both themes", () => {
+  const hover = token("color-hover");
+  assert.equal(hover.light, hover.dark, "one formula, both themes — a pair can drift apart");
+  assert.match(hover.dark, /color-mix\(in oklab, var\(--color-ink\) 11%, transparent\)/);
+  const rail = token("color-hover-rail");
+  assert.match(rail.dark, /color-mix\(in oklab, var\(--color-rail-ink\) 13%, transparent\)/);
+});
+
 test("both faces are declared, self-hosted, and preloaded", () => {
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   assert.match(css, /font-family:\s*"Chivo";/);

@@ -44,3 +44,17 @@ test("the retired ramp step has no callers left", () => {
     .map(({ path }) => path);
   assert.deepEqual(offenders, [], `--text-md was retired onto --text-base:\n${offenders.join("\n")}`);
 });
+
+test("a hover paints the wash, not a ground", () => {
+  const offenders: string[] = [];
+  for (const { path, text } of sources()) {
+    for (const match of text.matchAll(/hover:bg-(surface|raised)\b/g)) {
+      offenders.push(`${path}: ${match[0]}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `hover uses --color-hover, not a ground token:\n${offenders.join("\n")}`,
+  );
+});

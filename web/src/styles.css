@@ -59,6 +59,13 @@
   --color-ink-faint: light-dark(oklch(0.62 0.008 60), oklch(0.56 0.012 50));
   --color-edge: light-dark(oklch(0.905 0.007 65), oklch(0.3 0.012 40));
 
+  /* The wash a surface takes under the pointer. One formula in both themes:
+     it derives from ink, so it follows the theme without needing a pair, and a
+     pair is what would let the two drift apart. 11% was judged on both grounds
+     on 2026-09-04 against 8% and 6%, and won unchanged. */
+  --color-hover: color-mix(in oklab, var(--color-ink) 11%, transparent);
+  --color-hover-rail: color-mix(in oklab, var(--color-rail-ink) 13%, transparent);
+
   /* The rail is the instrument, and it is now the only region that does not
      change with the theme: one set of tones, written as plain values so that
      fact is visible rather than inferred from comparing two halves of a pair.

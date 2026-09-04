@@ -127,7 +127,7 @@ export class ThatEntryDialog extends HTMLElement {
     close.type = "button";
     close.setAttribute("aria-label", "Close");
     close.className =
-      "text-ink-muted hover:bg-surface hover:text-ink flex h-7 w-7 cursor-pointer " +
+      "text-ink-muted hover:bg-hover hover:text-ink flex h-7 w-7 cursor-pointer " +
       "items-center justify-center rounded-full text-base";
     close.textContent = "×";
     close.addEventListener("click", () => {
@@ -460,7 +460,7 @@ function rowAction(label: string, description: string, act: () => void): HTMLEle
   button.textContent = label;
   button.setAttribute("aria-label", description);
   button.className =
-    "text-ink-muted hover:bg-surface hover:text-ink cursor-pointer rounded-sm px-2 py-1 text-sm";
+    "text-ink-muted hover:bg-hover hover:text-ink cursor-pointer rounded-sm px-2 py-1 text-sm";
   button.addEventListener("click", act);
 
   return button;
