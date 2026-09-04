@@ -212,3 +212,26 @@ a.that-key:hover {
 .that-tnum {
   font-variant-numeric: tabular-nums;
 }
+
+/* No cell carries horizontal padding of its own, so a header cell and the cell
+   beneath it cannot disagree about where its column starts. Every instance
+   card carries the header row for the same reason: one headed and one not,
+   and no two cards line up. */
+.that-tbl th + th,
+.that-tbl td + td {
+  padding-left: 20px;
+}
+
+/* The key, the summary and the status sit on one baseline whatever their size.
+   The action cell is the exception: a control centres in the row instead, and
+   its 5px block padding is chosen so the row height does not move. */
+.that-tbl th,
+.that-tbl td {
+  padding: 11px 0;
+  text-align: left;
+  vertical-align: baseline;
+}
+.that-tbl td.c-act {
+  padding-block: 5px;
+  vertical-align: middle;
+}

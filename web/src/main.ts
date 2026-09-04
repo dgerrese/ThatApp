@@ -13,6 +13,11 @@ startRail();
 // which is what the rest of this shell's code-splitting already assumes.
 void import("./components/that-tooltip");
 
+// Same reasoning: that-table has no view consumer yet either — Task 4 of #95
+// is its first — so it is registered here rather than left undefined until
+// then.
+void import("./components/that-table");
+
 const root = document.querySelector<HTMLElement>("#view");
 if (root) {
   startRouter(root);
