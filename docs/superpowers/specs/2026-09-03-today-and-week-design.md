@@ -14,6 +14,11 @@ search opens on focus, and every duration opens the entries dialog. It went thro
 with the owner on 2026-09-03. **Where this document and the prototype disagree, that is a bug in this
 document** — the same relationship the first edition had with its canvas.
 
+**It carries both themes as of 2026-09-04**, switched by the control above the frame. Dark is
+unchanged. Light was added when the second edition was first judged on paper-white, and it brings the
+elevation rule from decision 11 of the language with it. Two defects surfaced in that pass and are
+fixed there — see the traps below.
+
 Settings is **not** in this ticket. It is being redesigned under #89.
 
 ## Layout
@@ -100,7 +105,8 @@ with the ticket's total and the close control pinned right by their own auto mar
 header.
 
 **Rows.** Duration, comment or a muted *No comment*, a **push-state icon carrying a popover**, then
-edit and delete as icon buttons. The start time is gone. Delete goes red on hover.
+edit and delete as icon buttons. *Muted*, not faint: `--color-ink-faint` is a mark colour and fails the
+text floor in both themes. The prototype used faint here until 2026-09-04. The start time is gone. Delete goes red on hover.
 
 **Editing.** The row being edited takes an **active state** — a wash with a magenta bar down its left
 edge — and the submit becomes *Save* with an icon Cancel beside it. This replaces both the mode line
@@ -125,7 +131,7 @@ which says the same thing where it matters.
 - Every one of the five screen states and the stale banner still render.
 - `make verify` and `make test-e2e` are green.
 
-## Three traps this design walked into, recorded so the build does not
+## Four traps this design walked into, recorded so the build does not
 
 Each cost a round trip during the prototype, and each looked like a layout mistake:
 
@@ -138,8 +144,21 @@ Each cost a round trip during the prototype, and each looked like a layout mista
    did not restate, so `align-items` and `display` survived from a version nobody was reading. The
    symptom was elements refusing to right-align; the cause was a file arguing with itself.
 
+4. **A missing colour that only one theme could hide.** Both dialogs are siblings of the viewport
+   rather than children of it, and the viewport was the only thing declaring an ink colour — so the
+   dialogs inherited the host page's text colour instead of the app's. On the dark ground that
+   inherited colour was light, the sheet was dark, and it looked exactly right. On white the same text
+   nearly vanished. **A rule that is correct in one theme and wrong in the other is invisible until
+   somebody switches**, which is the argument for judging both themes on the same day rather than
+   treating light as a later pass. The fix is an ink colour on the app frame; the rail already sets
+   its own.
+
 Related: `[hidden]` is a user-agent rule, so any author `display:` beats it. A component that sets
 `display` needs `[hidden]` restated, or things marked hidden will show.
+
+Also related, and the reason trap 4 matters for the build rather than only for the mock: the real
+dialog is a native `<dialog>` in the **top layer**, which does not inherit from the view that opened
+it either. It must name its own ink for the same reason this one did.
 
 ## Out of scope
 
