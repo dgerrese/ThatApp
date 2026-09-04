@@ -2,21 +2,27 @@
 @source "../index.html";
 @source "./**/*.ts";
 
-/* Served from our own origin, never a font CDN: #12 makes this an offline PWA.
-   One file covers every weight the design uses — Space Grotesk is a variable
-   face and Google serves the same .woff2 for 400, 500 and 700. */
+/* Served from our own origin, never a font CDN: #12 makes this an offline PWA
+   and a font on someone else's host would not survive it. Both faces are
+   variable across the weights the design uses, so this is one file per family
+   rather than one per weight. */
 @font-face {
-  font-family: "Space Grotesk";
+  font-family: "Chivo";
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url("/fonts/space-grotesk-latin.woff2") format("woff2");
+  src: url("/fonts/chivo-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Chivo Mono";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/chivo-mono-latin.woff2") format("woff2");
 }
 
 /* Every value below is transcribed from the approved design, not chosen here.
-   The source is docs/superpowers/canvas/2026-08-20-visual-directions/Hybrid.dc.html
-   and the rules that govern it are in
-   docs/superpowers/specs/2026-08-20-visual-design-language.md. */
+   The source is docs/superpowers/specs/2026-09-03-visual-language-design.md. */
 @theme {
   --font-sans: "Chivo", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Chivo Mono", ui-monospace, monospace;
@@ -170,6 +176,7 @@ a.that-nav:hover {
 .that-key {
   flex: none;
   min-width: var(--that-key-col, 76px);
+  font-family: var(--font-mono);
   font-size: var(--text-sm);
   font-weight: 700;
   letter-spacing: 0.03em;

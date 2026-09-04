@@ -129,3 +129,15 @@ test("the retired ramp step is gone and the ramp starts at 12px", () => {
 test("the root declares dark before light", () => {
   assert.match(css, /color-scheme:\s*dark light/);
 });
+
+test("both faces are declared, self-hosted, and preloaded", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  assert.match(css, /font-family:\s*"Chivo";/);
+  assert.match(css, /font-family:\s*"Chivo Mono";/);
+  assert.ok(!/Space Grotesk/.test(css), "Space Grotesk is retired");
+  assert.ok(!/fonts\.googleapis|fonts\.gstatic/.test(css), "no font CDN: the app is offline-capable");
+  for (const file of ["chivo-latin.woff2", "chivo-mono-latin.woff2"]) {
+    assert.ok(html.includes(`/fonts/${file}`), `${file} is preloaded in index.html`);
+  }
+  assert.ok(!/space-grotesk/.test(html), "the retired preload is gone");
+});
