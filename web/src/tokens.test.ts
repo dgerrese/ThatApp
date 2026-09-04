@@ -140,6 +140,21 @@ test("light defines a surface by its edge, dark by depth", () => {
   assert.match(css, /--shadow-card:[^;]*inset 0 0 0 1px var\(--color-edge-ring\)/s);
 });
 
+test("the ring belongs to the card alone — a bordered surface takes no ring of its own", () => {
+  // The popover and the dialog both carry a real border already, which is the
+  // same hairline by another mechanism; a ring on top of it would double the
+  // line in light, where the ring and the border resolve to the same colour.
+  for (const name of ["shadow-popover", "shadow-dialog"]) {
+    const declaration = css.match(new RegExp(`--${name}:([^;]+);`, "s"));
+    assert.ok(declaration, `--${name} is declared`);
+    assert.doesNotMatch(
+      declaration[1]!,
+      /inset 0 0 0 1px var\(--color-edge-ring\)/,
+      `--${name} carries the card's ring, doubling its bordered surface's hairline in light`,
+    );
+  }
+});
+
 test("the hover wash is one formula in both themes", () => {
   const hover = token("color-hover");
   assert.equal(hover.light, hover.dark, "one formula, both themes — a pair can drift apart");

@@ -38,6 +38,28 @@ test("no component carries a radius literal", () => {
   );
 });
 
+test("no component steps off the five-step ruler by name", () => {
+  // @theme extends Tailwind's default theme rather than replacing it, so
+  // rounded-2xl, -3xl and -4xl still resolve — to values this language never
+  // approved. That is a name away from the arbitrary-value literal the test
+  // above already forbids, and it is not caught by it.
+  const ALLOWED = new Set(["xs", "sm", "md", "lg", "xl", "full", "none"]);
+  const SIDE = "tl|tr|br|bl|ss|se|ee|es|t|r|b|l|s|e";
+  const namedSize = new RegExp(`\\brounded(?:-(?:${SIDE}))?-([a-zA-Z0-9]+)`, "g");
+
+  const offenders: string[] = [];
+  for (const { path, text } of sources()) {
+    for (const match of text.matchAll(namedSize)) {
+      if (!ALLOWED.has(match[1]!)) offenders.push(`${path}: ${match[0]}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `every radius names a step on the ruler — xs, sm, md, lg, xl, full, none:\n${offenders.join("\n")}`,
+  );
+});
+
 test("the retired ramp step has no callers left", () => {
   const offenders = sources()
     .filter(({ text }) => /\btext-md\b/.test(text))

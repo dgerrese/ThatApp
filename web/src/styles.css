@@ -114,9 +114,11 @@
     0 1px 2px light-dark(oklch(0 0 0 / 0.04), oklch(0 0 0 / 0.35)),
     0 10px 26px -14px light-dark(oklch(0 0 0 / 0), oklch(0 0 0 / 0.6));
 
-  --shadow-popover:
-    inset 0 0 0 1px var(--color-edge-ring),
-    0 6px 16px -8px light-dark(oklch(0 0 0 / 0.12), oklch(0 0 0 / 0.7));
+  /* The popover, like the dialog below, already carries a real border — the
+     combobox's — which is the same hairline by another mechanism, so it takes
+     no ring of its own. A ring here would double it in light, where the ring
+     and the border resolve to the same colour. */
+  --shadow-popover: 0 6px 16px -8px light-dark(oklch(0 0 0 / 0.12), oklch(0 0 0 / 0.7));
 
   /* The dialog carries a real border already, which is the same hairline by
      another mechanism, so it takes no ring of its own. */

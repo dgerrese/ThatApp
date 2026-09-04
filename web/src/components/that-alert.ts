@@ -36,7 +36,7 @@ export class ThatAlert extends HTMLElement {
     this.className = "text-base text-ink flex items-start gap-3";
 
     const mark = document.createElement("span");
-    mark.className = `shrink-0 text-sm leading-6 font-bold ${tone.colour}`;
+    mark.className = `shrink-0 leading-6 ${tone.colour}`;
     mark.innerHTML = iconMarkup(tone.icon);
     // The mark is decorative on its own account (icons.ts sets aria-hidden);
     // the word it stands for is not, so the wrapper carries it instead.

@@ -21,7 +21,7 @@ const copyShell = () => {
   return ["dist/index.html"];
 };
 
-// Space Grotesk is served from our own origin: #12 makes this an offline PWA
+// Chivo is served from our own origin: #12 makes this an offline PWA
 // and a font on someone else's host would not survive it. esbuild and Tailwind
 // only emit what they are given, so the files are copied rather than bundled;
 // //go:embed all:dist then carries them into the binary with no change there.

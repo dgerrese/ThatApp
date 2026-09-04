@@ -113,7 +113,7 @@ export class ThatEntryDialog extends HTMLElement {
     // total and an entry's duration can read the same figure — which leaves
     // nothing else to tell them apart.
     total.id = "that-entry-dialog-total";
-    total.className = "that-tnum text-[22px] leading-none font-bold tracking-[-0.02em]";
+    total.className = "that-tnum font-mono text-[22px] leading-none font-bold tracking-[-0.02em]";
     total.textContent = totalFigure(0);
     this.total = total;
 
@@ -286,7 +286,7 @@ export class ThatEntryDialog extends HTMLElement {
     started.textContent = clockTime(entry.startedAt);
 
     const duration = document.createElement("span");
-    duration.className = "that-tnum w-16 shrink-0 font-bold";
+    duration.className = "that-tnum font-mono w-16 shrink-0 font-bold";
     duration.textContent = totalFigure(entry.seconds);
 
     const comment = document.createElement("span");
