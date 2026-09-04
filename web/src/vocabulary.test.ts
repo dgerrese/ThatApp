@@ -63,12 +63,15 @@ test("no typed character stands in for a drawn mark", () => {
   const offenders: string[] = [];
   for (const { path, text } of sources()) {
     // Punctuation is deliberately absent from this list: an em dash meaning "no
-    // value" and a middot between two facts are typography, not icons. Backtick
-    // is not a delimiter here: every mark this codebase has ever assigned to
-    // textContent sat in a plain "..." string, and a backtick in this file is
-    // markdown code-formatting in a comment — pairing it with an apostrophe or
-    // another backtick many lines away would flag prose that never rendered.
-    for (const match of text.matchAll(/["'][^"'\n]*[●▲×−✓✗←→][^"'\n]*["']/g)) {
+    // value" and a middot between two facts are typography, not icons. The
+    // opening delimiter is captured and matched again on the way out, so a
+    // stray apostrophe or an unrelated backtick many lines later can never
+    // close a match that a different delimiter opened — only newlines are
+    // excluded, which is what stops one string or comment reaching into
+    // another's. Backtick stays in the set: icons.ts itself builds markup with
+    // backtick template literals, and a typed glyph landing in one must still
+    // be caught.
+    for (const match of text.matchAll(/(["'`])[^\n]*?[●▲×−✓✗←→][^\n]*?\1/g)) {
       offenders.push(`${path}: ${match[0]}`);
     }
   }
