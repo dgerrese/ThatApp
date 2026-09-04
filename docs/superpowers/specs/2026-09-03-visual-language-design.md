@@ -276,10 +276,12 @@ done by matching the region's own padding, never by pulling the control out with
 glyph moves and the wash follows it into the gutter. The rail's cog was corrected this way on
 2026-09-04.
 
-**One exception stands, and it is deliberate.** A table row's trailing icon button still carries a
-negative margin, so its hover box reaches into the card's padding and its glyph sits out at the card's
-edge. The owner looked at it on 2026-09-04 and kept it. It is recorded as an exception rather than a
-pattern, so the next control at an edge follows the rule above.
+**Inside a card the opposite rule already applies, and it wins there.** The Today and Week design
+states it positively: *a control's ink meets the card edge, not its hit area*, which is exactly what
+the negative margin on a row's trailing icon button buys. So the two rules are not in conflict, they
+are scoped — **a control aligns its ink to a card's text column, and its wash to a region's gutter.**
+The rail's cog had no card to align to, only a gutter to escape, which is why it was the one that
+moved. The owner confirmed the table's overhang on 2026-09-04 rather than have it changed to match.
 
 **The same wash is the selected row in the entries dialog**, where it marks a standing state rather than
 a passing one. That is deliberate, and it is not colour alone — the selected row also carries a primary
