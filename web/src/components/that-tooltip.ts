@@ -15,7 +15,16 @@
 export class ThatTooltip extends HTMLElement {
   private trigger: HTMLElement | null = null;
   private readonly onShow = (): void => this.reveal();
-  private readonly onHide = (): void => this.hidePopover();
+  // Both halves of a pair can fire for one release, when a trigger is hovered
+  // and focused at once, so each call can find the popover already in the
+  // state it wants. Neither showPopover() nor hidePopover() throws in that
+  // case in either target browser — measured on 2026-09-04, against the same
+  // Chromium and Firefox the suite runs — so these two guards are cheap
+  // insurance against a future engine that follows the specification more
+  // literally, not a fix for anything observed.
+  private readonly onHide = (): void => {
+    if (this.matches(":popover-open")) this.hidePopover();
+  };
 
   connectedCallback(): void {
     this.setAttribute("popover", "manual");
@@ -47,9 +56,8 @@ export class ThatTooltip extends HTMLElement {
     const trigger = this.trigger;
     if (!trigger) return;
 
-    // showPopover() throws on a popover that is already open — reachable
-    // when a trigger is both hovered and focused, such as a mouse resting on
-    // it after a Tab landed there first.
+    // See onHide: neither call throws on a redundant transition in either
+    // target browser, and this guard is the same insurance.
     if (!this.matches(":popover-open")) this.showPopover();
 
     const box = trigger.getBoundingClientRect();

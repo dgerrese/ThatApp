@@ -63,6 +63,40 @@ test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) 
   await expect(tooltip).toBeHidden();
 });
 
+// A trigger can be hovered and focused at once, so each release event can
+// find the popover already in the state it is asking for. Neither call throws
+// on that in either target browser — measured 2026-09-04 — so these two do
+// not prove the guards in the component; removing those guards leaves both
+// green. They cover the interaction itself: whichever way round the release
+// happens, the tooltip ends hidden and the page raises nothing.
+test("hover then focus, released pointer-first, ends hidden and quiet", async ({ page }) => {
+  await mountTrigger(page);
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+
+  await page.locator("#trigger").hover();
+  await page.locator("#trigger").focus();
+  await page.mouse.move(0, 0);
+  await page.locator("#trigger").blur();
+
+  await expect(page.locator("that-tooltip")).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test("hover then focus, released focus-first, ends hidden and quiet", async ({ page }) => {
+  await mountTrigger(page);
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+
+  await page.locator("#trigger").hover();
+  await page.locator("#trigger").focus();
+  await page.locator("#trigger").blur();
+  await page.mouse.move(0, 0);
+
+  await expect(page.locator("that-tooltip")).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
 test("the trigger's accessible name is unchanged by the tooltip's presence", async ({ page }) => {
   await mountTrigger(page);
   const trigger = page.locator("#trigger");
@@ -84,7 +118,21 @@ test("the trigger's accessible name is unchanged by the tooltip's presence", asy
 // which establishes a new containing block — the realistic trap, since a
 // plain position: fixed element (no top layer) is clipped by that too, not
 // just by overflow: hidden alone.
+//
+// Bounding-box geometry never changes under an ancestor's overflow: hidden —
+// that property clips paint, not layout — so a box-containment check alone
+// cannot tell a genuinely escaping popover from a plain absolutely
+// positioned div that merely computes the same coordinates. The assertions
+// below hit-test with document.elementFromPoint instead, which reports what
+// is actually painted at a pixel, and the "naive control" element proves the
+// hit-test discriminates: it is built with reveal()'s exact maths but never
+// promoted to the top layer, planted in the same clipped ancestor, and it is
+// asserted NOT to be found there — if it were found, the positive assertion
+// on the real tooltip would prove nothing.
 test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({ page }) => {
+  // Prepended, not appended: document.elementFromPoint only sees what is in
+  // the viewport, and appending after the rest of the shell's content would
+  // place this region below the fold.
   await page.evaluate(() => {
     const region = document.createElement("div");
     region.id = "clip-region";
@@ -108,7 +156,7 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
     tooltip.textContent = "Pin this issue";
 
     region.append(spacer, trigger, tooltip);
-    document.body.append(region);
+    document.body.prepend(region);
   });
 
   await page.locator("#clipped-trigger").focus();
@@ -121,9 +169,51 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
   expect(tooltipBox).not.toBeNull();
   expect(regionBox).not.toBeNull();
 
-  // Not contained: the tooltip's box starts below the region's own bottom
-  // edge, which a clipped rendering could never show as visible.
+  // Necessary but not sufficient on its own (see the comment above the
+  // test): the tooltip's box starts below the region's own bottom edge.
   expect(tooltipBox!.y).toBeGreaterThanOrEqual(regionBox!.y + regionBox!.height);
+
+  // What actually proves escape: the pixel at the tooltip's own centre is
+  // painted by the tooltip itself.
+  const paintedByTooltip = await page.evaluate(({ x, y, width, height }) => {
+    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+    return hit?.tagName.toLowerCase() === "that-tooltip";
+  }, tooltipBox!);
+  expect(paintedByTooltip).toBe(true);
+
+  // Free the point for the control below: the real tooltip, being in the top
+  // layer, would otherwise paint over it regardless of what the control does.
+  await page.locator("#clipped-trigger").blur();
+  await expect(tooltip).toBeHidden();
+
+  const control = await page.evaluate((box) => {
+    const region = document.getElementById("clip-region");
+    if (!region) throw new Error("clip-region missing");
+
+    const naive = document.createElement("div");
+    naive.id = "naive-control";
+    naive.textContent = "Pin this issue";
+    // The exact box the real tooltip just occupied, so this is "positioned
+    // off the trigger's rect the same way" — the only difference from the
+    // real tooltip is that this element is never promoted to the top layer.
+    naive.style.cssText =
+      `position: fixed; top: ${box.y}px; left: ${box.x}px; ` +
+      `width: ${box.width}px; height: ${box.height}px;`;
+    region.append(naive);
+
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
+  }, tooltipBox!);
+
+  const paintedByControl = await page.evaluate(({ x, y, width, height }) => {
+    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+    return hit?.id === "naive-control";
+  }, control);
+
+  // The discriminating half: a plain element positioned identically, inside
+  // the same clipped-and-transformed ancestor, is NOT what paints at that
+  // pixel. If this were true, the positive assertion above would be
+  // meaningless — anything landing on that spot would pass it.
+  expect(paintedByControl).toBe(false);
 });
 
 test('anchor="end" puts the tooltip\'s right edge within a pixel of the trigger\'s', async ({
