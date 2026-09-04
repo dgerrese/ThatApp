@@ -36,18 +36,21 @@ none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as P
 #6 and #44 on 2026-08-21, #7 as PR #65 on 2026-08-27, #12 as PR #68 on 2026-08-28, #73 as PR #75 and
 #9 as PR #76.
 **#11 merged as PR #90 on 2026-09-02**, closing it, and the handoff pull request **#93** merged
-after it.
+after it. The 2026-09-03 handoff merged as **PR #96** at 11:22 on 2026-09-04.
 
-**In progress, two, both on unpushed local branches:** **#94** (the visual language, second edition)
-on `issue-94-visual-language`, and **#95** (applying it to Today and Week) on
-`issue-95-today-and-week`. Both carry committed specs and neither has a pull request yet.
+**In progress, two, both pushed on 2026-09-03 and carrying more since:** **#94** (the visual
+language, second edition) on `issue-94-visual-language`, and **#95** (applying it to Today and Week)
+on `issue-95-today-and-week`. Both carry committed specs and **neither has a pull request yet**,
+because a ticket reaches review when it is done. On 2026-09-04 #94 gained the interaction tokens, the
+elevation rule and the hover-gutter rule; #95 gained a prototype that carries both themes, and the two
+defects light exposed.
 **#61 was closed on 2026-09-03** on the owner's instruction, `wontfix`, folded into #95 rather than
 rejected. **#89 was widened** the same day from "move Settings out of the nav" into the full Settings
 redesign, and holds its settled design.
 Before it, #51 merged as **PR #86** and #87 as
 **PR #88** on 2026-09-02, along with `retro-skill` as **PR #85**. #88 merged into #86's branch
 rather than into `main`, because #86 could not go green on its own — see *Decisions taken*. Remote
-`main` is at **`c7ee06a`**, the merge of PR #93; the merge style is rebase-merge, so every one of
+`main` is at **`415f139`**, the merge of PR #96 on the morning of 2026-09-04; the merge style is rebase-merge, so every one of
 those commits has a new SHA on `main`.
 Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
@@ -550,6 +553,31 @@ about two hours before that edit**, and Forgejo keeps content history for edited
 - **The 2026-08-21 decision on the Log hint is reversed**: tables reserve its width. The reveal
   behaviour survives as a modifier for narrow panels.
 
+### The 2026-09-04 light-mode pass — settled, do not reopen
+
+The second edition was authored, measured and judged on dark. This was the first time it was put on
+paper-white, and it changed three things in the language and none in the palette.
+
+- **The hover wash stays at 11% of ink, one formula in both themes.** Judged on white against 8% and
+  6% beside the dark reference. The arithmetic had already said it was even — `0.081` lift on dark
+  against `0.088` darkening on light — and the eye agreed. A per-theme pair was available and refused,
+  because one formula cannot drift apart.
+- **Depth is dark's cue and an edge is light's.** Light cards, popovers and dialogs carry a hairline
+  in the edge tone plus a trace of shadow that ranks them; dark keeps the shadows it was built with.
+  A hairline alone lost because the search panel must read as *above* the content it covers.
+- **A hover box stays inside the padding of the region that holds it**, and alignment at an edge is
+  done by matching that padding rather than by a negative margin. The rail's cog was corrected.
+  **One exception is deliberate:** a table row's trailing icon button still overhangs its card, kept
+  by the owner on 2026-09-04.
+- **The prototype now carries both themes**, switched by a control above the frame. It remains the
+  design source for #95 and the authority where it and the spec disagree.
+- **Judge both themes on the same day.** The pass turned up a defect that dark could not show: the
+  dialogs never set an ink colour and inherited the host page's, which on a dark sheet looks exactly
+  right. A rule that is correct in one theme is invisible until somebody switches.
+
+**Open, and deliberately not settled:** the scrim behind an open dialog is still half-opaque black in
+both themes. Darkening a white page by that much is a question about modality, not about depth.
+
 ## Decisions taken — do not reopen
 
 **A branch cut from another branch merges back into it, not into `main`.** Settled on 2026-09-02 by
@@ -937,6 +965,16 @@ found something every time**. This is worth keeping as practice, not just as a n
 
 ## Facts worth not rediscovering
 
+- **`tea issues list --output json` prints only the first label per issue.** A board audit run through
+  it reports most tickets as carrying no `status/*` label at all, which is alarming and wrong. Use the
+  API — `tea api "repos/{owner}/{repo}/issues?state=open&limit=50"` — whose `labels` array is complete.
+  Found on 2026-09-04, on a board that was in fact clean.
+- **There is no way to screenshot a page from a session on this machine.** Playwright's MCP browser
+  looks for Chrome at `/opt/google/chrome/chrome` and finds nothing, and the Claude-in-Chrome
+  extension reports itself not connected. Visual work is judged by the owner or not at all, which is
+  the practical argument for the browser companion carrying every option side by side rather than one
+  at a time.
+
 All verified empirically rather than recalled.
 
 **Store.**
@@ -1237,9 +1275,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Left over from the forge move, 2026-09-01:**
 
-- **Local `main` lags the forge and only the owner may move it.** As of 2026-09-03 it is at
-  `41b60b1` while remote `main` is at `c7ee06a`, six merges ahead — PRs #82, #85, #86, #90, #92
-  and #93. It is no longer the
+- **Local `main` lags the forge and only the owner may move it.** As of 2026-09-04 it is at
+  `41b60b1` while remote `main` is at `415f139`, seven merges ahead — PRs #82, #85, #86, #90, #92,
+  #93 and #96. It is no longer the
   pre-rename tip, so branching from it no longer produces the old names and the old module path;
   it is simply behind. **Verify the gap against the API before repeating a number here**, because a
   blocked fetch leaves the local `codeberg/*` refs frozen and makes local `git` quietly wrong.
@@ -1338,12 +1376,11 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   design. Its three open questions are the owner's to answer in a brainstorming round.
 - **Spec §"Decisions deferred"** — unchanged; nothing there blocks the ready tickets.
 
-**This branch:** `handoff-2026-09-03`, cut from `c7ee06a` on 2026-09-03, `main`'s tip once PR #93
-had merged. It carries the day's narrative and goes out as one pull request at the end-of-day
-signal. **Two product branches went up beside it** — `issue-94-visual-language` and
-`issue-95-today-and-week` — each with its spec committed and **no pull request yet**, because a
-ticket reaches review when it is done, not when a day ends. `worktrees-without-the-tax` went up too:
-its only copy was on this machine, since the GitHub branch that held it never migrated.
+**This branch:** `handoff-2026-09-04`, cut from `415f139` on 2026-09-04, `main`'s tip once PR #96
+had merged. It carries the day's narrative and goes out as one pull request at the end-of-day signal.
+**The two product branches beside it still have no pull request** — `issue-94-visual-language` and
+`issue-95-today-and-week` — because a ticket reaches review when it is done, not when a day ends.
+`worktrees-without-the-tax` is still pushed with no pull request behind it.
 
 ## Environment notes
 
