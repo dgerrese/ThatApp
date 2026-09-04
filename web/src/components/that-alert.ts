@@ -1,3 +1,5 @@
+import { iconMarkup } from "../icons";
+
 /**
  * A status message. The approved design does not put these in a tinted box: the
  * tone colours a mark, the words stay in ordinary ink, and the mark is what
@@ -8,9 +10,9 @@
  * user just did, so they should not interrupt a screen reader mid-sentence.
  */
 const TONES: Record<string, { colour: string; mark: string; label: string }> = {
-  success: { colour: "text-running", mark: "●", label: "Done" },
-  warning: { colour: "text-pending", mark: "▲", label: "Warning" },
-  error: { colour: "text-failed", mark: "▲", label: "Failed" },
+  success: { colour: "text-running", mark: iconMarkup("success"), label: "Done" },
+  warning: { colour: "text-pending", mark: iconMarkup("warning"), label: "Warning" },
+  error: { colour: "text-failed", mark: iconMarkup("failed"), label: "Failed" },
 };
 
 export class ThatAlert extends HTMLElement {
@@ -35,9 +37,9 @@ export class ThatAlert extends HTMLElement {
 
     const mark = document.createElement("span");
     mark.className = `shrink-0 text-sm leading-6 font-bold ${tone.colour}`;
-    mark.textContent = tone.mark;
-    // The glyph is decorative; the word it stands for is not, and a screen
-    // reader would otherwise announce "black up-pointing triangle".
+    mark.innerHTML = tone.mark;
+    // The mark is decorative on its own account (icons.ts sets aria-hidden);
+    // the word it stands for is not, so the wrapper carries it instead.
     mark.setAttribute("role", "img");
     mark.setAttribute("aria-label", tone.label);
 

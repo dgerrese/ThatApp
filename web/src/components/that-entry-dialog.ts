@@ -7,6 +7,7 @@ import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "..
 import { confirmDestructive } from "./that-confirm";
 import { announceEntriesChanged } from "../entries-changed";
 import { totalFigure } from "../format";
+import { iconMarkup } from "../icons";
 import type { Entry } from "../types";
 import type { ThatDuration } from "./that-duration";
 
@@ -129,7 +130,7 @@ export class ThatEntryDialog extends HTMLElement {
     close.className =
       "text-ink-muted hover:bg-hover hover:text-ink flex h-7 w-7 cursor-pointer " +
       "items-center justify-center rounded-full text-base";
-    close.textContent = "×";
+    close.innerHTML = iconMarkup("close");
     close.addEventListener("click", () => {
       this.dialog?.close();
     });
@@ -185,7 +186,7 @@ export class ThatEntryDialog extends HTMLElement {
     cancel.type = "button";
     cancel.setAttribute("aria-label", "Stop editing");
     cancel.className = "text-ink-muted hover:text-ink cursor-pointer px-1 text-base leading-none";
-    cancel.textContent = "×";
+    cancel.innerHTML = iconMarkup("close");
     cancel.addEventListener("click", () => {
       this.stopEditing();
     });

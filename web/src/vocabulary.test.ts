@@ -58,3 +58,19 @@ test("a hover paints the wash, not a ground", () => {
     `hover uses --color-hover, not a ground token:\n${offenders.join("\n")}`,
   );
 });
+
+test("no typed character stands in for a drawn mark", () => {
+  const offenders: string[] = [];
+  for (const { path, text } of sources()) {
+    // Punctuation is deliberately absent from this list: an em dash meaning "no
+    // value" and a middot between two facts are typography, not icons. Backtick
+    // is not a delimiter here: every mark this codebase has ever assigned to
+    // textContent sat in a plain "..." string, and a backtick in this file is
+    // markdown code-formatting in a comment — pairing it with an apostrophe or
+    // another backtick many lines away would flag prose that never rendered.
+    for (const match of text.matchAll(/["'][^"'\n]*[●▲×−✓✗←→][^"'\n]*["']/g)) {
+      offenders.push(`${path}: ${match[0]}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `every mark is drawn:\n${offenders.join("\n")}`);
+});
