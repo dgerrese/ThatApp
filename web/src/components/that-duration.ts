@@ -1,5 +1,5 @@
 import { exactSecondsFromTyped, fieldFigure, secondsFromTyped, steppedSeconds } from "../duration";
-import { iconMarkup } from "../icons";
+import { iconMarkup, type IconName } from "../icons";
 
 /**
  * A duration you can step or type: minus, a field, plus, glued into one bordered
@@ -56,8 +56,8 @@ export class ThatDuration extends HTMLElement {
       "inline-flex items-stretch overflow-hidden rounded-sm border border-edge " +
       "focus-within:border-ink";
 
-    const minus = this.stepButton(iconMarkup("minus"), -1, "Fifteen minutes less");
-    const plus = this.stepButton(iconMarkup("plus"), 1, "Fifteen minutes more");
+    const minus = this.stepButton("minus", -1, "Fifteen minutes less");
+    const plus = this.stepButton("plus", 1, "Fifteen minutes more");
     // The seams. Border on the buttons rather than the input, so the group
     // keeps exactly two hairlines however the input is styled later.
     minus.classList.add("border-edge", "border-r");
@@ -91,10 +91,10 @@ export class ThatDuration extends HTMLElement {
     this.showCommitted();
   }
 
-  private stepButton(markup: string, direction: 1 | -1, label: string): HTMLButtonElement {
+  private stepButton(icon: IconName, direction: 1 | -1, label: string): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
-    button.innerHTML = markup;
+    button.innerHTML = iconMarkup(icon);
     button.setAttribute("aria-label", label);
     // tabindex="-1" keeps Tab going input to input through a form: the steps
     // these buttons take are already on ArrowUp and ArrowDown in the field.

@@ -1,4 +1,4 @@
-import { iconMarkup } from "../icons";
+import { iconMarkup, type IconName } from "../icons";
 
 /**
  * A status message. The approved design does not put these in a tinted box: the
@@ -9,10 +9,10 @@ import { iconMarkup } from "../icons";
  * role="status" rather than "alert": these report the outcome of something the
  * user just did, so they should not interrupt a screen reader mid-sentence.
  */
-const TONES: Record<string, { colour: string; mark: string; label: string }> = {
-  success: { colour: "text-running", mark: iconMarkup("success"), label: "Done" },
-  warning: { colour: "text-pending", mark: iconMarkup("warning"), label: "Warning" },
-  error: { colour: "text-failed", mark: iconMarkup("failed"), label: "Failed" },
+const TONES: Record<string, { colour: string; icon: IconName; label: string }> = {
+  success: { colour: "text-running", icon: "success", label: "Done" },
+  warning: { colour: "text-pending", icon: "warning", label: "Warning" },
+  error: { colour: "text-failed", icon: "failed", label: "Failed" },
 };
 
 export class ThatAlert extends HTMLElement {
@@ -37,7 +37,7 @@ export class ThatAlert extends HTMLElement {
 
     const mark = document.createElement("span");
     mark.className = `shrink-0 text-sm leading-6 font-bold ${tone.colour}`;
-    mark.innerHTML = tone.mark;
+    mark.innerHTML = iconMarkup(tone.icon);
     // The mark is decorative on its own account (icons.ts sets aria-hidden);
     // the word it stands for is not, so the wrapper carries it instead.
     mark.setAttribute("role", "img");

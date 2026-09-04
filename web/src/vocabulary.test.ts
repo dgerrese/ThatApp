@@ -77,3 +77,20 @@ test("no typed character stands in for a drawn mark", () => {
   }
   assert.deepEqual(offenders, [], `every mark is drawn:\n${offenders.join("\n")}`);
 });
+
+test("a control whose only content is a drawn mark carries its own label", () => {
+  const offenders: string[] = [];
+  for (const { path, text } of sources()) {
+    // A button that inserts icon markup and nothing else. The label has to come
+    // from aria-label, because the mark itself is aria-hidden by construction.
+    // The lookbehind excludes iconMarkup's own declaration in icons.ts, which
+    // matches the same text without being a call.
+    for (const match of text.matchAll(/(?<!function )iconMarkup\(/g)) {
+      const window = text.slice(Math.max(0, match.index - 600), match.index + 600);
+      if (!/aria-label|ariaLabel|setAttribute\("aria-label"/.test(window)) {
+        offenders.push(`${path}: an iconMarkup() call with no aria-label within 600 characters`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], `every icon-only control names itself:\n${offenders.join("\n")}`);
+});
