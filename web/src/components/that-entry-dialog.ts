@@ -66,7 +66,7 @@ export class ThatEntryDialog extends HTMLElement {
   private build(ticket: EntryTicket): HTMLDialogElement {
     const dialog = document.createElement("dialog");
     dialog.className =
-      "bg-raised text-ink shadow-card m-auto w-[560px] max-w-[calc(100vw-2rem)] rounded-2xl p-5";
+      "bg-raised text-ink shadow-card m-auto w-[560px] max-w-[calc(100vw-2rem)] rounded-md p-5";
     dialog.setAttribute("aria-labelledby", "that-entry-dialog-heading");
 
     dialog.append(this.header(ticket), this.entryList(), this.footForm());
@@ -208,7 +208,7 @@ export class ThatEntryDialog extends HTMLElement {
     comment.type = "text";
     comment.placeholder = "What did you work on?";
     comment.className =
-      "border-edge min-w-0 flex-1 rounded-md border px-3 py-1.5 text-sm " +
+      "border-edge min-w-0 flex-1 rounded-sm border px-3 py-1.5 text-sm " +
       "focus:border-ink focus:outline-none";
     comment.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
@@ -460,7 +460,7 @@ function rowAction(label: string, description: string, act: () => void): HTMLEle
   button.textContent = label;
   button.setAttribute("aria-label", description);
   button.className =
-    "text-ink-muted hover:bg-surface hover:text-ink cursor-pointer rounded-md px-2 py-1 text-sm";
+    "text-ink-muted hover:bg-surface hover:text-ink cursor-pointer rounded-sm px-2 py-1 text-sm";
   button.addEventListener("click", act);
 
   return button;

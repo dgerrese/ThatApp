@@ -212,7 +212,7 @@ function weekButton(control: { glyph?: string; label: string; path: string }): H
   const button = document.createElement("button");
   button.type = "button";
   button.className =
-    "inline-flex cursor-pointer items-center rounded-[9px] px-3 py-1.5 text-base font-bold " +
+    "inline-flex cursor-pointer items-center rounded-sm px-3 py-1.5 text-base font-bold " +
     "text-ink-muted hover:bg-surface hover:text-ink";
 
   if (control.glyph === undefined) {

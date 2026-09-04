@@ -380,7 +380,7 @@ function field(name: string, label: string, type: string, value: string): Field 
   input.type = type;
   input.value = value;
   input.className =
-    "w-full rounded-md border border-edge px-3 py-1.5 text-sm " +
+    "w-full rounded-sm border border-edge px-3 py-1.5 text-sm " +
     "focus:border-ink focus:outline-none";
 
   wrapper.append(caption, input);

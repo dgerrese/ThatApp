@@ -52,7 +52,7 @@ export class ThatDuration extends HTMLElement {
   private build(): void {
     const group = document.createElement("div");
     group.className =
-      "inline-flex items-stretch overflow-hidden rounded-md border border-edge " +
+      "inline-flex items-stretch overflow-hidden rounded-sm border border-edge " +
       "focus-within:border-ink";
 
     const minus = this.stepButton("−", -1, "Fifteen minutes less");
