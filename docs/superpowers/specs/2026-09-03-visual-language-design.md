@@ -269,6 +269,18 @@ rather than for the numbers.
 A per-theme pair was available and refused. One formula cannot drift apart; two values can, and nothing
 in the build would notice if they did.
 
+**A hover box stays inside the padding of the region that holds it.** Where a control sits at the edge
+of a padded region — the rail's cog against its 14px gutter, the Add button against the Settings
+dialog's — the box that lights up on hover may not cross that padding edge. Aligning such a control is
+done by matching the region's own padding, never by pulling the control out with a negative margin: the
+glyph moves and the wash follows it into the gutter. The rail's cog was corrected this way on
+2026-09-04.
+
+**One exception stands, and it is deliberate.** A table row's trailing icon button still carries a
+negative margin, so its hover box reaches into the card's padding and its glyph sits out at the card's
+edge. The owner looked at it on 2026-09-04 and kept it. It is recorded as an exception rather than a
+pattern, so the next control at an edge follows the rule above.
+
 **The same wash is the selected row in the entries dialog**, where it marks a standing state rather than
 a passing one. That is deliberate, and it is not colour alone — the selected row also carries a primary
 rule inset on its leading edge. Decision 9 governs the case where a washed control sits inside a washed
