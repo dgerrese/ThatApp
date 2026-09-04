@@ -1,9 +1,13 @@
 # The visual language, second edition
 
-**Date:** 2026-09-03
+**Date:** 2026-09-03, extended 2026-09-04
 **Supersedes:** [`2026-08-20-visual-design-language.md`](2026-08-20-visual-design-language.md), in the
 parts named below
 **Superseded by:** nothing
+
+**Added on 2026-09-04**, after the second edition was judged on the light ground for the first time:
+the interaction tokens under §*Tokens*, and decision 11 on elevation. Both close gaps this document
+had rather than reversing anything in it.
 
 The first edition settled a vocabulary and it held through tickets 5 to 11. This edition changes four
 things in it — the ground, the rail's reason for standing apart, the corner geometry and the type —
@@ -244,6 +248,32 @@ about the count and wrong about which set: dropping them would have made the lig
 against a 4.5:1 text floor. The wordmark is text. The variant is what keeps that pair legal, and it
 is recorded here so the same simplification is not attempted again.
 
+### Interaction
+
+| Token | Both themes |
+| --- | --- |
+| `--color-hover` | `color-mix(in oklab, var(--color-ink) 11%, transparent)` |
+| `--color-hover-rail` | `color-mix(in oklab, var(--color-rail-ink) 13%, transparent)` |
+
+**One formula in both themes, and that was tested rather than assumed.** The page wash derives from
+ink, so it follows the theme without needing a pair; the rail's derives from rail ink, which does not
+change at all.
+
+The mix was built on the dark ground and judged there. On 2026-09-04 it was put on paper-white beside
+the dark reference at three strengths — 11%, 8% and 6% — and **11% won unchanged**. The arithmetic had
+already said it should: the same mix lifts the dark card by `0.081` in OKLab lightness and darkens the
+light card by `0.088`, which is as close to even as one formula gets. The reason to look anyway is that
+dark-on-light reads heavier than light-on-dark at the same distance, and that is a question for the eye
+rather than for the numbers.
+
+A per-theme pair was available and refused. One formula cannot drift apart; two values can, and nothing
+in the build would notice if they did.
+
+**The same wash is the selected row in the entries dialog**, where it marks a standing state rather than
+a passing one. That is deliberate, and it is not colour alone — the selected row also carries a primary
+rule inset on its leading edge. Decision 9 governs the case where a washed control sits inside a washed
+row.
+
 ### Type
 
 | Token | Value |
@@ -404,6 +434,44 @@ scale are separate namespaces that happen to share names, and adding `--breakpoi
 change `max-w-3xl`. Writing `max-w-3xl` for the cap would silently produce a 768px page. The cap must
 be an explicit `max-w-[120rem]` or a container token whose name is not a breakpoint name. This is
 recorded because it reads correctly and behaves wrongly, which is the worst combination.
+
+## Decision 11 — depth is dark's cue, an edge is light's
+
+Neither edition of this language said anything about shadows, and the app has them. Every one in the
+prototype was chosen by hand at the moment it was needed, on a dark ground, in black at `0.4` to `0.75`
+alpha. Carried onto white unchanged they smear, which is what the owner saw on 2026-09-04.
+
+Three treatments were built on the light ground and compared:
+
+| Treatment | Why it lost |
+| --- | --- |
+| **A hairline plus a whisper** — the edge defines the surface, a trace of shadow ranks it | **Chosen.** |
+| The same shadows with their ink turned down to a twentieth | Depth alone at that strength is too faint to define a card and too vague to rank one surface above another |
+| A hairline and no shadow at all | The crispest, and the closest to the brief — but the search panel floats over content it has to read as *above*, and an edge alone does not say that |
+
+**Light needs one or the other.** A card on the light ground is `0.995` against a `0.972` page, a
+distance of 0.023, so with no edge and no shadow it simply disappears. Dark has no such problem: `0.228`
+against `0.178` is twice the separation, and its shadows carry the rest.
+
+So the rule is per theme, and it is the first thing in this language that is:
+
+| Surface | Light | Dark |
+| --- | --- | --- |
+| Card | `inset 0 0 0 1px var(--color-edge)`, `0 1px 2px rgba(0,0,0,.04)` | unchanged |
+| Popover, including the search panel | `inset 0 0 0 1px var(--color-edge)`, `0 6px 16px -8px rgba(0,0,0,.12)` | unchanged |
+| Dialog | its existing `1px` edge border, `0 12px 36px -12px rgba(0,0,0,.16)` | unchanged |
+| The selected pill in a segmented control | `inset 0 0 0 1px var(--color-edge)`, `0 1px 2px rgba(0,0,0,.05)` | unchanged |
+
+The hairline is an inset ring rather than a border, so adding it moves nothing. The dialog is the one
+exception: it already carries a real border, which is the same hairline by another mechanism.
+
+**Shadows are decorative and have no contrast floor**, which is exactly why this had to be settled by
+eye. The drop shadow around the prototype's own window frame is scaffolding for the mock and is not a
+surface in the app.
+
+**Still open — the scrim.** The half-opaque black behind an open dialog is unchanged in both themes.
+Darkening a white page by that much is a decision about modality rather than about depth, and it was not
+settled on 2026-09-04.
 
 ## What the first edition still governs
 
