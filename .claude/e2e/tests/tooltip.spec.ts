@@ -133,17 +133,23 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
   // Prepended, not appended: document.elementFromPoint only sees what is in
   // the viewport, and appending after the rest of the shell's content would
   // place this region below the fold.
+  //
+  // No spacer, and no explicit height on the region: it is left to size
+  // itself to the trigger, its only content, so the trigger sits flush
+  // against the region's own top edge and needs no scrolling to reach —
+  // by any interaction method — while the region's rendered box still ends
+  // exactly at the trigger's bottom, with nothing below it visible. An
+  // earlier version pushed the trigger down with a spacer instead, and both
+  // hover and focus scroll a programmatically-scrollable overflow: hidden
+  // ancestor to bring an off-screen target within reach, which moved this
+  // region's own scrollTop and put the naive control (below) at the wrong
+  // coordinates — a false pass for a reason that had nothing to do with
+  // clipping. Flush placement removes the scroll from the picture entirely.
   await page.evaluate(() => {
     const region = document.createElement("div");
     region.id = "clip-region";
     region.style.cssText =
-      "overflow: hidden; height: 40px; width: 200px; transform: translateZ(0); position: relative;";
-
-    // Pushes the trigger's real layout position well past the region's own
-    // 40px clipped height, so a tooltip positioned below it can only land
-    // outside the region's box.
-    const spacer = document.createElement("div");
-    spacer.style.height = "120px";
+      "overflow: hidden; width: 200px; transform: translateZ(0); position: relative;";
 
     const trigger = document.createElement("button");
     trigger.id = "clipped-trigger";
@@ -155,11 +161,21 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
     tooltip.setAttribute("for", "clipped-trigger");
     tooltip.textContent = "Pin this issue";
 
-    region.append(spacer, trigger, tooltip);
+    region.append(trigger, tooltip);
     document.body.prepend(region);
   });
 
-  await page.locator("#clipped-trigger").focus();
+  // Hover, not focus: a keyboard reveal of this same component is already
+  // covered above, and this test's own reveal mechanism does not matter to
+  // what it is proving — only that nothing about revealing it moves the
+  // region's scroll position, which the comment above the DOM setup depends
+  // on. Confirmed by direct check, in both target browsers, before trusting it.
+  await page.locator("#clipped-trigger").hover();
+
+  const scrollTop = await page.evaluate(
+    () => document.getElementById("clip-region")?.scrollTop,
+  );
+  expect(scrollTop).toBe(0);
 
   const tooltip = page.locator("that-tooltip");
   await expect(tooltip).toBeVisible();
@@ -183,7 +199,10 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
 
   // Free the point for the control below: the real tooltip, being in the top
   // layer, would otherwise paint over it regardless of what the control does.
-  await page.locator("#clipped-trigger").blur();
+  // (500, 500) rather than (0, 0): the region is prepended flush against the
+  // page's own top-left corner, so (0, 0) can still land on the trigger
+  // itself and never fire pointerleave at all.
+  await page.mouse.move(500, 500);
   await expect(tooltip).toBeHidden();
 
   const control = await page.evaluate((box) => {
@@ -201,13 +220,25 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
       `width: ${box.width}px; height: ${box.height}px;`;
     region.append(naive);
 
-    return { x: box.x, y: box.y, width: box.width, height: box.height };
+    const rendered = naive.getBoundingClientRect();
+    return {
+      intended: { x: box.x, y: box.y, width: box.width, height: box.height },
+      rendered: { x: rendered.x, y: rendered.y, width: rendered.width, height: rendered.height },
+    };
   }, tooltipBox!);
+
+  // The control is only a fair comparison if it actually landed where it
+  // was told to — this is what the spacer-based version got wrong, and
+  // logged here rather than only asserted so a future regression shows its
+  // numbers rather than a bare pass/fail.
+  console.log("naive control — intended vs rendered:", control);
+  expect(control.rendered.x).toBeCloseTo(control.intended.x, 0);
+  expect(control.rendered.y).toBeCloseTo(control.intended.y, 0);
 
   const paintedByControl = await page.evaluate(({ x, y, width, height }) => {
     const hit = document.elementFromPoint(x + width / 2, y + height / 2);
     return hit?.id === "naive-control";
-  }, control);
+  }, control.intended);
 
   // The discriminating half: a plain element positioned identically, inside
   // the same clipped-and-transformed ancestor, is NOT what paints at that
