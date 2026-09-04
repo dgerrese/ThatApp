@@ -18,15 +18,19 @@ const SORTABLE_COLUMNS: Array<{ cls: string; label: string }> = [
  * rule in styles.css, and it only works if every card has the row to
  * disagree from.
  *
- * This replaces `that-card`'s role in the listing views; `that-card` itself
- * stays for the other places that already use it, so this matches its
- * elevation and padding rather than inventing a second card.
+ * The card is all this is — no heading. The prototype (line 335) draws an
+ * instance's name, dot and count as `.grouph`, a sibling *before* `.tcard`,
+ * never inside it; a heading attribute here would have to take the dot's hue,
+ * the name and the count separately, which is attribute sprawl for values the
+ * view already holds. The view renders that heading itself, above the card.
+ * `that-card` stays for the other places that already use its own heading, so
+ * this matches its elevation and padding rather than inventing a second card.
  *
  * The table, thead and tbody are built in the constructor rather than
  * connectedCallback, because `body` has to exist the moment the element is
  * created — a caller fills it with rows before ever inserting the element
- * into the document, the same order that-card's own callers already use for
- * its heading attribute.
+ * into the document, and connectedCallback would not run until that
+ * insertion happens.
  *
  * Sorting is #83's: the controls below render `sortable` at rest and carry
  * no click handler.
@@ -34,15 +38,9 @@ const SORTABLE_COLUMNS: Array<{ cls: string; label: string }> = [
 export class ThatTable extends HTMLElement {
   readonly body: HTMLTableSectionElement;
   private readonly table: HTMLTableElement;
-  private readonly heading: HTMLHeadingElement;
 
   constructor() {
     super();
-
-    this.heading = document.createElement("h2");
-    this.heading.className =
-      "text-ink-muted mb-1 text-xs font-bold tracking-[0.16em] uppercase";
-    this.heading.hidden = true;
 
     this.table = document.createElement("table");
     this.table.className = "that-tbl w-full";
@@ -63,12 +61,7 @@ export class ThatTable extends HTMLElement {
 
   connectedCallback(): void {
     this.className = "bg-raised shadow-card block rounded-md px-5 py-4";
-
-    const heading = this.getAttribute("heading");
-    this.heading.textContent = heading ?? "";
-    this.heading.hidden = !heading;
-
-    this.replaceChildren(this.heading, this.table);
+    this.replaceChildren(this.table);
   }
 
   private sortHeaderCell(cls: string, label: string): HTMLTableCellElement {
