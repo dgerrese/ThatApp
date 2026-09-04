@@ -25,7 +25,7 @@ export class ThatConfirm extends HTMLElement {
 
     const body = document.createElement("p");
     body.id = "that-confirm-body";
-    body.className = "text-ink-muted mb-4 text-md";
+    body.className = "text-ink-muted mb-4 text-base";
     body.textContent = this.getAttribute("body") ?? "";
 
     const actions = document.createElement("div");

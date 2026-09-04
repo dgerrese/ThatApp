@@ -99,7 +99,7 @@ export class ThatDuration extends HTMLElement {
     // these buttons take are already on ArrowUp and ArrowDown in the field.
     button.tabIndex = -1;
     button.className =
-      "text-ink-muted hover:bg-surface hover:text-ink cursor-pointer px-2 text-md " +
+      "text-ink-muted hover:bg-surface hover:text-ink cursor-pointer px-2 text-base " +
       "disabled:cursor-not-allowed disabled:opacity-50";
     button.addEventListener("click", () => {
       this.stepBy(direction);

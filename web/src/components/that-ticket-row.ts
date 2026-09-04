@@ -125,7 +125,7 @@ export class ThatTicketRow extends HTMLElement {
     hint.setAttribute("aria-hidden", "true");
 
     const total = document.createElement("span");
-    total.className = "that-tnum text-md";
+    total.className = "that-tnum text-base";
     total.textContent = figure;
 
     trigger.append(hint, total);

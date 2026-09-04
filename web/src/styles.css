@@ -18,53 +18,72 @@
    and the rules that govern it are in
    docs/superpowers/specs/2026-08-20-visual-design-language.md. */
 @theme {
-  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Chivo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Chivo Mono", ui-monospace, monospace;
 
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-base: 13px;
-  --text-md: 14px;
+  /* The three smallest steps each gained a pixel: Chivo is the weakest of the
+     candidates at small size and this app spends most of its pixels there.
+     --text-md is retired rather than renamed — it landed on --text-base when
+     base rose to 14, and two names for one value is worse than either. */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
   --text-lg: 15px;
   --text-xl: 17px;
   --text-2xl: 30px;
   --text-hero: 46px;
 
-  /* ground and ink */
-  --color-surface: light-dark(oklch(0.975 0.006 70), oklch(0.165 0.008 60));
-  --color-raised: light-dark(oklch(0.996 0.003 70), oklch(0.215 0.01 60));
-  --color-ink: light-dark(oklch(0.2 0.008 70), oklch(0.955 0.004 70));
-  --color-ink-muted: light-dark(oklch(0.48 0.008 70), oklch(0.7 0.01 65));
-  /* Icons and decorative marks only — 3.60:1 clears the non-text floor and
-     fails the 4.5:1 text floor. Words use ink or ink-muted. */
-  --color-ink-faint: light-dark(oklch(0.62 0.007 70), oklch(0.55 0.01 65));
-  --color-edge: light-dark(oklch(0.915 0.006 70), oklch(0.285 0.01 60));
+  /* The reference brand's own five-step ruler, inherited whole and stood on at
+     the bottom end: cards md, buttons and inputs sm, nav rows xs. lg and xl are
+     declared and unused here on purpose — the scale is the reference's, and a
+     later ticket may re-map which component uses which step. */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
 
-  /* the rail — dark in both themes, because it is the instrument */
-  --color-rail: light-dark(oklch(0.215 0.018 55), oklch(0.125 0.008 55));
-  --color-rail-ink: light-dark(oklch(0.965 0.004 70), oklch(0.955 0.004 70));
-  --color-rail-muted: light-dark(oklch(0.68 0.012 60), oklch(0.64 0.012 60));
-  --color-rail-active: light-dark(oklch(0.3 0.022 55), oklch(0.225 0.015 55));
+  /* ground and ink */
+  --color-surface: light-dark(oklch(0.972 0.008 60), oklch(0.178 0.012 40));
+  --color-raised: light-dark(oklch(0.995 0.004 70), oklch(0.228 0.014 40));
+  --color-ink: light-dark(oklch(0.195 0.009 55), oklch(0.962 0.005 70));
+  --color-ink-muted: light-dark(oklch(0.465 0.01 55), oklch(0.725 0.012 55));
+  /* Icons and decorative marks only — it clears the 3:1 non-text floor and
+     fails the 4.5:1 text floor in both themes. Words use ink or ink-muted. */
+  --color-ink-faint: light-dark(oklch(0.62 0.008 60), oklch(0.56 0.012 50));
+  --color-edge: light-dark(oklch(0.905 0.007 65), oklch(0.3 0.012 40));
+
+  /* The rail is the instrument, and it is now the only region that does not
+     change with the theme: one set of tones, written as plain values so that
+     fact is visible rather than inferred from comparing two halves of a pair.
+     Its separation from the page is decision 2 of the second edition — value
+     alone, 0.105 against 0.178, protected by nothing but a test. */
+  --color-rail: oklch(0.105 0.006 60);
+  --color-rail-ink: oklch(0.962 0.005 70);
+  --color-rail-muted: oklch(0.66 0.01 60);
+  --color-rail-active: oklch(0.205 0.008 60);
 
   /* Identity, never state: wordmark, Push, links, focus rings. */
-  --color-primary: light-dark(oklch(0.52 0.19 330), oklch(0.7 0.17 330));
+  --color-primary: light-dark(oklch(0.5 0.21 330), oklch(0.72 0.19 330));
   --color-primary-ink: light-dark(oklch(0.99 0.004 70), oklch(0.16 0.02 330));
 
-  /* State, never identity. Amber is "not sent yet", red is "sent and refused" —
-     and neither ever carries the difference on hue alone: the words beside an
-     alert's triangle, a silhouette of its own where a grid has room for neither. */
-  --color-running: light-dark(oklch(0.5 0.15 150), oklch(0.74 0.14 150));
-  --color-pending: light-dark(oklch(0.52 0.13 75), oklch(0.8 0.12 85));
-  --color-failed: light-dark(oklch(0.51 0.19 25), oklch(0.72 0.17 25));
+  /* State, never identity, and never carried on hue alone. */
+  --color-running: light-dark(oklch(0.48 0.15 150), oklch(0.75 0.15 150));
+  --color-pending: light-dark(oklch(0.5 0.13 75), oklch(0.8 0.13 85));
+  --color-failed: light-dark(oklch(0.49 0.19 25), oklch(0.72 0.17 25));
   /* Pushed, then edited: Jira holds a stale copy. The primary's hue used as a
-     state, which the visual language otherwise forbids — a deliberate extension
-     rather than a reuse, and the hollow ring it draws is what keeps it from
-     reading as a primary action. See 2026-09-02-week-view-design.md, decision 3. */
-  --color-dirty: light-dark(oklch(0.52 0.19 330), oklch(0.7 0.17 330));
+     state, which the language otherwise forbids — a deliberate extension, and
+     the hollow ring it draws is what keeps it from reading as a primary action.
+     See 2026-09-02-week-view-design.md, decision 3. */
+  --color-dirty: light-dark(oklch(0.5 0.21 330), oklch(0.72 0.19 330));
 
-  /* Lighter variants, used only on the dark rail ground. */
-  --color-primary-rail: light-dark(oklch(0.66 0.19 330), oklch(0.7 0.17 330));
-  --color-primary-rail-ink: light-dark(oklch(0.17 0.02 330), oklch(0.16 0.02 330));
-  --color-running-rail: oklch(0.74 0.15 150);
+  /* One rail ground needs one set of role tones, and these are it. They survive
+     as single values rather than pairs: retiring them would put the light
+     theme's primary on the rail, where it measures 3.03:1 against a 4.5:1 text
+     floor and the wordmark is text. */
+  --color-primary-rail: oklch(0.72 0.19 330);
+  --color-primary-rail-ink: oklch(0.16 0.02 330);
+  --color-running-rail: oklch(0.75 0.15 150);
   --color-pending-rail: oklch(0.8 0.13 85);
   --color-failed-rail: oklch(0.72 0.17 25);
   --color-state-ink: light-dark(oklch(0.99 0.004 70), oklch(0.16 0.01 60));
@@ -74,12 +93,19 @@
   --shadow-card:
     0 1px 2px light-dark(oklch(0.35 0.04 60 / 0.05), oklch(0 0 0 / 0.35)),
     0 10px 26px -14px light-dark(oklch(0.35 0.04 60 / 0.2), oklch(0 0 0 / 0.6));
+
+  /* The owner's screen is 2560px wide and every Tailwind default stops far
+     short of it. Beware: max-w-3xl is the container scale's 48rem and has
+     nothing to do with this — capping a column needs an explicit value. */
+  --breakpoint-3xl: 120rem;
 }
 
 /* An absent data-theme attribute is the auto state, so a failed localStorage
-   read lands on following the OS rather than on a guess. */
+   read lands on following the OS rather than on a guess. The order here decides
+   only the no-preference case, and there dark wins; a stored preference beats
+   it and so does an OS that expresses one. */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark light;
 }
 [data-theme="light"] {
   color-scheme: light;

@@ -31,7 +31,7 @@ export class ThatAlert extends HTMLElement {
     const tone = TONES[this.getAttribute("tone") ?? "warning"] ?? TONES["warning"];
     if (!tone) return;
 
-    this.className = "text-md text-ink flex items-start gap-3";
+    this.className = "text-base text-ink flex items-start gap-3";
 
     const mark = document.createElement("span");
     mark.className = `shrink-0 text-sm leading-6 font-bold ${tone.colour}`;

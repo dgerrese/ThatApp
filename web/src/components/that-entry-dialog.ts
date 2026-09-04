@@ -128,7 +128,7 @@ export class ThatEntryDialog extends HTMLElement {
     close.setAttribute("aria-label", "Close");
     close.className =
       "text-ink-muted hover:bg-surface hover:text-ink flex h-7 w-7 cursor-pointer " +
-      "items-center justify-center rounded-full text-md";
+      "items-center justify-center rounded-full text-base";
     close.textContent = "×";
     close.addEventListener("click", () => {
       this.dialog?.close();
@@ -184,7 +184,7 @@ export class ThatEntryDialog extends HTMLElement {
     const cancel = document.createElement("button");
     cancel.type = "button";
     cancel.setAttribute("aria-label", "Stop editing");
-    cancel.className = "text-ink-muted hover:text-ink cursor-pointer px-1 text-md leading-none";
+    cancel.className = "text-ink-muted hover:text-ink cursor-pointer px-1 text-base leading-none";
     cancel.textContent = "×";
     cancel.addEventListener("click", () => {
       this.stopEditing();
@@ -289,7 +289,7 @@ export class ThatEntryDialog extends HTMLElement {
     duration.textContent = totalFigure(entry.seconds);
 
     const comment = document.createElement("span");
-    comment.className = "min-w-0 flex-1 truncate text-md";
+    comment.className = "min-w-0 flex-1 truncate text-base";
     comment.textContent = entry.comment;
     if (entry.comment === "") {
       comment.classList.add("text-ink-faint");
@@ -468,7 +468,7 @@ function rowAction(label: string, description: string, act: () => void): HTMLEle
 
 function emptyLine(): HTMLElement {
   const line = document.createElement("li");
-  line.className = "text-ink-muted py-2 text-md";
+  line.className = "text-ink-muted py-2 text-base";
   line.textContent = "Nothing logged against this ticket today.";
 
   return line;
