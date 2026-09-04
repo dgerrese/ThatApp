@@ -130,13 +130,9 @@
   --breakpoint-3xl: 120rem;
 }
 
-/* An absent data-theme attribute is the auto state, so a failed localStorage
-   read lands on following the OS rather than on a guess. The order here decides
-   only the no-preference case, and there dark wins; a stored preference beats
-   it and so does an OS that expresses one. */
-:root {
-  color-scheme: dark light;
-}
+/* :root's color-scheme lives in index.html, inlined, where the build minifier
+   cannot reach it — see the comment there. These two carry single values, so
+   the minifier has nothing to reorder. */
 [data-theme="light"] {
   color-scheme: light;
 }

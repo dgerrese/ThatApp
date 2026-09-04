@@ -6,6 +6,20 @@
     <title>ThatApp</title>
     <link rel="preload" href="/fonts/chivo-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/chivo-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      /* An absent data-theme attribute is the auto state, so a failed
+         localStorage read lands on following the OS rather than on a guess.
+         The order here decides only the no-preference case, and there dark
+         wins; a stored preference beats it and so does an OS that expresses
+         one. Inlined here, not in styles.css, because the build's minifier
+         reorders a two-value color-scheme and reverses that decision — and
+         inline survives untouched only ahead of app.css, so that a stored
+         preference's [data-theme] override in the stylesheet still wins on
+         equal specificity. */
+      :root {
+        color-scheme: dark light;
+      }
+    </style>
     <link rel="stylesheet" href="/app.css" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="/icons/icon.svg" />
