@@ -38,12 +38,16 @@ none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as P
 **#11 merged as PR #90 on 2026-09-02**, closing it, and the handoff pull request **#93** merged
 after it. The 2026-09-03 handoff merged as **PR #96** at 11:22 on 2026-09-04.
 
-**In progress, two, both pushed on 2026-09-03 and carrying more since:** **#94** (the visual
-language, second edition) on `issue-94-visual-language`, and **#95** (applying it to Today and Week)
-on `issue-95-today-and-week`. Both carry committed specs and **neither has a pull request yet**,
-because a ticket reaches review when it is done. On 2026-09-04 #94 gained the interaction tokens, the
-elevation rule and the hover-gutter rule; #95 gained a prototype that carries both themes, and the two
-defects light exposed.
+**#94 merged as PR #98 on 2026-09-06**, and **#99 as PR #100** after it. Remote `main` is at
+**`be58586`**. #94 shipped the second edition's whole token layer, two faces, radius scale, hover
+wash, elevation rule and drawn icon set; #99 fixed the `color-scheme` value the minifier was
+reversing — see the 2026-09-06 day file for both, and for why no test caught the second one.
+
+**In progress, one:** **#95** (applying the second edition to Today and Week) on
+`issue-95-today-and-week`, rebased onto #94's merge. It carries its design, the dual-theme prototype,
+a committed plan of six tasks, and **tasks 1 and 2 done** — the tooltip with five new marks, and the
+table shell. **No pull request yet**, because a ticket reaches review when it is done. Tasks 3 to 6
+are the rows, Today, Week and the entries dialog.
 **#61 was closed on 2026-09-03** on the owner's instruction, `wontfix`, folded into #95 rather than
 rejected. **#89 was widened** the same day from "move Settings out of the nav" into the full Settings
 redesign, and holds its settled design.
@@ -60,7 +64,11 @@ migrate, so re-opening it on Codeberg is a decision still waiting to be made. **
 phone access — deferred, and needs the owner's explicit go-ahead even to refine), #19, #35, #39,
 #40, #41, #42, #43, #47, #53, #55, #56, #57, #58, #61, #66, #67, #71, #79, #80, #83, #84, #89 and
 #91. Thirteen of those arrived on 2026-09-02, when the owner triaged the whole intake queue one
-ticket at a time. **Intake, one:** #74. **Declined on 2026-09-02:** #59, `wontfix` and closed. **Closed as not planned:**
+ticket at a time. **Intake, four:** #74, and three raised on 2026-09-06 — **#97** (the dialog scrim, unsettled by
+decision 11 on purpose), **#101** (the `pwa.spec.ts` Chromium segfault, the recurrence the handoff
+had been waiting for), and **#102** (the service worker's cache-poisoning test guards on the
+three-letter substring `lie`, so any bundle containing `client` or `policy` fails it). All three are
+the owner's to approve or decline. **Declined on 2026-09-02:** #59, `wontfix` and closed. **Closed as not planned:**
 #21, #22 — folded into #4, not rejected; both labelled `wontfix`.
 
 **The board's own hygiene was re-audited on 2026-09-03 and is clean**: all 27 open issues carry
@@ -575,7 +583,7 @@ paper-white, and it changed three things in the language and none in the palette
   dialogs never set an ink colour and inherited the host page's, which on a dark sheet looks exactly
   right. A rule that is correct in one theme is invisible until somebody switches.
 
-**Open, and deliberately not settled:** the scrim behind an open dialog is still half-opaque black in
+**Open, and now a ticket — #97 at intake.** The scrim behind an open dialog is still half-opaque black in
 both themes. Darkening a white page by that much is a question about modality, not about depth.
 
 ## Decisions taken — do not reopen
@@ -1275,9 +1283,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Left over from the forge move, 2026-09-01:**
 
-- **Local `main` lags the forge and only the owner may move it.** As of 2026-09-04 it is at
-  `41b60b1` while remote `main` is at `415f139`, seven merges ahead — PRs #82, #85, #86, #90, #92,
-  #93 and #96. It is no longer the
+- **Local `main` lags the forge and only the owner may move it.** As of 2026-09-06 it is at
+  `41b60b1` while remote `main` is at `be58586`, nine merges ahead — PRs #82, #85, #86, #90, #92,
+  #93, #96, #98 and #100. It is no longer the
   pre-rename tip, so branching from it no longer produces the old names and the old module path;
   it is simply behind. **Verify the gap against the API before repeating a number here**, because a
   blocked fetch leaves the local `codeberg/*` refs frozen and makes local `git` quietly wrong.
@@ -1357,9 +1365,11 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   it up: the honest fix gives `that-button` a `type` attribute and swaps the click handler for a
   submit handler, and doing both in one fix wave with a single re-review risks a double-submit.
   Worth a follow-up.
-- **A flake worth watching:** `pwa.spec.ts:322` (service-worker offline navigation) failed once
-  during a full e2e run on 2026-08-31, then passed in isolation and on a full re-run. It touches
-  nothing #9 changed. **If it recurs, it is real.**
+- ~~**A flake worth watching:** `pwa.spec.ts:322`.~~ **It recurred on 2026-09-06** — twice in one
+  session, at `pwa.spec.ts:280`, this time with a visible cause: the Chromium headless shell
+  segfaults while launching a browser context. Passes alone, passes on a clean full run. **Raised as
+  #101** at intake, so it is the owner's to approve rather than a line to keep watching. Do not fix
+  it by skipping or retrying the test — it is one of the few that proves the app works offline.
 
 **Before planning the next ticket:**
 
@@ -1376,11 +1386,20 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   design. Its three open questions are the owner's to answer in a brainstorming round.
 - **Spec §"Decisions deferred"** — unchanged; nothing there blocks the ready tickets.
 
-**This branch:** `handoff-2026-09-04`, cut from `415f139` on 2026-09-04, `main`'s tip once PR #96
-had merged. It carries the day's narrative and goes out as one pull request at the end-of-day signal.
-**The two product branches beside it still have no pull request** — `issue-94-visual-language` and
-`issue-95-today-and-week` — because a ticket reaches review when it is done, not when a day ends.
-`worktrees-without-the-tax` is still pushed with no pull request behind it.
+**This branch:** `handoff-2026-09-06`, rebased onto `be58586`, `main`'s tip once PR #100 had
+merged. It carries the 2026-09-04 and 2026-09-06 day files and goes out as one pull request at the
+end-of-day signal. **`issue-95-today-and-week` is pushed and has no pull request**, which is correct
+— its ticket is two tasks of six done. `worktrees-without-the-tax` is still pushed with no pull
+request behind it.
+
+**Commit signing is off on `issue-95-today-and-week`**, at the owner's request and only while they
+are away. The first unsigned commit is `faaae72`. On their signal, re-sign the range and restore the
+setting **before the branch is merged**, not after:
+
+```shell
+git rebase --exec 'git commit --amend --no-edit -S' 03855c2
+git config --unset commit.gpgsign
+```
 
 ## Environment notes
 
