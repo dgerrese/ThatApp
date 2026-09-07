@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 interface StubEntry {
   id: number;
@@ -197,6 +197,30 @@ function entryRows(page: Page) {
 const INK_LIGHT = "oklch(0.195 0.009 55)";
 const INK_DARK = "oklch(0.962 0.005 70)";
 const INK_MUTED_LIGHT = "oklch(0.465 0.01 55)";
+const FAILED_LIGHT = "oklch(0.49 0.19 25)";
+
+/** No background painted at all, which is what an untouched row wears. */
+const UNPAINTED = "rgba(0, 0, 0, 0)";
+
+/**
+ * The bar the active row draws: the primary, 2px wide, on the left edge, inset.
+ * Pinned rather than merely "some shadow", because a hairline of any colour on
+ * any side would satisfy that and this is the only thing on screen saying which
+ * entry the foot form is bound to. Tailwind composes box-shadow out of five
+ * slots and this one fills the last, so the match is anchored to the end.
+ */
+const ACTIVE_BAR = /oklch\(0\.5 0\.21 330\) 2px 0px 0px 0px inset$/;
+
+/** The wash and the bar together — the design's active state, not half of it. */
+async function expectActive(row: Locator): Promise<void> {
+  await expect(row).toHaveCSS("box-shadow", ACTIVE_BAR);
+  await expect(row).not.toHaveCSS("background-color", UNPAINTED);
+}
+
+async function expectResting(row: Locator): Promise<void> {
+  await expect(row).toHaveCSS("box-shadow", "none");
+  await expect(row).toHaveCSS("background-color", UNPAINTED);
+}
 
 test("the duration control posts the seconds its table promises, not what was typed", async ({
   page,
@@ -363,7 +387,7 @@ test("Refresh leaves an open dialog and its mid-edit state alone", async ({ page
   await expect(dialog(page)).toBeVisible();
   await expect(dialog(page).getByPlaceholder("What did you work on?")).toHaveValue("half typed");
   // Still bound to the entry it was bound to: the active row is what says so.
-  await expect(entryRows(page).first()).not.toHaveCSS("box-shadow", "none");
+  await expectActive(entryRows(page).first());
 });
 
 test("the trigger opens from the keyboard", async ({ page }) => {
@@ -394,7 +418,7 @@ test("editing binds the foot form to one entry", async ({ page }) => {
 
   await expect(durationField(page)).toHaveValue("0:30");
   await expect(dialog(page).getByPlaceholder("What did you work on?")).toHaveValue("afternoon");
-  await expect(entryRows(page).nth(1)).not.toHaveCSS("box-shadow", "none");
+  await expectActive(entryRows(page).nth(1));
 
   await dialog(page).getByPlaceholder("What did you work on?").fill("afternoon, revised");
   await dialog(page).getByRole("button", { name: "Save" }).click();
@@ -412,7 +436,7 @@ test("cancelling an edit changes nothing", async ({ page }) => {
   await typeDuration(page, "800");
   await dialog(page).getByRole("button", { name: "Stop editing" }).click();
 
-  await expect(entryRows(page).first()).toHaveCSS("box-shadow", "none");
+  await expectResting(entryRows(page).first());
   await expect(dialog(page).getByRole("button", { name: "Stop editing" })).toBeHidden();
   // Back to adding, not still holding the edited figure.
   await expect(dialog(page).getByRole("button", { name: "Add entry" })).toBeVisible();
@@ -634,6 +658,10 @@ test("the dialog names the app's ink under a stored preference too", async ({ pa
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(dialog(page)).toHaveCSS("color", INK_DARK);
 
+  // The OS flips to dark first, so the light attribute below has something to
+  // outrank. Set against a light OS it would pass on `color-scheme: dark light`
+  // alone, and the attribute rule could be deleted without this noticing.
+  await page.emulateMedia({ colorScheme: "dark" });
   // What setThemePreference does, on a dialog that is already open.
   await page.evaluate(() => {
     document.documentElement.dataset["theme"] = "light";
@@ -718,13 +746,13 @@ test("editing marks its own row active, offers Save and Cancel, and dims no othe
   await trigger(page, "WORK-412").click();
   const rows = entryRows(page);
   await expect(rows).toHaveCount(2);
-  await expect(rows.nth(1)).toHaveCSS("box-shadow", "none");
+  await expectResting(rows.nth(1));
   await expect(dialog(page).getByRole("button", { name: "Stop editing" })).toBeHidden();
 
   await dialog(page).getByRole("button", { name: "Edit the 14:45 entry" }).click();
 
-  await expect(rows.nth(1)).not.toHaveCSS("box-shadow", "none");
-  await expect(rows.nth(0)).toHaveCSS("box-shadow", "none");
+  await expectActive(rows.nth(1));
+  await expectResting(rows.nth(0));
   await expect(rows.nth(0)).toHaveCSS("opacity", "1");
   await expect(dialog(page).getByRole("button", { name: "Save" })).toBeVisible();
   await expect(dialog(page).getByRole("button", { name: "Stop editing" })).toBeVisible();
@@ -782,4 +810,89 @@ test("each entry carries a push-state mark naming its state", async ({ page }) =
   await entryRows(page).nth(0).getByRole("img").hover();
   await expect(popover).toBeVisible();
   await expect(popover).toHaveText("not pushed to Jira");
+});
+
+/**
+ * The one control that announces itself before it is pressed. It is asserted on
+ * the computed colour under the pointer rather than on a class, because the
+ * class was there and never reached the screen: `hover:text-failed` and the
+ * shared button's `hover:text-ink` are the same specificity in the same layer,
+ * so Tailwind's emission order decided it and ink won. Edit is checked in the
+ * same breath so a fix cannot simply turn every icon button red.
+ */
+test("delete goes red under the pointer, and edit stays ink", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+
+  await trigger(page, "WORK-412").click();
+  const remove = dialog(page).getByRole("button", { name: "Delete the 09:15 entry" });
+  const edit = dialog(page).getByRole("button", { name: "Edit the 09:15 entry" });
+
+  await expect(remove).toHaveCSS("color", INK_MUTED_LIGHT);
+
+  await remove.hover();
+  await expect(remove).toHaveCSS("color", FAILED_LIGHT);
+
+  await edit.hover();
+  await expect(edit).toHaveCSS("color", INK_LIGHT);
+  await expect(remove).toHaveCSS("color", INK_MUTED_LIGHT);
+});
+
+/**
+ * The foot form reads as one bar or it reads as a mistake. Measured rather than
+ * eyeballed: the duration group, the comment field and the submit are three
+ * components with three different paddings, and nothing but this says they have
+ * to agree.
+ */
+test("the foot form's three controls share one height", async ({ page }) => {
+  await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+  const heights = await dialog(page).evaluate((sheet) => {
+    const of = (selector: string) =>
+      Math.round(sheet.querySelector(selector)?.getBoundingClientRect().height ?? 0);
+
+    return {
+      duration: of("that-duration > div"),
+      comment: of("input[placeholder]"),
+      submit: of("that-button button"),
+    };
+  });
+
+  expect(heights.comment).toBe(heights.duration);
+  expect(heights.submit).toBe(heights.duration);
+  expect(heights.duration).toBeGreaterThan(0);
+});
+
+/**
+ * The prototype's `.etotal { flex: none }`. Without it the total is a
+ * shrinkable flex item and a long instance name takes its width, wrapping the
+ * figure instead of truncating itself — and the figure is the one thing on this
+ * line nobody can afford to have re-flow.
+ */
+test("a long instance name truncates rather than squeezing the total", async ({ page }) => {
+  const longName = "Ridgeline Programme Delivery and Platform Engineering";
+  await stubEntries(page, [entry(1, "WORK-412", 3600, { instanceName: longName })]);
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: longName, issues: [workIssue], error: null }]);
+  await page.goto("/today");
+
+  await trigger(page, "WORK-412").click();
+
+  await expect(dialogTotal(page)).toHaveText("1h 00m");
+  const laidOut = await dialog(page).evaluate((sheet) => {
+    const box = (selector: string) => {
+      const node = sheet.querySelector(selector) as HTMLElement;
+
+      return { width: node.clientWidth, wanted: node.scrollWidth, height: Math.round(node.getBoundingClientRect().height) };
+    };
+
+    return { total: box("#that-entry-dialog-total"), instance: box("h2 > span") };
+  });
+
+  // The name gives ground; the figure keeps every pixel it asked for.
+  expect(laidOut.instance.wanted).toBeGreaterThan(laidOut.instance.width);
+  expect(laidOut.total.wanted).toBe(laidOut.total.width);
+  // One line, not two: 22px type wrapped would be nearer 44.
+  expect(laidOut.total.height).toBeLessThan(30);
 });

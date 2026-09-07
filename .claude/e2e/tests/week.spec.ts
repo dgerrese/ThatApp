@@ -583,6 +583,7 @@ test("every cell is a control that opens the entries dialog for its ticket", asy
   await openWeek(page, {
     [THIS_WEEK]: rollup(THIS_WEEK, [
       row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+      row("NW-1", [{ at: 0, seconds: 3600, pushState: "pushed" }], 2),
     ]),
   });
 
@@ -593,6 +594,12 @@ test("every cell is a control that opens the entries dialog for its ticket", asy
   await cells.nth(0).locator("button").click();
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("RIDGE-1");
+  // Week is the only view that hands the dialog the instance position its
+  // header dot is drawn from, so the hue is the proof it travelled: 265 is the
+  // first instance's and 175 the second's, and a lost position would paint
+  // both 265. The lightness and chroma are fixed across the ramp, by design.
+  await expect(dialog.locator(".that-dot")).toHaveAttribute("aria-label", "Ridgeline");
+  await expect(dialog.locator(".that-dot")).toHaveCSS("background-color", RIDGELINE_HUE);
   await dialog.getByRole("button", { name: "Close" }).click();
   await expect(dialog).toHaveCount(0);
 
@@ -600,7 +607,25 @@ test("every cell is a control that opens the entries dialog for its ticket", asy
   await cells.nth(1).locator("button").click();
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("RIDGE-1");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  // showModal() hands focus back to the cell that opened it, which reopens that
+  // cell's popover — correctly, and in the top layer over the row beneath it.
+  // Moving on is what a reader does next, and it is what this has to do too.
+  await page.evaluate(() => {
+    (document.activeElement as HTMLElement | null)?.blur();
+  });
+
+  // The second instance, which is what makes the hue above a claim rather than
+  // a coincidence: position 0 is also what a missing position would fall to.
+  await ticketRow(page, "NW-1").locator("td").nth(0).locator("button").click();
+  await expect(dialog.locator(".that-dot")).toHaveAttribute("aria-label", "Personal");
+  await expect(dialog.locator(".that-dot")).toHaveCSS("background-color", NORTHWIND_HUE);
 });
+
+/** The first two hues of the ramp in web/src/instance-hue.ts, as .that-dot
+ *  paints them in the light theme Playwright runs in by default. */
+const RIDGELINE_HUE = "oklch(0.6 0.13 265)";
+const NORTHWIND_HUE = "oklch(0.6 0.13 175)";
 
 /**
  * A total is a sum, never a control — worth proving now that every other cell

@@ -35,13 +35,26 @@ export interface EntryTicket {
  *  even if a second dialog were ever appended beside the first. */
 let dialogSequence = 0;
 
-/** The prototype's .iconbtn, which is one shape wherever a mark is the whole
- *  control: 34 square, the wash on hover, and the same on focus so a keyboard
- *  sees what a pointer does. */
-const ICON_BUTTON =
-  "text-ink-muted hover:bg-hover focus-visible:bg-hover hover:text-ink " +
-  "focus-visible:text-ink flex size-[34px] shrink-0 cursor-pointer items-center " +
-  "justify-center rounded-sm";
+/**
+ * The prototype's .iconbtn without its ink: 34 square, and the wash on hover
+ * and on focus so a keyboard sees what a pointer does.
+ *
+ * The colour is split off rather than defaulted here, because two competing
+ * `hover:text-*` utilities on one element are decided by the order Tailwind
+ * emits them in, not the order they are written in — and Tailwind emits
+ * `hover:text-ink` last, so a destructive button appending `hover:text-failed`
+ * to this string turned ink under the pointer. Neither specificity nor class
+ * order can fix that; only not stating both can.
+ */
+const ICON_BUTTON_BASE =
+  "text-ink-muted hover:bg-hover focus-visible:bg-hover flex size-[34px] shrink-0 " +
+  "cursor-pointer items-center justify-center rounded-sm";
+
+const ICON_BUTTON = `${ICON_BUTTON_BASE} hover:text-ink focus-visible:text-ink`;
+
+/** Delete is the one irreversible thing on a row, and the only control in the
+ *  app that announces itself before it is pressed. */
+const ICON_BUTTON_DESTRUCTIVE = `${ICON_BUTTON_BASE} hover:text-failed focus-visible:text-failed`;
 
 interface PushMarkStyle {
   words: string;
@@ -214,8 +227,11 @@ export class ThatEntryDialog extends HTMLElement {
     // total and an entry's duration can read the same figure — which leaves
     // nothing else to tell them apart.
     total.id = "that-entry-dialog-total";
+    // shrink-0, like the prototype's `.etotal { flex: none }`: without it the
+    // total is a shrinkable flex item, and a long instance name wraps the
+    // figure instead of truncating itself.
     total.className =
-      "that-tnum ml-auto font-mono text-[22px] leading-none font-bold tracking-[-0.02em]";
+      "that-tnum ml-auto shrink-0 font-mono text-[22px] leading-none font-bold tracking-[-0.02em]";
     total.textContent = totalFigure(0);
     this.total = total;
 
@@ -287,6 +303,12 @@ export class ThatEntryDialog extends HTMLElement {
     const comment = document.createElement("input");
     comment.type = "text";
     comment.placeholder = "What did you work on?";
+    // text-sm, matching the duration field beside it rather than the prototype's
+    // 15px: this app's shipped that-button and that-duration are both smaller
+    // than the prototype's, and raising only this one puts the field 2px above
+    // the two controls it shares an `items-center` line with. The measured
+    // agreement is asserted in entries.spec.ts; matching the prototype's
+    // absolute sizes is a change to all three components, not to this one.
     comment.className =
       "border-edge bg-surface min-w-0 flex-1 rounded-sm border px-3 py-1.5 text-sm " +
       "focus:border-ink focus:outline-none";
@@ -580,10 +602,7 @@ export class ThatEntryDialog extends HTMLElement {
 
 /**
  * An icon-only control on a row. The mark is aria-hidden by construction, so
- * the name has to be the label — never the icon's own shape. `destructive`
- * turns it red under the pointer: delete is the one irreversible thing on a
- * row, and it is the only control in the app that announces itself before it
- * is pressed.
+ * the name has to be the label — never the icon's own shape.
  */
 function rowAction(
   icon: "edit" | "trash",
@@ -594,7 +613,7 @@ function rowAction(
   const button = document.createElement("button");
   button.type = "button";
   button.setAttribute("aria-label", description);
-  button.className = destructive ? `${ICON_BUTTON} hover:text-failed` : ICON_BUTTON;
+  button.className = destructive ? ICON_BUTTON_DESTRUCTIVE : ICON_BUTTON;
   button.innerHTML = iconMarkup(icon, 17);
   button.addEventListener("click", act);
 
