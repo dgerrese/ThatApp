@@ -217,12 +217,16 @@ a.that-key:hover {
 
 /* The key, the summary and the status sit on one baseline whatever their size.
    The action cell is the exception: a control centres in the row instead, and
-   its 5px block padding is chosen so the row height does not move. */
+   its 5px block padding is chosen so the row height does not move.
+   One hairline under every row, header included, and none under the last —
+   the rule the list this replaced drew with divide-y, and the prototype's
+   .tbl border-bottom pair. */
 .that-tbl th,
 .that-tbl td {
   padding: 11px 0;
   text-align: left;
   vertical-align: baseline;
+  border-bottom: 1px solid var(--color-edge);
 }
 .that-tbl td.c-act {
   padding-block: 5px;
@@ -267,15 +271,9 @@ a.that-key:hover {
   min-width: var(--that-key-col, 76px);
 }
 
-/* One hairline under every row, header included, and none under the last —
-   the rule the list this replaced drew with divide-y, and the prototype's
-   .tbl border-bottom pair. The last-row selector is "> :last-child" rather
+/* The last row of a card draws no hairline of its own. "> :last-child" rather
    than "tr:last-child": a row is whatever the view puts in the body, and
    Today's is a that-ticket-row wearing display: table-row. */
-.that-tbl th,
-.that-tbl td {
-  border-bottom: 1px solid var(--color-edge);
-}
 .that-tbl tbody > :last-child td {
   border-bottom: 0;
 }
@@ -285,4 +283,13 @@ a.that-key:hover {
    custom element holding <td> children before this was written. */
 that-ticket-row {
   display: table-row;
+}
+
+/* main.ts registers that-tooltip from its own split chunk, so an instance can
+   sit in the DOM, un-upgraded, for as long as that chunk takes to arrive — or
+   forever, if it 404s or a cache miss in this offline PWA's service worker
+   never resolves. Undefined, it is display: inline with a real box, and its
+   text renders as page content until it upgrades. Hidden until then. */
+that-tooltip:not(:defined) {
+  display: none;
 }

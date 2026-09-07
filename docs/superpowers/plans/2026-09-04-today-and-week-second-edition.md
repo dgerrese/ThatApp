@@ -46,7 +46,8 @@ and the design.
   explicitly.
 - **`--color-ink-faint` is not a text colour.** Words use `ink` or `ink-muted`.
 - **A tooltip is never the accessible name.** Every icon-only control carries its own `aria-label`
-  regardless, and `web/src/vocabulary.test.ts` already guards that.
+  regardless — asserted in `.claude/e2e/tests/tooltip.spec.ts`, not by `vocabulary.test.ts`, which
+  guards radius, the retired ramp step, hover grounds and typed characters standing in for marks.
 - **The initial HTTP response stays under 14kB.**
 - **Comments are few and earn their place.** Never narrate the next line.
 - **Firefox and Chromium only.** Safari and WebKit are an explicit non-goal.

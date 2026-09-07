@@ -652,13 +652,13 @@ test("a total is a sum, not a control, and opens nothing", async ({ page }) => {
 });
 
 /**
- * The legend this grid never had room for is gone for good: each cell names
- * itself now, so nothing needs to sit beside the table explaining what a
+ * This grid never had room for a legend and must not grow one: each cell
+ * names itself, so nothing needs to sit beside the table explaining what a
  * marker means. Read directly off the DOM rather than the page's rendered
  * text, so a hidden that-tooltip's own copy of the same words cannot be
- * mistaken for a legend still standing.
+ * mistaken for a legend standing beside the table.
  */
-test("no legend explains the markers separately from each cell's own popover", async ({ page }) => {
+test("nothing explains the markers separately from each cell's own popover", async ({ page }) => {
   await openWeek(page, {
     [THIS_WEEK]: rollup(THIS_WEEK, [
       row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),

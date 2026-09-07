@@ -953,7 +953,7 @@ test.describe("the ticket row's own pin control", () => {
     await expect(tooltip).toHaveText("pin ticket");
   });
 
-  test("clicking the pin control pins the ticket, turning it into the crossed pin", async ({
+  test("clicking the pin control repaints it optimistically into the crossed pin", async ({
     page,
   }) => {
     await mountRows(page, [ridge5301]);

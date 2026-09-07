@@ -38,6 +38,69 @@ async function mountTrigger(
   }, options);
 }
 
+/**
+ * main.ts registers that-tooltip from its own split chunk (see the comment
+ * there), so a <that-tooltip> can sit in the DOM un-upgraded for as long as
+ * that chunk takes to arrive — or forever, on a cache miss or a 404 in this
+ * offline PWA's service worker. Un-upgraded, it is display: inline with a
+ * real box, and its text renders as page content: Today's own Refresh button
+ * carries one reading "refresh". The chunk's filename carries a build hash
+ * this spec cannot predict, so the block below finds it by what it contains —
+ * fetching every script for real and inspecting the body — rather than by
+ * name.
+ *
+ * The refetch goes through THAT_BASE_URL directly rather than route.fetch():
+ * the chromium project (see playwright.config.ts) points the *browser* at
+ * "localhost" and relies on a Chromium-only --host-resolver-rules flag to
+ * land it on the real host, a mapping route.fetch()'s own Node-side request
+ * never sees — it tried to dial literal localhost and got ECONNREFUSED. The
+ * compose network alias in THAT_BASE_URL is reachable from this file's own
+ * runtime regardless of which project is asking.
+ */
+test("a that-tooltip that never upgrades stays invisible, not printed into the page", async ({
+  page,
+}) => {
+  const base = process.env["THAT_BASE_URL"] ?? "http://that-app:8080";
+
+  // The outer beforeEach's empty /api/issues keeps Today's header — and the
+  // Refresh button this test needs — permanently hidden (today.ts: "no
+  // instances configured, stays hidden for good"). One configured instance
+  // with no issues is enough to show it without pulling in a ticket row.
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] } }),
+  );
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+
+  await page.route("**/*.js", async (route) => {
+    const requested = new URL(route.request().url());
+    const response = await fetch(`${base}${requested.pathname}${requested.search}`);
+    const body = await response.text();
+    if (body.includes('customElements.define("that-tooltip"')) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({
+      status: response.status,
+      body,
+      contentType: response.headers.get("content-type") ?? "text/javascript",
+    });
+  });
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
+
+  // Proves the block actually worked — the element never upgraded — so the
+  // assertions below are proving the CSS rule in styles.css, not a
+  // coincidence of timing.
+  const upgraded = await page.evaluate(() => customElements.get("that-tooltip") !== undefined);
+  expect(upgraded).toBe(false);
+
+  const refreshTooltip = page.locator("that-tooltip", { hasText: "refresh" });
+  await expect(refreshTooltip).toBeAttached();
+  await expect(refreshTooltip).toBeHidden();
+  expect(await refreshTooltip.boundingBox()).toBeNull();
+});
+
 test("hovering a trigger shows the tooltip, and pointerleave hides it again", async ({ page }) => {
   await mountTrigger(page);
   const tooltip = page.locator("that-tooltip[data-fixture]");
@@ -232,10 +295,8 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
   }, tooltipBox!);
 
   // The control is only a fair comparison if it actually landed where it
-  // was told to — this is what the spacer-based version got wrong, and
-  // logged here rather than only asserted so a future regression shows its
-  // numbers rather than a bare pass/fail.
-  console.log("naive control — intended vs rendered:", control);
+  // was told to — this is what the spacer-based version got wrong. The
+  // assertions' own diff reports the numbers if it has not.
   expect(control.rendered.x).toBeCloseTo(control.intended.x, 0);
   expect(control.rendered.y).toBeCloseTo(control.intended.y, 0);
 
@@ -270,6 +331,48 @@ test('anchor="end" puts the tooltip\'s right edge within a pixel of the trigger\
   expect(tooltipBox).not.toBeNull();
   expect(triggerBox).not.toBeNull();
 
+  const tooltipRight = tooltipBox!.x + tooltipBox!.width;
+  const triggerRight = triggerBox!.x + triggerBox!.width;
+  expect(Math.abs(tooltipRight - triggerRight)).toBeLessThanOrEqual(1);
+});
+
+// reveal() computes top/left once, at show time, from the trigger's box and
+// this element's own width. that-ticket-row's pin control repaints this
+// element's text — "pin ticket" to "unpin ticket" — on the same click that
+// leaves the tooltip open under the pointer, which grows the box without
+// reveal() ever hearing about it: measured in Firefox, primary target, where
+// a clicked button does not gain focus and so nothing re-runs reveal() the
+// way Chromium's own focus event does. This mutates the text directly rather
+// than driving a real pin toggle: what is under test is the tooltip's own
+// reaction to its content changing, not the row's.
+test("the tooltip repositions when its text changes while open, keeping anchor=\"end\" aligned", async ({
+  page,
+}) => {
+  await mountTrigger(page, {
+    id: "growing-trigger",
+    label: "Unpin",
+    text: "pin ticket",
+    anchor: "end",
+  });
+
+  await page.locator("#growing-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  await page.evaluate(() => {
+    const el = document.querySelector("that-tooltip[data-fixture]");
+    if (!el) throw new Error("tooltip fixture missing");
+    el.textContent = "unpin ticket, now noticeably wider";
+  });
+
+  const tooltipBox = await tooltip.boundingBox();
+  const triggerBox = await page.locator("#growing-trigger").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(triggerBox).not.toBeNull();
+
+  // Without the fix this box still sits at the shorter text's left, so its
+  // now-wider content only grows the right edge further past the trigger's —
+  // the same seam the pin control hits on every toggle.
   const tooltipRight = tooltipBox!.x + tooltipBox!.width;
   const triggerRight = triggerBox!.x + triggerBox!.width;
   expect(Math.abs(tooltipRight - triggerRight)).toBeLessThanOrEqual(1);
