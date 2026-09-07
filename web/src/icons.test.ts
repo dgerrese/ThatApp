@@ -30,3 +30,19 @@ test("a size renders at that size and no other", () => {
   assert.match(svg, /height="16"/);
   assert.equal(iconMarkup("close").includes('width="18"'), true, "18 is the default");
 });
+
+test("the marks the listing views need are drawn", () => {
+  for (const name of ["pin", "pin-off", "sortable", "ascending", "descending"] as const) {
+    assert.ok(ICON_NAMES.includes(name), `${name} is in the set`);
+    assert.match(iconMarkup(name), /viewBox="0 0 24 24"/);
+  }
+});
+
+test("pin and pin-off differ by more than a slash's absence", () => {
+  assert.notEqual(iconMarkup("pin"), iconMarkup("pin-off"));
+});
+
+test("the three sort marks are three different shapes", () => {
+  const shapes = new Set(["sortable", "ascending", "descending"].map((n) => iconMarkup(n as IconName)));
+  assert.equal(shapes.size, 3, "a sort state told apart by colour alone is the defect this avoids");
+});

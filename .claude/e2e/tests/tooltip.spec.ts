@@ -1,0 +1,379 @@
+import { expect, test } from "@playwright/test";
+
+// This spec builds its own trigger and tooltip in the running app rather than
+// driving a view: what it is about is the component, not any one consumer of
+// it. /today is stubbed empty and used only to load the real bundle and
+// stylesheet — and it carries tooltips of its own now, which is why every
+// locator below asks for the one this spec mounted, by data-fixture.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.goto("/today");
+});
+
+async function mountTrigger(
+  page: import("@playwright/test").Page,
+  options: { id: string; label: string; text: string; anchor?: string } = {
+    id: "trigger",
+    label: "Pin this issue",
+    text: "Pin this issue",
+  },
+): Promise<void> {
+  await page.evaluate((opts) => {
+    const trigger = document.createElement("button");
+    trigger.id = opts.id;
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", opts.label);
+    trigger.textContent = "•";
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", opts.id);
+    if (opts.anchor) tooltip.setAttribute("anchor", opts.anchor);
+    tooltip.textContent = opts.text;
+
+    document.body.append(trigger, tooltip);
+  }, options);
+}
+
+/**
+ * main.ts registers that-tooltip from its own split chunk (see the comment
+ * there), so a <that-tooltip> can sit in the DOM un-upgraded for as long as
+ * that chunk takes to arrive — or forever, on a cache miss or a 404 in this
+ * offline PWA's service worker. Un-upgraded, it is display: inline with a
+ * real box, and its text renders as page content: Today's own Refresh button
+ * carries one reading "refresh". The chunk's filename carries a build hash
+ * this spec cannot predict, so the block below finds it by what it contains —
+ * fetching every script for real and inspecting the body — rather than by
+ * name.
+ *
+ * The refetch goes through THAT_BASE_URL directly rather than route.fetch():
+ * the chromium project (see playwright.config.ts) points the *browser* at
+ * "localhost" and relies on a Chromium-only --host-resolver-rules flag to
+ * land it on the real host, a mapping route.fetch()'s own Node-side request
+ * never sees — it tried to dial literal localhost and got ECONNREFUSED. The
+ * compose network alias in THAT_BASE_URL is reachable from this file's own
+ * runtime regardless of which project is asking.
+ */
+test("a that-tooltip that never upgrades stays invisible, not printed into the page", async ({
+  page,
+}) => {
+  const base = process.env["THAT_BASE_URL"] ?? "http://that-app:8080";
+
+  // The outer beforeEach's empty /api/issues keeps Today's header — and the
+  // Refresh button this test needs — permanently hidden (today.ts: "no
+  // instances configured, stays hidden for good"). One configured instance
+  // with no issues is enough to show it without pulling in a ticket row.
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] } }),
+  );
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+
+  await page.route("**/*.js", async (route) => {
+    const requested = new URL(route.request().url());
+    const response = await fetch(`${base}${requested.pathname}${requested.search}`);
+    const body = await response.text();
+    if (body.includes('customElements.define("that-tooltip"')) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({
+      status: response.status,
+      body,
+      contentType: response.headers.get("content-type") ?? "text/javascript",
+    });
+  });
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
+
+  // Proves the block actually worked — the element never upgraded — so the
+  // assertions below are proving the CSS rule in styles.css, not a
+  // coincidence of timing.
+  const upgraded = await page.evaluate(() => customElements.get("that-tooltip") !== undefined);
+  expect(upgraded).toBe(false);
+
+  const refreshTooltip = page.locator("that-tooltip", { hasText: "refresh" });
+  await expect(refreshTooltip).toBeAttached();
+  await expect(refreshTooltip).toBeHidden();
+  expect(await refreshTooltip.boundingBox()).toBeNull();
+});
+
+test("hovering a trigger shows the tooltip, and pointerleave hides it again", async ({ page }) => {
+  await mountTrigger(page);
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  const trigger = page.locator("#trigger");
+
+  await expect(tooltip).toBeHidden();
+
+  await trigger.hover();
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText("Pin this issue");
+
+  // Move away rather than dispatch pointerleave by hand: the real event chain
+  // is what the component listens for.
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toBeHidden();
+});
+
+test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) => {
+  await mountTrigger(page);
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+
+  await page.locator("#trigger").focus();
+  await expect(tooltip).toBeVisible();
+
+  await page.locator("#trigger").blur();
+  await expect(tooltip).toBeHidden();
+});
+
+// A trigger can be hovered and focused at once, so each release event can
+// find the popover already in the state it is asking for. Neither call throws
+// on that in either target browser — measured 2026-09-04 — so these two do
+// not prove the guards in the component; removing those guards leaves both
+// green. They cover the interaction itself: whichever way round the release
+// happens, the tooltip ends hidden and the page raises nothing.
+test("hover then focus, released pointer-first, ends hidden and quiet", async ({ page }) => {
+  await mountTrigger(page);
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+
+  await page.locator("#trigger").hover();
+  await page.locator("#trigger").focus();
+  await page.mouse.move(0, 0);
+  await page.locator("#trigger").blur();
+
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test("hover then focus, released focus-first, ends hidden and quiet", async ({ page }) => {
+  await mountTrigger(page);
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+
+  await page.locator("#trigger").hover();
+  await page.locator("#trigger").focus();
+  await page.locator("#trigger").blur();
+  await page.mouse.move(0, 0);
+
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test("the trigger's accessible name is unchanged by the tooltip's presence", async ({ page }) => {
+  await mountTrigger(page);
+  const trigger = page.locator("#trigger");
+
+  await trigger.hover();
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+
+  // The tooltip is never wired as the accessible name or description: the
+  // trigger's own aria-label is the only source of it, before or during.
+  await expect(trigger).toHaveAttribute("aria-label", "Pin this issue");
+  expect(await trigger.getAttribute("aria-describedby")).toBeNull();
+  expect(await trigger.getAttribute("aria-labelledby")).toBeNull();
+  await expect(page.getByRole("button", { name: "Pin this issue" })).toHaveCount(1);
+});
+
+// The point of the whole component: a tooltip parented to its trigger can be
+// clipped by any ancestor that gains overflow: hidden, and that failure stays
+// invisible until the day it does. The ancestor here also gains a transform,
+// which establishes a new containing block — the realistic trap, since a
+// plain position: fixed element (no top layer) is clipped by that too, not
+// just by overflow: hidden alone.
+//
+// Bounding-box geometry never changes under an ancestor's overflow: hidden —
+// that property clips paint, not layout — so a box-containment check alone
+// cannot tell a genuinely escaping popover from a plain absolutely
+// positioned div that merely computes the same coordinates. The assertions
+// below hit-test with document.elementFromPoint instead, which reports what
+// is actually painted at a pixel, and the "naive control" element proves the
+// hit-test discriminates: it is built with reveal()'s exact maths but never
+// promoted to the top layer, planted in the same clipped ancestor, and it is
+// asserted NOT to be found there — if it were found, the positive assertion
+// on the real tooltip would prove nothing.
+test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({ page }) => {
+  // Prepended, not appended: document.elementFromPoint only sees what is in
+  // the viewport, and appending after the rest of the shell's content would
+  // place this region below the fold.
+  //
+  // No spacer, and no explicit height on the region: it is left to size
+  // itself to the trigger, its only content, so the trigger sits flush
+  // against the region's own top edge and needs no scrolling to reach —
+  // by any interaction method — while the region's rendered box still ends
+  // exactly at the trigger's bottom, with nothing below it visible. An
+  // earlier version pushed the trigger down with a spacer instead, and both
+  // hover and focus scroll a programmatically-scrollable overflow: hidden
+  // ancestor to bring an off-screen target within reach, which moved this
+  // region's own scrollTop and put the naive control (below) at the wrong
+  // coordinates — a false pass for a reason that had nothing to do with
+  // clipping. Flush placement removes the scroll from the picture entirely.
+  await page.evaluate(() => {
+    const region = document.createElement("div");
+    region.id = "clip-region";
+    region.style.cssText =
+      "overflow: hidden; width: 200px; transform: translateZ(0); position: relative;";
+
+    const trigger = document.createElement("button");
+    trigger.id = "clipped-trigger";
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", "Pin this issue");
+    trigger.textContent = "•";
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "clipped-trigger");
+    tooltip.textContent = "Pin this issue";
+
+    region.append(trigger, tooltip);
+    document.body.prepend(region);
+  });
+
+  // Hover, not focus: a keyboard reveal of this same component is already
+  // covered above, and this test's own reveal mechanism does not matter to
+  // what it is proving — only that nothing about revealing it moves the
+  // region's scroll position, which the comment above the DOM setup depends
+  // on. Confirmed by direct check, in both target browsers, before trusting it.
+  await page.locator("#clipped-trigger").hover();
+
+  const scrollTop = await page.evaluate(
+    () => document.getElementById("clip-region")?.scrollTop,
+  );
+  expect(scrollTop).toBe(0);
+
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const tooltipBox = await tooltip.boundingBox();
+  const regionBox = await page.locator("#clip-region").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(regionBox).not.toBeNull();
+
+  // Necessary but not sufficient on its own (see the comment above the
+  // test): the tooltip's box starts below the region's own bottom edge.
+  expect(tooltipBox!.y).toBeGreaterThanOrEqual(regionBox!.y + regionBox!.height);
+
+  // What actually proves escape: the pixel at the tooltip's own centre is
+  // painted by the tooltip itself.
+  const paintedByTooltip = await page.evaluate(({ x, y, width, height }) => {
+    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+    return hit?.tagName.toLowerCase() === "that-tooltip";
+  }, tooltipBox!);
+  expect(paintedByTooltip).toBe(true);
+
+  // Free the point for the control below: the real tooltip, being in the top
+  // layer, would otherwise paint over it regardless of what the control does.
+  // (500, 500) rather than (0, 0): the region is prepended flush against the
+  // page's own top-left corner, so (0, 0) can still land on the trigger
+  // itself and never fire pointerleave at all.
+  await page.mouse.move(500, 500);
+  await expect(tooltip).toBeHidden();
+
+  const control = await page.evaluate((box) => {
+    const region = document.getElementById("clip-region");
+    if (!region) throw new Error("clip-region missing");
+
+    const naive = document.createElement("div");
+    naive.id = "naive-control";
+    naive.textContent = "Pin this issue";
+    // The exact box the real tooltip just occupied, so this is "positioned
+    // off the trigger's rect the same way" — the only difference from the
+    // real tooltip is that this element is never promoted to the top layer.
+    naive.style.cssText =
+      `position: fixed; top: ${box.y}px; left: ${box.x}px; ` +
+      `width: ${box.width}px; height: ${box.height}px;`;
+    region.append(naive);
+
+    const rendered = naive.getBoundingClientRect();
+    return {
+      intended: { x: box.x, y: box.y, width: box.width, height: box.height },
+      rendered: { x: rendered.x, y: rendered.y, width: rendered.width, height: rendered.height },
+    };
+  }, tooltipBox!);
+
+  // The control is only a fair comparison if it actually landed where it
+  // was told to — this is what the spacer-based version got wrong. The
+  // assertions' own diff reports the numbers if it has not.
+  expect(control.rendered.x).toBeCloseTo(control.intended.x, 0);
+  expect(control.rendered.y).toBeCloseTo(control.intended.y, 0);
+
+  const paintedByControl = await page.evaluate(({ x, y, width, height }) => {
+    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+    return hit?.id === "naive-control";
+  }, control.intended);
+
+  // The discriminating half: a plain element positioned identically, inside
+  // the same clipped-and-transformed ancestor, is NOT what paints at that
+  // pixel. If this were true, the positive assertion above would be
+  // meaningless — anything landing on that spot would pass it.
+  expect(paintedByControl).toBe(false);
+});
+
+test('anchor="end" puts the tooltip\'s right edge within a pixel of the trigger\'s', async ({
+  page,
+}) => {
+  await mountTrigger(page, {
+    id: "trailing-trigger",
+    label: "Unpin",
+    text: "Unpin this issue",
+    anchor: "end",
+  });
+
+  await page.locator("#trailing-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const tooltipBox = await tooltip.boundingBox();
+  const triggerBox = await page.locator("#trailing-trigger").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(triggerBox).not.toBeNull();
+
+  const tooltipRight = tooltipBox!.x + tooltipBox!.width;
+  const triggerRight = triggerBox!.x + triggerBox!.width;
+  expect(Math.abs(tooltipRight - triggerRight)).toBeLessThanOrEqual(1);
+});
+
+// reveal() computes top/left once, at show time, from the trigger's box and
+// this element's own width. that-ticket-row's pin control repaints this
+// element's text — "pin ticket" to "unpin ticket" — on the same click that
+// leaves the tooltip open under the pointer, which grows the box without
+// reveal() ever hearing about it: measured in Firefox, primary target, where
+// a clicked button does not gain focus and so nothing re-runs reveal() the
+// way Chromium's own focus event does. This mutates the text directly rather
+// than driving a real pin toggle: what is under test is the tooltip's own
+// reaction to its content changing, not the row's.
+test("the tooltip repositions when its text changes while open, keeping anchor=\"end\" aligned", async ({
+  page,
+}) => {
+  await mountTrigger(page, {
+    id: "growing-trigger",
+    label: "Unpin",
+    text: "pin ticket",
+    anchor: "end",
+  });
+
+  await page.locator("#growing-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  await page.evaluate(() => {
+    const el = document.querySelector("that-tooltip[data-fixture]");
+    if (!el) throw new Error("tooltip fixture missing");
+    el.textContent = "unpin ticket, now noticeably wider";
+  });
+
+  const tooltipBox = await tooltip.boundingBox();
+  const triggerBox = await page.locator("#growing-trigger").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(triggerBox).not.toBeNull();
+
+  // Without the fix this box still sits at the shorter text's left, so its
+  // now-wider content only grows the right edge further past the trigger's —
+  // the same seam the pin control hits on every toggle.
+  const tooltipRight = tooltipBox!.x + tooltipBox!.width;
+  const triggerRight = triggerBox!.x + triggerBox!.width;
+  expect(Math.abs(tooltipRight - triggerRight)).toBeLessThanOrEqual(1);
+});

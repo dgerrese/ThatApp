@@ -152,8 +152,19 @@
         </nav>
       </aside>
 
-      <main class="flex min-w-0 max-w-3xl flex-col gap-4 px-7 py-6">
-        <div id="view"></div>
+      <!--
+        The content column, and the container the instance grid measures itself
+        against. max-w-3xl used to sit here and is the container scale's 48rem,
+        which is the collision the language's decision 8 warns about: a cap is
+        an explicit value, and this one is 120rem. The query container is the
+        region rather than the capped column, matching the prototype's
+        .viewport/.pad pair, so a card grid asks how much room the view has and
+        not how much of it the cap is using.
+      -->
+      <main class="@container min-w-0">
+        <div class="mx-auto flex max-w-[120rem] flex-col gap-4 px-7 py-6">
+          <div id="view"></div>
+        </div>
       </main>
     </div>
   </body>

@@ -1,24 +1,33 @@
 /**
- * Sizes a list's issue-key column to the widest key it actually contains.
+ * Sizes the issue-key column to the widest key on the view.
  *
- * The key column is what makes every summary in a card start at the same x. A
- * fixed width does that only while every key fits: one key wider than the
- * column pushes its own summary right and the list goes ragged. Real data
- * reaches that immediately — a ten-character key already overruns the 76px the
- * design drew for its seven-character examples.
+ * The key column is what makes every summary start at the same x. A fixed
+ * width does that only while every key fits: one key wider than the column
+ * pushes its own summary right and the list goes ragged. Real data reaches
+ * that immediately — a ten-character key already overruns the 76px the design
+ * drew for its seven-character examples. So the number is a floor rather than
+ * the width, and this is what raises it.
  *
- * So the number is a floor rather than the width. Each list measures its own
- * keys and shares one column, which is what keeps alignment a property of the
- * list rather than a bet on how long a project key happens to be.
+ * One measurement across the cards that have to agree, not one per card. A
+ * table sizes its own columns from its own content, so two cards measured
+ * separately come out different widths whenever their project keys differ in
+ * length — RIDGE-5301 against NW-806 put them 8px apart — and cards that are
+ * each tidy on their own and out of step with each other is the defect the
+ * second edition's shared spacing rule exists to prevent. Measuring every key
+ * in one region and setting one property on it makes them agree.
+ *
+ * Which region is the caller's to choose, and a table the design keeps out of
+ * that agreement — Today's cross-instance Pinned table — is one it leaves
+ * outside the element it passes.
  */
 
 /** The design's column, kept as the minimum so ordinary keys look as drawn. */
 const FLOOR_PX = 76;
 
-function widestKey(list: HTMLElement): number {
+function widestKey(scope: HTMLElement): number {
   let widest = 0;
 
-  for (const key of list.querySelectorAll<HTMLElement>(".that-key")) {
+  for (const key of scope.querySelectorAll<HTMLElement>(".that-key")) {
     // The text, not the box: the box already carries the floor, so measuring it
     // would only ever measure the floor back.
     const range = document.createRange();
@@ -30,14 +39,15 @@ function widestKey(list: HTMLElement): number {
 }
 
 /**
- * Call once per list, after it is in the document — an element outside it has
- * no layout to measure.
+ * Call once with an element containing every key on the view, after it is in
+ * the document — an element outside it has no layout to measure. The property
+ * lands on that element, and `.that-tbl .c-key` in styles.css is what reads it.
  */
-export function alignKeyColumn(list: HTMLElement): void {
+export function alignKeyColumn(scope: HTMLElement): void {
   const apply = (): void => {
-    const widest = widestKey(list);
+    const widest = widestKey(scope);
     if (widest > 0) {
-      list.style.setProperty("--that-key-col", `${Math.ceil(Math.max(FLOOR_PX, widest))}px`);
+      scope.style.setProperty("--that-key-col", `${Math.ceil(Math.max(FLOOR_PX, widest))}px`);
     }
   };
 
