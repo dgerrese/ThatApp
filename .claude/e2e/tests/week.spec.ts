@@ -309,10 +309,17 @@ test("a week holding only edited-since-pushed time offers no Push", async ({ pag
     [entry(1, "RIDGE-1", "2026-09-07", 7200, "dirty")],
   );
 
-  await expect(ticketRow(page, "RIDGE-1")).toContainText("2h 00m");
-  // The marker is there for a reader who can see it, and the words are there
-  // for one who cannot.
-  await expect(ticketRow(page, "RIDGE-1")).toContainText("edited since it was pushed");
+  // Scoped to the one cell that holds the entry, and to its trigger rather
+  // than the td: the td also holds a that-tooltip sibling whose own hidden
+  // text repeats both the figure and the words below, and a row- or
+  // cell-wide raw-text match cannot tell "genuinely visible" from "closed
+  // popover, still real textContent" apart. The trigger's own text is clean.
+  const monday = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  await expect(monday).toContainText("2h 00m");
+  // The marker is the shape a sighted reader sees; the aria-label is what a
+  // reader who cannot see it gets instead — not the popover, which needs a
+  // hover or a focus neither reaches on its own.
+  await expect(monday).toHaveAttribute("aria-label", /edited since it was pushed/);
 
   await expect(page.locator("#rail-unpushed")).toHaveText("Nothing to push");
   await expect(page.locator("#rail-push")).toBeDisabled();
@@ -493,14 +500,20 @@ test("a failed cell is marked, and the read after the reporting one clears it", 
     return route.fulfill({ status: 200, json: { day, results: [result] } });
   });
 
-  const wednesday = ticketRow(page, "RIDGE-2").locator("td").nth(2);
-  await expect(wednesday).toContainText("not pushed to Jira");
+  // The trigger, not the td: the td also holds a that-tooltip sibling whose
+  // hidden textContent repeats these same words even while closed, which is
+  // exactly what would let a wrong marker still pass a raw-text match here.
+  // The aria-label is the one place these words are guaranteed to live for a
+  // reader who cannot see the marker — the popover needs a hover or a focus
+  // neither reaches on its own.
+  const wednesday = ticketRow(page, "RIDGE-2").locator("td").nth(2).locator("button");
+  await expect(wednesday).toHaveAttribute("aria-label", /not pushed to Jira/);
 
   await pushEverything(page);
-  await expect(wednesday).toContainText("did not reach Jira");
+  await expect(wednesday).toHaveAttribute("aria-label", /did not reach Jira/);
 
   await pushEverything(page);
-  await expect(wednesday).not.toContainText("did not reach Jira");
+  await expect(wednesday).not.toHaveAttribute("aria-label", /did not reach Jira/);
 });
 
 /**
@@ -714,15 +727,17 @@ test("the grid settles once the push has gone through", async ({ page }) => {
     });
   });
 
-  const monday = ticketRow(page, "RIDGE-1").locator("td").first();
-  await expect(monday).toContainText("not pushed to Jira");
+  // The trigger, not the td: the td's that-tooltip sibling carries these same
+  // words as real, hidden textContent even while closed, which would let a
+  // wrong marker still pass a raw-text match against the td. The words for a
+  // reader who cannot see the marker live in the aria-label instead.
+  const monday = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  await expect(monday).toHaveAttribute("aria-label", /not pushed to Jira/);
 
   await pushEverything(page);
 
   await expect(page.getByText("Pushed 1 entry to Jira.")).toBeVisible();
-  // useInnerText: the cell's own that-tooltip now carries "1h 00m · pushed to
-  // Jira · click to edit" as real, hidden textContent alongside it.
-  await expect(monday).toHaveText("1h 00m", { useInnerText: true });
+  await expect(monday).toHaveText("1h 00m");
 });
 
 test("a week with nothing logged says so rather than drawing an empty grid", async ({ page }) => {
