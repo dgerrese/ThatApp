@@ -439,6 +439,7 @@ function ticketCell(
     openEntryDialog(root, {
       instanceId: row.instanceId,
       instanceName: row.instanceName,
+      instancePosition: row.instancePosition,
       issueKey: row.issueKey,
       summary: "",
       status: "",

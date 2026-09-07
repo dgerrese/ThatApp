@@ -164,7 +164,10 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // wholesale, so a dialog nested in a row would be destroyed mid-edit.
   container.addEventListener(LOG_TIME, (event) => {
     const request = (event as CustomEvent<EntryTicket>).detail;
-    openEntryDialog(root, request);
+    openEntryDialog(root, {
+      ...request,
+      instancePosition: instancePositionOf(regions, request.instanceId),
+    });
   });
 
   // Every row carries its own pin control now, in both sections, and the row
@@ -380,6 +383,25 @@ function pinnedRow(pin: Pin): HTMLElement {
   }
 
   return row;
+}
+
+/**
+ * Where an instance sits in created_at order, which is what the entries
+ * dialog's dot keys its hue off. A row cannot answer this: the position is a
+ * property of the list the cards were drawn from, and the row knows only its
+ * own instance's id and name. The assigned response is that list — the same
+ * index instanceSection paints its card heading from — and a pinned ticket
+ * whose instance has no assigned issues left still carries one on its pin.
+ *
+ * undefined rather than a guess when neither knows: the dialog draws no dot at
+ * all for that, which is honest, where a fallback of 0 would paint the first
+ * instance's colour on some other instance's ticket.
+ */
+function instancePositionOf(regions: Regions, instanceId: number): number | undefined {
+  const index = regions.lastIssues?.instances.findIndex((group) => group.id === instanceId) ?? -1;
+  if (index >= 0) return index;
+
+  return regions.pins.find((pin) => pin.instanceId === instanceId)?.instancePosition;
 }
 
 /** Pins the ticket a row's own control just marked as pinned. */

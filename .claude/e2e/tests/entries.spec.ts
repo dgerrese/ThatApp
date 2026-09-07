@@ -183,6 +183,21 @@ async function typeDuration(page: Page, typed: string): Promise<void> {
   await durationField(page).press("Enter");
 }
 
+/** The logged entries, and only those: the empty line is an <li> too, and each
+ *  row now carries a that-tooltip of its own that must not be counted. */
+function entryRows(page: Page) {
+  return dialog(page).locator("ul > li");
+}
+
+/**
+ * Computed colours rather than class names, for the same reason theme.spec.ts
+ * uses them: a spec asserting classes passes against a stylesheet that never
+ * loaded. Transcribed from @theme in web/src/styles.css.
+ */
+const INK_LIGHT = "oklch(0.195 0.009 55)";
+const INK_DARK = "oklch(0.962 0.005 70)";
+const INK_MUTED_LIGHT = "oklch(0.465 0.01 55)";
+
 test("the duration control posts the seconds its table promises, not what was typed", async ({
   page,
 }) => {
@@ -297,8 +312,10 @@ test("the dialog opens from a pinned row as well as an assigned one", async ({ p
 
   await trigger(page, "SHARED-12").click();
 
-  await expect(dialog(page).getByRole("heading", { name: "Weekly standup" })).toBeVisible();
-  await expect(dialog(page)).toContainText("SHARED-12 · Ridgeline · In Progress");
+  await expect(dialog(page).getByRole("heading")).toHaveText(/Ridgeline\s*·\s*SHARED-12/);
+  // The summary is the subtitle now, and the status is off the sheet entirely.
+  await expect(dialog(page).locator("p")).toHaveText("Weekly standup");
+  await expect(dialog(page)).not.toContainText("In Progress");
 });
 
 /**
@@ -345,7 +362,8 @@ test("Refresh leaves an open dialog and its mid-edit state alone", async ({ page
 
   await expect(dialog(page)).toBeVisible();
   await expect(dialog(page).getByPlaceholder("What did you work on?")).toHaveValue("half typed");
-  await expect(dialog(page).getByText("Editing the 09:15 entry")).toBeVisible();
+  // Still bound to the entry it was bound to: the active row is what says so.
+  await expect(entryRows(page).first()).not.toHaveCSS("box-shadow", "none");
 });
 
 test("the trigger opens from the keyboard", async ({ page }) => {
@@ -357,7 +375,7 @@ test("the trigger opens from the keyboard", async ({ page }) => {
   await page.keyboard.press("Enter");
 
   await expect(dialog(page)).toBeVisible();
-  await expect(dialog(page).getByRole("heading", { name: workIssue.summary })).toBeVisible();
+  await expect(dialog(page).getByRole("heading")).toHaveText(/WORK-412/);
 });
 
 /**
@@ -376,7 +394,7 @@ test("editing binds the foot form to one entry", async ({ page }) => {
 
   await expect(durationField(page)).toHaveValue("0:30");
   await expect(dialog(page).getByPlaceholder("What did you work on?")).toHaveValue("afternoon");
-  await expect(dialog(page).getByText("Editing the 14:45 entry")).toBeVisible();
+  await expect(entryRows(page).nth(1)).not.toHaveCSS("box-shadow", "none");
 
   await dialog(page).getByPlaceholder("What did you work on?").fill("afternoon, revised");
   await dialog(page).getByRole("button", { name: "Save" }).click();
@@ -394,7 +412,8 @@ test("cancelling an edit changes nothing", async ({ page }) => {
   await typeDuration(page, "800");
   await dialog(page).getByRole("button", { name: "Stop editing" }).click();
 
-  await expect(dialog(page).getByText("Editing the 09:15 entry")).toBeHidden();
+  await expect(entryRows(page).first()).toHaveCSS("box-shadow", "none");
+  await expect(dialog(page).getByRole("button", { name: "Stop editing" })).toBeHidden();
   // Back to adding, not still holding the edited figure.
   await expect(dialog(page).getByRole("button", { name: "Add entry" })).toBeVisible();
   await expect(durationField(page)).toHaveValue("0:00");
@@ -572,4 +591,195 @@ test("the split names every instance with time against it", async ({ page }) => 
   await expect(page.locator("#rail-split")).toContainText("0h 30m");
   // One segment per instance, sized by its share.
   await expect(page.locator("#rail-split .that-split-bar > span")).toHaveCount(2);
+});
+
+/**
+ * Trap 4 of the design, and the one this ticket exists to nail down. A native
+ * <dialog> is in the top layer and the user-agent stylesheet gives it
+ * `color: CanvasText` — a declaration, which beats inheritance — so a dialog
+ * that does not state a colour wears the browser's ink rather than the app's.
+ * On a dark ground the two are near enough to look identical, which is how the
+ * defect survived thirteen prototype passes.
+ *
+ * This half exercises the *auto* path: nothing stored, no data-theme on the
+ * root, `prefers-color-scheme` alone deciding. A test that only ever ran one
+ * theme is exactly what let the original through.
+ */
+test("the dialog names the app's ink in both themes the OS can ask for", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openToday(page);
+  await trigger(page, "WORK-412").click();
+
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
+  await expect(dialog(page)).toHaveCSS("color", INK_LIGHT);
+
+  await page.emulateMedia({ colorScheme: "dark" });
+
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
+  await expect(dialog(page)).toHaveCSS("color", INK_DARK);
+});
+
+/**
+ * The other half of the theme mechanics: an explicit choice stamps data-theme
+ * on the root and outranks the OS. Both directions, because the stylesheet
+ * declares the two attribute cases separately and one of them could be dropped
+ * without the other noticing.
+ */
+test("the dialog names the app's ink under a stored preference too", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.addInitScript(() => localStorage.setItem("theme", "dark"));
+  await openToday(page);
+  await trigger(page, "WORK-412").click();
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(dialog(page)).toHaveCSS("color", INK_DARK);
+
+  // What setThemePreference does, on a dialog that is already open.
+  await page.evaluate(() => {
+    document.documentElement.dataset["theme"] = "light";
+  });
+
+  await expect(dialog(page)).toHaveCSS("color", INK_LIGHT);
+});
+
+/**
+ * The header is the instance, the key and the total. The status was there and
+ * is not any more — the row that opened this already draws it — and the start
+ * time is off the entry lines for the same reason.
+ */
+test("the header carries the dot, the instance, the key and the total, and no status", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openToday(page, [entry(1, "WORK-412", 3600, { comment: "morning" })]);
+
+  await trigger(page, "WORK-412").click();
+
+  await expect(dialog(page).getByRole("heading")).toHaveText(/^Ridgeline\s*·\s*WORK-412$/);
+  await expect(dialog(page).locator(".that-dot")).toBeVisible();
+  await expect(dialogTotal(page)).toHaveText("1h 00m");
+
+  await expect(dialog(page)).not.toContainText("In Progress");
+  await expect(dialog(page)).not.toContainText("09:15");
+
+  // The summary is a subtitle beneath the identity line, muted, not the heading.
+  const subtitle = dialog(page).locator("p");
+  await expect(subtitle).toHaveText(workIssue.summary);
+  await expect(subtitle).toHaveCSS("color", INK_MUTED_LIGHT);
+});
+
+/**
+ * Week's rows carry keys only and open this dialog with a blank summary. A
+ * subtitle element rendered empty would still cost its line box and its margin,
+ * which is a gap under a header for no reason anybody could see.
+ */
+test("a ticket with no summary renders no subtitle at all", async ({ page }) => {
+  await stubEntries(page);
+  await stubPins(page, []);
+  await stubIssues(page, [
+    { id: 1, name: "Ridgeline", issues: [{ ...workIssue, summary: "" }], error: null },
+  ]);
+  await page.goto("/today");
+
+  await trigger(page, "WORK-412").click();
+
+  await expect(dialog(page).getByRole("heading")).toHaveText(/^Ridgeline\s*·\s*WORK-412$/);
+  await expect(dialog(page).locator("p")).toHaveCount(0);
+});
+
+/**
+ * Muted, not faint. --color-ink-faint clears the 3:1 floor for a mark and fails
+ * the 4.5:1 floor for text in both themes, and these are words.
+ */
+test("an entry with no comment reads No comment in the muted tone", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+
+  await trigger(page, "WORK-412").click();
+
+  const none = dialog(page).getByText("No comment");
+  await expect(none).toBeVisible();
+  await expect(none).toHaveCSS("color", INK_MUTED_LIGHT);
+});
+
+/**
+ * What binds the foot form to one entry, now that no line of text names it: the
+ * row being edited takes the active state, and — the half that replaced the old
+ * behaviour — every other row is left exactly as it was rather than dimmed.
+ */
+test("editing marks its own row active, offers Save and Cancel, and dims no other row", async ({
+  page,
+}) => {
+  await openToday(page, [
+    entry(1, "WORK-412", 3600, { comment: "morning", startedAt: `${DAY}T09:15:00+02:00` }),
+    entry(2, "WORK-412", 1800, { comment: "afternoon", startedAt: `${DAY}T14:45:00+02:00` }),
+  ]);
+
+  await trigger(page, "WORK-412").click();
+  const rows = entryRows(page);
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toHaveCSS("box-shadow", "none");
+  await expect(dialog(page).getByRole("button", { name: "Stop editing" })).toBeHidden();
+
+  await dialog(page).getByRole("button", { name: "Edit the 14:45 entry" }).click();
+
+  await expect(rows.nth(1)).not.toHaveCSS("box-shadow", "none");
+  await expect(rows.nth(0)).toHaveCSS("box-shadow", "none");
+  await expect(rows.nth(0)).toHaveCSS("opacity", "1");
+  await expect(dialog(page).getByRole("button", { name: "Save" })).toBeVisible();
+  await expect(dialog(page).getByRole("button", { name: "Stop editing" })).toBeVisible();
+  await expect(dialog(page).getByRole("button", { name: "Add entry" })).toHaveCount(0);
+});
+
+/**
+ * The group is the control; the field inside it is borderless and takes no ring
+ * of its own. Pressing + must light the whole thing rather than nothing, which
+ * is why the group uses :focus-within and not the input's :focus.
+ */
+test("the duration group takes the focus ring, not the field inside it", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+  const group = dialog(page).locator("that-duration > div");
+
+  const resting = await group.evaluate((el) => getComputedStyle(el).borderTopColor);
+  await durationField(page).focus();
+  const focused = await group.evaluate((el) => getComputedStyle(el).borderTopColor);
+
+  expect(focused).not.toBe(resting);
+  expect(focused).toBe(INK_LIGHT);
+  await expect(durationField(page)).toHaveCSS("outline-style", "none");
+});
+
+/**
+ * A new entry is unpushed, and the marker beside it is what says so — the
+ * design took away the explanatory line on the grounds that the marker says the
+ * same thing where it matters. The popover is not the accessible name: the mark
+ * carries its own label whether or not anything is hovered.
+ */
+test("each entry carries a push-state mark naming its state", async ({ page }) => {
+  await openToday(page, [
+    entry(1, "WORK-412", 3600, { comment: "morning" }),
+    entry(2, "WORK-412", 1800, { comment: "afternoon", pushState: "pushed" }),
+  ]);
+
+  await trigger(page, "WORK-412").click();
+
+  await expect(entryRows(page).nth(0).getByRole("img")).toHaveAttribute(
+    "aria-label",
+    "not pushed to Jira",
+  );
+  await expect(entryRows(page).nth(1).getByRole("img")).toHaveAttribute(
+    "aria-label",
+    "pushed to Jira",
+  );
+
+  // Scoped to this row: Today and Week both put tooltips on the page already,
+  // and an unscoped that-tooltip locator is a strict-mode violation.
+  const popover = entryRows(page).nth(0).locator("that-tooltip");
+  await expect(popover).toBeHidden();
+  await entryRows(page).nth(0).getByRole("img").hover();
+  await expect(popover).toBeVisible();
+  await expect(popover).toHaveText("not pushed to Jira");
 });
