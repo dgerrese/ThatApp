@@ -308,7 +308,8 @@ region of the same file — the `2026-08-31` entry records a merge conflict caus
 Two machines working different days now never touch the same file.
 
 **Edit it freely; push it once.** Handoff edits accumulate on a local branch and go out as a single
-pull request when the owner signals they are shutting down for the day. Do not push a branch or
+pull request when the owner signals they are shutting down for the day. **That pull request's title
+is prefixed `[Handoff]`** — the rule and its reason live in the `eod` skill. Do not push a branch or
 open a pull request for an individual handoff edit — one pull request per touch-up bloats the
 history and the pull request list for no gain. Keep writing to both files as things change; just
 hold the push until the end-of-day signal.
