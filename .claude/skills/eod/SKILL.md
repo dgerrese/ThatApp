@@ -195,6 +195,11 @@ Open the pull request for **the handoff branch only**. Pushing is not opening a 
 a product branch goes to review when its ticket is done, which is a decision belonging to
 `ticket-workflow`, not to the end of a day.
 
+**Title it `[Handoff] <summary>`.** The prefix is what keeps the open pull request list readable:
+a handoff carries no product change and asks for none of the review a ticket does, so the owner can
+see in one pass which pull requests are waiting on a judgement and which are the day's record. The
+prefix is on the title only — the body is unchanged, and the branch stays `handoff-<today>`.
+
 ### Four rules, each of which this project has already paid for
 
 - **Never push `main`.** Local `main` is routinely stale — it sat on the pre-rename `d07f4ec` for
