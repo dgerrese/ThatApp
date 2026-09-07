@@ -864,3 +864,127 @@ test("a newly-pinned key becomes un-choosable in an open popup", async ({ page }
   await expect(option).toContainText("Pinned");
   await expect(option).toBeDisabled();
 });
+
+/**
+ * Task 3 of #95: the row itself carries a trailing pin control now, rather
+ * than Today's pin form being the only way in. Today does not yet wire
+ * `that-table` (that is Task 4), so these mount a row directly into a
+ * `that-table` the way Task 4 eventually will — the same reasoning
+ * tooltip.spec.ts's mountTrigger uses for that-tooltip's first test, since
+ * that-ticket-row is that-table's first row and neither has a production
+ * consumer wiring them together yet.
+ */
+test.describe("the ticket row's own pin control", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+    await page.route("**/api/issues", (route) =>
+      route.fulfill({ status: 200, json: { instances: [] } }),
+    );
+    await page.goto("/today");
+  });
+
+  interface RowTicket {
+    key: string;
+    summary: string;
+    status: string;
+    url: string;
+  }
+
+  const ridge5301: RowTicket = {
+    key: "RIDGE-5301",
+    summary: "Timesheet export drops the last day of the month",
+    status: "In Progress",
+    url: "https://ridgeline.atlassian.net/browse/RIDGE-5301",
+  };
+
+  async function mountRows(page: Page, tickets: RowTicket[]): Promise<void> {
+    await page.evaluate(async (list) => {
+      // Both are registered by a dynamic import (that-table from main.ts,
+      // that-ticket-row from today.ts's own dynamic view import), so a row
+      // built before either resolves would be an un-upgraded element with no
+      // .body / cell rendering at all.
+      await Promise.all([
+        customElements.whenDefined("that-table"),
+        customElements.whenDefined("that-ticket-row"),
+      ]);
+      const table = document.createElement("that-table");
+      const body = (table as unknown as { body: HTMLTableSectionElement }).body;
+      for (const ticket of list) {
+        const row = document.createElement("that-ticket-row");
+        row.setAttribute("key", ticket.key);
+        row.setAttribute("summary", ticket.summary);
+        row.setAttribute("status", ticket.status);
+        row.setAttribute("url", ticket.url);
+        row.setAttribute("instance-id", "1");
+        row.setAttribute("instance-name", "Ridgeline");
+        body.append(row);
+      }
+      document.body.append(table);
+    }, tickets);
+  }
+
+  test("every row carries its own pin control, named for its ticket", async ({ page }) => {
+    const ridge4880: RowTicket = {
+      key: "RIDGE-4880",
+      summary: "Update the on-call rota document",
+      status: "To Do",
+      url: "https://ridgeline.atlassian.net/browse/RIDGE-4880",
+    };
+    await mountRows(page, [ridge5301, ridge4880]);
+
+    await expect(page.getByRole("button", { name: "Pin RIDGE-5301", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pin RIDGE-4880", exact: true })).toBeVisible();
+  });
+
+  test("hovering the pin control shows a tooltip reading exactly \"pin ticket\"", async ({
+    page,
+  }) => {
+    await mountRows(page, [ridge5301]);
+
+    await page.getByRole("button", { name: "Pin RIDGE-5301", exact: true }).hover();
+
+    const tooltip = page.locator("that-tooltip");
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toHaveText("pin ticket");
+  });
+
+  test("clicking the pin control pins the ticket, turning it into the crossed pin", async ({
+    page,
+  }) => {
+    await mountRows(page, [ridge5301]);
+
+    await page.getByRole("button", { name: "Pin RIDGE-5301", exact: true }).click();
+
+    await expect(page.getByRole("button", { name: "Pin RIDGE-5301", exact: true })).toHaveCount(0);
+    const unpinControl = page.getByRole("button", { name: "Unpin RIDGE-5301", exact: true });
+    await expect(unpinControl).toBeVisible();
+
+    await unpinControl.hover();
+    const tooltip = page.locator("that-tooltip");
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toHaveText("unpin ticket");
+  });
+
+  // A trailing control's centred tooltip hangs past the card — decision 7's
+  // reason for anchor="end". The row spans the full card width because
+  // that-table's own <table> carries w-full, so a tooltip that centred on
+  // this control would have nowhere to go but past the right edge.
+  test("the pin control's tooltip does not extend past the card's right edge", async ({
+    page,
+  }) => {
+    await mountRows(page, [ridge5301]);
+
+    await page.getByRole("button", { name: "Pin RIDGE-5301", exact: true }).hover();
+
+    const tooltip = page.locator("that-tooltip");
+    await expect(tooltip).toBeVisible();
+
+    const card = page.locator("that-table");
+    const tooltipBox = await tooltip.boundingBox();
+    const cardBox = await card.boundingBox();
+    expect(tooltipBox).not.toBeNull();
+    expect(cardBox).not.toBeNull();
+
+    expect(tooltipBox!.x + tooltipBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+  });
+});

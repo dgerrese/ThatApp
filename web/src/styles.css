@@ -235,3 +235,28 @@ a.that-key:hover {
   padding-block: 5px;
   vertical-align: middle;
 }
+
+/* Every column but the summary keeps to its content's width; the summary is
+   the one column that gives ground. Without this, a cell's own min-content
+   width is the width of its unwrapped text — true even for the summary, once
+   truncate's white-space: nowrap is in play — and auto table layout treats
+   that as non-negotiable, growing the table past its own container instead
+   of ever letting the summary's ellipsis engage. Ported from the prototype's
+   .tbl .c-key/.c-status/.c-today/.c-act and .tbl .c-sum rules. */
+.that-tbl .c-key,
+.that-tbl .c-status,
+.that-tbl .c-today,
+.that-tbl .c-act {
+  width: 1%;
+  white-space: nowrap;
+}
+.that-tbl .c-sum {
+  min-width: 0;
+}
+
+/* that-ticket-row is a native table row rather than a flex row now that both
+   listing views are real tables — verified in both target browsers as a
+   custom element holding <td> children before this was written. */
+that-ticket-row {
+  display: table-row;
+}
