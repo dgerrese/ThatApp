@@ -1,6 +1,7 @@
 import "../components/that-alert";
 
 import { ApiError, getWeek } from "../api";
+import { openEntryDialog } from "../components/that-entry-dialog";
 import { totalFigure } from "../format";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
@@ -9,7 +10,7 @@ import { onPushReported } from "../push-reported";
 import { setRailPeriod } from "../rail";
 import { navigate } from "../router";
 import type { RegisterTeardown } from "../router";
-import type { PushResponse, WeekCell, WeekRollup } from "../types";
+import type { PushResponse, WeekCell, WeekDay, WeekRollup, WeekRow } from "../types";
 import { weekLabel } from "../week-label";
 
 /**
@@ -116,7 +117,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     showing = rollup.start;
     label.textContent = periodLabel(rollup);
     controls.replaceChildren(...weekControls(rollup));
-    grid.replaceChildren(rollup.rows.length === 0 ? emptyWeek() : gridTable(rollup, marked));
+    grid.replaceChildren(rollup.rows.length === 0 ? emptyWeek() : gridTable(rollup, marked, root));
 
     return rollup;
   };
@@ -216,13 +217,20 @@ function weekControls(rollup: WeekRollup): HTMLElement[] {
   ];
 }
 
-/** The neighbouring starts come off the response; nothing here adds seven days. */
+/**
+ * The neighbouring starts come off the response; nothing here adds seven days.
+ *
+ * `h-9` is fixed rather than left to padding: the icon buttons either side of
+ * "This week" hold an 18px mark with nothing else to give it a text line's
+ * height, so padding alone left them shorter than the text button and the
+ * three did not sit on a line.
+ */
 function weekButton(control: { mark?: string; label: string; path: string }): HTMLElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className =
-    "inline-flex cursor-pointer items-center rounded-sm px-3 py-1.5 text-base font-bold " +
-    "text-ink-muted hover:bg-hover hover:text-ink";
+    "inline-flex h-9 cursor-pointer items-center justify-center rounded-sm px-3 text-base " +
+    "font-bold text-ink-muted hover:bg-hover hover:text-ink";
 
   if (control.mark === undefined) {
     button.textContent = control.label;
@@ -243,7 +251,7 @@ function weekButton(control: { mark?: string; label: string; path: string }): HT
   return button;
 }
 
-function gridTable(rollup: WeekRollup, failures: Failures): HTMLElement {
+function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): HTMLElement {
   const table = document.createElement("table");
   // that-tnum on the table, so every figure under it is tabular — figures that
   // sit above one another have to align or the column reads as noise.
@@ -289,7 +297,8 @@ function gridTable(rollup: WeekRollup, failures: Failures): HTMLElement {
 
     row.cells.forEach((cell, index) => {
       const day = rollup.days[index]?.day ?? "";
-      tr.append(cellNode(cell, failures.cells.has(cellKey(row.instanceId, row.issueKey, day))));
+      const failed = failures.cells.has(cellKey(row.instanceId, row.issueKey, day));
+      tr.append(ticketCell(row, index, day, cell, failed, root));
     });
     tr.append(totalCell(row.seconds));
     body.append(tr);
@@ -303,9 +312,11 @@ function gridTable(rollup: WeekRollup, failures: Failures): HTMLElement {
   footHead.textContent = "Total";
   footRow.append(footHead);
   // A day's own worst-wins state, the same rule the cells above follow, so the
-  // footer says which days still hold time Jira has not got.
+  // footer says which days still hold time Jira has not got. It is still a
+  // sum — of every row's cell for that day — so it stays inert like the row
+  // and week totals rather than becoming a control.
   for (const day of rollup.days) {
-    footRow.append(cellNode(day, failures.days.has(day.day)));
+    footRow.append(dayTotal(day, failures.days.has(day.day)));
   }
   footRow.append(totalCell(rollup.seconds));
 
@@ -344,42 +355,138 @@ const MARKERS: Record<string, { className: string; words: string }> = {
     words: "edited since it was pushed",
   },
   failed: {
-    className: "size-0 border-x-[3px] border-b-[5px] border-x-transparent border-b-failed",
+    // 9×8 — grown from 6×5, which read as a smudge rather than a triangle.
+    className: "size-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-failed",
     words: "did not reach Jira",
   },
 };
 
+type PushState = WeekCell["pushState"];
+
+/** The marker a state draws, or undefined for `pushed` — the ordinary state a
+ *  grid this dense has no business decorating. `failed` outranks whatever the
+ *  rollup said, because it is newer than the rollup: it comes off the push
+ *  that just happened, and a re-read reports those entries as unpushed again
+ *  — true, but not the thing the reader needs in the seconds after Push. */
+function markerFor(pushState: PushState, failed: boolean): { className: string; words: string } | undefined {
+  return MARKERS[failed ? "failed" : (pushState ?? "pushed")];
+}
+
+/** Every state's own words, `pushed` included: it draws no marker, but a
+ *  cell's popover still has to name it. */
+function pushWords(pushState: PushState, failed: boolean): string {
+  return markerFor(pushState, failed)?.words ?? "pushed to Jira";
+}
+
+let weekCellSequence = 0;
+
 /**
- * One cell. Four things are load-bearing here and none of them is obvious:
+ * One ticket's time on one day — always a control, empty cells included: a
+ * figure opens the entries dialog onto what is already logged, empty opens
+ * the same dialog with nothing in it yet. Every trigger gets an id unique
+ * across the page, the same problem that-ticket-row's pinTriggerSequence
+ * solves for a row of pin controls — a week is the densest grid this app
+ * draws.
  *
- * `totalFigure`, never `timerFigure` — format.ts reserves the colon for a
- * timer, and a colon somewhere you cannot press play is a bug rather than a
- * formatting preference. Every figure in a rollup is a sum.
+ * The dialog is shared with Today and asks for a summary and a status; Week's
+ * own rows carry neither — "Week rows stay keys only" was a deliberate call
+ * against a summary column — so both go in blank. Carrying them here would
+ * mean extending that shared dialog, which is outside this ticket's file list.
  *
- * An em dash for an empty cell, not `0h 00m` — a zero is a measurement, and a
- * cell with no entries has not measured anything.
- *
- * The marker is inline with no reserved width. The column is right-aligned, so
- * the figure ends at the same edge either way and the marker hangs off to the
- * left; a reserved gutter would fix a drift that does not happen.
- *
- * `failed` outranks whatever the rollup said, because it is newer than the
- * rollup: it comes off the push that just happened, and a re-read reports those
- * entries as unpushed again — true, but not the thing the reader needs to know
- * in the seconds after pressing Push.
+ * `totalFigure`, never `timerFigure`: format.ts reserves the colon for a
+ * timer, and every figure in a rollup is a sum. An em dash for an empty cell,
+ * not `0h 00m` — a zero is a measurement, and a cell with no entries has not
+ * measured anything. It stays a character on purpose: punctuation is not an
+ * icon.
  */
-function cellNode(cell: WeekCell, failed: boolean): HTMLTableCellElement {
+function ticketCell(
+  row: WeekRow,
+  dayIndex: number,
+  day: string,
+  cell: WeekCell,
+  failed: boolean,
+  root: HTMLElement,
+): HTMLTableCellElement {
   const td = document.createElement("td");
   td.className = "px-2 py-1.5 text-right";
 
-  if (cell.seconds === 0) {
+  const id = `that-week-cell-${String(++weekCellSequence)}`;
+  const empty = cell.seconds === 0;
+  const words = pushWords(cell.pushState, failed);
+  const figure = empty ? "—" : totalFigure(cell.seconds);
+  const dayLabel = dayHeading(day, dayIndex);
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.id = id;
+  trigger.setAttribute("aria-haspopup", "dialog");
+  // The padding is given back as negative margin on every side, so the figure
+  // lands exactly where the td's own padding already puts it and the hover
+  // wash reaches no further than that — hugging the figure rather than
+  // spanning the column, which stays the td's job alone.
+  trigger.className =
+    "hover:bg-hover -mx-1.5 -my-0.5 inline-flex cursor-pointer items-baseline rounded-sm " +
+    "px-1.5 py-0.5";
+  // Independent of the popover below, which reaches neither a keyboard nor a
+  // screen reader on its own.
+  trigger.setAttribute(
+    "aria-label",
+    empty
+      ? `${row.issueKey}, ${dayLabel}, no time logged, click to add`
+      : `${row.issueKey}, ${dayLabel}, ${figure}, ${words}, click to edit`,
+  );
+  trigger.addEventListener("click", () => {
+    openEntryDialog(root, {
+      instanceId: row.instanceId,
+      instanceName: row.instanceName,
+      issueKey: row.issueKey,
+      summary: "",
+      status: "",
+    });
+  });
+
+  if (empty) {
+    trigger.classList.add("text-ink-muted");
+  } else {
+    // Inline with no reserved width: the column is right-aligned, so the
+    // figure ends at the same edge whether or not a marker precedes it, and a
+    // reserved gutter would fix a drift that never happens.
+    const marker = markerFor(cell.pushState, failed);
+    if (marker) {
+      const mark = document.createElement("span");
+      mark.className = `${MARKER_BASE} ${marker.className}`;
+      mark.setAttribute("aria-hidden", "true");
+      trigger.append(mark);
+    }
+  }
+  trigger.append(document.createTextNode(figure));
+
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", id);
+  tooltip.setAttribute("anchor", "end");
+  tooltip.textContent = empty
+    ? "No time logged · click to add"
+    : `${figure} · ${words} · click to edit`;
+
+  td.append(trigger, tooltip);
+
+  return td;
+}
+
+/** A day's own total across every ticket, worst-wins marked like a cell but
+ *  never a control: it is a sum, and there is nothing on it to edit. */
+function dayTotal(day: WeekDay, failed: boolean): HTMLTableCellElement {
+  const td = document.createElement("td");
+  td.className = "px-2 py-1.5 text-right";
+
+  if (day.seconds === 0) {
     td.className += " text-ink-muted";
     td.textContent = "—";
 
     return td;
   }
 
-  const marker = MARKERS[failed ? "failed" : (cell.pushState ?? "pushed")];
+  const marker = markerFor(day.pushState, failed);
   if (marker) {
     const mark = document.createElement("span");
     mark.className = `${MARKER_BASE} ${marker.className}`;
@@ -389,13 +496,14 @@ function cellNode(cell: WeekCell, failed: boolean): HTMLTableCellElement {
 
     const words = document.createElement("span");
     words.className = "sr-only";
-    // Named for a reader who cannot see the marker. "Dirty" is the code's word,
-    // not a person's.
+    // Named for a reader who cannot see the marker. "Dirty" is the code's
+    // word, not a person's. There is no control here to carry an aria-label,
+    // which is what still makes this span load-bearing rather than decorative.
     words.textContent = `${marker.words}, `;
     td.append(words);
   }
 
-  td.append(document.createTextNode(totalFigure(cell.seconds)));
+  td.append(document.createTextNode(totalFigure(day.seconds)));
 
   return td;
 }

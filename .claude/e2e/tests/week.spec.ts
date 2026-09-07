@@ -218,6 +218,13 @@ function markerIn(page: Page, issueKey: string, column: number): Locator {
   return ticketRow(page, issueKey).locator("td").nth(column).locator("span[aria-hidden='true']");
 }
 
+/** The popover naming a cell's value, push state, and whether clicking adds
+ *  or edits — nested inside that one cell, so scoping to the cell scopes the
+ *  locator too and a densely-tooltipped grid never trips a strict-mode match. */
+function tooltipIn(page: Page, issueKey: string, column: number): Locator {
+  return ticketRow(page, issueKey).locator("td").nth(column).locator("that-tooltip");
+}
+
 async function shapeOf(marker: Locator): Promise<{ radius: string; bottomBorder: string }> {
   return marker.evaluate((element) => {
     const style = getComputedStyle(element);
@@ -247,9 +254,13 @@ test("a ticket logged on two days shows both cells and a row total that adds the
 
   // Seven day cells and the row total. A day with no entries is an em dash, not
   // 0h 00m — a zero would claim a measurement that was never taken.
-  await expect(ticketRow(page, "RIDGE-1").locator("td")).toHaveText([
-    "1h 00m", "—", "0h 30m", "—", "—", "—", "—", "1h 30m",
-  ]);
+  // useInnerText: every cell now also carries a that-tooltip naming the same
+  // figure in full — real textContent, just not rendered while closed — and
+  // innerText is what ignores it.
+  await expect(ticketRow(page, "RIDGE-1").locator("td")).toHaveText(
+    ["1h 00m", "—", "0h 30m", "—", "—", "—", "—", "1h 30m"],
+    { useInnerText: true },
+  );
   // The footer adds the same figures down the columns and across the week.
   await expect(page.locator("tfoot td").last()).toHaveText("1h 30m");
 });
@@ -548,6 +559,138 @@ test("a failed marker and an unpushed one differ in shape, not only in hue", asy
 });
 
 /**
+ * Every cell is a control now, empty ones included — clicking either opens
+ * the entries dialog for the ticket the row names. The dialog itself is
+ * shared with Today and reads whatever is logged against that ticket without
+ * regard to which day's cell was clicked, so this stops at "the right dialog
+ * opens" rather than claiming the two clicks land in visibly different
+ * states — see the task report for why that line was not crossed.
+ */
+test("every cell is a control that opens the entries dialog for its ticket", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const cells = ticketRow(page, "RIDGE-1").locator("td");
+  const dialog = page.locator("dialog[open]");
+
+  // A figure: RIDGE-1 already has time logged.
+  await cells.nth(0).locator("button").click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("RIDGE-1");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // Empty: the same control opens the same dialog, ready to add.
+  await cells.nth(1).locator("button").click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("RIDGE-1");
+});
+
+/**
+ * A total is a sum, never a control — worth proving now that every other cell
+ * in the grid has become one. Neither total carries a button to click, and
+ * clicking the bare cell opens nothing.
+ */
+test("a total is a sum, not a control, and opens nothing", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const rowTotal = ticketRow(page, "RIDGE-1").locator("td").last();
+  const weekTotal = page.locator("tfoot td").last();
+
+  await expect(rowTotal.locator("button")).toHaveCount(0);
+  await expect(weekTotal.locator("button")).toHaveCount(0);
+
+  await rowTotal.click();
+  await weekTotal.click();
+
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+});
+
+/**
+ * The legend this grid never had room for is gone for good: each cell names
+ * itself now, so nothing needs to sit beside the table explaining what a
+ * marker means. Read directly off the DOM rather than the page's rendered
+ * text, so a hidden that-tooltip's own copy of the same words cannot be
+ * mistaken for a legend still standing.
+ */
+test("no legend explains the markers separately from each cell's own popover", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+    ]),
+  });
+
+  const siblingCount = await page
+    .locator("table")
+    .evaluate((table) => table.parentElement?.children.length ?? -1);
+  expect(siblingCount).toBe(1);
+});
+
+/**
+ * Each cell's popover names its value, its push state — pushed included, even
+ * though pushed draws no marker — and whether clicking adds or edits. The
+ * tooltip is scoped to its own cell, never queried loose across a grid this
+ * dense with them.
+ */
+test("a cell's popover names its value, its push state, and whether clicking adds or edits", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [
+        { at: 0, seconds: 3600, pushState: "pushed" },
+        { at: 1, seconds: 2700, pushState: "unpushed" },
+        { at: 2, seconds: 1800, pushState: "dirty" },
+      ]),
+    ]),
+  });
+
+  await expect(tooltipIn(page, "RIDGE-1", 0)).toHaveText("1h 00m · pushed to Jira · click to edit");
+  await expect(tooltipIn(page, "RIDGE-1", 1)).toHaveText("0h 45m · not pushed to Jira · click to edit");
+  await expect(tooltipIn(page, "RIDGE-1", 2)).toHaveText(
+    "0h 30m · edited since it was pushed · click to edit",
+  );
+  await expect(tooltipIn(page, "RIDGE-1", 3)).toHaveText("No time logged · click to add");
+
+  // The popover is never the accessible name — the trigger names itself too,
+  // independently, so a reader who never sees the popover still hears this.
+  const filled = ticketRow(page, "RIDGE-1").locator("td").nth(0).locator("button");
+  await expect(filled).toHaveAttribute("aria-label", /RIDGE-1/);
+  await expect(filled).toHaveAttribute("aria-label", /pushed to Jira/);
+  const empty = ticketRow(page, "RIDGE-1").locator("td").nth(3).locator("button");
+  await expect(empty).toHaveAttribute("aria-label", /no time logged/);
+});
+
+/** The icon buttons either side of "This week" used to be shorter than the
+ *  text button between them — an 18px mark has nothing else to give it a text
+ *  line's height. All three now share one fixed height instead. */
+test("the three week controls share one height", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const controls = [
+    page.getByRole("button", { name: "Previous week" }),
+    page.getByRole("button", { name: "This week" }),
+    page.getByRole("button", { name: "Next week" }),
+  ];
+  const heights = await Promise.all(
+    controls.map(async (control) => (await control.boundingBox())?.height),
+  );
+
+  expect(heights).toEqual([36, 36, 36]);
+});
+
+/**
  * void show() after a push is the only thing that settles the grid, and without
  * a fixture that changes underneath it nothing here would fail if it were
  * deleted.
@@ -577,7 +720,9 @@ test("the grid settles once the push has gone through", async ({ page }) => {
   await pushEverything(page);
 
   await expect(page.getByText("Pushed 1 entry to Jira.")).toBeVisible();
-  await expect(monday).toHaveText("1h 00m");
+  // useInnerText: the cell's own that-tooltip now carries "1h 00m · pushed to
+  // Jira · click to edit" as real, hidden textContent alongside it.
+  await expect(monday).toHaveText("1h 00m", { useInnerText: true });
 });
 
 test("a week with nothing logged says so rather than drawing an empty grid", async ({ page }) => {
