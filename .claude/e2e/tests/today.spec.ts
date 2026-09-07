@@ -36,8 +36,8 @@ async function stubIssues(page: Page, ...responses: StubGroup[][]): Promise<void
 // Today now fetches /api/pins on every render too (#6's Task 9). This suite is
 // not about pins, so every test gets an empty answer here rather than each one
 // stubbing it, or — worse — relying on the dev store actually having none: a
-// stray pin would add a that-ticket-row and a that-card ul the geometry and count
-// assertions below never budgeted for.
+// stray pin would add a that-ticket-row and a whole Pinned table the geometry
+// and count assertions below never budgeted for.
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
   // #7 put a duration cell on every row and made the rail's total live, both
@@ -226,6 +226,13 @@ test("navigating away from Today removes its 'online' listener, so reconnecting 
  * Asserted geometrically rather than by class, because the bug was invisible to
  * every class-based check — the truncate utility was present and correct the
  * whole time, and simply never had an effect.
+ *
+ * What the reader is promised is asserted here directly: the summary is the
+ * one thing that gives ground, and the status still reads inside the card.
+ * The status is found by the words on it rather than by its position among
+ * its siblings — the version of this test written for the flex row reached
+ * for `span:last-child` and, once the row became five cells, silently
+ * measured the summary's own span instead of the status.
  */
 test("a long summary truncates instead of pushing the status out of the card", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -245,11 +252,17 @@ test("a long summary truncates instead of pushing the status out of the card", a
   const row = page.locator("that-ticket-row").first();
   await expect(row).toBeVisible();
 
-  const overflow = await row.evaluate((element) => {
-    const card = element.closest("that-card") as HTMLElement;
+  // The summary is clipped rather than laid out in full: without this the
+  // assertion below could pass on a card that simply grew to fit everything.
+  const clipped = await page
+    .getByText("A deliberately overlong summary")
+    .evaluate((element) => element.scrollWidth > element.clientWidth);
+  expect(clipped).toBe(true);
+
+  const overflow = await page.getByText("In Progress").evaluate((status) => {
+    const card = status.closest("that-table") as HTMLElement;
     const inner =
       card.getBoundingClientRect().right - parseFloat(getComputedStyle(card).paddingRight);
-    const status = element.querySelector("span:last-child") as HTMLElement;
 
     return status.getBoundingClientRect().right - inner;
   });
@@ -301,11 +314,15 @@ test("buttons say whether they can be clicked", async ({ page }) => {
 });
 
 /**
- * The key is a column, not a word: fixing its width is what makes every summary
- * in a card start at the same x. Without it each row begins its title wherever
- * its own key happened to end, and the list reads as ragged.
+ * The key is a column, not a word: every summary in a card starts at the same
+ * x, whatever the key beside it. Without that each row begins its title
+ * wherever its own key happened to end, and the list reads as ragged.
  *
  * Geometry again rather than classes — the difference is entirely in layout.
+ * The summary cell is found through the words the reader sees rather than
+ * through the key's siblings: the version written for the flex row asked the
+ * key for its `nextElementSibling`, which the five-cell row leaves in another
+ * cell entirely.
  */
 test("summaries line up down the card whatever the key's length", async ({ page }) => {
   await stubIssues(page, [
@@ -323,27 +340,30 @@ test("summaries line up down the card whatever the key's length", async ({ page 
   await page.goto("/today");
   await expect(page.locator("that-ticket-row")).toHaveCount(3);
 
-  const lefts = await page.locator("that-ticket-row").evaluateAll((rows) =>
-    rows.map((row) => {
-      const key = row.querySelector(".that-key") as HTMLElement;
+  const lefts = await page
+    .locator("that-ticket-row td.c-sum")
+    .evaluateAll((cells) => cells.map((cell) => Math.round(cell.getBoundingClientRect().left)));
 
-      return Math.round((key.nextElementSibling as HTMLElement).getBoundingClientRect().left);
-    }),
-  );
-
+  expect(lefts).toHaveLength(3);
   // PLATFORM-4821 is wider than the 76px the design drew, which is exactly the
-  // case that used to go ragged: the column is sized from the widest key in the
-  // list, so all three share an edge rather than two of them agreeing.
+  // case that used to go ragged: the column takes the widest key on the view,
+  // so all three summaries share an edge rather than two of them agreeing.
   expect(new Set(lefts).size).toBe(1);
 });
 
 /**
- * Each list carries its own column. Two instances whose project keys differ in
- * length must not be forced to the same width — they are separate lists, and
- * padding the short one to suit the long one wastes the space that the summary
- * needs on a narrow viewport.
+ * Two instance cards agree with each other, not merely each with itself. Their
+ * project keys differ in length — RIDGE-5301 against NW-806 is the real case —
+ * and a key column measured per card would give each its own width, leaving
+ * two cards that are individually tidy and visibly out of step.
+ *
+ * Measured as an offset from each card's own left edge rather than as an
+ * absolute x, so the assertion says the same thing whether the cards are
+ * stacked or side by side. `table.spec.ts` makes the absolute version of this
+ * claim, across every column but the status; this one keeps Today's own suite
+ * honest about the column the key sizes.
  */
-test("each instance's list sizes its own key column", async ({ page }) => {
+test("two instance cards start their summaries at the same place", async ({ page }) => {
   await stubIssues(page, [
     group(1, "Short", [
       { key: "A-1", summary: "One", status: "To Do", url: "https://w.atlassian.net/browse/A-1" },
@@ -367,14 +387,81 @@ test("each instance's list sizes its own key column", async ({ page }) => {
   await page.goto("/today");
   await expect(page.locator("that-ticket-row")).toHaveCount(4);
 
-  const columns = await page
-    .locator("that-card ul")
-    .evaluateAll((lists) =>
-      lists.map((list) => parseFloat((list as HTMLElement).style.getPropertyValue("--that-key-col"))),
-    );
+  const offsets = await page.locator("that-table").evaluateAll((cards) =>
+    cards.map((card) => {
+      const summary = card.querySelector("tbody td.c-sum") as HTMLElement;
 
-  expect(columns).toHaveLength(2);
-  // The short list keeps the design's floor; the long one grows past it.
-  expect(columns[0]).toBe(76);
-  expect(columns[1]).toBeGreaterThan(76);
+      return Math.round(
+        summary.getBoundingClientRect().left - card.getBoundingClientRect().left,
+      );
+    }),
+  );
+
+  expect(offsets).toHaveLength(2);
+  expect(new Set(offsets).size).toBe(1);
+});
+
+/**
+ * Decision 2 of the design's layout section: two instances is the real case,
+ * and a third column would only ever be paid for out of the summary. The
+ * breakpoint is on the content column rather than the window — the prototype's
+ * own container query — so the viewports here include the rail's 216px.
+ */
+test("instance cards are one across on a narrow screen and two on a wide one", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue]), group(2, "Personal", [personalIssue])]);
+
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/today");
+
+  const work = page.getByRole("region", { name: "Work" });
+  const personal = page.getByRole("region", { name: "Personal" });
+  await expect(work).toBeVisible();
+  await expect(personal).toBeVisible();
+
+  await expect
+    .poll(async () => sideBySide(await work.boundingBox(), await personal.boundingBox()))
+    .toBe(false);
+
+  await page.setViewportSize({ width: 1920, height: 900 });
+
+  await expect
+    .poll(async () => sideBySide(await work.boundingBox(), await personal.boundingBox()))
+    .toBe(true);
+});
+
+/** Two cards are one across when the second one starts below the first. */
+function sideBySide(
+  first: { x: number; y: number } | null,
+  second: { x: number; y: number } | null,
+): boolean {
+  if (!first || !second) return false;
+
+  return Math.round(first.y) === Math.round(second.y) && first.x < second.x;
+}
+
+/**
+ * Decision 1 of the same section: a listing caps at 120rem and centres. The
+ * cap has to be written as an explicit value — `max-w-3xl`, which the shell
+ * carried, is the container scale's 48rem and has nothing to do with it.
+ */
+test("the content column caps at 120rem and stays centred", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.setViewportSize({ width: 2560, height: 900 });
+  await page.goto("/today");
+  await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
+
+  const column = await page.locator("#view").boundingBox();
+  const main = await page.locator("main").boundingBox();
+  expect(column).not.toBeNull();
+  expect(main).not.toBeNull();
+
+  // 120rem against a 16px root. The column sits inside the shell's own
+  // horizontal padding, so it is the cap it must not exceed, not equal.
+  expect(column!.width).toBeLessThanOrEqual(1920);
+  // Wider than the rest of the shell allows would mean nothing was capped at
+  // all: this viewport leaves 2344px of room.
+  expect(main!.width).toBeGreaterThan(1920);
+  expect(Math.round(column!.x - main!.x)).toBe(
+    Math.round(main!.x + main!.width - (column!.x + column!.width)),
+  );
 });

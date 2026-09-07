@@ -60,7 +60,12 @@ export class ThatTable extends HTMLElement {
   }
 
   connectedCallback(): void {
-    this.className = "bg-raised shadow-card block rounded-md px-5 py-4";
+    // overflow-x-auto: five columns do not fit a phone, and the table is
+    // allowed to be wider than the card there. Without it the *page* scrolls
+    // sideways instead, which is the one thing no view may do. Decision 7 put
+    // tooltips in the top layer for exactly this: a scrolling ancestor here
+    // cannot clip one.
+    this.className = "bg-raised shadow-card block overflow-x-auto rounded-md px-5 py-4";
     this.replaceChildren(this.table);
   }
 

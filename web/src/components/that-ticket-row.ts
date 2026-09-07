@@ -1,5 +1,6 @@
 import { fieldFigure } from "../duration";
 import { iconMarkup } from "../icons";
+import { paintInstanceDot } from "../instance-hue";
 // A type-only import is erased at compile time (verbatimModuleSyntax makes
 // that a guarantee), so describing the request with the dialog's own shape
 // costs no bundle bytes and cannot drift from what openEntryDialog expects.
@@ -28,9 +29,9 @@ let pinTriggerSequence = 0;
  * The key wears Chivo Mono via `.that-key` in styles.css — it is one of the
  * figures the second edition sets in the mono face, not the summary's prose.
  *
- * That column is a fixed width rather than the key's own: it is what makes the
- * summaries start at the same x down the whole card, which is the alignment the
- * design draws.
+ * The key's column is sized in styles.css rather than here, from one width
+ * shared by every card on the view — see .that-tbl .c-key — which is what
+ * makes the summaries start at the same x down a card and across two of them.
  *
  * Cell content lives in wrappers the component owns and re-renders, rather
  * than in the host's children — the same shape that-button uses — so that
@@ -45,8 +46,10 @@ export class ThatTicketRow extends HTMLElement {
       "url",
       "instance-id",
       "instance-name",
+      "instance-position",
       "seconds",
       "pinned",
+      "error",
     ];
   }
 
@@ -88,11 +91,15 @@ export class ThatTicketRow extends HTMLElement {
 
     const keyCell = document.createElement("td");
     keyCell.className = "c-key";
-    keyCell.append(this.keyLabel(url));
+    keyCell.append(this.keyContent(url));
 
     const sumCell = document.createElement("td");
     sumCell.className = "c-sum";
     sumCell.append(this.summarySpan());
+    const failure = this.getAttribute("error");
+    if (failure !== null && failure !== "") {
+      sumCell.append(this.failureNote(failure));
+    }
 
     const statusCell = document.createElement("td");
     statusCell.className = "c-status text-ink-muted text-sm";
@@ -316,6 +323,42 @@ export class ThatTicketRow extends HTMLElement {
     link.textContent = key;
 
     return link;
+  }
+
+  /**
+   * The key, and — in a cross-instance table like Pinned — the dot saying which
+   * Jira the row came from, 8px from it inside the same cell. A per-instance
+   * card needs none: its own heading carries the dot, and a column of dots all
+   * the same colour says nothing.
+   */
+  private keyContent(url: string): HTMLElement {
+    const label = this.keyLabel(url);
+    const position = this.getAttribute("instance-position");
+    if (position === null) return label;
+
+    const holder = document.createElement("span");
+    holder.className = "inline-flex items-center gap-2";
+    const dot = document.createElement("span");
+    paintInstanceDot(dot, Number(position), this.getAttribute("instance-name") ?? "");
+    holder.append(dot, label);
+
+    return holder;
+  }
+
+  /**
+   * Why a row is showing what it last knew rather than what is true now — a
+   * pinned row whose instance could not be reached keeps its cached summary
+   * and says this underneath it. role="status", matching that-alert, so it is
+   * announced rather than only seen; text-failed, which is what the palette
+   * calls its error tone.
+   */
+  private failureNote(message: string): HTMLElement {
+    const note = document.createElement("span");
+    note.setAttribute("role", "status");
+    note.className = "text-failed block truncate text-xs";
+    note.textContent = message;
+
+    return note;
   }
 
   private summarySpan(): HTMLElement {

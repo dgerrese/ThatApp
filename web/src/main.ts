@@ -6,17 +6,13 @@ import { startRouter } from "./router";
 startRail();
 
 // Every other reusable component is registered by whichever view imports it
-// first. This one has no view consumer yet — Task 3 of #95 is the first —
-// so it is registered here instead, unconditionally, rather than left
-// undefined until something finally reaches for it. A dynamic import rather
-// than a static one: splitting keeps it out of app.js, in its own chunk,
-// which is what the rest of this shell's code-splitting already assumes.
+// first. This one is reached for by tag name from anything that wants a
+// tooltip — a ticket row, an icon button — and never by an import, so it is
+// registered here instead, unconditionally, rather than left undefined until
+// one of them tries. A dynamic import rather than a static one: splitting
+// keeps it out of app.js, in its own chunk, which is what the rest of this
+// shell's code-splitting already assumes.
 void import("./components/that-tooltip");
-
-// Same reasoning: that-table has no view consumer yet either — Task 4 of #95
-// is its first — so it is registered here rather than left undefined until
-// then.
-void import("./components/that-table");
 
 const root = document.querySelector<HTMLElement>("#view");
 if (root) {

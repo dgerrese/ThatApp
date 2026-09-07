@@ -87,10 +87,13 @@ test("every instance card's header lines up with its own body and with the other
   const columnStarts = await tables.evaluateAll((elements) =>
     elements.map((table) => {
       const headerCells = Array.from(table.querySelectorAll("thead th"));
-      const bodyRow = table.querySelector("tbody tr");
+      // "tbody > *", not "tbody tr": a row is whatever the view puts in the
+      // body, and Today's is a that-ticket-row wearing display: table-row.
+      const bodyRow = table.querySelector("tbody > *");
       const bodyCells = bodyRow ? Array.from(bodyRow.children) : [];
 
       return headerCells.map((th, index) => ({
+        column: th.className,
         header: th.getBoundingClientRect().left,
         body: bodyCells[index]?.getBoundingClientRect().left ?? null,
       }));
@@ -109,23 +112,35 @@ test("every instance card's header lines up with its own body and with the other
 
   expect(first).toHaveLength(second.length);
   for (const [index, column] of first.entries()) {
+    // Every column but the status starts at the same x in both cards. The
+    // status is the exception the design names: "every column but the summary
+    // keeps to its content's width", and two instances' statuses are not the
+    // same words — Ridgeline's longest is In Progress, Northwind's In Review.
+    // What the summary giving ground buys is that the columns after it agree
+    // anyway, so the duration figures and the pin controls of two cards still
+    // line up. Forcing the status to a shared width would take that space out
+    // of the summary to align text nothing is read against.
+    if (column.column === "c-status") continue;
     expect(Math.round(column.header)).toBe(Math.round(second[index]!.header));
   }
 });
 
 /**
- * Item 4: the action cell's 34px control centres on middle with 5px block
- * padding chosen so it costs nothing — a row holding it must be no taller
- * than the header row above it, which holds only text (and a 13px sort
- * icon). If the action cell's control pushed the row taller, two adjoining
- * cards would step out of line with each other exactly as items 1-3 above
- * guard against, just vertically instead of horizontally.
+ * Item 4, and the design's own sentence about it: the action cell's 34px
+ * control centres on middle with 5px block padding chosen so that *the row
+ * height does not change at all*. If the control pushed its row taller, two
+ * adjoining cards would step out of line with each other exactly as items 1-3
+ * above guard against, just vertically instead of horizontally.
  *
- * Also red today, for the same reason: no that-table exists yet to measure.
+ * Measured by taking the control out of the flow and reading the row again,
+ * which is the claim itself. This test first compared the row against the
+ * header row instead, and that proxy was wrong in a way no card could ever
+ * satisfy: a header holds 13px text and a body row holds a 15px summary and a
+ * padded duration control, so the body is the taller of the two by several
+ * pixels before the action cell is even considered — 48 against 41 when it was
+ * first run against a real table.
  */
-test("a row holding the action cell's control is no taller than the header row of text", async ({
-  page,
-}) => {
+test("the action cell's control does not change its row's height", async ({ page }) => {
   await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
   await page.goto("/today");
 
@@ -133,16 +148,19 @@ test("a row holding the action cell's control is no taller than the header row o
   await expect(table).toBeVisible();
 
   const heights = await table.evaluate((element) => {
-    const headerRow = element.querySelector("thead tr");
-    const bodyRow = element.querySelector("tbody tr");
+    // See the note on the same selector above.
+    const bodyRow = element.querySelector("tbody > *");
+    const control = bodyRow?.querySelector("td.c-act button") as HTMLElement | null;
+    if (!bodyRow || !control) return null;
 
-    return {
-      header: headerRow?.getBoundingClientRect().height ?? null,
-      body: bodyRow?.getBoundingClientRect().height ?? null,
-    };
+    const withControl = bodyRow.getBoundingClientRect().height;
+    control.style.display = "none";
+    const withoutControl = bodyRow.getBoundingClientRect().height;
+    control.style.display = "";
+
+    return { withControl, withoutControl };
   });
 
-  expect(heights.header).not.toBeNull();
-  expect(heights.body).not.toBeNull();
-  expect(heights.body as number).toBeLessThanOrEqual(heights.header as number);
+  expect(heights).not.toBeNull();
+  expect(heights!.withControl).toBe(heights!.withoutControl);
 });

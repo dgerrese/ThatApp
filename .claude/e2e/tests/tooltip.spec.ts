@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-// that-tooltip has no consumer yet (Task 3 is the first), so this spec builds
-// its own trigger and tooltip in the running app rather than driving a view.
-// /today is stubbed empty and used only to load the real bundle and stylesheet.
+// This spec builds its own trigger and tooltip in the running app rather than
+// driving a view: what it is about is the component, not any one consumer of
+// it. /today is stubbed empty and used only to load the real bundle and
+// stylesheet — and it carries tooltips of its own now, which is why every
+// locator below asks for the one this spec mounted, by data-fixture.
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/issues", (route) =>
     route.fulfill({ status: 200, json: { instances: [] } }),
@@ -27,6 +29,7 @@ async function mountTrigger(
     trigger.textContent = "•";
 
     const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
     tooltip.setAttribute("for", opts.id);
     if (opts.anchor) tooltip.setAttribute("anchor", opts.anchor);
     tooltip.textContent = opts.text;
@@ -37,7 +40,7 @@ async function mountTrigger(
 
 test("hovering a trigger shows the tooltip, and pointerleave hides it again", async ({ page }) => {
   await mountTrigger(page);
-  const tooltip = page.locator("that-tooltip");
+  const tooltip = page.locator("that-tooltip[data-fixture]");
   const trigger = page.locator("#trigger");
 
   await expect(tooltip).toBeHidden();
@@ -54,7 +57,7 @@ test("hovering a trigger shows the tooltip, and pointerleave hides it again", as
 
 test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) => {
   await mountTrigger(page);
-  const tooltip = page.locator("that-tooltip");
+  const tooltip = page.locator("that-tooltip[data-fixture]");
 
   await page.locator("#trigger").focus();
   await expect(tooltip).toBeVisible();
@@ -79,7 +82,7 @@ test("hover then focus, released pointer-first, ends hidden and quiet", async ({
   await page.mouse.move(0, 0);
   await page.locator("#trigger").blur();
 
-  await expect(page.locator("that-tooltip")).toBeHidden();
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeHidden();
   expect(errors).toEqual([]);
 });
 
@@ -93,7 +96,7 @@ test("hover then focus, released focus-first, ends hidden and quiet", async ({ p
   await page.locator("#trigger").blur();
   await page.mouse.move(0, 0);
 
-  await expect(page.locator("that-tooltip")).toBeHidden();
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeHidden();
   expect(errors).toEqual([]);
 });
 
@@ -102,7 +105,7 @@ test("the trigger's accessible name is unchanged by the tooltip's presence", asy
   const trigger = page.locator("#trigger");
 
   await trigger.hover();
-  await expect(page.locator("that-tooltip")).toBeVisible();
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
 
   // The tooltip is never wired as the accessible name or description: the
   // trigger's own aria-label is the only source of it, before or during.
@@ -158,6 +161,7 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
     trigger.textContent = "•";
 
     const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
     tooltip.setAttribute("for", "clipped-trigger");
     tooltip.textContent = "Pin this issue";
 
@@ -177,7 +181,7 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
   );
   expect(scrollTop).toBe(0);
 
-  const tooltip = page.locator("that-tooltip");
+  const tooltip = page.locator("that-tooltip[data-fixture]");
   await expect(tooltip).toBeVisible();
 
   const tooltipBox = await tooltip.boundingBox();
@@ -258,7 +262,7 @@ test('anchor="end" puts the tooltip\'s right edge within a pixel of the trigger\
   });
 
   await page.locator("#trailing-trigger").hover();
-  const tooltip = page.locator("that-tooltip");
+  const tooltip = page.locator("that-tooltip[data-fixture]");
   await expect(tooltip).toBeVisible();
 
   const tooltipBox = await tooltip.boundingBox();

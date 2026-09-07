@@ -186,16 +186,9 @@ a.that-nav:hover {
   font-weight: 700;
 }
 
-/* The issue key is a column, not a word. Fixing its width is what lines the
-   summaries up down a card; without it every row starts its title at a
-   different x and the list reads as ragged. 76px is what the design drew, and
-   it is only the floor: web/src/key-column.ts measures each list and widens
-   --that-key-col when that list's own keys need more, so one long key moves the
-   whole column instead of breaking rank with the rest of the list. Real data
-   reaches the floor immediately — a ten-character key already overruns it. */
+/* The issue key is a column, not a word. Its width is the table's business now
+   — see .that-tbl .c-key below — so what is left here is the face it wears. */
 .that-key {
-  flex: none;
-  min-width: var(--that-key-col, 76px);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -250,8 +243,41 @@ a.that-key:hover {
   width: 1%;
   white-space: nowrap;
 }
+/* max-width: 0, not merely min-width: 0. A cell's own minimum in auto table
+   layout is its content's min-content width — the unwrapped summary, once
+   truncate's white-space: nowrap is in play — and a min-width of zero does not
+   lower it. So the table grew past its card and the ellipsis never engaged,
+   which is the defect the summary's whole column exists to prevent. A cell
+   that may not exceed zero contributes nothing to the table's preferred width
+   and takes the space left over instead, which is what "the summary is the one
+   column that gives ground" has to mean to be true. */
 .that-tbl .c-sum {
   min-width: 0;
+  max-width: 0;
+}
+
+/* A table sizes its key column from its own widest key, which is exactly what
+   leaves two cards disagreeing when one holds RIDGE-5301 and the other NW-806.
+   --that-key-col is one width for the whole view — web/src/key-column.ts
+   measures every key on it and sets the property on the region containing them
+   all — so each card's column starts from the same floor and the cards line up
+   with each other rather than only with themselves. 76px is what the design
+   drew, kept as the minimum so ordinary keys look as drawn. */
+.that-tbl .c-key {
+  min-width: var(--that-key-col, 76px);
+}
+
+/* One hairline under every row, header included, and none under the last —
+   the rule the list this replaced drew with divide-y, and the prototype's
+   .tbl border-bottom pair. The last-row selector is "> :last-child" rather
+   than "tr:last-child": a row is whatever the view puts in the body, and
+   Today's is a that-ticket-row wearing display: table-row. */
+.that-tbl th,
+.that-tbl td {
+  border-bottom: 1px solid var(--color-edge);
+}
+.that-tbl tbody > :last-child td {
+  border-bottom: 0;
 }
 
 /* that-ticket-row is a native table row rather than a flex row now that both

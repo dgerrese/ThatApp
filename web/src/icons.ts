@@ -25,6 +25,7 @@ export const ICON_NAMES = [
   "sortable",
   "ascending",
   "descending",
+  "refresh",
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];
@@ -45,6 +46,10 @@ const PATHS: Record<IconName, string> = {
   // than as a short stroke: at 18px a subtle one reads as a rendering artefact.
   "pin-off": '<path d="M10 3.5h4M12 3.5v5.5M7.5 9h9l1.2 5.2H6.3L7.5 9ZM12 14.2v6.3"/><path d="M4 4l16 16"/>',
   sortable: '<path d="M8 10.5 12 6.5l4 4M8 13.5l4 4 4-4"/>',
+  // An arc rather than a closed ring, with the arrowhead standing in for the
+  // missing quarter: a full circle reads as a spinner, which promises motion
+  // this control does not make until it is pressed.
+  refresh: '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3.5V9h-5.5"/>',
   ascending: '<path d="M12 19V6M7.5 10.5 12 6l4.5 4.5"/>',
   descending: '<path d="M12 5v13M7.5 13.5 12 18l4.5-4.5"/>',
 };

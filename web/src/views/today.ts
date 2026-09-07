@@ -2,6 +2,7 @@ import "../components/that-alert";
 import "../components/that-button";
 import "../components/that-card";
 import "../components/that-combobox";
+import "../components/that-table";
 import "../components/that-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
@@ -17,9 +18,12 @@ import {
 import type { ThatCombobox } from "../components/that-combobox";
 import type { EntryTicket } from "../components/that-entry-dialog";
 import { openEntryDialog } from "../components/that-entry-dialog";
-import { LOG_TIME } from "../components/that-ticket-row";
+import type { ThatTable } from "../components/that-table";
+import { LOG_TIME, PIN, UNPIN } from "../components/that-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
-import { clockTime } from "../format";
+import { clockTime, totalFigure } from "../format";
+import type { IconName } from "../icons";
+import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
@@ -35,9 +39,13 @@ import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../ty
  * module state would let a stale fetch write into a live view.
  */
 interface Regions {
-  pinnedCard: HTMLElement;
+  /** Everything the view drew, and the scope one shared key column is
+   *  measured over — see alignKeyColumn. */
+  container: HTMLElement;
+  pinnedSection: HTMLElement;
   pinnedList: HTMLElement;
   pinnedForm: HTMLElement;
+  assignedSection: HTMLElement;
   header: HTMLElement;
   refresh: HTMLElement;
   results: HTMLElement;
@@ -57,60 +65,74 @@ interface Regions {
   totalsEpoch: number;
 }
 
+/** Named so each section can point its own label at its heading, and so the
+ *  two ids cannot drift apart from the elements that carry them. */
+const PINNED_HEADING_ID = "today-pinned";
+const ASSIGNED_HEADING_ID = "today-assigned";
+
+/** One id per icon button mounted, so each tooltip's `for` resolves its own. */
+let iconButtonSequence = 0;
+
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   setRailPeriod(TODAY_PERIOD);
 
   const container = document.createElement("div");
-  container.className = "space-y-4";
+  container.className = "space-y-5";
 
   const stale = document.createElement("div");
-  // Hidden while empty, not merely childless: the container's space-y-4 gives
+  // Hidden while empty, not merely childless: the container's space-y-5 gives
   // every non-last child a bottom margin, so an empty box here would open the
-  // view with 16px of dead space above the Pinned card. A display:none box
+  // view with 20px of dead space above the Pinned section. A display:none box
   // contributes none.
   stale.hidden = true;
 
   const pushReport = document.createElement("div");
   // Same reasoning as stale above: empty but present would still claim a
-  // space-y-4 margin.
+  // margin, this time the one holding it off the cards below.
+  pushReport.className = "mb-2.5";
   pushReport.hidden = true;
 
-  const pinnedCard = document.createElement("that-card");
-  pinnedCard.setAttribute("heading", "Pinned");
-
+  // Pinned and Assigned issues are two sections of one list, so Pinned is a
+  // page heading level with the other rather than a card with a label inside
+  // it — the prototype's two .pageh blocks, lines 318 and 320.
   const pinnedList = document.createElement("div");
   pinnedList.append(loadingLine());
 
   const pinnedForm = document.createElement("div");
   pinnedForm.className = "mt-3";
 
-  pinnedCard.append(pinnedList, pinnedForm);
+  const pinnedSection = document.createElement("section");
+  pinnedSection.setAttribute("aria-labelledby", PINNED_HEADING_ID);
+  pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID), pinnedList, pinnedForm);
 
-  const header = document.createElement("div");
-  header.className = "flex items-baseline justify-between";
-
-  const heading = document.createElement("h2");
-  heading.className = "text-lg font-medium";
-  heading.textContent = "Assigned issues";
-
-  const refresh = button("Refresh", "secondary");
-  header.append(heading, refresh);
+  const header = pageHeading("Assigned issues", ASSIGNED_HEADING_ID);
+  const refresh = appendIconButton(header, "Refresh", "refresh", "refresh");
 
   // Hidden until the first response: there is nothing to refresh yet, and with
   // no instances configured it stays hidden for good.
   header.hidden = true;
 
   const results = document.createElement("div");
-  results.className = "space-y-4";
+  // One card across, two from the point the content column can hold two
+  // without taking it out of the summary. Never three: see the design's
+  // layout decision 2. The breakpoint is a container query against the region
+  // in index.html, not the window, so the rail costs the grid nothing.
+  results.className = "grid grid-cols-1 gap-4 @min-[80rem]:grid-cols-2";
   results.append(loadingLine());
 
-  container.append(stale, pinnedCard, header, pushReport, results);
+  const assignedSection = document.createElement("section");
+  assignedSection.setAttribute("aria-labelledby", ASSIGNED_HEADING_ID);
+  assignedSection.append(header, pushReport, results);
+
+  container.append(stale, pinnedSection, assignedSection);
   root.append(container);
 
   const regions: Regions = {
-    pinnedCard,
+    container,
+    pinnedSection,
     pinnedList,
     pinnedForm,
+    assignedSection,
     header,
     refresh,
     results,
@@ -147,6 +169,18 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   container.addEventListener(LOG_TIME, (event) => {
     const request = (event as CustomEvent<EntryTicket>).detail;
     openEntryDialog(root, request);
+  });
+
+  // Every row carries its own pin control now, in both sections, and the row
+  // has already flipped its own mark by the time this runs — it knows its
+  // ticket, and this knows where a pin is kept. A request that fails puts the
+  // mark back rather than leaving the row claiming something the server never
+  // agreed to.
+  container.addEventListener(PIN, (event) => {
+    void pinTicket(regions, (event as CustomEvent<EntryTicket>).detail);
+  });
+  container.addEventListener(UNPIN, (event) => {
+    void unpinTicket(regions, (event as CustomEvent<EntryTicket>).detail);
   });
 
   // The listener is on document, which outlives this view. It used to retire
@@ -219,6 +253,34 @@ function paintTotals(regions: Regions): void {
     const issueKey = row.getAttribute("key") ?? "";
     row.setAttribute("seconds", String(regions.totals.get(totalKey(instanceId, issueKey)) ?? 0));
   }
+
+  paintInstanceTallies();
+}
+
+/**
+ * What each instance's card holds and what has gone against it today, beside
+ * its name. Summed from the rows on screen rather than from the totals map:
+ * the card shows the issues that survived the pin dedupe, and a figure counting
+ * the ones it is not showing would not add up to what the reader can see.
+ *
+ * Called from paintTotals because the seconds it reads are what paintTotals
+ * has just written.
+ */
+function paintInstanceTallies(): void {
+  for (const tally of document.querySelectorAll<HTMLElement>("[data-instance-tally]")) {
+    const section = tally.closest("section");
+    if (!section) continue;
+
+    const rows = section.querySelectorAll("that-ticket-row");
+    let seconds = 0;
+    for (const row of rows) {
+      seconds += Number(row.getAttribute("seconds") ?? "0");
+    }
+
+    // A middot between two facts is typography, not an icon — the one place
+    // the language says a typed character stays a typed character.
+    tally.textContent = `${String(rows.length)} ${rows.length === 1 ? "issue" : "issues"} · ${totalFigure(seconds)}`;
+  }
 }
 
 function currentPins(regions: Regions): Pin[] {
@@ -269,17 +331,18 @@ function renderPinnedList(regions: Regions, pins: Pin[]): void {
     const empty = document.createElement("p");
     empty.className = "text-sm text-ink-muted";
     empty.textContent = "Nothing pinned.";
-    regions.pinnedList.replaceChildren(empty);
+    regions.pinnedList.replaceChildren(cardHolding(empty));
 
     return;
   }
 
-  const list = document.createElement("ul");
-  list.className = "divide-y divide-edge";
-  list.append(...pins.map((pin) => pinRow(pin, (row) => unpin(regions, pin, row))));
-  regions.pinnedList.replaceChildren(list);
+  const table = document.createElement("that-table") as ThatTable;
+  for (const pin of pins) {
+    table.body.append(pinnedRow(pin));
+  }
+  regions.pinnedList.replaceChildren(table);
 
-  alignKeyColumn(list);
+  alignKeyColumn(regions.container);
   // Rows are built without a total and given one here, from what was last read.
   // Rendering is not the only thing that reaches this list — a pin, an unpin
   // and a Refresh all rebuild it — and every one of them would otherwise put
@@ -287,20 +350,7 @@ function renderPinnedList(regions: Regions, pins: Pin[]): void {
   paintTotals(regions);
 }
 
-function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
-  const item = document.createElement("li");
-  item.className = "flex items-baseline gap-3";
-
-  // A dot, not a name: a pinned row is one the user already recognises, so its
-  // hue alone carries identity — see the restyle decision recorded in
-  // docs/superpowers/specs/2026-08-20-pinned-issues-design.md's "The row" section.
-  const dot = document.createElement("span");
-  paintInstanceDot(dot, pin.instancePosition, pin.instanceName);
-
-  // that-ticket-row sets its own className in connectedCallback, so a utility
-  // applied from outside would be discarded; the wrapper carries flex-1.
-  const wrapper = document.createElement("div");
-  wrapper.className = "min-w-0 flex-1";
+function pinnedRow(pin: Pin): HTMLElement {
   const row = document.createElement("that-ticket-row");
   row.setAttribute("key", pin.key);
   row.setAttribute("summary", pin.summary);
@@ -311,51 +361,84 @@ function pinRow(pin: Pin, onUnpin: (row: HTMLElement) => void): HTMLElement {
   // here rather than read back off the row.
   row.setAttribute("instance-id", String(pin.instanceId));
   row.setAttribute("instance-name", pin.instanceName);
-  wrapper.append(row);
-
-  item.append(dot, wrapper);
+  // A dot, not a name: a pinned row is one the user already recognises, so its
+  // hue alone carries identity — see the restyle decision recorded in
+  // docs/superpowers/specs/2026-08-20-pinned-issues-design.md's "The row"
+  // section. It sits inside the key cell, which is where Pinned differs from a
+  // per-instance card: this table is cross-instance and its heading cannot say
+  // which Jira a row came from.
+  row.setAttribute("instance-position", String(pin.instancePosition));
+  // What makes the row's own control read as unpin rather than pin, and the
+  // whole reason the mark can be trusted: it is set from what the server
+  // answered, never from what the control was last clicked to.
+  row.setAttribute("pinned", "");
 
   // A failed refresh must never blank a row: summary and status above stay
   // exactly as they were cached, and this is the only thing that changes.
   if (pin.error) {
-    // text-failed, not a "danger" token: the palette's error colour is named
-    // failed (see that-alert's TONES), and there is no --color-danger* in
-    // styles.css. role="status", matching that-alert, so a screen reader
-    // announces the failure the same way it does the assigned card's.
-    const failure = document.createElement("span");
-    failure.setAttribute("role", "status");
-    failure.className = "shrink-0 text-xs text-failed";
-    failure.textContent = pin.error.message;
-    item.append(failure);
+    row.setAttribute("error", pin.error.message);
   }
 
-  const control = button("Unpin", "secondary");
-  control.addEventListener("click", () => {
-    onUnpin(item);
-  });
-  item.append(control);
+  return row;
+}
 
-  return item;
+/** Pins the ticket a row's own control just marked as pinned. */
+async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
+  try {
+    await createPin(ticket.instanceId, ticket.issueKey);
+  } catch (error) {
+    undoOptimisticMark(regions, error);
+
+    return;
+  }
+
+  await refreshPins(regions);
 }
 
 /**
  * Unpinning destroys nothing worth confirming: time_entries rows are keyed by
  * (instance_id, issue_key) with no foreign key to pinned_issues, unlike #29's
  * instance removal whose cascade does. So there is no confirmation dialog —
- * only a disabled control while the request is in flight.
+ * the row marks itself the moment it is pressed, and this puts the mark back
+ * if the request does not land.
  */
-function unpin(regions: Regions, pin: Pin, row: HTMLElement): void {
-  const control = row.querySelector("that-button");
-  control?.setAttribute("disabled", "");
+async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
+  const pin = currentPins(regions).find(
+    (candidate) =>
+      candidate.instanceId === ticket.instanceId && candidate.key === ticket.issueKey,
+  );
+  // The row is showing a pin this view has no id for, which means the pins it
+  // is drawn from have already moved on. Re-rendering from them is both the
+  // repair and the whole of it.
+  if (!pin) {
+    renderPinnedList(regions, regions.pins);
 
-  void deletePin(pin.id)
-    .then(async () => {
-      await refreshPins(regions);
-    })
-    .catch((error: unknown) => {
-      control?.removeAttribute("disabled");
-      regions.pinnedList.prepend(alertFor("error", messageOf(error)));
-    });
+    return;
+  }
+
+  try {
+    await deletePin(pin.id);
+  } catch (error) {
+    undoOptimisticMark(regions, error);
+
+    return;
+  }
+
+  await refreshPins(regions);
+}
+
+/**
+ * Redraws both lists from what the server last said, so a row whose pin
+ * control flipped optimistically stops claiming a change that never happened,
+ * and names the failure above them. The alert is prepended after the redraw
+ * because the redraw is what would otherwise wipe it.
+ */
+function undoOptimisticMark(regions: Regions, error: unknown): void {
+  renderPinnedList(regions, regions.pins);
+  if (regions.lastIssues) {
+    renderResponse(regions, regions.lastIssues);
+  }
+  regions.pinnedList.prepend(alertFor("error", messageOf(error)));
 }
 
 /** True while the pin form (its combobox) is on screen — the condition both
@@ -537,42 +620,52 @@ function showPushReport(regions: Regions, ...nodes: Node[]): void {
 function renderResponse(regions: Regions, response: IssuesResponse): void {
   if (response.instances.length === 0) {
     // No instances means no pins either — the cascade took them with the last
-    // instance — so a Pinned card would be a control with nothing to do.
-    regions.pinnedCard.remove();
+    // instance — so a Pinned section would be a control with nothing to do.
+    regions.pinnedSection.remove();
     regions.header.hidden = true;
     regions.results.replaceChildren(noInstances());
 
     return;
   }
 
-  if (!regions.pinnedCard.isConnected) {
-    regions.header.before(regions.pinnedCard);
+  if (!regions.pinnedSection.isConnected) {
+    regions.assignedSection.before(regions.pinnedSection);
   }
 
   regions.header.hidden = false;
   regions.results.replaceChildren(
-    ...response.instances.map((group) => instanceCard(group, regions.pins)),
+    // The index is the instance's position in created_at order, which is what
+    // the hue ramp is keyed off: the store lists instances in that order and
+    // the fan-out preserves it. /api/issues carries no position of its own,
+    // unlike a pin or a search hit.
+    ...response.instances.map((group, position) => instanceSection(group, position, regions.pins)),
   );
 
-  // After insertion, not before: a list outside the document has no layout, so
-  // every key in it would measure zero.
-  for (const list of regions.results.querySelectorAll<HTMLElement>("ul")) {
-    alignKeyColumn(list);
-  }
+  // After insertion, not before: an element outside the document has no
+  // layout, so every key in it would measure zero.
+  alignKeyColumn(regions.container);
 
   paintTotals(regions);
 }
 
-function instanceCard(group: InstanceIssues, pins: Pin[]): HTMLElement {
-  const card = document.createElement("that-card");
-  // that-card has no observedAttributes, so the heading must be set before the
-  // element is inserted; changing it afterwards silently does nothing.
-  card.setAttribute("heading", group.name);
+/**
+ * One instance: its name and hue above, its issues in a card below. The
+ * heading is a sibling of the card rather than something inside it — the
+ * prototype's .grouph, line 335 — which is what lets the card be nothing but
+ * the table every other card has to line up with.
+ */
+function instanceSection(group: InstanceIssues, position: number, pins: Pin[]): HTMLElement {
+  const section = document.createElement("section");
+  const headingId = `today-instance-${String(group.id)}`;
+  section.setAttribute("aria-labelledby", headingId);
+
+  const heading = instanceHeading(group.name, position, headingId);
+  section.append(heading);
 
   if (group.error) {
-    card.append(alertFor("error", group.error.message));
+    section.append(cardHolding(alertFor("error", group.error.message)));
 
-    return card;
+    return section;
   }
 
   const pinnedKeys = new Set(pins.map((pin) => `${pin.instanceId}:${pin.key}`));
@@ -586,15 +679,21 @@ function instanceCard(group: InstanceIssues, pins: Pin[]): HTMLElement {
     // of this list. Saying "assigned" for the latter would be false, not terse.
     empty.textContent =
       group.issues.length === 0 ? "No issues assigned." : "All assigned issues are pinned above.";
-    card.append(empty);
+    section.append(cardHolding(empty));
 
-    return card;
+    return section;
   }
 
-  const list = document.createElement("ul");
-  list.className = "divide-y divide-edge";
+  // Filled by paintTotals, which is the only thing that knows what was logged
+  // today. Added only where there are rows to count: "0 issues" beside a card
+  // that already says why it is empty is a second answer to a settled question.
+  const tally = document.createElement("span");
+  tally.dataset["instanceTally"] = "";
+  tally.className = "ml-auto font-normal tracking-normal normal-case";
+  heading.append(tally);
+
+  const table = document.createElement("that-table") as ThatTable;
   for (const issue of visible) {
-    const item = document.createElement("li");
     const row = document.createElement("that-ticket-row");
     row.setAttribute("key", issue.key);
     row.setAttribute("summary", issue.summary);
@@ -602,12 +701,33 @@ function instanceCard(group: InstanceIssues, pins: Pin[]): HTMLElement {
     row.setAttribute("url", issue.url);
     row.setAttribute("instance-id", String(group.id));
     row.setAttribute("instance-name", group.name);
-    item.append(row);
-    list.append(item);
+    table.body.append(row);
   }
-  card.append(list);
+  section.append(table);
 
-  return card;
+  return section;
+}
+
+/** The instance's dot and name over its card — the prototype's .grouph. */
+function instanceHeading(name: string, position: number, headingId: string): HTMLElement {
+  const head = document.createElement("div");
+  head.className =
+    "text-ink-muted mx-0.5 mb-1.5 flex items-center gap-[9px] text-xs font-bold " +
+    "tracking-[0.16em] uppercase";
+
+  const dot = document.createElement("span");
+  paintInstanceDot(dot, position, name);
+
+  // The heading names the instance and nothing else: the dot beside it repeats
+  // that name for a reader who cannot see the hue, and a tally that changes
+  // through the day has no business in the name of a section.
+  const title = document.createElement("h3");
+  title.id = headingId;
+  title.textContent = name;
+
+  head.append(dot, title);
+
+  return head;
 }
 
 function loadingLine(): HTMLElement {
@@ -640,6 +760,57 @@ function noInstances(): HTMLElement {
 // helpers in views/settings.ts. Extracting them into a shared module is the
 // right end state, but it means editing settings.ts, which is outside this
 // ticket's scope. Worth its own ticket.
+
+/**
+ * A section's heading and the controls that belong beside it — the prototype's
+ * .pageh, line 318. Pinned and Assigned issues wear the same one: they are two
+ * sections of one list, not a card and a list.
+ */
+function pageHeading(text: string, headingId: string): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "mb-2.5 flex items-center gap-2";
+
+  const heading = document.createElement("h2");
+  heading.id = headingId;
+  heading.className = "text-lg font-medium";
+  heading.textContent = text;
+  box.append(heading);
+
+  return box;
+}
+
+/**
+ * A control that is only a drawn mark, and the tooltip saying in words what
+ * the mark means. The label is the button's own — a tooltip reaches neither a
+ * keyboard nor a screen reader, so it is never the accessible name.
+ */
+function appendIconButton(host: HTMLElement, label: string, icon: IconName, tip: string): HTMLElement {
+  const control = document.createElement("button");
+  control.type = "button";
+  control.id = `today-icon-${String(++iconButtonSequence)}`;
+  control.setAttribute("aria-label", label);
+  control.className =
+    "hover:bg-hover focus-visible:bg-hover text-ink-muted hover:text-ink " +
+    "focus-visible:text-ink flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center " +
+    "justify-center rounded-sm disabled:cursor-not-allowed disabled:opacity-50";
+  control.innerHTML = iconMarkup(icon, 17);
+
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", control.id);
+  tooltip.textContent = tip;
+
+  host.append(control, tooltip);
+
+  return control;
+}
+
+/** The raised surface a message sits on where a table would otherwise be. */
+function cardHolding(node: Node): HTMLElement {
+  const card = document.createElement("that-card");
+  card.append(node);
+
+  return card;
+}
 
 function button(label: string, variant: string): HTMLElement {
   const element = document.createElement("that-button");
