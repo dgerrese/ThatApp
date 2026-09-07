@@ -8,13 +8,17 @@
  * drew for its seven-character examples. So the number is a floor rather than
  * the width, and this is what raises it.
  *
- * One measurement for the whole view, not one per card. A table sizes its own
- * columns from its own content, so two cards measured separately come out
- * different widths whenever their project keys differ in length — RIDGE-5301
- * against NW-806 put them 8px apart — and cards that are each tidy on their own
- * and out of step with each other is the defect the second edition's shared
- * spacing rule exists to prevent. Measuring every key on the view and setting
- * one property on the region holding them makes the cards agree.
+ * One measurement across the cards that have to agree, not one per card. A
+ * table sizes its own columns from its own content, so two cards measured
+ * separately come out different widths whenever their project keys differ in
+ * length — RIDGE-5301 against NW-806 put them 8px apart — and cards that are
+ * each tidy on their own and out of step with each other is the defect the
+ * second edition's shared spacing rule exists to prevent. Measuring every key
+ * in one region and setting one property on it makes them agree.
+ *
+ * Which region is the caller's to choose, and a table the design keeps out of
+ * that agreement — Today's cross-instance Pinned table — is one it leaves
+ * outside the element it passes.
  */
 
 /** The design's column, kept as the minimum so ordinary keys look as drawn. */

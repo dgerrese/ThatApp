@@ -112,35 +112,44 @@ test("every instance card's header lines up with its own body and with the other
 
   expect(first).toHaveLength(second.length);
   for (const [index, column] of first.entries()) {
-    // Every column but the status starts at the same x in both cards. The
-    // status is the exception the design names: "every column but the summary
-    // keeps to its content's width", and two instances' statuses are not the
-    // same words — Ridgeline's longest is In Progress, Northwind's In Review.
-    // What the summary giving ground buys is that the columns after it agree
-    // anyway, so the duration figures and the pin controls of two cards still
-    // line up. Forcing the status to a shared width would take that space out
-    // of the summary to align text nothing is read against.
+    // Every column but the status starts at the same x in both cards.
+    //
+    // The status is where two cards are allowed to differ, and the prototype
+    // is what says so: line 102 sizes c-key, c-status, c-today and c-act to
+    // their own content (`width: 1%; white-space: nowrap`), and its own two
+    // cards, at lines 335 and 337, carry different status vocabularies — In
+    // Progress / To Do / Blocked against In Review / To Do — so they do not
+    // share that column's edge either. The design source ships the very thing
+    // this line allows.
+    //
+    // What the summary giving ground buys is that the columns after the status
+    // agree anyway, so two cards' duration figures and pin controls still line
+    // up. Forcing the status to a shared width would take that space out of
+    // the summary to align text nothing is read against.
     if (column.column === "c-status") continue;
     expect(Math.round(column.header)).toBe(Math.round(second[index]!.header));
   }
 });
 
 /**
- * Item 4, and the design's own sentence about it: the action cell's 34px
- * control centres on middle with 5px block padding chosen so that *the row
- * height does not change at all*. If the control pushed its row taller, two
- * adjoining cards would step out of line with each other exactly as items 1-3
- * above guard against, just vertically instead of horizontally.
+ * Item 4, and the design's sentence about every control in these tables: each
+ * "grew its padding and gave the space straight back as negative margin: the
+ * hit area is larger and nothing moved". So a row holding both of them — the
+ * duration trigger and the 34px pin control — is no taller than the same row
+ * with nothing but its text. If a control pushed its row taller, two adjoining
+ * cards would step out of line with each other exactly as items 1-3 above
+ * guard against, just vertically instead of horizontally.
  *
- * Measured by taking the control out of the flow and reading the row again,
- * which is the claim itself. This test first compared the row against the
- * header row instead, and that proxy was wrong in a way no card could ever
- * satisfy: a header holds 13px text and a body row holds a 15px summary and a
- * padded duration control, so the body is the taller of the two by several
- * pixels before the action cell is even considered — 48 against 41 when it was
- * first run against a real table.
+ * Measured by taking both controls out of the flow and reading the row again,
+ * which is the claim itself. Two earlier framings of it could not fail: the
+ * first compared the row against the header row, which holds 13px text against
+ * a body row's 15px summary and so is the shorter of the two whatever the
+ * cells do (41 against 48); the second removed only the pin control, while the
+ * duration trigger — which carried padding and no negative margin, and was
+ * what made the row 48 — stayed in the flow through both measurements. With
+ * the give-back in place the row measures 45.83 either way.
  */
-test("the action cell's control does not change its row's height", async ({ page }) => {
+test("a row holding controls is no taller than a row of text alone", async ({ page }) => {
   await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
   await page.goto("/today");
 
@@ -150,17 +159,20 @@ test("the action cell's control does not change its row's height", async ({ page
   const heights = await table.evaluate((element) => {
     // See the note on the same selector above.
     const bodyRow = element.querySelector("tbody > *");
-    const control = bodyRow?.querySelector("td.c-act button") as HTMLElement | null;
-    if (!bodyRow || !control) return null;
+    const controls = bodyRow?.querySelectorAll<HTMLElement>(
+      "td.c-today button, td.c-act button",
+    );
+    // Both of them, or this is measuring something other than what it claims.
+    if (!bodyRow || controls?.length !== 2) return null;
 
-    const withControl = bodyRow.getBoundingClientRect().height;
-    control.style.display = "none";
-    const withoutControl = bodyRow.getBoundingClientRect().height;
-    control.style.display = "";
+    const withControls = bodyRow.getBoundingClientRect().height;
+    for (const control of controls) control.style.display = "none";
+    const textAlone = bodyRow.getBoundingClientRect().height;
+    for (const control of controls) control.style.display = "";
 
-    return { withControl, withoutControl };
+    return { withControls, textAlone };
   });
 
   expect(heights).not.toBeNull();
-  expect(heights!.withControl).toBe(heights!.withoutControl);
+  expect(heights!.withControls).toBeLessThanOrEqual(heights!.textAlone);
 });

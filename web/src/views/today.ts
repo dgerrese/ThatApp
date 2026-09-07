@@ -39,9 +39,6 @@ import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../ty
  * module state would let a stale fetch write into a live view.
  */
 interface Regions {
-  /** Everything the view drew, and the scope one shared key column is
-   *  measured over — see alignKeyColumn. */
-  container: HTMLElement;
   pinnedSection: HTMLElement;
   pinnedList: HTMLElement;
   pinnedForm: HTMLElement;
@@ -128,7 +125,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   root.append(container);
 
   const regions: Regions = {
-    container,
     pinnedSection,
     pinnedList,
     pinnedForm,
@@ -342,7 +338,11 @@ function renderPinnedList(regions: Regions, pins: Pin[]): void {
   }
   regions.pinnedList.replaceChildren(table);
 
-  alignKeyColumn(regions.container);
+  // No alignKeyColumn here. Pinned is a cross-instance table whose key cell
+  // carries a dot the per-instance cells do not, and the design has it
+  // deliberately not aligned to them — so it neither takes the shared column
+  // nor widens it. It keeps the 76px floor and its own content's width.
+  //
   // Rows are built without a total and given one here, from what was last read.
   // Rendering is not the only thing that reaches this list — a pin, an unpin
   // and a Refresh all rebuild it — and every one of them would otherwise put
@@ -641,9 +641,12 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
     ...response.instances.map((group, position) => instanceSection(group, position, regions.pins)),
   );
 
-  // After insertion, not before: an element outside the document has no
+  // The results grid, not the whole view: one shared key column across the
+  // instance cards, which is what makes them agree with each other, and the
+  // property lands on the one element that holds all of them and nothing else.
+  // After insertion, not before — an element outside the document has no
   // layout, so every key in it would measure zero.
-  alignKeyColumn(regions.container);
+  alignKeyColumn(regions.results);
 
   paintTotals(regions);
 }

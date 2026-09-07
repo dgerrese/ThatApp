@@ -141,9 +141,15 @@ export class ThatTicketRow extends HTMLElement {
     // Named rather than left to read as "Log 0:00": down a list of rows that
     // sentence does not say which ticket it belongs to.
     trigger.setAttribute("aria-label", `Log time against ${key}, ${figure} today`);
+    // The padding is given straight back as negative margin, which is the
+    // design's rule for every control in a table: the ink meets the card edge,
+    // not the hit area, and the row is the height its text asks for. Without
+    // the give-back this cell was the tallest in the row and every card grew
+    // by it. The left margin is not returned — the prototype's durbtn keeps
+    // that side, so the figure stays clear of the summary beside it.
     trigger.className =
-      "group hover:bg-hover flex shrink-0 cursor-pointer items-baseline gap-1.5 " +
-      "rounded-sm px-1.5 py-0.5";
+      "group hover:bg-hover -my-0.5 -mr-1.5 flex shrink-0 cursor-pointer items-baseline " +
+      "gap-1.5 rounded-sm px-1.5 py-0.5";
 
     // Decision 10 reverses the first edition's choice for a table: the hint
     // always occupies its width and only its opacity fades in, so the status
@@ -333,13 +339,18 @@ export class ThatTicketRow extends HTMLElement {
    */
   private keyContent(url: string): HTMLElement {
     const label = this.keyLabel(url);
-    const position = this.getAttribute("instance-position");
-    if (position === null) return label;
+    // A whole number, or no dot at all. Both empties have to be caught by hand
+    // before Number() sees them: it reads null *and* "" as 0, which would paint
+    // the first instance's hue on a row that never claimed one. Anything else
+    // unparseable arrives as NaN and is refused the same way.
+    const declared = this.getAttribute("instance-position")?.trim() ?? "";
+    const position = declared === "" ? Number.NaN : Number(declared);
+    if (!Number.isInteger(position)) return label;
 
     const holder = document.createElement("span");
     holder.className = "inline-flex items-center gap-2";
     const dot = document.createElement("span");
-    paintInstanceDot(dot, Number(position), this.getAttribute("instance-name") ?? "");
+    paintInstanceDot(dot, position, this.getAttribute("instance-name") ?? "");
     holder.append(dot, label);
 
     return holder;

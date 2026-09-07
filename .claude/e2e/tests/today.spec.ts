@@ -429,7 +429,8 @@ test("instance cards are one across on a narrow screen and two on a wide one", a
     .toBe(true);
 });
 
-/** Two cards are one across when the second one starts below the first. */
+/** True when the two cards share a top edge and the second is to the right of
+ *  the first — which is what two across looks like, and one across does not. */
 function sideBySide(
   first: { x: number; y: number } | null,
   second: { x: number; y: number } | null,
@@ -443,25 +444,38 @@ function sideBySide(
  * Decision 1 of the same section: a listing caps at 120rem and centres. The
  * cap has to be written as an explicit value — `max-w-3xl`, which the shell
  * carried, is the container scale's 48rem and has nothing to do with it.
+ *
+ * The value is asserted, not a ceiling: the criterion is that no view caps
+ * *below* 120rem, so "no wider than 1920" is the wrong side of it and passes
+ * for the 768px cap this replaced. 1920 is 120rem against a 16px root.
  */
 test("the content column caps at 120rem and stays centred", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [workIssue])]);
   await page.setViewportSize({ width: 2560, height: 900 });
   await page.goto("/today");
-  await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
+  // Waited on by count rather than by the summary being visible: a cap narrow
+  // enough to fail this test is also narrow enough to truncate that summary to
+  // nothing, and the wait would then be what failed instead of the assertion.
+  await expect(page.locator("that-ticket-row")).toHaveCount(1);
 
-  const column = await page.locator("#view").boundingBox();
+  // The column the view is mounted in, reached through #view rather than by a
+  // structural selector of its own.
+  const column = await page.locator("#view").evaluate((view) => {
+    const box = view.parentElement as HTMLElement;
+    const rect = box.getBoundingClientRect();
+
+    return { maxWidth: getComputedStyle(box).maxWidth, width: rect.width, x: rect.x };
+  });
   const main = await page.locator("main").boundingBox();
-  expect(column).not.toBeNull();
   expect(main).not.toBeNull();
 
-  // 120rem against a 16px root. The column sits inside the shell's own
-  // horizontal padding, so it is the cap it must not exceed, not equal.
-  expect(column!.width).toBeLessThanOrEqual(1920);
-  // Wider than the rest of the shell allows would mean nothing was capped at
-  // all: this viewport leaves 2344px of room.
+  expect(column.maxWidth).toBe("1920px");
+  // And the cap is the thing actually holding the column's width here, rather
+  // than a value written down and outranked by something else: this viewport
+  // leaves 2344px of room for it.
+  expect(Math.round(column.width)).toBe(1920);
   expect(main!.width).toBeGreaterThan(1920);
-  expect(Math.round(column!.x - main!.x)).toBe(
-    Math.round(main!.x + main!.width - (column!.x + column!.width)),
+  expect(Math.round(column.x - main!.x)).toBe(
+    Math.round(main!.x + main!.width - (column.x + column.width)),
   );
 });

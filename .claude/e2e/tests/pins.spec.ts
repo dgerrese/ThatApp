@@ -662,7 +662,10 @@ test("unpinning removes the row without a reload", async ({ page }) => {
     (window as unknown as { __wd_marker: boolean }).__wd_marker = true;
   });
 
-  await page.getByRole("button", { name: "Unpin" }).click();
+  // The row's own control, named for its ticket: the list's dedicated Unpin
+  // button is gone, and an unanchored "Unpin" would match this by substring
+  // without saying which row it had found.
+  await page.getByRole("button", { name: "Unpin SHARED-12", exact: true }).click();
 
   await expect(page.getByText("SHARED-12")).toHaveCount(0);
   await expect(page.getByText("Nothing pinned.")).toBeVisible();
