@@ -241,7 +241,8 @@ is not redrafted later.
 
 1. **`superpowers:brainstorming`** — before any code, when an issue needs design the spec does not
    already settle. Most tickets do not: the design of record answers them and the acceptance
-   criteria are the only open work.
+   criteria are the only open work. **A ticket that puts something new on screen is never one of
+   those** — see *When a ticket changes the UI* below.
 2. **`superpowers:using-git-worktrees`** — after design approval. **Standing decision for this
    repo: branch in place, no worktree.** Compose derives its project name from the directory, so a
    worktree gets its own images and volumes and rebuilds everything from cold. Invoke the skill,
@@ -264,6 +265,32 @@ is not redrafted later.
 7. **`superpowers:finishing-a-development-branch`** — verifies the suite, presents the integration
    options, pushes and opens the pull request. The ticket keeps `status/in-progress` — the open
    pull request is the review state — so there is no label to move. Then stop.
+
+### When a ticket changes the UI
+
+**A ticket that changes the interface in a way the current design does not already define starts
+with an interactive design session, not with a plan.** Settle it with the owner first, write the
+outcome into the ticket's design document, and plan from there.
+
+**The test is narrow and it is about drawings, not about judgement.** Ask of every screen change:
+does the visual design language, the ticket's own design document, or the prototype at
+`docs/superpowers/prototypes/` already show this? If yes, build what is drawn. If no — a new
+control, a control moved, a new report, a new state a mark has to express, a row gaining a fourth
+thing where three were drawn sharing one height — the design does not cover it and a session is due.
+**Reasoning your way to what the designer would probably have wanted is exactly what this rule
+exists to stop.** It happened on #10: the fetch control was written into a design document as
+joining Week's three-control row, and the prototype's own caption calls those three out as sharing
+one height.
+
+**"Interactive" means the local browser companion**, per the standing decision recorded in the
+handoff: `superpowers:brainstorming`'s `scripts/start-server.sh --project-dir <repo> --open`, with
+screens written into the session's `content/` directory. Options go up side by side and the owner
+picks. **Never a cloud artifact, and never a canvas** — that was settled on 2026-09-03.
+
+Two things this does not mean. It is not a session per ticket: a ticket that only rewires what is
+already drawn goes straight to planning as before. And it is not licence to redesign — the session
+covers the thing the ticket puts on screen, and anything else it turns up becomes an intake ticket
+like any other finding.
 
 **One issue, one branch, one pull request.** The pull request body references the issue with
 `Closes #<n>`, and the open pull request is what puts the ticket into review.

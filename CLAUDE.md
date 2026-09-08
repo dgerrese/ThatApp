@@ -205,6 +205,13 @@ subagent execution under TDD → code review → finish the branch and open the 
 no bespoke agent team — the `.claude/agents/` definitions were removed once ticket 1 shipped
 through this loop instead.
 
+**A ticket that puts something on screen the design does not already draw runs an interactive
+design session first.** A new control, a moved one, a new report, a state no mark expresses yet:
+if the visual design language, the ticket's design document or the prototype does not show it,
+settle it with the owner on the local browser companion before planning, never by reasoning out
+what the design would probably have wanted. The `ticket-workflow` skill holds the test and how the
+session runs.
+
 **Invoke the `ticket-workflow` skill** whenever work starts, a ticket changes status, or a blocker
 appears. It holds the label mechanics, the `tea` commands, what each status requires and the loop in
 full — including the standing decision on worktrees and why the whole-branch review is not
