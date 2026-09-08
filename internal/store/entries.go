@@ -239,6 +239,103 @@ func (s *Store) MarkEntryPushedIfUnchanged(
 	return affected == 1, nil
 }
 
+// EntriesWithWorklogs returns one instance's entries that already claim a Jira
+// worklog, keyed by that worklog's id.
+//
+// A map because the fetch asks "does anything hold this worklog" once per
+// worklog that comes back, and a unique index makes the key total: no two rows
+// on one instance may carry the same worklog_id.
+func (s *Store) EntriesWithWorklogs(ctx context.Context, instanceID int64) (map[string]Entry, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+entryColumns+`
+		   FROM time_entries
+		  WHERE instance_id = ? AND worklog_id IS NOT NULL`, instanceID)
+	if err != nil {
+		return nil, fmt.Errorf("querying pushed entries on instance %d: %w", instanceID, err)
+	}
+
+	entries, err := scanEntries(rows, fmt.Sprintf("reading pushed entries on instance %d", instanceID))
+	if err != nil {
+		return nil, err
+	}
+
+	byWorklog := make(map[string]Entry, len(entries))
+	for _, entry := range entries {
+		byWorklog[entry.WorklogID] = entry
+	}
+
+	return byWorklog, nil
+}
+
+// CreateFetchedEntry stores time that came from Jira rather than from this app.
+//
+// updated_at and pushed_at are both `at`, so the entry reads clean the moment it
+// exists: it came from Jira, and a push must not send it straight back. That is
+// the whole reason this is not CreateEntry followed by a mark — the two writes
+// would leave a window where the row reads unpushed, and a push landing in it
+// would duplicate the worklog.
+func (s *Store) CreateFetchedEntry(
+	ctx context.Context, in EntryInput, worklogID string, at time.Time,
+) (*Entry, error) {
+	stamp := at.UTC().Truncate(time.Second)
+	startedAt := in.StartedAt.UTC().Truncate(time.Second)
+
+	result, err := s.db.ExecContext(ctx,
+		`INSERT INTO time_entries
+		        (instance_id, issue_key, day, started_at, seconds, comment,
+		         worklog_id, pushed_at, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.InstanceID, in.IssueKey, in.Day, startedAt.Format(time.RFC3339), in.Seconds,
+		nullable(in.Comment), worklogID, stamp.Format(time.RFC3339),
+		stamp.Format(time.RFC3339), stamp.Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("storing worklog %s as an entry on %q: %w", worklogID, in.IssueKey, err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("reading id of the entry for worklog %s: %w", worklogID, err)
+	}
+
+	return &Entry{
+		ID: id, InstanceID: in.InstanceID, IssueKey: in.IssueKey, Day: in.Day,
+		StartedAt: startedAt, Seconds: in.Seconds, Comment: in.Comment,
+		WorklogID: worklogID, PushedAt: &stamp, CreatedAt: stamp, UpdatedAt: stamp,
+	}, nil
+}
+
+// OverwriteEntryFromWorklog replaces a local entry with what Jira holds.
+//
+// Unlike UpdateEntry it does move day and started_at: a worklog whose start was
+// changed in Jira belongs to whichever day that start now falls in, and leaving
+// the row on its old day would show the time twice over if a later fetch created
+// it again. It also moves pushed_at with updated_at, so the entry stays clean —
+// this is Jira's copy, not an edit of it.
+//
+// Only ever called for an entry the caller has already established is clean. An
+// entry carrying unpushed changes is never overwritten; see the design.
+func (s *Store) OverwriteEntryFromWorklog(
+	ctx context.Context, id int64, day string, startedAt time.Time,
+	seconds int, comment string, at time.Time,
+) error {
+	stamp := at.UTC().Truncate(time.Second)
+
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE time_entries
+		    SET day = ?, started_at = ?, seconds = ?, comment = ?,
+		        pushed_at = ?, updated_at = ?
+		  WHERE id = ?`,
+		day, startedAt.UTC().Truncate(time.Second).Format(time.RFC3339), seconds,
+		nullable(comment), stamp.Format(time.RFC3339), stamp.Format(time.RFC3339), id,
+	)
+	if err != nil {
+		return fmt.Errorf("overwriting entry %d from its worklog: %w", id, err)
+	}
+
+	return errNoRowsIfUnaffected(result, "overwriting entry", id)
+}
+
 // Entry reads one entry by id. A missing id yields an error wrapping
 // sql.ErrNoRows. It exists for the partial PATCH: a request carrying only a
 // duration has to keep the stored comment, and UpdateEntry writes both. That

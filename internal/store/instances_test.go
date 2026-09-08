@@ -27,6 +27,22 @@ func createTestInstance(t *testing.T, s *Store) *Instance {
 	return inst
 }
 
+func createTestInstanceNamed(t *testing.T, s *Store, name string) *Instance {
+	t.Helper()
+
+	inst, err := s.CreateInstance(context.Background(), InstanceInput{
+		Name:     name,
+		SiteURL:  "https://" + strings.ToLower(name) + ".atlassian.net",
+		Email:    "a@b.c",
+		TokenEnc: []byte{0x01, 0x02},
+	})
+	if err != nil {
+		t.Fatalf("CreateInstance(%q) returned error: %v", name, err)
+	}
+
+	return inst
+}
+
 func TestCreateInstanceReturnsTheStoredRow(t *testing.T) {
 	s := openTestStore(t)
 

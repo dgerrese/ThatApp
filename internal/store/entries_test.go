@@ -518,6 +518,107 @@ func TestDeletingAnInstanceCascadesToItsEntries(t *testing.T) {
 	}
 }
 
+func TestCreateFetchedEntryReadsAsClean(t *testing.T) {
+	s := openTestStore(t)
+	inst := createTestInstance(t, s)
+	at := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+
+	entry, err := s.CreateFetchedEntry(context.Background(), EntryInput{
+		InstanceID: inst.ID, IssueKey: "RID-1", Day: "2026-09-01",
+		StartedAt: time.Date(2026, 9, 1, 7, 0, 0, 0, time.UTC), Seconds: 3600,
+		Comment: "from the other side",
+	}, "10001", at)
+	if err != nil {
+		t.Fatalf("creating a fetched entry: %v", err)
+	}
+
+	if entry.WorklogID != "10001" {
+		t.Fatalf("worklog id = %q, want 10001", entry.WorklogID)
+	}
+	if entry.PushedAt == nil {
+		t.Fatal("pushed_at is nil; a fetched entry must not read as unpushed")
+	}
+	if entry.UpdatedAt.After(*entry.PushedAt) {
+		t.Fatalf("updated_at %v is after pushed_at %v; a fetched entry must not read as dirty",
+			entry.UpdatedAt, *entry.PushedAt)
+	}
+}
+
+func TestEntriesWithWorklogs(t *testing.T) {
+	s := openTestStore(t)
+	inst := createTestInstance(t, s)
+	other := createTestInstanceNamed(t, s, "Northwind")
+
+	pushed, err := s.CreateFetchedEntry(context.Background(), EntryInput{
+		InstanceID: inst.ID, IssueKey: "RID-1", Day: "2026-09-01",
+		StartedAt: time.Date(2026, 9, 1, 7, 0, 0, 0, time.UTC), Seconds: 3600,
+	}, "10001", time.Now().UTC())
+	if err != nil {
+		t.Fatalf("creating the pushed entry: %v", err)
+	}
+	if _, err := s.CreateEntry(context.Background(), EntryInput{
+		InstanceID: inst.ID, IssueKey: "RID-2", Day: "2026-09-01",
+		StartedAt: time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC), Seconds: 600,
+	}); err != nil {
+		t.Fatalf("creating the local-only entry: %v", err)
+	}
+	if _, err := s.CreateFetchedEntry(context.Background(), EntryInput{
+		InstanceID: other.ID, IssueKey: "NW-1", Day: "2026-09-01",
+		StartedAt: time.Date(2026, 9, 1, 7, 0, 0, 0, time.UTC), Seconds: 60,
+	}, "99999", time.Now().UTC()); err != nil {
+		t.Fatalf("creating the other instance's entry: %v", err)
+	}
+
+	byWorklog, err := s.EntriesWithWorklogs(context.Background(), inst.ID)
+	if err != nil {
+		t.Fatalf("reading entries by worklog: %v", err)
+	}
+
+	if len(byWorklog) != 1 {
+		t.Fatalf("got %d entries, want 1: unpushed rows and other instances stay out", len(byWorklog))
+	}
+	if got, ok := byWorklog["10001"]; !ok || got.ID != pushed.ID {
+		t.Fatalf("entry for 10001 = %+v, want the one just created", got)
+	}
+}
+
+func TestOverwriteEntryFromWorklogLeavesItClean(t *testing.T) {
+	s := openTestStore(t)
+	inst := createTestInstance(t, s)
+
+	entry, err := s.CreateFetchedEntry(context.Background(), EntryInput{
+		InstanceID: inst.ID, IssueKey: "RID-1", Day: "2026-09-01",
+		StartedAt: time.Date(2026, 9, 1, 7, 0, 0, 0, time.UTC), Seconds: 3600,
+		Comment: "before",
+	}, "10001", time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("creating the entry: %v", err)
+	}
+
+	at := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	if err := s.OverwriteEntryFromWorklog(context.Background(), entry.ID, "2026-09-02",
+		time.Date(2026, 9, 2, 8, 0, 0, 0, time.UTC), 7200, "after", at); err != nil {
+		t.Fatalf("overwriting: %v", err)
+	}
+
+	got, err := s.Entry(context.Background(), entry.ID)
+	if err != nil {
+		t.Fatalf("re-reading: %v", err)
+	}
+	if got.Seconds != 7200 || got.Comment != "after" {
+		t.Fatalf("entry = %ds %q, want 7200s \"after\"", got.Seconds, got.Comment)
+	}
+	if got.Day != "2026-09-02" {
+		t.Fatalf("day = %q, want 2026-09-02: a worklog that moved takes its day with it", got.Day)
+	}
+	if got.WorklogID != "10001" {
+		t.Fatalf("worklog id = %q, want it untouched", got.WorklogID)
+	}
+	if got.PushedAt == nil || got.UpdatedAt.After(*got.PushedAt) {
+		t.Fatal("the entry reads dirty after an overwrite; it came from Jira and must read clean")
+	}
+}
+
 func TestMarkEntryPushedIfUnchanged(t *testing.T) {
 	tests := []struct {
 		name       string
