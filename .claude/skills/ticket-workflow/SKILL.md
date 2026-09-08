@@ -292,6 +292,29 @@ already drawn goes straight to planning as before. And it is not licence to rede
 covers the thing the ticket puts on screen, and anything else it turns up becomes an intake ticket
 like any other finding.
 
+### And what is already drawn is verified against the drawing
+
+The session above is for UI the design does not cover. **Where the design does cover it, the work is
+checked against it before anyone reports done** — by the implementer, and again by the reviewer, who
+verifies rather than accepts the claim.
+
+**Every dispatch that puts something on screen names the drawing as required reading**: the
+prototype at `docs/superpowers/prototypes/`, the visual language spec, and the ticket's own design
+document where it has one. The implementer says in its report *what it compared and what it found*.
+"Looks right" is not a comparison. A reviewer that cannot see the comparison in the report treats
+that as a finding, not as a detail.
+
+**A difference the ticket forces goes to the owner, and the design is updated.** Not absorbed
+silently, not left for someone to notice later. The ticket is allowed to change the design — it is
+not allowed to change it in secret, because the next ticket reads the drawing and not the diff.
+
+**Why this is a rule and not an instinct.** On 2026-09-08, reading Week's header for an unrelated
+reason turned up two things the prototype draws that the app never built: the card around the week
+grid, and a refresh control. Neither was caught by a test, a review, or a gate — #95 shipped the
+second edition across Today and Week through six task reviews and a whole-branch review, and both
+gaps went through all of them. That is #117, and the reason its first job is an audit is that
+nobody knows how many more there are.
+
 **One issue, one branch, one pull request.** The pull request body references the issue with
 `Closes #<n>`, and the open pull request is what puts the ticket into review.
 

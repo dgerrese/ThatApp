@@ -209,8 +209,15 @@ through this loop instead.
 design session first.** A new control, a moved one, a new report, a state no mark expresses yet:
 if the visual design language, the ticket's design document or the prototype does not show it,
 settle it with the owner on the local browser companion before planning, never by reasoning out
-what the design would probably have wanted. The `ticket-workflow` skill holds the test and how the
-session runs.
+what the design would probably have wanted.
+
+**Where the design does draw it, the work is verified against the drawing before anyone reports
+done** — by whoever builds it, and again by whoever reviews it. The report says what was compared
+and what was found; "looks right" is not a comparison. A difference the ticket forces is reported
+to the owner so the design is updated, never absorbed silently, because the next ticket reads the
+drawing rather than the diff.
+
+The `ticket-workflow` skill holds both tests, how the session runs, and why #117 exists.
 
 **Invoke the `ticket-workflow` skill** whenever work starts, a ticket changes status, or a blocker
 appears. It holds the label mechanics, the `tea` commands, what each status requires and the loop in
