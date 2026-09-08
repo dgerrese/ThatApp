@@ -186,10 +186,13 @@ test("a fetch that changed nothing leaves the rail alone", async ({ page }) => {
   const { entriesRequests } = await openWeekWithEntries(page, { body: NOTHING }, BEFORE_ENTRIES, AFTER_ENTRIES);
 
   await expect(page.locator("#rail-total")).toHaveText("0h 30m");
-  // The mount itself can still cost a second read — the rail's own boot read
-  // races the one Week's setRailPeriod triggers — so the baseline is taken
-  // once that has settled, not the instant the total first paints.
-  await page.waitForTimeout(200);
+  // Two reads happen on mount, deterministically, before any press: the
+  // rail's own boot read (against TODAY_PERIOD, fired by startRail() before
+  // any view exists) and the one Week's setRailPeriod triggers once it
+  // mounts. Waiting for that known count rather than a timer means a third
+  // mount-time read some future change adds would fail this line with an
+  // explanation, instead of silently poisoning the baseline below.
+  await expect.poll(() => entriesRequests()).toBe(2);
   const readsAtMount = entriesRequests();
 
   await page.getByRole("button", { name: "Fetch worklogs" }).click();
