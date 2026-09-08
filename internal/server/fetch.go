@@ -190,12 +190,7 @@ func (s *Server) fetchInstanceWeek(
 				claimed = &entry
 			}
 
-			// claimed, when present, always carries both worklog_id and
-			// pushed_at: EntriesWithWorklogs only returns rows where
-			// worklog_id IS NOT NULL, and the store writes worklog_id and
-			// pushed_at together. So pushStateOf(*claimed) is never
-			// "unpushed" here, even though reconcileWorklog's own contract
-			// does not rule that state out.
+			// claimed can never be unpushed: it's keyed by worklog_id, always written with pushed_at.
 			switch reconcileWorklog(remote, claimed) {
 			case actionCreate:
 				if _, err := s.db.CreateFetchedEntry(ctx, store.EntryInput{
