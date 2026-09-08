@@ -26,6 +26,7 @@ export const ICON_NAMES = [
   "ascending",
   "descending",
   "refresh",
+  "fetch",
   "edit",
   "trash",
 ] as const;
@@ -52,6 +53,12 @@ const PATHS: Record<IconName, string> = {
   // missing quarter: a full circle reads as a spinner, which promises motion
   // this control does not make until it is pressed.
   refresh: '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3.5V9h-5.5"/>',
+  // A cloud with an arrow coming down out of it. Deliberately not the refresh
+  // arrows: those mean the view was read again, which is what they mean on
+  // Today, where nothing is written. This one pulls time in and stores it.
+  fetch:
+    '<path d="M7.4 19h9.9a3.6 3.6 0 0 0 .5-7.16 5.6 5.6 0 0 0-10.8-1.2A3.98 3.98 0 0 0 7.4 19Z"/>' +
+    '<path d="M12 9.5v11"/><path d="M8.5 17 12 20.5l3.5-3.5"/>',
   ascending: '<path d="M12 19V6M7.5 10.5 12 6l4.5 4.5"/>',
   descending: '<path d="M12 5v13M7.5 13.5 12 18l4.5-4.5"/>',
   // Both transcribed from the prototype's #p-edit and #p-trash. The nib is

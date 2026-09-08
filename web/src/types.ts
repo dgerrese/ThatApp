@@ -140,6 +140,34 @@ export interface PushResponse {
   results: PushResult[];
 }
 
+/** One entry a fetch declined to overwrite, because it holds unpushed changes. */
+export interface KeptLocal {
+  day: string;
+  issueKey: string;
+  instanceId: number;
+}
+
+/** One instance that could not be read. The others still applied their results. */
+export interface FetchFailure {
+  instanceId: number;
+  instanceName: string;
+  error: ApiErrorBody;
+}
+
+/**
+ * What a finished fetch did. Counts for what it changed, names for what needs
+ * the user: a count of entries left alone could not be turned back into a list,
+ * and a clean run reports no list at all.
+ */
+export interface WeekFetchResponse {
+  start: string;
+  end: string;
+  created: number;
+  updated: number;
+  keptLocal: KeptLocal[];
+  failures: FetchFailure[];
+}
+
 /**
  * One ticket's time on one day. `pushState` is null exactly when the cell is
  * empty, which keeps "nothing logged" from becoming a fourth state.

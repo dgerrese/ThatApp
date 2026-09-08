@@ -46,3 +46,12 @@ test("the three sort marks are three different shapes", () => {
   const shapes = new Set(["sortable", "ascending", "descending"].map((n) => iconMarkup(n as IconName)));
   assert.equal(shapes.size, 3, "a sort state told apart by colour alone is the defect this avoids");
 });
+
+test("the fetch glyph is not the refresh glyph", () => {
+  const shape = (name: IconName) => iconMarkup(name).replace(/^<svg[^>]*>|<\/svg>$/g, "");
+  assert.notEqual(
+    shape("fetch"),
+    shape("refresh"),
+    "refresh means the view was re-read; fetch pulls time in and writes it",
+  );
+});
