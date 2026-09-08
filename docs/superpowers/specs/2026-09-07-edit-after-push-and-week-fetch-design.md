@@ -58,9 +58,9 @@ Jira has no endpoint for "my worklogs in a date range", and worklogs hang off is
 set has to be found first.
 
 1. **One search per instance** for the issues with your time that week:
-   `worklogAuthor = currentUser() AND worklogDate >= <from> AND worklogDate <= <to>`. The search
-   endpoint is to be confirmed against live documentation at implementation time, per the standing
-   note in the design of record: Cloud moved search to `POST /rest/api/3/search/jql`.
+   `worklogAuthor = currentUser() AND worklogDate >= <from> AND worklogDate <= <to>`. This is the
+   endpoint the app already searches through — `POST /rest/api/3/search/jql`, with the
+   `nextPageToken` paging and the page cap `SearchAssigned` established. Only the JQL differs.
 2. **One call per issue returned**, for that issue's worklogs, narrowed with `startedAfter` and
    `startedBefore`. Both take epoch milliseconds.
 3. **Filter locally.** Worklogs whose author is not you are dropped. So are any whose start, resolved
@@ -88,11 +88,16 @@ One worklog at a time, matched to a local entry by `worklog_id`.
 | The local entry has unpushed changes (`updated_at > pushed_at`) | **Local wins.** Nothing is touched |
 | The local entry is clean | The younger of the two wins |
 | The two cannot be ordered | **Local leads** |
+| A local entry whose worklog did not come back | Left alone |
 
 **Younger means** the local row's `updated_at` against the worklog's own `updated` timestamp. They
 come from two clocks, so equal values, a missing remote timestamp, or any skew that makes the
-comparison meaningless all fall to the last row: local leads.
-| A local entry whose worklog did not come back | Left alone |
+comparison meaningless all fall to the same answer: local leads.
+
+**Matching is by `worklog_id` and nothing else.** Time logged in Jira's own interface on a day you
+also typed an entry for locally produces two rows, not one. Nothing is merged on a guess about
+duration, issue or start, because a wrong merge silently destroys one of the two and the user has no
+way to see that it happened. Two visible rows are a correction the user can make in a second.
 
 **Local always wins while it is dirty.** Following "youngest wins" into that case would discard an
 edit the user typed and never sent, which is the one outcome no synchronisation rule is worth.
@@ -125,9 +130,21 @@ are. A fetch that fails on one instance still applies the other's results.
 
 ## The API surface
 
-One new endpoint, fetching a week: it takes the week, runs the fetch across every configured
-instance, and returns the counts and the per-instance failures. It is an addition to the surface
-described in the design of record, which is why this document exists rather than a plan alone.
+**`POST /api/week/fetch?start=YYYY-MM-DD`.** It runs the fetch across every configured instance and
+returns the counts — created, updated, left alone — with the per-instance failures beside them.
+
+`start` is the same parameter `GET /api/week` already takes, validated the same way: parsed as a
+date and then rejected unless it is a Monday, rather than snapped to the Monday of its own week. The
+two halves of Week must agree on what a week is, and the existing handler's reason for refusing to
+snap holds here too — two different values must not produce identical results.
+
+Two client methods are new; update and delete already exist:
+
+- **a worklog search**, taking the two dates and returning the issue keys with your time in them;
+- **an issue's worklogs**, narrowed by `startedAfter` and `startedBefore`, both epoch milliseconds.
+
+This endpoint is an addition to the surface described in the design of record, which is why this
+document exists rather than a plan alone.
 
 ## Testing
 
@@ -141,6 +158,9 @@ described in the design of record, which is why this document exists rather than
 - **The guarded update**, interleaving an edit between the read and the mark, asserting the entry
   stays dirty and no duplicate worklog is created.
 - **Both 404 paths**, on update and on delete.
+- **The scope refusal**, as its own case rather than as one more generic failure: a 401 on update
+  leaves the entry dirty with its `worklog_id` intact, a 401 on one instance's fetch still applies
+  the other instance's results, and the reported reason is the token rather than the credentials.
 - **A browser spec** for the fetch control, its disabled state and its report, and for editing an
   already-pushed entry and re-pushing it.
 
@@ -154,13 +174,31 @@ described in the design of record, which is why this document exists rather than
 - **The weekly view itself** (#11, shipped) and everything already filed: #105, #106, #107, #108,
   #109, #110.
 
-## The risk this design cannot remove
+## An insufficient token is user error
 
-**The token cannot write worklogs**, established on 2026-09-01: reads succeed, but creating a
-worklog returns `401 {"code":401,"message":"Unauthorized; scope does not match"}`. Whether it can
-**read** worklogs at the scope these two calls need has never been established at all.
+**The token this app is configured with cannot write worklogs**, established on 2026-09-01: reads
+succeed, but creating one returns `401 {"code":401,"message":"Unauthorized; scope does not match"}`.
+Whether it may read worklogs at the scope the fetch needs has never been established either.
 
-So the first task of the plan proves both calls against the real instance before anything is built
-on them. If the token cannot read worklogs either, that is a blocker: the ticket moves to
-`status/blocked` and stops, rather than being built blind against a stub that will not match
-production.
+**That is not a blocker on this ticket, and the owner has ruled it user error.** A token without the
+scope for the job is a thing the user fixes by reminting it, in the same class as a wrong password or
+a site URL pointing somewhere else. The app's obligation is to fail cleanly and say so, not to refuse
+to be built.
+
+So both halves are built and both are tested against the `httptest` server as everything else is. The
+scope refusal is a failure path this design must handle, not a gate in front of it:
+
+- **A refusal on scope fails the call it was made for and nothing else.** Corrections leave
+  `worklog_id` as it was and the entry stays dirty, exactly as any other push failure does. A fetch
+  that is refused on one instance still applies the other instances' results.
+- **The report names the cause.** Not "Jira rejected the email and API token", which is the sentence
+  the app produces today and which sent a real diagnosis down the wrong path on 2026-09-01. The user
+  must be able to read the failure and know the token is the thing to change.
+
+**Saying it well is #79's job, not this ticket's.** #79 exists because the app discards Jira's own
+explanation at two layers, and it covers every call rather than these three. #10 must not build a
+second, private path to the same place. What #10 owes is that its failures carry the detail #79
+surfaces, and that the fetch's report has somewhere to put a per-instance reason.
+
+**#80 covers telling the user in advance** what a token needs before they save it, which is the other
+half of never hitting this at all.
