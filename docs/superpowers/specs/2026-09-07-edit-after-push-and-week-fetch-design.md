@@ -23,14 +23,23 @@ to recognise one. Splitting them would mean writing the same reconciliation twic
 
 ## Half one: corrections after a push
 
-Unchanged from the ticket, and from the state table in the design of record. Push state stays
-**derived**, never stored.
+Push state stays **derived**, never stored. The first three rows are the state table in the design
+of record; the fourth is added by this document, on 2026-09-08.
 
 | State | Condition | Push does |
 | --- | --- | --- |
 | Unpushed | `worklog_id IS NULL` | creates the worklog, stores the id, sets `pushed_at` |
 | Pushed, clean | `worklog_id NOT NULL AND updated_at <= pushed_at` | nothing at all, no request |
 | Pushed, dirty | `worklog_id NOT NULL AND updated_at > pushed_at` | updates that worklog, sets `pushed_at` |
+| Pushed, unmarked — **also dirty** | `worklog_id NOT NULL AND pushed_at IS NULL` | updates that worklog, sets `pushed_at` |
+
+**Why the fourth row is dirty rather than unpushed.** It is what a push leaves behind when an edit
+lands while Jira is answering: the worklog exists, and what it holds is the text from before the
+edit. That is dirty in as many words — Jira has something, and it is stale. The two columns are not
+the same kind of fact, which is what makes the row possible at all: `worklog_id` records that a
+worklog **exists**, which no later edit can falsify, while `pushed_at` claims what Jira holds is
+**current**, which an edit does falsify. A worklog id with no mark is the honest record of exactly
+that.
 
 **Deleting** an entry that carries a `worklog_id` deletes the Jira worklog first and removes the
 local row only once Jira confirms. Any other failure leaves the row and reports. An entry with no
@@ -44,9 +53,16 @@ idempotent.
 
 **The lost update closes here.** #9 serialises pushes against each other but not against an edit
 arriving mid-push, so an edit landing between the read and the mark is silently lost. Marking an
-entry pushed becomes conditional on the `updated_at` the push read before it called Jira. If an edit
-landed in between, no row is affected, the entry stays dirty, and the next push sends the newer
-text. The worklog is still created, so nothing is duplicated in Jira.
+entry pushed becomes conditional on the `updated_at` the push read before it called Jira.
+
+**Only the mark is conditional**, and this document said otherwise until 2026-09-08. Guarding both
+columns together was safe on the dirty path, where `worklog_id` was already stored, and wrong on the
+first push, where it left a worklog in Jira that nothing here named: the entry read unpushed, and
+the next push created a second worklog for the same hour — which a later fetch then pulled back as a
+second local entry, putting the double on the timesheet at both ends. So `worklog_id` is written
+whatever happened, `pushed_at` is withheld when the entry has moved on, and the entry lands in the
+fourth row above. It reads dirty, and the next push **updates** that worklog rather than duplicating
+it. The correction came out of #10's whole-branch review.
 
 ## Half two: a week's fetch
 
@@ -85,14 +101,27 @@ One worklog at a time, matched to a local entry by `worklog_id`.
 | What is found | What happens |
 | --- | --- |
 | No local entry carries that id | Create one |
-| The local entry has unpushed changes (`updated_at > pushed_at`) | **Local wins.** Nothing is touched |
-| The local entry is clean | The younger of the two wins |
+| The local entry has unpushed changes — dirty by either condition in the state table above | **Local wins.** Nothing is touched |
+| The local entry is clean | The younger of the two wins — see below for what younger is measured against |
 | The two cannot be ordered | **Local leads** |
 | A local entry whose worklog did not come back | Left alone |
 
-**Younger means** the local row's `updated_at` against the worklog's own `updated` timestamp. They
-come from two clocks, so equal values, a missing remote timestamp, or any skew that makes the
-comparison meaningless all fall to the same answer: local leads.
+**Younger means** the worklog's own `updated` timestamp against **the later of the local row's
+`updated_at` and `pushed_at`** — the pair, never `updated_at` alone. A push moves only `pushed_at`
+and leaves `updated_at` at the edit that produced the entry, while Jira stamps the worklog it
+creates at push time, which is later than that edit. Measured against `updated_at` alone, every
+entry pushed this week therefore reads as younger in Jira, and the first fetch after a push rewrites
+each one with the app's own data coming back and reports it as an update — noise on the one occasion
+the user is looking for reassurance. The two stamps still come from two clocks, so equal values, a
+missing remote timestamp, or any skew that makes the comparison meaningless all fall to the same
+answer: local leads.
+
+**Dirty is judged twice: once when the worklog is reconciled, and again at the write.** The local
+entries are read once, before the per-issue calls to Jira, so an entry that was clean when it was
+read can carry an unpushed edit by the time its turn comes. The overwrite is therefore conditional
+on the `updated_at` that read saw — the push's own guard, applied to the longer window — and an
+entry that has moved on since is treated exactly as one found dirty: nothing is touched, and it is
+named in the report.
 
 **Matching is by `worklog_id` and nothing else.** Time logged in Jira's own interface on a day you
 also typed an entry for locally produces two rows, not one. Nothing is merged on a guess about
