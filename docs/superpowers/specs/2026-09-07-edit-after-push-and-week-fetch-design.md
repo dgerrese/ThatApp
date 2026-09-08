@@ -101,7 +101,9 @@ way to see that it happened. Two visible rows are a correction the user can make
 
 **Local always wins while it is dirty.** Following "youngest wins" into that case would discard an
 edit the user typed and never sent, which is the one outcome no synchronisation rule is worth.
-Youngest-wins therefore applies only where nothing local is at stake.
+Youngest-wins therefore applies only where nothing local is at stake. **These are the entries the
+report names** — the app has kept one of two texts on the user's behalf, and only they can say
+whether it kept the right one.
 
 **Nothing Jira returns deletes local time.** A worklog missing from the response is not evidence of
 anything: it may be outside the slack window, on an issue the search did not return, or deleted by
@@ -121,17 +123,66 @@ formatting the worklog carried in Jira is lost at that point. The alternative, s
 round-tripping the document form, would put a Jira representation in the local schema for the sake
 of formatting this app never shows.
 
-### The control and its report
+### The control
 
-A fetch control joins Week's control row, which already shares one height across three controls. It
-disables while running. On finishing it reports what it did — created, updated, left alone — and
-instances fail independently, reported separately, exactly as the push's partial failures already
-are. A fetch that fails on one instance still applies the other's results.
+**Settled with the owner on 2026-09-08 in a design session**, because none of it was drawn: the
+prototype gives Week three controls and no fourth, and the icon set drawn in #94 has no glyph for
+this. What follows is the outcome, not a proposal.
+
+**It sits at the left of Week's header, after the week label and a vertical rule.** The three
+navigation controls keep the right of the row and do not move — they are one idea drawn as one
+group sharing one height, and an action that writes to the database does not belong inside them.
+The rule is what marks the button as its own thing rather than part of the heading.
+
+**It is a labelled control at the navigation controls' own height**, not an icon alone. It writes
+entries, where Today's refresh only re-reads, and it should not be as easy to press by accident.
+
+**Its glyph is a cloud with a downward arrow, and it is new.** The refresh arrows were rejected:
+they say the view is being re-read, which is what they mean on Today and is not what this does. A
+two-arrow sync ring was rejected too, and so was the word — this control only pulls. Time goes up
+through Push, a fetch never sends anything, and a glyph promising a round trip would read as a
+defect the first time the fetch left an unpushed edit alone.
+
+**It is labelled "Fetch worklogs", naming no service.** That is the owner's preference and it puts
+this button at odds with `Push to Jira` in the rail and with every cell tooltip. **Reconciling them
+is #116, not this ticket** — the fix spans two views, and #10 renaming half the app on the way past
+is how a scope quietly doubles.
+
+**It disables while running.**
+
+### The report
+
+Week already builds a report region below the grid and uses it for the push report. The fetch
+reports there, through the same `that-alert` component and the same list beside it.
+
+**A clean run is one line of counts and nothing else** — "Added 3 entries and updated 1." Nothing
+is named, because nothing needs the user to do anything. The count of entries left alone is not
+reported at all: it is noise on a clean run, and where it matters it is carried by name below.
+
+**A name appears only where the user has to go and look.** Two cases, each its own alert with its
+own list:
+
+- **Entries the fetch would not overwrite.** The local entry carries an edit that was never pushed
+  and Jira holds something different, so local won and nothing was touched. These are named by day
+  and issue key, because choosing between the two texts is a judgement only the user can make.
+- **An instance that refused.** Named, with what it said, and the instances that answered still
+  applied their results.
+
+**No new cell mark.** Marking the cells a fetch changed was considered and rejected: the marks
+drawn in #94 mean push state and nothing else, and a mark meaning "arrived just now" would be the
+first in the app that expires on a timer. The named list points at the same cells without teaching
+a fourth vocabulary.
 
 ## The API surface
 
 **`POST /api/week/fetch?start=YYYY-MM-DD`.** It runs the fetch across every configured instance and
-returns the counts — created, updated, left alone — with the per-instance failures beside them.
+returns what the report needs and nothing more: **counts of what was created and updated**, the
+**entries it declined to overwrite named by day and issue key**, and the **per-instance failures**.
+
+The skipped entries are named rather than counted because the report names them, and a count could
+not be turned back into a list. Entries the fetch left alone for any other reason are neither
+named nor counted — the report says nothing about them, so the response carries nothing about them
+either.
 
 `start` is the same parameter `GET /api/week` already takes, validated the same way: parsed as a
 date and then rejected unless it is a Monday, rather than snapped to the Monday of its own week. The
@@ -161,8 +212,12 @@ document exists rather than a plan alone.
 - **The scope refusal**, as its own case rather than as one more generic failure: a 401 on update
   leaves the entry dirty with its `worklog_id` intact, a 401 on one instance's fetch still applies
   the other instance's results, and the reported reason is the token rather than the credentials.
-- **A browser spec** for the fetch control, its disabled state and its report, and for editing an
+- **A browser spec** for the control and each of its three reports: a clean run naming nothing, a
+  run that names the entries it would not overwrite, and a run where one instance refused while the
+  other applied. Also for the control's disabled state while running, and for editing an
   already-pushed entry and re-pushing it.
+- **The header's shape**, because it was settled visually and a later change would not notice:
+  the three navigation controls stay flush right and the fetch does not join their group.
 
 ## Out of scope
 
@@ -171,6 +226,8 @@ document exists rather than a plan alone.
   shape for a background sync. The owner's standing decision is that it comes back for that, later.
 - **Clockwork and Tempo.** Clockwork's API is real but is Pro only, needs its own token per instance,
   and only exists where the app is installed. Not relevant here.
+- **Naming Jira in the rest of the app's labels.** The fetch control drops the service name, which
+  leaves `Push to Jira` and the cell tooltips saying it. Reconciling them is **#116**.
 - **The weekly view itself** (#11, shipped) and everything already filed: #105, #106, #107, #108,
   #109, #110.
 
