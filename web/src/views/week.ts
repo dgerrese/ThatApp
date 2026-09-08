@@ -1,7 +1,8 @@
 import "../components/that-alert";
 
-import { ApiError, getWeek } from "../api";
+import { ApiError, fetchWeek, getWeek } from "../api";
 import { openEntryDialog } from "../components/that-entry-dialog";
+import { fetchReportNodes } from "../fetch-report";
 import { totalFigure } from "../format";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
@@ -162,6 +163,28 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // describing wherever it came from rather than claiming a period this view
   // does not actually have on screen.
   if (!rollup || !mounted) return;
+
+  fetchControl.addEventListener("click", () => {
+    void (async () => {
+      // Disabled for the whole round trip: a second press would run the same
+      // week again over half-applied results.
+      fetchControl.disabled = true;
+      try {
+        const outcome = await fetchWeek(rollup.start);
+        report.replaceChildren(...fetchReportNodes(outcome));
+        report.hidden = false;
+        // The grid is read again rather than patched: every total, every mark
+        // and every row the fetch may have added comes from the rollup, and
+        // patching would be a second implementation of it.
+        await show();
+      } catch (error) {
+        report.replaceChildren(alertFor("error", messageOf(error)));
+        report.hidden = false;
+      } finally {
+        fetchControl.disabled = false;
+      }
+    })();
+  });
 
   // A fresh object every mount, which setRailPeriod's reference-equality guard
   // can never skip. Deliberate: moving between weeks remounts the view, and
