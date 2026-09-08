@@ -63,6 +63,62 @@ function reportRegion(page: Page): Locator {
   return page.getByRole("status").locator("..");
 }
 
+/** One entry, shaped as `/api/entries` answers it — see `entry()` in
+ *  week.spec.ts, which this mirrors rather than imports across spec files. */
+function entry(id: number, issueKey: string, day: string, seconds: number) {
+  return {
+    id,
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    instancePosition: 0,
+    issueKey,
+    day,
+    startedAt: `${day}T09:00:00+02:00`,
+    seconds,
+    comment: "",
+    pushState: "pushed",
+  };
+}
+
+const BEFORE_ENTRIES = [entry(1, "RIDGE-1", "2026-09-01", 1800)];
+const AFTER_ENTRIES = [...BEFORE_ENTRIES, entry(2, "RIDGE-2", "2026-09-02", 5400)];
+
+/**
+ * As openWeek, but `/api/entries` answers `before` until the fetch has
+ * resolved and `after` from then on, and counts how many times it was asked.
+ * The rail reads the period through this same endpoint — see rail.ts's
+ * refresh() — so this is what lets a test tell "the rail re-read" apart from
+ * "the rail still shows what it painted at mount".
+ */
+async function openWeekWithEntries(
+  page: Page,
+  fetch: { body: unknown },
+  before: unknown[],
+  after: unknown[],
+): Promise<{ entriesRequests: () => number }> {
+  let resolved = false;
+  let entriesRequests = 0;
+
+  await page.route("**/api/entries**", (route) => {
+    entriesRequests += 1;
+
+    return route.fulfill({ status: 200, json: resolved ? after : before });
+  });
+
+  await page.route("**/api/week**", async (route) => {
+    if (!new URL(route.request().url()).pathname.endsWith("/fetch")) {
+      return route.fulfill({ status: 200, json: ROLLUP });
+    }
+
+    await route.fulfill({ status: 200, json: fetch.body });
+    resolved = true;
+  });
+
+  await page.goto("/week");
+
+  return { entriesRequests: () => entriesRequests };
+}
+
 test("a clean run reports counts and names nothing", async ({ page }) => {
   await openWeek(page, { body: { ...NOTHING, created: 3, updated: 1 } });
 
@@ -111,6 +167,40 @@ test("an instance that refused is named, and the others still applied", async ({
   await expect(page.getByText("Added 2 entries and updated 0.")).toBeVisible();
   await expect(page.getByText(/Northwind could not be read/)).toBeVisible();
   await expect(page.getByText("the stored token does not carry the scope this needs")).toBeVisible();
+});
+
+test("a fetch that created something updates the rail without navigating", async ({ page }) => {
+  await openWeekWithEntries(page, { body: { ...NOTHING, created: 1 } }, BEFORE_ENTRIES, AFTER_ENTRIES);
+
+  await expect(page.locator("#rail-total")).toHaveText("0h 30m");
+
+  await page.getByRole("button", { name: "Fetch worklogs" }).click();
+
+  await expect(page.getByText("Added 1 entry and updated 0.")).toBeVisible();
+  // No navigation and no reload happened — the fetch itself is what has to
+  // have woken the rail into reading the period again.
+  await expect(page.locator("#rail-total")).toHaveText("2h 00m");
+});
+
+test("a fetch that changed nothing leaves the rail alone", async ({ page }) => {
+  const { entriesRequests } = await openWeekWithEntries(page, { body: NOTHING }, BEFORE_ENTRIES, AFTER_ENTRIES);
+
+  await expect(page.locator("#rail-total")).toHaveText("0h 30m");
+  // The mount itself can still cost a second read — the rail's own boot read
+  // races the one Week's setRailPeriod triggers — so the baseline is taken
+  // once that has settled, not the instant the total first paints.
+  await page.waitForTimeout(200);
+  const readsAtMount = entriesRequests();
+
+  await page.getByRole("button", { name: "Fetch worklogs" }).click();
+
+  await expect(page.getByText("Nothing to add or update.")).toBeVisible();
+  // Give a rail that wrongly re-reads a turn to do it before checking it
+  // didn't: the total staying "0h 30m" alone would also be true of a re-read
+  // that asked for AFTER_ENTRIES and got served BEFORE_ENTRIES by mistake.
+  await page.waitForTimeout(200);
+  expect(entriesRequests()).toBe(readsAtMount);
+  await expect(page.locator("#rail-total")).toHaveText("0h 30m");
 });
 
 test("the control is disabled for the length of the round trip", async ({ page }) => {

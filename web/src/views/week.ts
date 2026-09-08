@@ -2,6 +2,7 @@ import "../components/that-alert";
 
 import { ApiError, fetchWeek, getWeek } from "../api";
 import { openEntryDialog } from "../components/that-entry-dialog";
+import { announceEntriesChanged } from "../entries-changed";
 import { fetchReportNodes } from "../fetch-report";
 import { totalFigure } from "../format";
 import { iconMarkup } from "../icons";
@@ -84,6 +85,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
         // and every row the fetch may have added comes from the rollup, and
         // patching would be a second implementation of it.
         await show();
+        // No entries to carry — the response is counts and names, not rows —
+        // so the rail re-reads the period itself. Skipped when nothing moved:
+        // a clean run, or entries the fetch declined to overwrite, change
+        // nothing worth repainting for.
+        if (outcome.created + outcome.updated > 0) announceEntriesChanged();
       } catch (error) {
         report.replaceChildren(alertFor("error", messageOf(error)));
         report.hidden = false;
