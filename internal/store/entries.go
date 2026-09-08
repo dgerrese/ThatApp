@@ -14,10 +14,17 @@ import (
 // stored separately because the container's clock is almost certainly UTC, so
 // neither can be derived from the other after the fact.
 //
-// WorklogID and PushedAt belong to the push (#9). MarkEntryPushedIfUnchanged is
-// the only writer of either, and it names no other column: whether an entry is
-// unpushed, clean or dirty is computed from those two and UpdatedAt on every
-// read, never stored as a flag.
+// WorklogID and PushedAt belong to the push (#9) and the fetch (#10). Three
+// methods write them, each keeping the pair consistent with UpdatedAt rather
+// than just filling them in: MarkEntryPushedIfUnchanged records a push, guarded
+// on the UpdatedAt it read, so a concurrent edit leaves the row dirty instead of
+// silently marked pushed. CreateFetchedEntry writes both at insert time, so a
+// fetched entry reads clean from the instant it exists — nothing about it should
+// invite a push to send it straight back. OverwriteEntryFromWorklog moves
+// PushedAt with UpdatedAt, so an entry Jira overwrote stays clean too: it is
+// Jira's copy, not an edit of it. Whether an entry is unpushed, clean or dirty
+// is computed from those two and UpdatedAt on every read, never stored as a
+// flag.
 type Entry struct {
 	ID         int64
 	InstanceID int64
