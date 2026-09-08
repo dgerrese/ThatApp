@@ -134,10 +134,21 @@ type fetchWindow struct {
 func (s *Server) fetchInstanceWeek(
 	ctx context.Context, inst store.Instance, window fetchWindow,
 ) fetchOutcome {
+	// Declared before any call can fail, and closed over by fail below, so a
+	// failure midway through the loop reports what this instance already
+	// wrote rather than discarding it. Without this, a second issue's read
+	// failing after the first issue's worklogs had already been created would
+	// report the instance as having created nothing — wrong, and in exactly
+	// the way CLAUDE.md asks a push failure not to be: silent about what did
+	// land.
+	outcome := fetchOutcome{keptLocal: []keptLocalDTO{}}
+
 	fail := func(err error) fetchOutcome {
-		return fetchOutcome{failure: &fetchFailureDTO{
+		outcome.failure = &fetchFailureDTO{
 			InstanceID: inst.ID, InstanceName: inst.Name, Error: *instanceErrorBody(err),
-		}}
+		}
+
+		return outcome
 	}
 
 	client, err := s.clients.forInstance(ctx, &inst)
@@ -163,7 +174,6 @@ func (s *Server) fetchInstanceWeek(
 		return fail(err)
 	}
 
-	outcome := fetchOutcome{keptLocal: []keptLocalDTO{}}
 	now := s.now().UTC()
 
 	for _, key := range keys {
@@ -190,7 +200,8 @@ func (s *Server) fetchInstanceWeek(
 				claimed = &entry
 			}
 
-			// claimed can never be unpushed: it's keyed by worklog_id, always written with pushed_at.
+			// claimed is looked up by worklog_id, so it can never be unpushed —
+			// reconcileWorklog only ever sees it as dirty or clean.
 			switch reconcileWorklog(remote, claimed) {
 			case actionCreate:
 				if _, err := s.db.CreateFetchedEntry(ctx, store.EntryInput{

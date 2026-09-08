@@ -42,6 +42,9 @@ type fetchJiraServer struct {
 	searchStatus int
 	searchIssues []string
 	worklogs     map[string][]rawWorklog
+	// worklogStatus overrides one issue's worklog read to fail, so a test can
+	// prove what happens to an instance's earlier issues when a later one does.
+	worklogStatus map[string]int
 
 	lastSearchJQL string
 }
@@ -97,6 +100,10 @@ func (f *fetchJiraServer) handle(w http.ResponseWriter, r *http.Request) {
 
 	case strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/") && strings.HasSuffix(r.URL.Path, "/worklog"):
 		key := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/rest/api/3/issue/"), "/worklog")
+		if status, failing := f.worklogStatus[key]; failing {
+			w.WriteHeader(status)
+			return
+		}
 		logs := f.worklogs[key]
 
 		type rawEntry struct {
@@ -404,6 +411,48 @@ func TestFetchWeekAppliesOneInstanceWhenAnotherRefuses(t *testing.T) {
 	}
 	if entries[0].InstanceID != goodInst.ID || entries[0].WorklogID != "wl-good" {
 		t.Errorf("stored entry = %+v, want the good instance's worklog", entries[0])
+	}
+}
+
+// TestFetchWeekKeepsAnEarlierIssuesCreateWhenALaterOneFails is the test the
+// whole-branch review of #10 asked for: fetchInstanceWeek reads one issue at a
+// time, and a failure on the second must not erase what the first already
+// wrote. Mirrors pushInstanceEntries' per-entry independence in push.go —
+// this is the same rule one level up, at the per-issue read.
+func TestFetchWeekKeepsAnEarlierIssuesCreateWhenALaterOneFails(t *testing.T) {
+	jiraSrv := newFetchJiraServer(t, "me-1")
+	jiraSrv.searchIssues = []string{"WORK-1", "WORK-2"}
+	jiraSrv.worklogs["WORK-1"] = []rawWorklog{{
+		id: "wl-1", accountID: "me-1",
+		started: time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
+		updated: time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
+		seconds: 1200,
+	}}
+	jiraSrv.worklogStatus = map[string]int{"WORK-2": http.StatusInternalServerError}
+	srv := jiraSrv.start()
+
+	s, db, sealer := fetchEnv(t, "Europe/Amsterdam", time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC))
+	inst := seedInstance(t, db, sealer, "Work", "", srv.URL)
+
+	rec := callFetchWeek(t, s, "/api/week/fetch?start=2026-08-31")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeFetchWeek(t, rec)
+
+	if body.Created != 1 {
+		t.Errorf("created = %d, want 1 — WORK-1's worklog, kept despite WORK-2 failing", body.Created)
+	}
+	if len(body.Failures) != 1 {
+		t.Fatalf("failures = %+v, want one", body.Failures)
+	}
+	if body.Failures[0].InstanceID != inst.ID {
+		t.Errorf("failure = %+v, want instance %d", body.Failures[0], inst.ID)
+	}
+
+	entries := allEntries(t, db)
+	if len(entries) != 1 || entries[0].WorklogID != "wl-1" {
+		t.Errorf("stored entries = %+v, want just wl-1", entries)
 	}
 }
 
