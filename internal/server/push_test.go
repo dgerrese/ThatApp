@@ -114,16 +114,25 @@ type pushEnv struct {
 	jira  *hookableJira
 }
 
-// hookableJira lets createWorklog be swapped per test; the default hands back
-// an incrementing id, matching fakeJira's behaviour for tests that don't care.
+// hookableJira lets a test steer how the fake answers worklog PUT and POST,
+// and see which one it last received. createWorklog hands back an
+// incrementing id by default, matching fakeJira's behaviour for tests that
+// don't care; a test overrides it directly for scenarios a canned response
+// can't produce, such as an edit landing in the window between the push's
+// read and its Jira call. updateStatus and createID let a test steer the
+// dirty-entry update/create-fallback path without a bespoke handler.
 type hookableJira struct {
 	createWorklog func() (string, error)
+	updateStatus  int
+	createID      string
+	lastMethod    string
+	calls         int
 }
 
 func newPushEnv(t *testing.T) *pushEnv {
 	t.Helper()
 
-	env := &pushEnv{jira: &hookableJira{}}
+	env := &pushEnv{jira: &hookableJira{updateStatus: http.StatusOK}}
 
 	var created atomic.Int64
 	env.jira.createWorklog = func() (string, error) {
@@ -131,8 +140,24 @@ func newPushEnv(t *testing.T) *pushEnv {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/worklog") {
-			id, err := env.jira.createWorklog()
+		if !strings.Contains(r.URL.Path, "/worklog") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+
+		env.jira.calls++
+		env.jira.lastMethod = r.Method
+
+		switch r.Method {
+		case http.MethodPut:
+			w.WriteHeader(env.jira.updateStatus)
+		case http.MethodPost:
+			id := env.jira.createID
+			var err error
+			if id == "" {
+				id, err = env.jira.createWorklog()
+			}
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -140,10 +165,9 @@ func newPushEnv(t *testing.T) *pushEnv {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(map[string]string{"id": id})
-			return
+		default:
+			w.WriteHeader(http.StatusOK)
 		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{}`))
 	}))
 	t.Cleanup(srv.Close)
 
@@ -153,6 +177,46 @@ func newPushEnv(t *testing.T) *pushEnv {
 	env.inst = seedInstance(t, db, sealer, "Work", "", srv.URL)
 
 	return env
+}
+
+// markPushed records worklogID as already delivered, without going through a
+// real push — standing in for an entry pushed on some earlier day.
+func (env *pushEnv) markPushed(t *testing.T, entryID int64, worklogID string) {
+	t.Helper()
+
+	entry, err := env.store.Entry(context.Background(), entryID)
+	if err != nil {
+		t.Fatalf("reading entry %d to mark it pushed: %v", entryID, err)
+	}
+
+	ok, err := env.store.MarkEntryPushedIfUnchanged(
+		context.Background(), entryID, worklogID, entry.UpdatedAt, entry.UpdatedAt,
+	)
+	if err != nil {
+		t.Fatalf("marking entry %d pushed: %v", entryID, err)
+	}
+	if !ok {
+		t.Fatalf("marking entry %d pushed: guard rejected the write", entryID)
+	}
+}
+
+// editEntry corrects an entry's duration and comment, making it dirty.
+//
+// Both pushed_at and updated_at are stored truncated to the second; without
+// crossing a second boundary here, an edit made in the same second as
+// markPushed's write could tie rather than beat it, and pushStateOf would
+// read the entry as clean instead of dirty.
+func (env *pushEnv) editEntry(t *testing.T, entryID int64, seconds int, comment string) store.Entry {
+	t.Helper()
+
+	time.Sleep(1100 * time.Millisecond)
+
+	updated, err := env.store.UpdateEntry(context.Background(), entryID, seconds, comment)
+	if err != nil {
+		t.Fatalf("editing entry %d: %v", entryID, err)
+	}
+
+	return *updated
 }
 
 func (env *pushEnv) createEntry(t *testing.T, issueKey string, seconds int, comment string) store.Entry {
@@ -428,10 +492,10 @@ func TestPushRunsInstancesConcurrently(t *testing.T) {
 	// failing instance adds essentially nothing), while concurrent fan-out takes
 	// roughly one instance's delay (~500-550ms, allowing for goroutine
 	// scheduling jitter and sqlite write serialisation across the concurrent
-	// MarkEntryPushed calls). Setting the ceiling to 1.5x a single delay keeps
-	// ~210ms/28% of headroom under it on the concurrent side while staying at
-	// half the serial duration — widen perInstanceDelay, not this formula, if
-	// the gap ever needs to grow further.
+	// MarkEntryPushedIfUnchanged calls). Setting the ceiling to 1.5x a single
+	// delay keeps ~210ms/28% of headroom under it on the concurrent side while
+	// staying at half the serial duration — widen perInstanceDelay, not this
+	// formula, if the gap ever needs to grow further.
 	threshold := perInstanceDelay + perInstanceDelay/2
 	if elapsed >= threshold {
 		t.Errorf("push across %d instances took %v, want under %v — instances "+
@@ -532,7 +596,7 @@ func TestPushSerializesConcurrentRequests(t *testing.T) {
 //
 // s.now is the seam that makes the window deterministic rather than a race: the
 // handler reads it once for the default day, then once per entry as the last
-// thing it evaluates before MarkEntryPushed. Cancelling on that second read
+// thing it evaluates before MarkEntryPushedIfUnchanged. Cancelling on that second read
 // places the disconnect exactly inside the window, with the 201 already
 // received.
 func TestPushRecordsAWorklogAfterTheClientDisconnects(t *testing.T) {
@@ -616,5 +680,108 @@ func TestPushDayKeepsAnEditThatLandedMidPush(t *testing.T) {
 	}
 	if after.Comment != "typed mid-push" {
 		t.Fatalf("comment = %q, want the edit kept", after.Comment)
+	}
+}
+
+func TestPushDayUpdatesADirtyEntry(t *testing.T) {
+	tests := []struct {
+		name         string
+		updateStatus int
+		wantMethod   string
+		wantWorklog  string
+	}{
+		{
+			name:         "updates the worklog it already has",
+			updateStatus: http.StatusOK, wantMethod: http.MethodPut, wantWorklog: "10001",
+		},
+		{
+			name:         "creates afresh when the worklog is gone",
+			updateStatus: http.StatusNotFound, wantMethod: http.MethodPost, wantWorklog: "20002",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			env := newPushEnv(t)
+			env.jira.updateStatus = test.updateStatus
+			env.jira.createID = "20002"
+
+			entry := env.createEntry(t, "RID-1", 3600, "first go")
+			env.markPushed(t, entry.ID, "10001")
+			env.editEntry(t, entry.ID, 7200, "corrected")
+
+			resp := env.push(t, entry.Day)
+
+			if got := resp.Results[0].Status; got != "pushed" {
+				t.Fatalf("status = %q, want pushed", got)
+			}
+			if got := resp.Results[0].WorklogID; got != test.wantWorklog {
+				t.Fatalf("worklog id = %q, want %q", got, test.wantWorklog)
+			}
+			if got := env.jira.lastMethod; got != test.wantMethod {
+				t.Fatalf("Jira saw %s, want %s", got, test.wantMethod)
+			}
+
+			after, err := env.store.Entry(t.Context(), entry.ID)
+			if err != nil {
+				t.Fatalf("re-reading the entry: %v", err)
+			}
+			if after.WorklogID != test.wantWorklog {
+				t.Fatalf("stored worklog id = %q, want %q", after.WorklogID, test.wantWorklog)
+			}
+			if pushStateOf(*after) != "pushed" {
+				t.Fatalf("state = %q, want pushed: a successful push leaves nothing dirty",
+					pushStateOf(*after))
+			}
+		})
+	}
+}
+
+func TestPushDaySkipsACleanEntry(t *testing.T) {
+	env := newPushEnv(t)
+	entry := env.createEntry(t, "RID-1", 3600, "done")
+	env.markPushed(t, entry.ID, "10001")
+
+	resp := env.push(t, entry.Day)
+
+	if got := resp.Results[0].Status; got != "skipped" {
+		t.Fatalf("status = %q, want skipped", got)
+	}
+	if env.jira.calls != 0 {
+		t.Fatalf("Jira was called %d times, want 0: a clean entry makes no request", env.jira.calls)
+	}
+}
+
+// TestPushDayLeavesARefusedCorrectionDirty is the spec's own case for a
+// correction Jira refuses: the worklog must be kept so the next attempt
+// updates rather than duplicates, and the entry must stay dirty rather than
+// being reported clean when nothing reached Jira.
+func TestPushDayLeavesARefusedCorrectionDirty(t *testing.T) {
+	env := newPushEnv(t)
+	env.jira.updateStatus = http.StatusUnauthorized
+
+	entry := env.createEntry(t, "RID-1", 3600, "first go")
+	env.markPushed(t, entry.ID, "10001")
+	env.editEntry(t, entry.ID, 7200, "corrected")
+
+	resp := env.push(t, entry.Day)
+
+	if got := resp.Results[0].Status; got != "failed" {
+		t.Fatalf("status = %q, want failed", got)
+	}
+
+	after, err := env.store.Entry(t.Context(), entry.ID)
+	if err != nil {
+		t.Fatalf("re-reading the entry: %v", err)
+	}
+	if after.WorklogID != "10001" {
+		t.Fatalf("worklog id = %q, want it kept so the next attempt updates rather than duplicates",
+			after.WorklogID)
+	}
+	if pushStateOf(*after) != "dirty" {
+		t.Fatalf("state = %q, want dirty: the correction never reached anywhere", pushStateOf(*after))
+	}
+	if after.Seconds != 7200 || after.Comment != "corrected" {
+		t.Fatalf("entry = %ds %q, want the correction untouched", after.Seconds, after.Comment)
 	}
 }

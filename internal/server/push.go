@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sort"
 	"time"
@@ -129,7 +130,8 @@ func (s *Server) pushInstanceEntries(
 			InstanceID: entry.InstanceID,
 		}
 
-		if state := pushStateOf(entry); state != "unpushed" {
+		state := pushStateOf(entry)
+		if state == "pushed" {
 			result.Status = "skipped"
 			result.WorklogID = entry.WorklogID
 			results = append(results, result)
@@ -143,12 +145,27 @@ func (s *Server) pushInstanceEntries(
 			continue
 		}
 
-		worklogID, err := client.CreateWorklog(ctx, jira.Worklog{
+		worklog := jira.Worklog{
 			IssueKey: entry.IssueKey,
 			Started:  entry.StartedAt,
 			Seconds:  int64(entry.Seconds),
 			Comment:  entry.Comment,
-		})
+		}
+
+		worklogID := entry.WorklogID
+		var err error
+		if state == "dirty" {
+			err = client.UpdateWorklog(ctx, entry.WorklogID, worklog)
+			// Gone in Jira means the outcome the user wants is a worklog
+			// holding this text, and there is no longer one to correct. So it
+			// is created afresh and the new id stored, rather than failing and
+			// asking them to go to Jira and unstick it by hand.
+			if errors.Is(err, jira.ErrNotFound) {
+				worklogID, err = client.CreateWorklog(ctx, worklog)
+			}
+		} else {
+			worklogID, err = client.CreateWorklog(ctx, worklog)
+		}
 		if err != nil {
 			result.Status = "failed"
 			result.Error = instanceErrorBody(err)
