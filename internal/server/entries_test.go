@@ -1067,6 +1067,21 @@ func TestDeleteEntryRemovesTheWorklogFirst(t *testing.T) {
 			wantCalls:    1,
 			wantRowGone:  false,
 		},
+		// A scope refusal is the failure this app actually meets: the
+		// configured token cannot write worklogs, and Jira answers 401. The
+		// message instanceErrorFor produces for it ("credentials rejected") is
+		// known to be misleading for a scope refusal — that is #79's fix, not
+		// this ticket's — so this case only pins the property #10 owns: the
+		// row survives, so the delete can be tried again once the token is
+		// fixed.
+		{
+			name:         "a refused delete keeps the row so it can be tried again",
+			worklogID:    "10001",
+			deleteStatus: http.StatusUnauthorized,
+			wantStatus:   http.StatusUnauthorized,
+			wantCalls:    1,
+			wantRowGone:  false,
+		},
 	}
 
 	for _, test := range tests {
