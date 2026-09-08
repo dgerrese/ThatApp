@@ -1,5 +1,7 @@
 package jira
 
+import "strings"
+
 // Atlassian Document Format is a rich-text node tree. v3 takes worklog comments
 // as one of these rather than the plain string v2 accepted, so a comment this
 // app treats as a line of text has to be wrapped before it goes out.
@@ -33,4 +35,26 @@ func adfEmptyDoc() adfNode {
 		Version: 1,
 		Content: []adfNode{{Type: "paragraph"}},
 	}
+}
+
+// adfText flattens a document to plain text by concatenating every text node in
+// order. Worklog comments arrive as documents and this app stores and shows
+// strings; keeping the document form would put a Jira representation in the
+// local schema for the sake of formatting nothing here renders.
+//
+// Lossy on purpose, and the design says so: an entry created from a worklog and
+// later pushed back goes as plain text.
+func adfText(node adfNode) string {
+	var out strings.Builder
+
+	var walk func(adfNode)
+	walk = func(n adfNode) {
+		out.WriteString(n.Text)
+		for _, child := range n.Content {
+			walk(child)
+		}
+	}
+	walk(node)
+
+	return out.String()
 }
