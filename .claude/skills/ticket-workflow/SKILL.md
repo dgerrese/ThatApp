@@ -72,8 +72,10 @@ in the same scope**. Two consequences:
 - "Exactly one `status/*` label while open" is no longer a rule you can break by accident. It is
   still possible to have *none* — that is the state to watch for.
 
-`bug`, `enhancement` and `wontfix` are unscoped and carry no exclusivity, so those are still
-applied and removed by hand.
+**`priority/*` is scoped and exclusive too**, on the same mechanism, so `priority/high` and
+`priority/low` can never both be on one ticket and neither has to be removed to apply the other.
+`bug`, `enhancement` and `wontfix` are unscoped and carry no exclusivity, so those are still applied
+and removed by hand.
 
 ### Type: `bug` and `enhancement`
 
@@ -101,6 +103,36 @@ running* or *is not in the initial design*. Two consequences that catch most mis
 
 A ticket whose own body says it *widens* an agreed contract rather than correcting it is the clean
 case for `enhancement` — #19 is the worked example.
+
+### Priority: `priority/high` and `priority/low`
+
+A third axis, added 2026-09-08 because the board had no ordering within a milestone. It answers
+**what to pick up next**, and it is independent of both status and type.
+
+| Label | Means |
+|---|---|
+| `priority/high` | Ahead of normal. Pick this up before unlabelled work. |
+| *(no label)* | Normal. The default, and the right answer for most of the board. |
+| `priority/low` | Behind normal. Real work, but nothing waits on it. |
+
+**Normal has no label on purpose**, so priority is only ever recorded where it differs from the
+default — the same reason there is no `status/done`. Do not invent a `priority/normal`, and do not
+read an unlabelled ticket as untriaged: unlabelled *is* the triaged answer unless something says
+otherwise.
+
+The scope is exclusive, so `tea issues edit <n> --add-labels priority/high` is the whole move.
+Returning a ticket to normal is the one case needing the explicit removal, because there is no third
+label to displace the current one:
+
+```shell
+tea issues edit <n> --add-labels priority/high
+tea issues edit <n> --remove-labels priority/low      # back to normal
+```
+
+**Priority is the owner's call, not a reading of the ticket.** Raise a suggestion; do not relabel a
+ticket's priority unasked. Milestone and priority are also different questions — v1 says a thing has
+to be right before the app ships, `priority/high` says it should be picked up first, and a ticket can
+easily be one without the other.
 
 **Cutting the branch is what moves a ticket to `status/in-progress`.** The trigger is the branch
 existing — not the first line of implementation code, and not a judgement about how far the work has
