@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -926,6 +927,171 @@ func TestPushStateOfDerivesFromTheTwoColumnsAndUpdatedAt(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := pushStateOf(tc.entry); got != tc.want {
 				t.Errorf("pushStateOf() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// entriesEnv wires a server to a single fake-Jira instance whose worklog
+// DELETE response a test can steer, mirroring pushEnv's shape in push_test.go
+// for the same reason: DELETE /api/entries needs a Jira double the way POST
+// /api/push does.
+type entriesEnv struct {
+	s     *Server
+	store *store.Store
+	inst  *store.Instance
+	jira  *deletableJira
+}
+
+// deletableJira answers every worklog DELETE with deleteStatus and counts how
+// many it saw, which is what proves an unpushed entry asked Jira nothing.
+type deletableJira struct {
+	deleteStatus int
+	deleteCalls  int
+}
+
+func newEntriesEnv(t *testing.T) *entriesEnv {
+	t.Helper()
+
+	env := &entriesEnv{jira: &deletableJira{deleteStatus: http.StatusNoContent}}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/worklog/") {
+			env.jira.deleteCalls++
+			w.WriteHeader(env.jira.deleteStatus)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	s, db, sealer := newServerWithStore(t)
+	env.s = s
+	env.store = db
+	env.inst = seedInstance(t, db, sealer, "Work", "", srv.URL)
+
+	return env
+}
+
+func (env *entriesEnv) createEntry(t *testing.T, issueKey string, seconds int, comment string) store.Entry {
+	t.Helper()
+
+	entry, err := env.store.CreateEntry(context.Background(), store.EntryInput{
+		InstanceID: env.inst.ID,
+		IssueKey:   issueKey,
+		Day:        "2026-08-31",
+		StartedAt:  time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC),
+		Seconds:    seconds,
+		Comment:    comment,
+	})
+	if err != nil {
+		t.Fatalf("seeding entry: %v", err)
+	}
+
+	return *entry
+}
+
+// markPushed records worklogID as already delivered, without going through a
+// real push — standing in for an entry pushed on some earlier day.
+func (env *entriesEnv) markPushed(t *testing.T, entryID int64, worklogID string) {
+	t.Helper()
+
+	entry, err := env.store.Entry(context.Background(), entryID)
+	if err != nil {
+		t.Fatalf("reading entry %d to mark it pushed: %v", entryID, err)
+	}
+
+	ok, err := env.store.MarkEntryPushedIfUnchanged(
+		context.Background(), entryID, worklogID, entry.UpdatedAt, entry.UpdatedAt,
+	)
+	if err != nil {
+		t.Fatalf("marking entry %d pushed: %v", entryID, err)
+	}
+	if !ok {
+		t.Fatalf("marking entry %d pushed: guard rejected the write", entryID)
+	}
+}
+
+func (env *entriesEnv) delete(t *testing.T, entryID int64) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return callEntries(t, env.s, http.MethodDelete,
+		"/api/entries/"+strconv.FormatInt(entryID, 10), "")
+}
+
+// TestDeleteEntryRemovesTheWorklogFirst is #10's delete-side counterpart to
+// #9's push: the local row must go only once Jira confirms the worklog is
+// gone, a 404 counting as confirmation because the outcome already matches
+// the intent. "any other refusal" uses a 500 rather than 401 so the fake maps
+// through jira.ErrUnreachable to instanceErrorFor's 502 — the codebase's
+// existing mapping for "Jira could not be reached", which is what a refusal
+// this test doesn't otherwise characterise should be read as.
+func TestDeleteEntryRemovesTheWorklogFirst(t *testing.T) {
+	tests := []struct {
+		name         string
+		worklogID    string
+		deleteStatus int
+		wantStatus   int
+		wantCalls    int
+		wantRowGone  bool
+	}{
+		{
+			name:        "a local-only entry asks Jira nothing",
+			worklogID:   "",
+			wantStatus:  http.StatusNoContent,
+			wantCalls:   0,
+			wantRowGone: true,
+		},
+		{
+			name:         "a pushed entry deletes the worklog, then the row",
+			worklogID:    "10001",
+			deleteStatus: http.StatusNoContent,
+			wantStatus:   http.StatusNoContent,
+			wantCalls:    1,
+			wantRowGone:  true,
+		},
+		{
+			name:         "a worklog already gone is confirmation, not a failure",
+			worklogID:    "10001",
+			deleteStatus: http.StatusNotFound,
+			wantStatus:   http.StatusNoContent,
+			wantCalls:    1,
+			wantRowGone:  true,
+		},
+		{
+			name:         "any other refusal keeps the row",
+			worklogID:    "10001",
+			deleteStatus: http.StatusInternalServerError,
+			wantStatus:   http.StatusBadGateway,
+			wantCalls:    1,
+			wantRowGone:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			env := newEntriesEnv(t)
+			env.jira.deleteStatus = test.deleteStatus
+
+			entry := env.createEntry(t, "RID-1", 3600, "")
+			if test.worklogID != "" {
+				env.markPushed(t, entry.ID, test.worklogID)
+			}
+
+			rec := env.delete(t, entry.ID)
+
+			if rec.Code != test.wantStatus {
+				t.Fatalf("status = %d, want %d (body %s)", rec.Code, test.wantStatus, rec.Body)
+			}
+			if env.jira.deleteCalls != test.wantCalls {
+				t.Fatalf("Jira saw %d deletes, want %d", env.jira.deleteCalls, test.wantCalls)
+			}
+
+			_, err := env.store.Entry(t.Context(), entry.ID)
+			gone := errors.Is(err, sql.ErrNoRows)
+			if gone != test.wantRowGone {
+				t.Fatalf("row gone = %v, want %v", gone, test.wantRowGone)
 			}
 		})
 	}

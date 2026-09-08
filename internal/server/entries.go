@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
@@ -332,13 +333,43 @@ func (s *Server) handleUpdateEntry(w http.ResponseWriter, r *http.Request) {
 		s.entryDTOFrom(*entry, instances[entry.InstanceID], positions[entry.InstanceID]))
 }
 
-// handleDeleteEntry removes logged time. Like unpinning, it is purely a store
-// operation: nothing has been pushed to Jira yet, and #9 owns what deleting a
-// pushed entry means.
+// handleDeleteEntry removes logged time, and the Jira worklog with it.
+//
+// Jira goes first and the local row goes only once it confirms: the reverse
+// order would leave a worklog nothing here records, which is time on a timesheet
+// with no way left to reach it. A 404 is confirmation rather than a failure —
+// the outcome already matches the intent.
 func (s *Server) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 	id, ok := entryIDFromPath(w, r)
 	if !ok {
 		return
+	}
+
+	entry, err := s.db.Entry(r.Context(), id)
+	if err != nil {
+		writeEntryStoreError(w, err, "could not read the entry")
+		return
+	}
+
+	if entry.WorklogID != "" {
+		inst, err := s.db.Instance(r.Context(), entry.InstanceID)
+		if err != nil {
+			writeEntryStoreError(w, err, "could not read the entry's instance")
+			return
+		}
+
+		client, err := s.clients.forInstance(r.Context(), inst)
+		if err != nil {
+			writeInstanceError(w, err)
+			return
+		}
+
+		if err := client.DeleteWorklog(
+			r.Context(), entry.IssueKey, entry.WorklogID,
+		); err != nil && !errors.Is(err, jira.ErrNotFound) {
+			writeInstanceError(w, err)
+			return
+		}
 	}
 
 	if err := s.db.DeleteEntry(r.Context(), id); err != nil {
