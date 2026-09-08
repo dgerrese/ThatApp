@@ -88,26 +88,44 @@ type weekRollupDTO struct {
 
 const daysInWeek = 7
 
-// handleWeek answers with a Monday-to-Sunday rollup. start defaults to the
-// current week's Monday resolved in THAT_TIMEZONE, so the browser never computes
-// one — the same reason handleListEntries defaults its bounds to today.
-func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
+// weekRangeParam reads the `start` query parameter as the Monday a week begins
+// on, and returns that instant with the inclusive text bounds of its week.
+//
+// Parsed rather than trusted: dayParam proves it is a date, not that it is a
+// Monday. A start that is not one is rejected rather than snapped to its own
+// week's Monday, so two different values cannot return identical bodies.
+//
+// Shared by the week read and the week fetch, which must agree on what a week
+// is: a fetch that filtered against a different range than the grid renders
+// would report time the user cannot see.
+func (s *Server) weekRangeParam(
+	w http.ResponseWriter, r *http.Request,
+) (startAt time.Time, start, end string, ok bool) {
 	today := s.now().In(s.cfg.Location)
-	start, ok := dayParam(w, r, "start", mondayOf(today))
+
+	start, ok = dayParam(w, r, "start", mondayOf(today))
 	if !ok {
-		return
+		return time.Time{}, "", "", false
 	}
 
-	// Parsed rather than trusted: dayParam proves it is a date, not that it is a
-	// Monday. A start that is not one is rejected rather than snapped to its own
-	// week's Monday, so two different values cannot return identical bodies.
 	startAt, err := time.ParseInLocation(dayLayout, start, s.cfg.Location)
 	if err != nil || startAt.Weekday() != time.Monday {
 		writeError(w, http.StatusBadRequest, "start_not_monday",
 			"start must be a Monday, of the form YYYY-MM-DD")
+		return time.Time{}, "", "", false
+	}
+
+	return startAt, start, startAt.AddDate(0, 0, daysInWeek-1).Format(dayLayout), true
+}
+
+// handleWeek answers with a Monday-to-Sunday rollup. start defaults to the
+// current week's Monday resolved in THAT_TIMEZONE, so the browser never computes
+// one — the same reason handleListEntries defaults its bounds to today.
+func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
+	startAt, start, end, ok := s.weekRangeParam(w, r)
+	if !ok {
 		return
 	}
-	end := startAt.AddDate(0, 0, daysInWeek-1).Format(dayLayout)
 
 	// Instances first — see instanceIndex on why this order is load-bearing.
 	instances, positions, ok := s.instanceIndex(w, r)
