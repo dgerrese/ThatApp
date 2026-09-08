@@ -65,6 +65,7 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 	s.mux.HandleFunc("DELETE /api/entries/{id}", s.handleDeleteEntry)
 	s.mux.HandleFunc("POST /api/push", s.handlePushDay)
 	s.mux.HandleFunc("GET /api/week", s.handleWeek)
+	s.mux.HandleFunc("POST /api/week/fetch", s.handleFetchWeek)
 	s.mux.HandleFunc("/api/", handleAPINotFound)
 	s.mux.HandleFunc("/", s.handleAsset)
 
