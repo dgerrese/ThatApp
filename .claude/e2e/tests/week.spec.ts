@@ -728,6 +728,30 @@ test("the three week controls share one height", async ({ page }) => {
   expect(heights).toEqual([36, 36, 36]);
 });
 
+test("the fetch control sits beside the label, and the week controls do not move", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
+  await expect(fetchControl).toBeVisible();
+
+  const label = page.getByRole("heading", { level: 2 });
+  const thisWeek = page.getByRole("button", { name: "This week" });
+
+  const labelBox = (await label.boundingBox()) ?? null;
+  const fetchBox = (await fetchControl.boundingBox()) ?? null;
+  const weekBox = (await thisWeek.boundingBox()) ?? null;
+  if (!labelBox || !fetchBox || !weekBox) throw new Error("a header control had no box");
+
+  expect(fetchBox.x).toBeGreaterThan(labelBox.x);
+  expect(fetchBox.x + fetchBox.width).toBeLessThan(weekBox.x);
+});
+
 /**
  * void show() after a push is the only thing that settles the grid, and without
  * a fixture that changes underneath it nothing here would fail if it were

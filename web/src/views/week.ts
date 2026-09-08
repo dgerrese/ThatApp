@@ -47,9 +47,24 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   const label = document.createElement("h2");
   label.className = "text-xl font-bold";
 
+  // The label, a rule, and the fetch. Its own flex box rather than three more
+  // children of the header: the header aligns on baselines, and a group's
+  // baseline is its first item's, so the heading still sits on the same line as
+  // the week controls opposite it.
+  const identity = document.createElement("div");
+  identity.className = "flex items-center gap-3";
+
+  const rule = document.createElement("span");
+  rule.className = "bg-edge h-5 w-px";
+  rule.setAttribute("aria-hidden", "true");
+
+  const fetchControl = fetchButton();
+
+  identity.append(label, rule, fetchControl);
+
   const controls = document.createElement("div");
   controls.className = "flex items-center gap-1";
-  header.append(label, controls);
+  header.append(identity, controls);
 
   const grid = document.createElement("div");
   grid.append(loadingLine());
@@ -247,6 +262,38 @@ function weekButton(control: { mark?: string; label: string; path: string }): HT
   button.addEventListener("click", () => {
     void navigate(control.path);
   });
+
+  return button;
+}
+
+/**
+ * Pulls the week's worklogs in.
+ *
+ * Labelled rather than an icon alone, and outside the week controls opposite it:
+ * those three are navigation and share one height as one group, where this
+ * writes entries to the database. The rule before it is what says so.
+ *
+ * A plain button for the same reason weekButton is one — CLAUDE.md reserves
+ * `that-*` for reusable UI, and this is one control in one view.
+ */
+function fetchButton(): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className =
+    "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-sm px-3 " +
+    "text-base font-bold text-ink-muted hover:bg-hover hover:text-ink " +
+    "disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent";
+  // The label text already names the button; the explicit aria-label matches
+  // it rather than adding information, the same belt-and-braces
+  // sortHeaderCell in that-table.ts uses beside its own iconMarkup call.
+  button.setAttribute("aria-label", "Fetch worklogs");
+
+  const mark = document.createElement("span");
+  mark.innerHTML = iconMarkup("fetch", 17);
+  const text = document.createElement("span");
+  text.textContent = "Fetch worklogs";
+
+  button.append(mark, text);
 
   return button;
 }
