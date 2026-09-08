@@ -10,6 +10,7 @@ import type {
   IssuesResponse,
   Pin,
   PushResponse,
+  WeekFetchResponse,
   WeekRollup,
 } from "./types";
 
@@ -186,4 +187,13 @@ export function pushDay(day?: string): Promise<PushResponse> {
   const query = day === undefined ? "" : `?day=${encodeURIComponent(day)}`;
 
   return request<PushResponse>(`/api/push${query}`, { method: "POST" });
+}
+
+/** Pulls a week's worklogs in. `start` is the Monday the week begins on, and
+ *  omitting it fetches the current week — the same default, resolved in the
+ *  same place, that `getWeek` leaves to the server. */
+export function fetchWeek(start?: string): Promise<WeekFetchResponse> {
+  const query = start === undefined ? "" : `?start=${encodeURIComponent(start)}`;
+
+  return request<WeekFetchResponse>(`/api/week/fetch${query}`, { method: "POST" });
 }

@@ -26,6 +26,7 @@ export const ICON_NAMES = [
   "ascending",
   "descending",
   "refresh",
+  "fetch",
   "edit",
   "trash",
 ] as const;
@@ -52,6 +53,18 @@ const PATHS: Record<IconName, string> = {
   // missing quarter: a full circle reads as a spinner, which promises motion
   // this control does not make until it is pressed.
   refresh: '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3.5V9h-5.5"/>',
+  // A cloud with a downward arrow, drawn in the design session of 2026-09-08 and
+  // reproduced here exactly. Deliberately not the refresh arrows: those mean the
+  // view was read again, which is what they mean on Today, where nothing is
+  // written. This one pulls time in and stores it.
+  //
+  // The arrow's geometry is the owner's, not a judgement to re-make. It was once
+  // lengthened to exit the cloud on the argument that it read as a dent at 17px,
+  // and reverted: on screen it read as a tail. If it looks wrong, show them a
+  // render and ask — do not redraw it.
+  fetch:
+    '<path d="M7.4 19h9.9a3.6 3.6 0 0 0 .5-7.16 5.6 5.6 0 0 0-10.8-1.2A3.98 3.98 0 0 0 7.4 19Z"/>' +
+    '<path d="M12 10.5v6"/><path d="M9.4 14 12 16.6l2.6-2.6"/>',
   ascending: '<path d="M12 19V6M7.5 10.5 12 6l4.5 4.5"/>',
   descending: '<path d="M12 5v13M7.5 13.5 12 18l4.5-4.5"/>',
   // Both transcribed from the prototype's #p-edit and #p-trash. The nib is

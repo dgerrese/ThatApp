@@ -14,10 +14,22 @@ import (
 // stored separately because the container's clock is almost certainly UTC, so
 // neither can be derived from the other after the fact.
 //
-// WorklogID and PushedAt belong to the push (#9). MarkEntryPushed is the only
-// writer of either, and it names no other column: whether an entry is unpushed,
-// clean or dirty is computed from those two and UpdatedAt on every read, never
-// stored as a flag.
+// WorklogID and PushedAt belong to the push (#9) and the fetch (#10), and they
+// are not the same kind of fact. WorklogID records that a worklog exists in
+// Jira, which stays true however the entry changes afterwards. PushedAt is the
+// claim that what Jira holds is current, which any edit since falsifies.
+//
+// Three methods write them, each keeping the pair consistent with UpdatedAt
+// rather than just filling them in: RecordWorklogMarkingPushedIfUnchanged
+// always records the worklog and moves PushedAt only if the entry has not been
+// edited since the push read it, so an edit landing mid-push leaves the row
+// dirty against a worklog it still names. CreateFetchedEntry writes both at
+// insert time, so a fetched entry reads clean from the instant it exists —
+// nothing about it should invite a push to send it straight back.
+// OverwriteEntryFromWorklogIfUnchanged moves PushedAt with UpdatedAt, so an
+// entry Jira overwrote stays clean too: it is Jira's copy, not an edit of it.
+// Whether an entry is unpushed, clean or dirty is computed from those two and
+// UpdatedAt on every read, never stored as a flag.
 type Entry struct {
 	ID         int64
 	InstanceID int64
@@ -205,31 +217,168 @@ func (s *Store) DeleteEntry(ctx context.Context, id int64) error {
 	return errNoRowsIfUnaffected(result, "deleting entry", id)
 }
 
-// MarkEntryPushed records the Jira worklog an entry became.
+// RecordWorklogMarkingPushedIfUnchanged names the worklog an entry became, and
+// marks the entry pushed only if it has not been edited since the caller read
+// it. It reports whether that mark was made.
 //
-// It names only worklog_id and pushed_at. Stamping updated_at here would race
-// pushed_at and could leave a just-pushed entry reading as dirty, since the
-// spec derives dirty from updated_at > pushed_at.
-func (s *Store) MarkEntryPushed(
-	ctx context.Context, id int64, worklogID string, pushedAt time.Time,
-) error {
+// This is what closes #9's lost update. A push reads an entry, calls Jira, then
+// records the outcome — and an edit arriving in that window used to be stamped
+// pushed and silently never sent. Only pushed_at is guarded on the updated_at
+// the caller read, because only pushed_at is a claim about the edit: it says
+// Jira holds this text. worklog_id says something the edit cannot make false,
+// that a worklog exists, so it is written either way. An entry left with a
+// worklog and no mark reads dirty, and the next push updates that worklog
+// rather than creating a second one for the same time.
+//
+// A false return is not an error: it is the guard doing its job.
+func (s *Store) RecordWorklogMarkingPushedIfUnchanged(
+	ctx context.Context, id int64, worklogID string, pushedAt, expected time.Time,
+) (bool, error) {
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE time_entries SET worklog_id = ?, pushed_at = ? WHERE id = ?`,
-		worklogID, pushedAt.UTC().Truncate(time.Second).Format(time.RFC3339), id,
+		`UPDATE time_entries SET worklog_id = ?, pushed_at = ?
+		  WHERE id = ? AND updated_at = ?`,
+		worklogID,
+		pushedAt.UTC().Truncate(time.Second).Format(time.RFC3339),
+		id,
+		expected.UTC().Truncate(time.Second).Format(time.RFC3339),
 	)
 	if err != nil {
-		return fmt.Errorf("recording worklog %s for entry %d: %w", worklogID, id, err)
+		return false, fmt.Errorf("recording worklog %s for entry %d: %w", worklogID, id, err)
 	}
 
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("counting rows updated for entry %d: %w", id, err)
+		return false, fmt.Errorf("counting rows updated for entry %d: %w", id, err)
 	}
-	if affected == 0 {
-		return fmt.Errorf("recording worklog %s: no entry %d", worklogID, id)
+	if affected == 1 {
+		return true, nil
 	}
 
-	return nil
+	// The entry was edited while Jira was answering, so the mark is withheld —
+	// but the worklog is in Jira and this row is the only thing that can name
+	// it. A second statement rather than one with a CASE, so that a crash
+	// between the two leaves the same state the guard produces: a worklog id
+	// with no mark, which reads dirty.
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE time_entries SET worklog_id = ? WHERE id = ?`, worklogID, id,
+	); err != nil {
+		return false, fmt.Errorf(
+			"recording worklog %s for entry %d after an edit landed: %w", worklogID, id, err)
+	}
+
+	return false, nil
+}
+
+// EntriesWithWorklogs returns one instance's entries that already claim a Jira
+// worklog, keyed by that worklog's id.
+//
+// A map because the fetch asks "does anything hold this worklog" once per
+// worklog that comes back, and a unique index makes the key total: no two rows
+// on one instance may carry the same worklog_id.
+func (s *Store) EntriesWithWorklogs(ctx context.Context, instanceID int64) (map[string]Entry, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+entryColumns+`
+		   FROM time_entries
+		  WHERE instance_id = ? AND worklog_id IS NOT NULL`, instanceID)
+	if err != nil {
+		return nil, fmt.Errorf("querying pushed entries on instance %d: %w", instanceID, err)
+	}
+
+	entries, err := scanEntries(rows, fmt.Sprintf("reading pushed entries on instance %d", instanceID))
+	if err != nil {
+		return nil, err
+	}
+
+	byWorklog := make(map[string]Entry, len(entries))
+	for _, entry := range entries {
+		byWorklog[entry.WorklogID] = entry
+	}
+
+	return byWorklog, nil
+}
+
+// CreateFetchedEntry stores time that came from Jira rather than from this app.
+//
+// updated_at and pushed_at are both `at`, so the entry reads clean the moment it
+// exists: it came from Jira, and a push must not send it straight back. That is
+// the whole reason this is not CreateEntry followed by a mark — the two writes
+// would leave a window where the row reads unpushed, and a push landing in it
+// would duplicate the worklog.
+func (s *Store) CreateFetchedEntry(
+	ctx context.Context, in EntryInput, worklogID string, at time.Time,
+) (*Entry, error) {
+	stamp := at.UTC().Truncate(time.Second)
+	startedAt := in.StartedAt.UTC().Truncate(time.Second)
+
+	result, err := s.db.ExecContext(ctx,
+		`INSERT INTO time_entries
+		        (instance_id, issue_key, day, started_at, seconds, comment,
+		         worklog_id, pushed_at, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.InstanceID, in.IssueKey, in.Day, startedAt.Format(time.RFC3339), in.Seconds,
+		nullable(in.Comment), worklogID, stamp.Format(time.RFC3339),
+		stamp.Format(time.RFC3339), stamp.Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("storing worklog %s as an entry on %q: %w", worklogID, in.IssueKey, err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("reading id of the entry for worklog %s: %w", worklogID, err)
+	}
+
+	return &Entry{
+		ID: id, InstanceID: in.InstanceID, IssueKey: in.IssueKey, Day: in.Day,
+		StartedAt: startedAt, Seconds: in.Seconds, Comment: in.Comment,
+		WorklogID: worklogID, PushedAt: &stamp, CreatedAt: stamp, UpdatedAt: stamp,
+	}, nil
+}
+
+// OverwriteEntryFromWorklogIfUnchanged replaces a local entry with what Jira
+// holds, but only if the entry has not been edited since the caller read it. It
+// reports whether the row was written.
+//
+// The guard is the push's, applied to the fetch: a fetch reads local state once
+// and then makes a Jira call per issue before it writes, which is a longer
+// window than the push's own for an edit to land in. Overwriting on the strength
+// of a copy that predates the edit would discard an unpushed correction, and
+// this app has no other copy of one.
+//
+// A false return is not an error. It means the entry now carries an edit, which
+// is the same answer as finding it dirty in the first place: local wins, and the
+// caller reports it so the user can choose between the two texts.
+//
+// Unlike UpdateEntry it does move day and started_at: a worklog whose start was
+// changed in Jira belongs to whichever day that start now falls in, and leaving
+// the row on its old day would show the time twice over if a later fetch created
+// it again. It also moves pushed_at with updated_at, so the entry stays clean —
+// this is Jira's copy, not an edit of it.
+func (s *Store) OverwriteEntryFromWorklogIfUnchanged(
+	ctx context.Context, id int64, expected time.Time, day string, startedAt time.Time,
+	seconds int, comment string, at time.Time,
+) (bool, error) {
+	stamp := at.UTC().Truncate(time.Second)
+
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE time_entries
+		    SET day = ?, started_at = ?, seconds = ?, comment = ?,
+		        pushed_at = ?, updated_at = ?
+		  WHERE id = ? AND updated_at = ?`,
+		day, startedAt.UTC().Truncate(time.Second).Format(time.RFC3339), seconds,
+		nullable(comment), stamp.Format(time.RFC3339), stamp.Format(time.RFC3339), id,
+		expected.UTC().Truncate(time.Second).Format(time.RFC3339),
+	)
+	if err != nil {
+		return false, fmt.Errorf("overwriting entry %d from its worklog: %w", id, err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("counting rows overwritten for entry %d: %w", id, err)
+	}
+
+	return affected == 1, nil
 }
 
 // Entry reads one entry by id. A missing id yields an error wrapping

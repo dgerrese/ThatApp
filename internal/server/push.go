@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sort"
 	"time"
@@ -129,7 +130,8 @@ func (s *Server) pushInstanceEntries(
 			InstanceID: entry.InstanceID,
 		}
 
-		if state := pushStateOf(entry); state != "unpushed" {
+		state := pushStateOf(entry)
+		if state == "pushed" {
 			result.Status = "skipped"
 			result.WorklogID = entry.WorklogID
 			results = append(results, result)
@@ -143,12 +145,27 @@ func (s *Server) pushInstanceEntries(
 			continue
 		}
 
-		worklogID, err := client.CreateWorklog(ctx, jira.Worklog{
+		worklog := jira.Worklog{
 			IssueKey: entry.IssueKey,
 			Started:  entry.StartedAt,
 			Seconds:  int64(entry.Seconds),
 			Comment:  entry.Comment,
-		})
+		}
+
+		worklogID := entry.WorklogID
+		var err error
+		if state == "dirty" {
+			err = client.UpdateWorklog(ctx, entry.WorklogID, worklog)
+			// Gone in Jira means the outcome the user wants is a worklog
+			// holding this text, and there is no longer one to correct. So it
+			// is created afresh and the new id stored, rather than failing and
+			// asking them to go to Jira and unstick it by hand.
+			if errors.Is(err, jira.ErrNotFound) {
+				worklogID, err = client.CreateWorklog(ctx, worklog)
+			}
+		} else {
+			worklogID, err = client.CreateWorklog(ctx, worklog)
+		}
 		if err != nil {
 			result.Status = "failed"
 			result.Error = instanceErrorBody(err)
@@ -162,20 +179,22 @@ func (s *Server) pushInstanceEntries(
 		//
 		// WithoutCancel is the same scenario without the crash. ctx descends
 		// from the request, which net/http cancels the moment the browser goes
-		// away — a reload, a closed tab, a proxy giving up on a slow site — and
-		// database/sql refuses to execute on a cancelled context. Dropping
-		// cancellation here keeps the local record of a worklog that already
-		// exists in Jira, which is the only thing standing between a disconnect
-		// and a duplicate on the next push.
-		if err := s.db.MarkEntryPushed(
-			context.WithoutCancel(ctx), entry.ID, worklogID, s.now().UTC(),
+		// away, and database/sql refuses to execute on a cancelled context.
+		//
+		// The boolean is deliberately discarded. False means an edit landed
+		// while Jira was answering, which withholds the mark but not the
+		// worklog id: the worklog exists, this push created it and says so,
+		// and the entry reads dirty — so the next push updates that worklog
+		// instead of creating a second one for the same time.
+		if _, err := s.db.RecordWorklogMarkingPushedIfUnchanged(
+			context.WithoutCancel(ctx), entry.ID, worklogID, s.now().UTC(), entry.UpdatedAt,
 		); err != nil {
 			result.Status = "failed"
 			result.WorklogID = worklogID
 			result.Error = &errorBody{
 				Code: "store_failed",
-				Message: "the worklog reached Jira but could not be recorded locally; " +
-					"re-pushing would duplicate it",
+				Message: "the worklog was created but could not be recorded here; " +
+					"pushing again would log the time twice",
 			}
 			results = append(results, result)
 			continue

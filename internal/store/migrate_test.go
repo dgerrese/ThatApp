@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func tableExists(t *testing.T, s *Store, name string) bool {
@@ -325,5 +326,38 @@ func TestDeletingAnInstanceCascades(t *testing.T) {
 				t.Errorf("%s has %d rows after deleting its instance, want 0 — the cascade did not fire", table, n)
 			}
 		})
+	}
+}
+
+func TestWorklogIDIsUniquePerInstance(t *testing.T) {
+	s := openTestStore(t)
+	inst := createTestInstance(t, s)
+
+	first, err := s.CreateEntry(t.Context(), EntryInput{
+		InstanceID: inst.ID, IssueKey: "RID-1", Day: "2026-09-08",
+		StartedAt: time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC), Seconds: 3600,
+	})
+	if err != nil {
+		t.Fatalf("creating the first entry: %v", err)
+	}
+	second, err := s.CreateEntry(t.Context(), EntryInput{
+		InstanceID: inst.ID, IssueKey: "RID-1", Day: "2026-09-08",
+		StartedAt: time.Date(2026, 9, 8, 11, 0, 0, 0, time.UTC), Seconds: 1800,
+	})
+	if err != nil {
+		t.Fatalf("creating the second entry: %v", err)
+	}
+
+	// Two unpushed entries are fine: both carry a NULL worklog_id, and the
+	// index is partial so NULLs do not collide.
+	if _, err := s.RecordWorklogMarkingPushedIfUnchanged(
+		t.Context(), first.ID, "10001", time.Now().UTC(), first.UpdatedAt); err != nil {
+		t.Fatalf("marking the first entry: %v", err)
+	}
+
+	_, err = s.RecordWorklogMarkingPushedIfUnchanged(
+		t.Context(), second.ID, "10001", time.Now().UTC(), second.UpdatedAt)
+	if err == nil {
+		t.Fatal("a second entry claimed the same worklog; want the store to refuse it")
 	}
 }

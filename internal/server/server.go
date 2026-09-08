@@ -27,11 +27,14 @@ type Server struct {
 	// chosen instant, which is the only way to prove which local day an entry
 	// lands on when cfg.Location is hours away from the machine's clock.
 	now func() time.Time
-	// pushMu serialises handlePushDay: without it, two concurrent pushes can
-	// both read the same entry as unpushed before either writes worklog_id,
-	// creating a duplicate worklog in real Jira. A push is a once-a-day
-	// operation, so serialising it costs nothing — the alternative is a
-	// duplicate a user can only undo by hand in Jira's own UI.
+	// pushMu serialises handlePushDay and handleFetchWeek: without it, two
+	// concurrent pushes can both read the same entry as unpushed before either
+	// writes worklog_id, creating a duplicate worklog in real Jira — and a push
+	// racing a fetch could do the same across the two handlers, one creating a
+	// worklog for an entry the other is simultaneously creating a local entry
+	// for. Both are once-a-day operations, so serialising them costs nothing —
+	// the alternative is a duplicate a user can only undo by hand in Jira's
+	// own UI.
 	pushMu sync.Mutex
 }
 
@@ -65,6 +68,7 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 	s.mux.HandleFunc("DELETE /api/entries/{id}", s.handleDeleteEntry)
 	s.mux.HandleFunc("POST /api/push", s.handlePushDay)
 	s.mux.HandleFunc("GET /api/week", s.handleWeek)
+	s.mux.HandleFunc("POST /api/week/fetch", s.handleFetchWeek)
 	s.mux.HandleFunc("/api/", handleAPINotFound)
 	s.mux.HandleFunc("/", s.handleAsset)
 
