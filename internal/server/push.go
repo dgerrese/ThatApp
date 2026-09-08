@@ -162,20 +162,21 @@ func (s *Server) pushInstanceEntries(
 		//
 		// WithoutCancel is the same scenario without the crash. ctx descends
 		// from the request, which net/http cancels the moment the browser goes
-		// away — a reload, a closed tab, a proxy giving up on a slow site — and
-		// database/sql refuses to execute on a cancelled context. Dropping
-		// cancellation here keeps the local record of a worklog that already
-		// exists in Jira, which is the only thing standing between a disconnect
-		// and a duplicate on the next push.
-		if err := s.db.MarkEntryPushed(
-			context.WithoutCancel(ctx), entry.ID, worklogID, s.now().UTC(),
+		// away, and database/sql refuses to execute on a cancelled context.
+		//
+		// The boolean is deliberately discarded. False means an edit landed
+		// while Jira was answering: the worklog was still created, so this push
+		// succeeded and says so, and the entry stays dirty for the next one to
+		// update rather than duplicate.
+		if _, err := s.db.MarkEntryPushedIfUnchanged(
+			context.WithoutCancel(ctx), entry.ID, worklogID, s.now().UTC(), entry.UpdatedAt,
 		); err != nil {
 			result.Status = "failed"
 			result.WorklogID = worklogID
 			result.Error = &errorBody{
 				Code: "store_failed",
-				Message: "the worklog reached Jira but could not be recorded locally; " +
-					"re-pushing would duplicate it",
+				Message: "the worklog was created but could not be recorded here; " +
+					"pushing again would log the time twice",
 			}
 			results = append(results, result)
 			continue

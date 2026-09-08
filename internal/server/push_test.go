@@ -104,6 +104,81 @@ func TestPushSendsTheDaysUnpushedEntriesAndIsIdempotent(t *testing.T) {
 	}
 }
 
+// pushEnv wires a server to a single fake-Jira instance whose worklog creation
+// a test can hook, for scenarios a canned response can't produce — such as an
+// edit landing in the window between the push's read and its Jira call.
+type pushEnv struct {
+	s     *Server
+	store *store.Store
+	inst  *store.Instance
+	jira  *hookableJira
+}
+
+// hookableJira lets createWorklog be swapped per test; the default hands back
+// an incrementing id, matching fakeJira's behaviour for tests that don't care.
+type hookableJira struct {
+	createWorklog func() (string, error)
+}
+
+func newPushEnv(t *testing.T) *pushEnv {
+	t.Helper()
+
+	env := &pushEnv{jira: &hookableJira{}}
+
+	var created atomic.Int64
+	env.jira.createWorklog = func() (string, error) {
+		return "wl-" + strconv.FormatInt(created.Add(1), 10), nil
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/worklog") {
+			id, err := env.jira.createWorklog()
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": id})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	s, db, sealer := newServerWithStore(t)
+	env.s = s
+	env.store = db
+	env.inst = seedInstance(t, db, sealer, "Work", "", srv.URL)
+
+	return env
+}
+
+func (env *pushEnv) createEntry(t *testing.T, issueKey string, seconds int, comment string) store.Entry {
+	t.Helper()
+
+	entry, err := env.store.CreateEntry(context.Background(), store.EntryInput{
+		InstanceID: env.inst.ID,
+		IssueKey:   issueKey,
+		Day:        "2026-08-31",
+		StartedAt:  time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC),
+		Seconds:    seconds,
+		Comment:    comment,
+	})
+	if err != nil {
+		t.Fatalf("seeding entry: %v", err)
+	}
+
+	return *entry
+}
+
+func (env *pushEnv) push(t *testing.T, day string) pushResponseDTO {
+	t.Helper()
+
+	return pushDay(t, env.s, day)
+}
+
 // pushDay calls POST /api/push and decodes the response, failing the test on
 // any non-200.
 func pushDay(t *testing.T, s *Server, day string) pushResponseDTO {
@@ -506,5 +581,40 @@ func TestPushRecordsAWorklogAfterTheClientDisconnects(t *testing.T) {
 	if stored.WorklogID == "" || stored.PushedAt == nil {
 		t.Fatalf("entry reads back as %+v after a disconnected push — the worklog "+
 			"exists in Jira but nothing records it, so the next push duplicates it", stored)
+	}
+}
+
+// TestPushDayKeepsAnEditThatLandedMidPush is #9's central case: an edit typed
+// while Jira is still answering must not be stamped pushed and lost.
+func TestPushDayKeepsAnEditThatLandedMidPush(t *testing.T) {
+	env := newPushEnv(t)
+	entry := env.createEntry(t, "RID-1", 3600, "before")
+
+	env.jira.createWorklog = func() (string, error) {
+		// The edit the guard exists for: it lands after the push read the
+		// entry and before the push marks it.
+		time.Sleep(1100 * time.Millisecond)
+		if _, err := env.store.UpdateEntry(context.Background(), entry.ID, 7200, "typed mid-push"); err != nil {
+			return "", err
+		}
+
+		return "10001", nil
+	}
+
+	resp := env.push(t, entry.Day)
+
+	if got := resp.Results[0].Status; got != "pushed" {
+		t.Fatalf("status = %q, want pushed: the worklog really was created", got)
+	}
+
+	after, err := env.store.Entry(context.Background(), entry.ID)
+	if err != nil {
+		t.Fatalf("re-reading the entry: %v", err)
+	}
+	if after.WorklogID != "" {
+		t.Fatalf("worklog id = %q, want empty so the next push sends the newer text", after.WorklogID)
+	}
+	if after.Comment != "typed mid-push" {
+		t.Fatalf("comment = %q, want the edit kept", after.Comment)
 	}
 }

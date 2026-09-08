@@ -518,56 +518,65 @@ func TestDeletingAnInstanceCascadesToItsEntries(t *testing.T) {
 	}
 }
 
-func TestMarkEntryPushedRecordsTheWorklogWithoutTouchingUpdatedAt(t *testing.T) {
-	ctx := context.Background()
-	s := openTestStore(t)
-	inst := createTestInstance(t, s)
-
-	created, err := s.CreateEntry(ctx, EntryInput{
-		InstanceID: inst.ID,
-		IssueKey:   "RIDGE-1",
-		Day:        "2026-08-31",
-		StartedAt:  time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC),
-		Seconds:    3600,
-		Comment:    "morning",
-	})
-	if err != nil {
-		t.Fatalf("creating entry: %v", err)
+func TestMarkEntryPushedIfUnchanged(t *testing.T) {
+	tests := []struct {
+		name       string
+		editBefore bool
+		wantMarked bool
+	}{
+		{name: "marks an entry nothing touched", editBefore: false, wantMarked: true},
+		{name: "refuses an entry edited since it was read", editBefore: true, wantMarked: false},
 	}
 
-	pushedAt := created.UpdatedAt.Add(time.Second)
-	if err := s.MarkEntryPushed(ctx, created.ID, "10123", pushedAt); err != nil {
-		t.Fatalf("MarkEntryPushed: %v", err)
-	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := openTestStore(t)
+			inst := createTestInstance(t, s)
+			entry, err := s.CreateEntry(ctx, EntryInput{
+				InstanceID: inst.ID, IssueKey: "RID-1", Day: "2026-09-08",
+				StartedAt: time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC), Seconds: 3600,
+			})
+			if err != nil {
+				t.Fatalf("creating an entry: %v", err)
+			}
 
-	got, err := s.Entry(ctx, created.ID)
-	if err != nil {
-		t.Fatalf("reading entry back: %v", err)
-	}
+			read := entry.UpdatedAt
 
-	if got.WorklogID != "10123" {
-		t.Errorf("WorklogID = %q, want %q", got.WorklogID, "10123")
-	}
-	if got.PushedAt == nil {
-		t.Fatal("PushedAt is nil; the push did not record when it happened")
-	}
-	if !got.PushedAt.Equal(pushedAt) {
-		t.Errorf("PushedAt = %v, want %v", got.PushedAt, pushedAt)
-	}
-	if !got.UpdatedAt.Equal(created.UpdatedAt) {
-		t.Errorf("UpdatedAt = %v, want it unchanged at %v — a push that stamps "+
-			"updated_at can mark its own entry dirty", got.UpdatedAt, created.UpdatedAt)
-	}
-	if got.Seconds != created.Seconds || got.Comment != created.Comment {
-		t.Errorf("MarkEntryPushed altered the entry's data: %+v", got)
-	}
-}
+			if test.editBefore {
+				// A second of separation, because updated_at is stored at
+				// RFC3339's one-second resolution: without it the "edited"
+				// case would write the same value it read and pass wrongly.
+				time.Sleep(1100 * time.Millisecond)
+				if _, err := s.UpdateEntry(ctx, entry.ID, 7200, "typed while pushing"); err != nil {
+					t.Fatalf("editing the entry: %v", err)
+				}
+			}
 
-func TestMarkEntryPushedOnAMissingRowReportsIt(t *testing.T) {
-	s := openTestStore(t)
+			marked, err := s.MarkEntryPushedIfUnchanged(
+				ctx, entry.ID, "10001", time.Now().UTC(), read)
+			if err != nil {
+				t.Fatalf("marking pushed: %v", err)
+			}
+			if marked != test.wantMarked {
+				t.Fatalf("marked = %v, want %v", marked, test.wantMarked)
+			}
 
-	err := s.MarkEntryPushed(context.Background(), 9999, "10123", time.Now())
-	if err == nil {
-		t.Fatal("MarkEntryPushed on a missing id returned nil; the caller would record a push that did not happen")
+			after, err := s.Entry(ctx, entry.ID)
+			if err != nil {
+				t.Fatalf("re-reading the entry: %v", err)
+			}
+			if test.wantMarked && after.WorklogID != "10001" {
+				t.Fatalf("worklog id = %q, want 10001", after.WorklogID)
+			}
+			if !test.wantMarked {
+				if after.WorklogID != "" {
+					t.Fatalf("worklog id = %q, want it left empty so the next push retries", after.WorklogID)
+				}
+				if after.Seconds != 7200 {
+					t.Fatalf("seconds = %d, want the edit kept at 7200", after.Seconds)
+				}
+			}
+		})
 	}
 }

@@ -14,10 +14,10 @@ import (
 // stored separately because the container's clock is almost certainly UTC, so
 // neither can be derived from the other after the fact.
 //
-// WorklogID and PushedAt belong to the push (#9). MarkEntryPushed is the only
-// writer of either, and it names no other column: whether an entry is unpushed,
-// clean or dirty is computed from those two and UpdatedAt on every read, never
-// stored as a flag.
+// WorklogID and PushedAt belong to the push (#9). MarkEntryPushedIfUnchanged is
+// the only writer of either, and it names no other column: whether an entry is
+// unpushed, clean or dirty is computed from those two and UpdatedAt on every
+// read, never stored as a flag.
 type Entry struct {
 	ID         int64
 	InstanceID int64
@@ -205,31 +205,38 @@ func (s *Store) DeleteEntry(ctx context.Context, id int64) error {
 	return errNoRowsIfUnaffected(result, "deleting entry", id)
 }
 
-// MarkEntryPushed records the Jira worklog an entry became.
+// MarkEntryPushedIfUnchanged records the worklog an entry became, but only if
+// the entry has not been edited since the caller read it. It reports whether the
+// row was written.
 //
-// It names only worklog_id and pushed_at. Stamping updated_at here would race
-// pushed_at and could leave a just-pushed entry reading as dirty, since the
-// spec derives dirty from updated_at > pushed_at.
-func (s *Store) MarkEntryPushed(
-	ctx context.Context, id int64, worklogID string, pushedAt time.Time,
-) error {
+// This is what closes #9's lost update. A push reads an entry, calls Jira, then
+// marks it — and an edit arriving in that window used to be stamped pushed and
+// silently never sent. Guarding on the updated_at the caller read means such an
+// edit leaves no row affected, the entry stays dirty, and the next push sends
+// the newer text. The worklog is still created, so nothing is duplicated.
+//
+// A false return is not an error: it is the guard doing its job.
+func (s *Store) MarkEntryPushedIfUnchanged(
+	ctx context.Context, id int64, worklogID string, pushedAt, expected time.Time,
+) (bool, error) {
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE time_entries SET worklog_id = ?, pushed_at = ? WHERE id = ?`,
-		worklogID, pushedAt.UTC().Truncate(time.Second).Format(time.RFC3339), id,
+		`UPDATE time_entries SET worklog_id = ?, pushed_at = ?
+		  WHERE id = ? AND updated_at = ?`,
+		worklogID,
+		pushedAt.UTC().Truncate(time.Second).Format(time.RFC3339),
+		id,
+		expected.UTC().Truncate(time.Second).Format(time.RFC3339),
 	)
 	if err != nil {
-		return fmt.Errorf("recording worklog %s for entry %d: %w", worklogID, id, err)
+		return false, fmt.Errorf("recording worklog %s for entry %d: %w", worklogID, id, err)
 	}
 
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("counting rows updated for entry %d: %w", id, err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("recording worklog %s: no entry %d", worklogID, id)
+		return false, fmt.Errorf("counting rows updated for entry %d: %w", id, err)
 	}
 
-	return nil
+	return affected == 1, nil
 }
 
 // Entry reads one entry by id. A missing id yields an error wrapping
