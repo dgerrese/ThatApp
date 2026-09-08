@@ -25,7 +25,8 @@ const (
 
 // reconcileWorklog decides what one worklog does to the entry that claims it.
 //
-// Youngest wins, with two deliberate exceptions.
+// Youngest wins — measured against the later of the entry's updated_at and
+// pushed_at — with two deliberate exceptions.
 //
 // A dirty entry always wins, whatever the timestamps say. Following youngest-wins
 // there would discard an edit the user typed and never sent, which is the one
@@ -45,7 +46,18 @@ func reconcileWorklog(remote jira.RemoteWorklog, local *store.Entry) fetchAction
 		return actionKeepLocal
 	}
 
-	if remote.Updated.IsZero() || !remote.Updated.After(local.UpdatedAt) {
+	// Younger than the later of the two local stamps, not than updated_at
+	// alone. A push moves pushed_at and leaves updated_at at the edit that
+	// produced the entry, while Jira stamps the worklog it creates at push
+	// time — so every entry pushed this week would read as younger in Jira,
+	// and the first fetch after a push would rewrite each one with the app's
+	// own data and report it as an update.
+	baseline := local.UpdatedAt
+	if local.PushedAt != nil && local.PushedAt.After(baseline) {
+		baseline = *local.PushedAt
+	}
+
+	if remote.Updated.IsZero() || !remote.Updated.After(baseline) {
 		return actionLeave
 	}
 

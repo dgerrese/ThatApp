@@ -62,6 +62,16 @@ func TestReconcileWorklog(t *testing.T) {
 			want:    actionLeave,
 		},
 		{
+			// A push moves pushed_at and leaves updated_at where the edit put
+			// it, and Jira stamps the worklog it creates at push time. Read
+			// against updated_at alone this is a younger remote copy; it is
+			// this app's own write coming back.
+			name:    "clean, and the worklog is this app's own push coming back",
+			updated: pushedAt.Add(-time.Minute),
+			local:   clean(pushedAt.Add(-time.Hour)),
+			want:    actionLeave,
+		},
+		{
 			name:    "clean, and the worklog carries no update time at all",
 			updated: time.Time{},
 			local:   clean(pushedAt.Add(-time.Hour)),

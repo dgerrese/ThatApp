@@ -350,12 +350,12 @@ func TestWorklogIDIsUniquePerInstance(t *testing.T) {
 
 	// Two unpushed entries are fine: both carry a NULL worklog_id, and the
 	// index is partial so NULLs do not collide.
-	if _, err := s.MarkEntryPushedIfUnchanged(
+	if _, err := s.RecordWorklogMarkingPushedIfUnchanged(
 		t.Context(), first.ID, "10001", time.Now().UTC(), first.UpdatedAt); err != nil {
 		t.Fatalf("marking the first entry: %v", err)
 	}
 
-	_, err = s.MarkEntryPushedIfUnchanged(
+	_, err = s.RecordWorklogMarkingPushedIfUnchanged(
 		t.Context(), second.ID, "10001", time.Now().UTC(), second.UpdatedAt)
 	if err == nil {
 		t.Fatal("a second entry claimed the same worklog; want the store to refuse it")

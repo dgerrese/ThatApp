@@ -596,9 +596,14 @@ func TestOverwriteEntryFromWorklogLeavesItClean(t *testing.T) {
 	}
 
 	at := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
-	if err := s.OverwriteEntryFromWorklog(context.Background(), entry.ID, "2026-09-02",
-		time.Date(2026, 9, 2, 8, 0, 0, 0, time.UTC), 7200, "after", at); err != nil {
+	written, err := s.OverwriteEntryFromWorklogIfUnchanged(context.Background(), entry.ID,
+		entry.UpdatedAt, "2026-09-02",
+		time.Date(2026, 9, 2, 8, 0, 0, 0, time.UTC), 7200, "after", at)
+	if err != nil {
 		t.Fatalf("overwriting: %v", err)
+	}
+	if !written {
+		t.Fatal("the overwrite was refused for an entry nothing had touched")
 	}
 
 	got, err := s.Entry(context.Background(), entry.ID)
@@ -619,7 +624,58 @@ func TestOverwriteEntryFromWorklogLeavesItClean(t *testing.T) {
 	}
 }
 
-func TestMarkEntryPushedIfUnchanged(t *testing.T) {
+// TestOverwriteEntryFromWorklogIfUnchangedKeepsAnEditThatLanded is the fetch's
+// half of the same guard the push takes: the entry is read once, before a Jira
+// round trip per issue, and an edit landing in that window is one this app has
+// no second copy of.
+func TestOverwriteEntryFromWorklogIfUnchangedKeepsAnEditThatLanded(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+	inst := createTestInstance(t, s)
+
+	entry, err := s.CreateFetchedEntry(ctx, EntryInput{
+		InstanceID: inst.ID, IssueKey: "RID-1", Day: "2026-09-01",
+		StartedAt: time.Date(2026, 9, 1, 7, 0, 0, 0, time.UTC), Seconds: 3600,
+		Comment: "from Jira",
+	}, "10001", time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("creating the entry: %v", err)
+	}
+
+	read := entry.UpdatedAt
+
+	// A second of separation, for the reason the mark's own test gives:
+	// updated_at is stored at RFC3339's one-second resolution, so an edit
+	// written in the same second would write back the value the caller read.
+	time.Sleep(1100 * time.Millisecond)
+	if _, err := s.UpdateEntry(ctx, entry.ID, 2400, "typed mid-fetch"); err != nil {
+		t.Fatalf("editing the entry: %v", err)
+	}
+
+	written, err := s.OverwriteEntryFromWorklogIfUnchanged(ctx, entry.ID, read, "2026-09-02",
+		time.Date(2026, 9, 2, 8, 0, 0, 0, time.UTC), 7200, "from Jira, later",
+		time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("overwriting: %v", err)
+	}
+	if written {
+		t.Fatal("the entry was overwritten by a copy read before the edit landed")
+	}
+
+	after, err := s.Entry(ctx, entry.ID)
+	if err != nil {
+		t.Fatalf("re-reading: %v", err)
+	}
+	if after.Seconds != 2400 || after.Comment != "typed mid-fetch" {
+		t.Fatalf("entry = %ds %q, want the edit kept: it was never pushed, and there is no "+
+			"other copy of it", after.Seconds, after.Comment)
+	}
+	if after.PushedAt == nil || !after.UpdatedAt.After(*after.PushedAt) {
+		t.Fatal("the entry does not read dirty after an edit the overwrite refused to discard")
+	}
+}
+
+func TestRecordWorklogMarkingPushedIfUnchanged(t *testing.T) {
 	tests := []struct {
 		name       string
 		editBefore bool
@@ -654,7 +710,7 @@ func TestMarkEntryPushedIfUnchanged(t *testing.T) {
 				}
 			}
 
-			marked, err := s.MarkEntryPushedIfUnchanged(
+			marked, err := s.RecordWorklogMarkingPushedIfUnchanged(
 				ctx, entry.ID, "10001", time.Now().UTC(), read)
 			if err != nil {
 				t.Fatalf("marking pushed: %v", err)
@@ -667,12 +723,18 @@ func TestMarkEntryPushedIfUnchanged(t *testing.T) {
 			if err != nil {
 				t.Fatalf("re-reading the entry: %v", err)
 			}
-			if test.wantMarked && after.WorklogID != "10001" {
-				t.Fatalf("worklog id = %q, want 10001", after.WorklogID)
+			if after.WorklogID != "10001" {
+				t.Fatalf("worklog id = %q, want 10001 whether or not the mark was made: "+
+					"the worklog exists in Jira, and a row that does not name it is one "+
+					"the next push creates a second worklog for", after.WorklogID)
+			}
+			if test.wantMarked && after.PushedAt == nil {
+				t.Fatal("pushed_at is unset after an unguarded write, want the push recorded")
 			}
 			if !test.wantMarked {
-				if after.WorklogID != "" {
-					t.Fatalf("worklog id = %q, want it left empty so the next push retries", after.WorklogID)
+				if after.PushedAt != nil {
+					t.Fatalf("pushed_at = %v, want it left unset: Jira holds the text from "+
+						"before the edit, so the entry must read dirty", after.PushedAt)
 				}
 				if after.Seconds != 7200 {
 					t.Fatalf("seconds = %d, want the edit kept at 7200", after.Seconds)

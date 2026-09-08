@@ -45,6 +45,10 @@ type fetchJiraServer struct {
 	// worklogStatus overrides one issue's worklog read to fail, so a test can
 	// prove what happens to an instance's earlier issues when a later one does.
 	worklogStatus map[string]int
+	// onWorklogRead runs before an issue's worklogs are answered, which is the
+	// window a fetch's read of local state sits open across. A test lands an
+	// edit there to prove the write that follows is guarded on what was read.
+	onWorklogRead func(issueKey string)
 
 	lastSearchJQL string
 }
@@ -100,6 +104,9 @@ func (f *fetchJiraServer) handle(w http.ResponseWriter, r *http.Request) {
 
 	case strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/") && strings.HasSuffix(r.URL.Path, "/worklog"):
 		key := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/rest/api/3/issue/"), "/worklog")
+		if f.onWorklogRead != nil {
+			f.onWorklogRead(key)
+		}
 		if status, failing := f.worklogStatus[key]; failing {
 			w.WriteHeader(status)
 			return
@@ -166,7 +173,7 @@ func markEntryPushed(t *testing.T, db *store.Store, entryID int64, worklogID str
 		t.Fatalf("reading entry %d to mark it pushed: %v", entryID, err)
 	}
 
-	ok, err := db.MarkEntryPushedIfUnchanged(
+	ok, err := db.RecordWorklogMarkingPushedIfUnchanged(
 		context.Background(), entryID, worklogID, entry.UpdatedAt, entry.UpdatedAt,
 	)
 	if err != nil || !ok {
@@ -470,5 +477,127 @@ func TestFetchWeekRejectsAStartThatIsNotAMonday(t *testing.T) {
 	}
 	if body.Code != "start_not_monday" {
 		t.Errorf("code = %q, want start_not_monday", body.Code)
+	}
+}
+
+// TestFetchWeekKeepsAnEditThatLandedMidFetch is Critical 2 of #10's
+// whole-branch review, and the mirror of the push's own guard. The fetch reads
+// local state once, before the per-issue Jira reads, and an edit typed while
+// those are in flight must not be overwritten by a copy of the entry that
+// predates it.
+func TestFetchWeekKeepsAnEditThatLandedMidFetch(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Amsterdam")
+	if err != nil {
+		t.Fatalf("loading zone: %v", err)
+	}
+
+	jiraSrv := newFetchJiraServer(t, "me-1")
+	jiraSrv.searchIssues = []string{"WORK-1"}
+	srv := jiraSrv.start()
+
+	s, db, sealer := fetchEnv(t, "Europe/Amsterdam", time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC))
+	inst := seedInstance(t, db, sealer, "Work", "", srv.URL)
+
+	clean := seedEntry(t, db, store.EntryInput{
+		InstanceID: inst.ID, IssueKey: "WORK-1", Day: "2026-09-02",
+		StartedAt: time.Date(2026, 9, 2, 9, 0, 0, 0, loc), Seconds: 1800, Comment: "old",
+	})
+	marked := markEntryPushed(t, db, clean.ID, "wl-B")
+
+	jiraSrv.worklogs["WORK-1"] = []rawWorklog{{
+		id: "wl-B", accountID: "me-1",
+		started: time.Date(2026, 9, 2, 9, 0, 0, 0, loc),
+		updated: marked.UpdatedAt.Add(time.Hour),
+		seconds: 5400,
+	}}
+
+	// The edit, landing after the fetch read local state and before it decides
+	// what to write. The sleep crosses the second boundary updated_at is
+	// truncated to; without it the edit would write back the value the fetch
+	// already holds and no guard could tell the two apart.
+	jiraSrv.onWorklogRead = func(string) {
+		time.Sleep(1100 * time.Millisecond)
+		if _, err := db.UpdateEntry(context.Background(), clean.ID, 2400, "typed mid-fetch"); err != nil {
+			t.Errorf("editing the entry mid-fetch: %v", err)
+		}
+	}
+
+	rec := callFetchWeek(t, s, "/api/week/fetch?start=2026-08-31")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeFetchWeek(t, rec)
+
+	after, err := db.Entry(context.Background(), clean.ID)
+	if err != nil {
+		t.Fatalf("re-reading the entry: %v", err)
+	}
+	if after.Seconds != 2400 || after.Comment != "typed mid-fetch" {
+		t.Fatalf("entry = %ds %q, want the edit typed mid-fetch kept: it was never pushed, "+
+			"and this app has no other copy of it", after.Seconds, after.Comment)
+	}
+
+	if body.Updated != 0 {
+		t.Errorf("updated = %d, want 0 — nothing was overwritten", body.Updated)
+	}
+	if len(body.KeptLocal) != 1 {
+		t.Fatalf("keptLocal = %+v, want the entry named: the user is the only one who can "+
+			"choose between the two texts", body.KeptLocal)
+	}
+	if body.KeptLocal[0].IssueKey != "WORK-1" || body.KeptLocal[0].Day != "2026-09-02" {
+		t.Errorf("keptLocal[0] = %+v, want WORK-1 on 2026-09-02", body.KeptLocal[0])
+	}
+}
+
+// TestFetchWeekAfterAPushReportsNothingUpdated is Important 3. A push moves
+// pushed_at and leaves updated_at where the last edit put it, while Jira stamps
+// the worklog it creates at push time — so a fetch that compared against
+// updated_at alone rewrote every entry just pushed with the app's own data, and
+// told the user Jira held something else.
+func TestFetchWeekAfterAPushReportsNothingUpdated(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Amsterdam")
+	if err != nil {
+		t.Fatalf("loading zone: %v", err)
+	}
+
+	jiraSrv := newFetchJiraServer(t, "me-1")
+	jiraSrv.searchIssues = []string{"WORK-1"}
+	srv := jiraSrv.start()
+
+	s, db, sealer := fetchEnv(t, "Europe/Amsterdam", time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC))
+	inst := seedInstance(t, db, sealer, "Work", "", srv.URL)
+
+	entry := seedEntry(t, db, store.EntryInput{
+		InstanceID: inst.ID, IssueKey: "WORK-1", Day: "2026-09-02",
+		StartedAt: time.Date(2026, 9, 2, 9, 0, 0, 0, loc), Seconds: 1800, Comment: "mine",
+	})
+
+	// The push: pushed_at moves an hour past the edit that produced the entry,
+	// updated_at does not move at all.
+	pushedAt := entry.UpdatedAt.Add(time.Hour)
+	ok, err := db.RecordWorklogMarkingPushedIfUnchanged(
+		context.Background(), entry.ID, "wl-mine", pushedAt, entry.UpdatedAt)
+	if err != nil || !ok {
+		t.Fatalf("recording the push: ok=%v err=%v", ok, err)
+	}
+
+	jiraSrv.worklogs["WORK-1"] = []rawWorklog{{
+		id: "wl-mine", accountID: "me-1",
+		started: time.Date(2026, 9, 2, 9, 0, 0, 0, loc),
+		// Jira stamps the worklog when the push creates it: after the local
+		// edit, and no later than the push itself.
+		updated: pushedAt.Add(-time.Minute),
+		seconds: 1800,
+	}}
+
+	rec := callFetchWeek(t, s, "/api/week/fetch?start=2026-08-31")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeFetchWeek(t, rec)
+
+	if body.Created != 0 || body.Updated != 0 {
+		t.Fatalf("created = %d, updated = %d, want 0 and 0 — the worklog is this app's own "+
+			"push coming back, and reporting it as an update reads as an alarm", body.Created, body.Updated)
 	}
 }

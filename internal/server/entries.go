@@ -39,14 +39,21 @@ type entryDTO struct {
 	PushState        string `json:"pushState"`
 }
 
-// pushStateOf reports whether an entry has reached Jira, and whether it has been
-// edited since. It is computed from worklog_id, pushed_at and updated_at on every
-// read rather than stored, which is what makes a repeated push idempotent for free.
+// pushStateOf reports whether an entry has reached Jira, and whether what Jira
+// holds is current. It is computed from worklog_id, pushed_at and updated_at on
+// every read rather than stored, which is what makes a repeated push idempotent
+// for free.
+//
+// A worklog id is the whole of "it reached Jira": an entry carrying one but no
+// pushed_at is dirty, not unpushed. That is the state a push leaves behind when
+// an edit lands while Jira is answering — the worklog exists and holds the older
+// text — and reading it as unpushed is what would have the next push create a
+// second worklog for the same time.
 func pushStateOf(e store.Entry) string {
-	if e.WorklogID == "" || e.PushedAt == nil {
+	if e.WorklogID == "" {
 		return "unpushed"
 	}
-	if e.UpdatedAt.After(*e.PushedAt) {
+	if e.PushedAt == nil || e.UpdatedAt.After(*e.PushedAt) {
 		return "dirty"
 	}
 
@@ -344,6 +351,16 @@ func (s *Server) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
+	// The push's and the fetch's lock, held from the read that decides whether
+	// this entry has a worklog through to the row going. Deleting became a
+	// Jira-writing operation with #10, and outside the lock it reads an entry a
+	// push is halfway through: worklog_id still empty, so nothing is deleted in
+	// Jira, and the row the push was about to record it in is gone. Held across
+	// the read for that reason — a lock taken around the Jira call alone would
+	// be guarding a decision already made on stale state.
+	s.pushMu.Lock()
+	defer s.pushMu.Unlock()
 
 	entry, err := s.db.Entry(r.Context(), id)
 	if err != nil {

@@ -912,9 +912,13 @@ func TestPushStateOfDerivesFromTheTwoColumnsAndUpdatedAt(t *testing.T) {
 			want:  "pushed",
 		},
 		{
-			name:  "worklog id without a pushed_at is not a push",
+			// The mark a push withholds when an edit lands while Jira is
+			// answering. The worklog exists and what it holds is stale, which
+			// is dirty exactly — and reading it as unpushed is what had the
+			// next push create a second worklog for the same entry.
+			name:  "a worklog id with no pushed_at is dirty",
 			entry: store.Entry{WorklogID: "10123", UpdatedAt: base},
-			want:  "unpushed",
+			want:  "dirty",
 		},
 		{
 			name:  "a pushed_at without a worklog id is not a push",
@@ -1002,7 +1006,7 @@ func (env *entriesEnv) markPushed(t *testing.T, entryID int64, worklogID string)
 		t.Fatalf("reading entry %d to mark it pushed: %v", entryID, err)
 	}
 
-	ok, err := env.store.MarkEntryPushedIfUnchanged(
+	ok, err := env.store.RecordWorklogMarkingPushedIfUnchanged(
 		context.Background(), entryID, worklogID, entry.UpdatedAt, entry.UpdatedAt,
 	)
 	if err != nil {

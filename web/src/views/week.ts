@@ -61,6 +61,39 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
   const fetchControl = fetchButton();
 
+  // Attached the moment the control exists rather than after the first read.
+  // render appends this header synchronously and the router awaits it, so the
+  // button is painted and focusable from the first frame; a listener added
+  // after the read would swallow every press until then, and for the whole
+  // mount if that read failed. What keeps a press from arriving too early is
+  // the control's own disabled state, which the first successful read lifts.
+  let fetching = false;
+  fetchControl.addEventListener("click", () => {
+    void (async () => {
+      // Disabled for the whole round trip: a second press would run the same
+      // week again over half-applied results.
+      fetching = true;
+      fetchControl.disabled = true;
+      try {
+        // The week on screen, not the one the mount opened with: show() keeps
+        // this in step with whatever the server answered.
+        const outcome = await fetchWeek(showing);
+        report.replaceChildren(...fetchReportNodes(outcome));
+        report.hidden = false;
+        // The grid is read again rather than patched: every total, every mark
+        // and every row the fetch may have added comes from the rollup, and
+        // patching would be a second implementation of it.
+        await show();
+      } catch (error) {
+        report.replaceChildren(alertFor("error", messageOf(error)));
+        report.hidden = false;
+      } finally {
+        fetching = false;
+        fetchControl.disabled = false;
+      }
+    })();
+  });
+
   identity.append(label, rule, fetchControl);
 
   const controls = document.createElement("div");
@@ -134,6 +167,10 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     label.textContent = periodLabel(rollup);
     controls.replaceChildren(...weekControls(rollup));
     grid.replaceChildren(rollup.rows.length === 0 ? emptyWeek() : gridTable(rollup, marked, root));
+    // There is a week on screen to fetch now. Guarded on `fetching` because
+    // the fetch itself ends by calling show(), and re-enabling there would
+    // hand the button back a moment before the round trip it belongs to ends.
+    fetchControl.disabled = fetching;
 
     return rollup;
   };
@@ -163,28 +200,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // describing wherever it came from rather than claiming a period this view
   // does not actually have on screen.
   if (!rollup || !mounted) return;
-
-  fetchControl.addEventListener("click", () => {
-    void (async () => {
-      // Disabled for the whole round trip: a second press would run the same
-      // week again over half-applied results.
-      fetchControl.disabled = true;
-      try {
-        const outcome = await fetchWeek(rollup.start);
-        report.replaceChildren(...fetchReportNodes(outcome));
-        report.hidden = false;
-        // The grid is read again rather than patched: every total, every mark
-        // and every row the fetch may have added comes from the rollup, and
-        // patching would be a second implementation of it.
-        await show();
-      } catch (error) {
-        report.replaceChildren(alertFor("error", messageOf(error)));
-        report.hidden = false;
-      } finally {
-        fetchControl.disabled = false;
-      }
-    })();
-  });
 
   // A fresh object every mount, which setRailPeriod's reference-equality guard
   // can never skip. Deliberate: moving between weeks remounts the view, and
@@ -302,6 +317,10 @@ function weekButton(control: { mark?: string; label: string; path: string }): HT
 function fetchButton(): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
+  // Enabled by the read that gives it a week to fetch. Until then there is
+  // nothing for a press to do, and a control that looks pressable and answers
+  // nothing is worse than one that says it is not ready.
+  button.disabled = true;
   button.className =
     "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-sm px-3 " +
     "text-base font-bold text-ink-muted hover:bg-hover hover:text-ink " +

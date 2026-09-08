@@ -182,10 +182,11 @@ func (s *Server) pushInstanceEntries(
 		// away, and database/sql refuses to execute on a cancelled context.
 		//
 		// The boolean is deliberately discarded. False means an edit landed
-		// while Jira was answering: the worklog was still created, so this push
-		// succeeded and says so, and the entry stays dirty for the next one to
-		// update rather than duplicate.
-		if _, err := s.db.MarkEntryPushedIfUnchanged(
+		// while Jira was answering, which withholds the mark but not the
+		// worklog id: the worklog exists, this push created it and says so,
+		// and the entry reads dirty — so the next push updates that worklog
+		// instead of creating a second one for the same time.
+		if _, err := s.db.RecordWorklogMarkingPushedIfUnchanged(
 			context.WithoutCancel(ctx), entry.ID, worklogID, s.now().UTC(), entry.UpdatedAt,
 		); err != nil {
 			result.Status = "failed"

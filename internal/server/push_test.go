@@ -2,12 +2,16 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -127,6 +131,20 @@ type hookableJira struct {
 	createID      string
 	lastMethod    string
 	calls         int
+
+	// deleted is the worklog ids DELETE was asked for, under a mutex because
+	// the delete that records one runs on its own goroutine while a push is
+	// still in flight — which is the whole point of the test that reads it.
+	mu      sync.Mutex
+	deleted []string
+}
+
+// deletedWorklogs is the ids Jira was asked to delete, in the order it saw them.
+func (j *hookableJira) deletedWorklogs() []string {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	return append([]string(nil), j.deleted...)
 }
 
 func newPushEnv(t *testing.T) *pushEnv {
@@ -152,6 +170,12 @@ func newPushEnv(t *testing.T) *pushEnv {
 		switch r.Method {
 		case http.MethodPut:
 			w.WriteHeader(env.jira.updateStatus)
+		case http.MethodDelete:
+			env.jira.mu.Lock()
+			env.jira.deleted = append(env.jira.deleted,
+				path.Base(r.URL.Path))
+			env.jira.mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
 		case http.MethodPost:
 			id := env.jira.createID
 			var err error
@@ -189,7 +213,7 @@ func (env *pushEnv) markPushed(t *testing.T, entryID int64, worklogID string) {
 		t.Fatalf("reading entry %d to mark it pushed: %v", entryID, err)
 	}
 
-	ok, err := env.store.MarkEntryPushedIfUnchanged(
+	ok, err := env.store.RecordWorklogMarkingPushedIfUnchanged(
 		context.Background(), entryID, worklogID, entry.UpdatedAt, entry.UpdatedAt,
 	)
 	if err != nil {
@@ -492,7 +516,7 @@ func TestPushRunsInstancesConcurrently(t *testing.T) {
 	// failing instance adds essentially nothing), while concurrent fan-out takes
 	// roughly one instance's delay (~500-550ms, allowing for goroutine
 	// scheduling jitter and sqlite write serialisation across the concurrent
-	// MarkEntryPushedIfUnchanged calls). Setting the ceiling to 1.5x a single
+	// RecordWorklogMarkingPushedIfUnchanged calls). Setting the ceiling to 1.5x a single
 	// delay keeps ~210ms/28% of headroom under it on the concurrent side while
 	// staying at half the serial duration — widen perInstanceDelay, not this
 	// formula, if the gap ever needs to grow further.
@@ -596,7 +620,7 @@ func TestPushSerializesConcurrentRequests(t *testing.T) {
 //
 // s.now is the seam that makes the window deterministic rather than a race: the
 // handler reads it once for the default day, then once per entry as the last
-// thing it evaluates before MarkEntryPushedIfUnchanged. Cancelling on that second read
+// thing it evaluates before RecordWorklogMarkingPushedIfUnchanged. Cancelling on that second read
 // places the disconnect exactly inside the window, with the 201 already
 // received.
 func TestPushRecordsAWorklogAfterTheClientDisconnects(t *testing.T) {
@@ -675,11 +699,64 @@ func TestPushDayKeepsAnEditThatLandedMidPush(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-reading the entry: %v", err)
 	}
-	if after.WorklogID != "" {
-		t.Fatalf("worklog id = %q, want empty so the next push sends the newer text", after.WorklogID)
+	if after.WorklogID != "10001" {
+		t.Fatalf("worklog id = %q, want 10001 recorded: the worklog exists in Jira, and an "+
+			"entry that does not name it is one the next push creates a second worklog for", after.WorklogID)
+	}
+	if after.PushedAt != nil {
+		t.Fatalf("pushed_at = %v, want it left unset: what Jira holds is the text from before "+
+			"the edit, so the entry must read dirty rather than pushed", after.PushedAt)
+	}
+	if got := pushStateOf(*after); got != "dirty" {
+		t.Fatalf("push state = %q, want dirty", got)
 	}
 	if after.Comment != "typed mid-push" {
 		t.Fatalf("comment = %q, want the edit kept", after.Comment)
+	}
+}
+
+// TestPushAfterAMidPushEditUpdatesRatherThanDuplicating is the other half of the
+// same case, and the one that shows what the lost worklog id costs: the push
+// that follows an edit-during-push must correct the worklog already in Jira
+// rather than create a second one for the same hour.
+func TestPushAfterAMidPushEditUpdatesRatherThanDuplicating(t *testing.T) {
+	env := newPushEnv(t)
+	entry := env.createEntry(t, "RID-1", 3600, "before")
+
+	var creates atomic.Int64
+	env.jira.createWorklog = func() (string, error) {
+		creates.Add(1)
+		// The edit the guard exists for: it lands after the push read the
+		// entry and before the push records what Jira answered.
+		time.Sleep(1100 * time.Millisecond)
+		if _, err := env.store.UpdateEntry(context.Background(), entry.ID, 7200, "typed mid-push"); err != nil {
+			return "", err
+		}
+
+		return "10001", nil
+	}
+
+	env.push(t, entry.Day)
+	second := env.push(t, entry.Day)
+
+	if got := second.Results[0].Status; got != "pushed" {
+		t.Fatalf("second push status = %q, want pushed", got)
+	}
+	if got := creates.Load(); got != 1 {
+		t.Fatalf("Jira received %d worklog creates, want 1 — the second push duplicated the "+
+			"time the first one had already logged", got)
+	}
+	if got := env.jira.lastMethod; got != http.MethodPut {
+		t.Fatalf("second push used %s, want PUT against the worklog it already has", got)
+	}
+
+	after, err := env.store.Entry(context.Background(), entry.ID)
+	if err != nil {
+		t.Fatalf("re-reading the entry: %v", err)
+	}
+	if after.WorklogID != "10001" || pushStateOf(*after) != "pushed" {
+		t.Fatalf("entry = %q %q, want worklog 10001 reading pushed",
+			after.WorklogID, pushStateOf(*after))
 	}
 }
 
@@ -783,5 +860,53 @@ func TestPushDayLeavesARefusedCorrectionDirty(t *testing.T) {
 	}
 	if after.Seconds != 7200 || after.Comment != "corrected" {
 		t.Fatalf("entry = %ds %q, want the correction untouched", after.Seconds, after.Comment)
+	}
+}
+
+// TestDeleteWhileAPushIsInFlightStillRemovesTheWorklog is Important 5 of #10's
+// whole-branch review. Delete became a Jira-writing operation on this branch
+// and was left outside the lock the push and the fetch share, so a delete
+// landing while the push was creating the worklog read worklog_id as empty,
+// asked Jira nothing, and dropped the row — leaving time on the timesheet that
+// nothing here can reach.
+func TestDeleteWhileAPushIsInFlightStillRemovesTheWorklog(t *testing.T) {
+	env := newPushEnv(t)
+	entry := env.createEntry(t, "RID-1", 3600, "work")
+
+	deleted := make(chan int, 1)
+	env.jira.createWorklog = func() (string, error) {
+		go func() {
+			rec := httptest.NewRecorder()
+			env.s.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete,
+				"/api/entries/"+strconv.FormatInt(entry.ID, 10), nil))
+			deleted <- rec.Code
+		}()
+		// Long enough for that request to reach the handler, which is where it
+		// must then wait rather than read an entry the push is halfway through.
+		time.Sleep(300 * time.Millisecond)
+
+		return "wl-1", nil
+	}
+
+	resp := env.push(t, entry.Day)
+	if got := resp.Results[0].Status; got != "pushed" {
+		t.Fatalf("push status = %q, want pushed: the worklog really was created", got)
+	}
+
+	select {
+	case code := <-deleted:
+		if code != http.StatusNoContent {
+			t.Fatalf("DELETE /api/entries = %d, want 204", code)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the delete never answered")
+	}
+
+	if got := env.jira.deletedWorklogs(); len(got) != 1 || got[0] != "wl-1" {
+		t.Fatalf("Jira was asked to delete %v, want [wl-1] — a delete that ran alongside "+
+			"the push left the worklog it created behind in Jira", got)
+	}
+	if _, err := env.store.Entry(context.Background(), entry.ID); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("reading the deleted entry back = %v, want it gone", err)
 	}
 }

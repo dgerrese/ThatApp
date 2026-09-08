@@ -288,7 +288,7 @@ func TestWeekCellStateIsTheWorstOfItsEntries(t *testing.T) {
 		InstanceID: inst.ID, IssueKey: "WORK-1", Day: "2026-09-07",
 		StartedAt: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), Seconds: 600,
 	})
-	if _, err := db.MarkEntryPushedIfUnchanged(
+	if _, err := db.RecordWorklogMarkingPushedIfUnchanged(
 		context.Background(), pushed.ID, "w-1", time.Now().UTC(), pushed.UpdatedAt,
 	); err != nil {
 		t.Fatalf("marking entry pushed: %v", err)

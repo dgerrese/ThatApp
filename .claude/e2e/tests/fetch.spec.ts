@@ -139,3 +139,48 @@ test("a failed request reports rather than leaving the press unanswered", async 
   await expect(page.getByText("could not read the logged time")).toBeVisible();
   await expect(page.getByRole("button", { name: "Fetch worklogs" })).toBeEnabled();
 });
+
+test("the control is disabled until the week has been read", async ({ page }) => {
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/week**", async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/fetch")) {
+      return route.fulfill({ status: 200, json: NOTHING });
+    }
+
+    await held;
+
+    return route.fulfill({ status: 200, json: ROLLUP });
+  });
+
+  await page.goto("/week");
+
+  // The header paints before the read resolves, so the control exists with no
+  // week to fetch yet. Enabled here it would swallow the press silently.
+  const control = page.getByRole("button", { name: "Fetch worklogs" });
+  await expect(control).toBeDisabled();
+
+  release();
+  await expect(control).toBeEnabled();
+});
+
+test("a week that could not be read leaves the control disabled", async ({ page }) => {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/week**", (route) =>
+    route.fulfill({
+      status: 400,
+      json: { code: "start_not_monday", message: "start must be a Monday, of the form YYYY-MM-DD" },
+    }),
+  );
+
+  await page.goto("/week?start=2026-09-02");
+
+  await expect(page.getByText("start must be a Monday, of the form YYYY-MM-DD")).toBeVisible();
+  // There is no week on screen to fetch, and there never will be on this
+  // mount: an enabled control here is one that answers no press at all.
+  await expect(page.getByRole("button", { name: "Fetch worklogs" })).toBeDisabled();
+});

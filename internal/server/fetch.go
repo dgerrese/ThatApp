@@ -143,6 +143,16 @@ func (s *Server) fetchInstanceWeek(
 	// land.
 	outcome := fetchOutcome{keptLocal: []keptLocalDTO{}}
 
+	// An entry this fetch would not overwrite: either it was already dirty when
+	// the reconciliation looked, or it went dirty while this fetch was running.
+	// Both are the same thing to the user, who is the only one who can choose
+	// between the two texts, so both are named the same way.
+	keep := func(entry store.Entry) {
+		outcome.keptLocal = append(outcome.keptLocal, keptLocalDTO{
+			Day: entry.Day, IssueKey: entry.IssueKey, InstanceID: inst.ID,
+		})
+	}
+
 	fail := func(err error) fetchOutcome {
 		outcome.failure = &fetchFailureDTO{
 			InstanceID: inst.ID, InstanceName: inst.Name, Error: *instanceErrorBody(err),
@@ -214,16 +224,26 @@ func (s *Server) fetchInstanceWeek(
 				outcome.created++
 
 			case actionOverwrite:
-				if err := s.db.OverwriteEntryFromWorklog(ctx, claimed.ID, day,
-					remote.Started, int(remote.Seconds), remote.Comment, now); err != nil {
+				// Guarded on the updated_at read before the Jira calls above:
+				// the decision to overwrite was made from a copy of the entry
+				// that is now one round trip old, and an edit landing in that
+				// window is one this app has no second copy of. Not writing is
+				// the same outcome as finding the entry dirty, and is reported
+				// the same way.
+				overwritten, err := s.db.OverwriteEntryFromWorklogIfUnchanged(
+					ctx, claimed.ID, claimed.UpdatedAt, day,
+					remote.Started, int(remote.Seconds), remote.Comment, now)
+				if err != nil {
 					return fail(err)
+				}
+				if !overwritten {
+					keep(*claimed)
+					break
 				}
 				outcome.updated++
 
 			case actionKeepLocal:
-				outcome.keptLocal = append(outcome.keptLocal, keptLocalDTO{
-					Day: claimed.Day, IssueKey: claimed.IssueKey, InstanceID: inst.ID,
-				})
+				keep(*claimed)
 
 			case actionLeave:
 			}
