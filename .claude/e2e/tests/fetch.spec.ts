@@ -1,0 +1,141 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+/**
+ * The fetch control and the three reports the design settled: a clean run's
+ * counts, an entry whose unpushed edit was kept over what came back, and an
+ * instance that could not be read.
+ *
+ * `/api/week/fetch` is stubbed the same way `/api/week` and `/api/entries`
+ * already are in week.spec.ts: the question here is what the view does with
+ * an answer, not where the answer came from.
+ */
+
+const START = "2026-08-31";
+
+/**
+ * A rollup with no rows. What each test cares about is the report below the
+ * grid, and an empty week is the simplest fixture that still lets the mount's
+ * own read (and the re-read after a fetch) resolve.
+ */
+const ROLLUP = {
+  start: START,
+  end: "2026-09-06",
+  prevStart: "2026-08-24",
+  nextStart: "2026-09-07",
+  weekNumber: 36,
+  days: [
+    "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03",
+    "2026-09-04", "2026-09-05", "2026-09-06",
+  ].map((day) => ({ day, seconds: 0, pushState: null })),
+  rows: [],
+  seconds: 0,
+};
+
+const NOTHING = { start: START, end: "2026-09-06", created: 0, updated: 0, keptLocal: [], failures: [] };
+
+/**
+ * Mounts Week against the empty rollup above and answers the fetch it will
+ * ask for. One route handler covers both `/api/week` and `/api/week/fetch`:
+ * a glob that only matched the former would also catch the latter, since
+ * `/api/week/fetch` is a path underneath it, so telling them apart has to
+ * happen inside the handler rather than by registering two routes and hoping
+ * one wins.
+ */
+async function openWeek(page: Page, fetch: { body: unknown; status?: number; hold?: Promise<void> }): Promise<void> {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+
+  await page.route("**/api/week**", async (route) => {
+    if (!new URL(route.request().url()).pathname.endsWith("/fetch")) {
+      return route.fulfill({ status: 200, json: ROLLUP });
+    }
+
+    if (fetch.hold) await fetch.hold;
+
+    return route.fulfill({ status: fetch.status ?? 200, json: fetch.body });
+  });
+
+  await page.goto("/week");
+}
+
+/** The report region: the alert's own parent, which is also the list's — a
+ *  scope a whole-page `getByRole("listitem")` search would not have. */
+function reportRegion(page: Page): Locator {
+  return page.getByRole("status").locator("..");
+}
+
+test("a clean run reports counts and names nothing", async ({ page }) => {
+  await openWeek(page, { body: { ...NOTHING, created: 3, updated: 1 } });
+
+  await page.getByRole("button", { name: "Fetch worklogs" }).click();
+
+  await expect(page.getByText("Added 3 entries and updated 1.")).toBeVisible();
+  await expect(reportRegion(page).getByRole("listitem")).toHaveCount(0);
+});
+
+test("entries whose unpushed changes were kept are named", async ({ page }) => {
+  await openWeek(page, {
+    body: {
+      ...NOTHING,
+      created: 1,
+      keptLocal: [
+        { day: "2026-09-01", issueKey: "RID-1", instanceId: 1 },
+        { day: "2026-09-03", issueKey: "NW-806", instanceId: 2 },
+      ],
+    },
+  });
+
+  await page.getByRole("button", { name: "Fetch worklogs" }).click();
+
+  await expect(page.getByText(/2 entries have changes you have not pushed/)).toBeVisible();
+  await expect(page.getByText("2026-09-01 · RID-1")).toBeVisible();
+  await expect(page.getByText("2026-09-03 · NW-806")).toBeVisible();
+});
+
+test("an instance that refused is named, and the others still applied", async ({ page }) => {
+  await openWeek(page, {
+    body: {
+      ...NOTHING,
+      created: 2,
+      failures: [
+        {
+          instanceId: 2,
+          instanceName: "Northwind",
+          error: { code: "unauthorized", message: "the stored token does not carry the scope this needs" },
+        },
+      ],
+    },
+  });
+
+  await page.getByRole("button", { name: "Fetch worklogs" }).click();
+
+  await expect(page.getByText("Added 2 entries and updated 0.")).toBeVisible();
+  await expect(page.getByText(/Northwind could not be read/)).toBeVisible();
+  await expect(page.getByText("the stored token does not carry the scope this needs")).toBeVisible();
+});
+
+test("the control is disabled for the length of the round trip", async ({ page }) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await openWeek(page, { body: NOTHING, hold: held });
+
+  const control = page.getByRole("button", { name: "Fetch worklogs" });
+  await control.click();
+  await expect(control).toBeDisabled();
+
+  release();
+  await expect(control).toBeEnabled();
+});
+
+test("a failed request reports rather than leaving the press unanswered", async ({ page }) => {
+  await openWeek(page, {
+    body: { code: "store_failed", message: "could not read the logged time" },
+    status: 500,
+  });
+
+  await page.getByRole("button", { name: "Fetch worklogs" }).click();
+
+  await expect(page.getByText("could not read the logged time")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Fetch worklogs" })).toBeEnabled();
+});
