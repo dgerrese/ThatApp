@@ -922,6 +922,61 @@ test("the fetch control is disabled while a refresh is in flight, and a press on
 });
 
 /**
+ * A read that fails on a refresh press must surface the same way a read that
+ * fails on a fetch press does — a visible alert naming what went wrong,
+ * neither button left disabled behind it. show() itself already replaces the
+ * grid with that alert on any failed read (the same path a direct navigation
+ * to a bad week already goes through), so this is what proves refresh's own
+ * press actually reaches it rather than swallowing the failure unseen.
+ */
+test("a failed read on a refresh press surfaces the same way a failed fetch does", async ({
+  page,
+}) => {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+
+  const weekBody = rollup(THIS_WEEK, [
+    row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+  ]);
+
+  let weekReads = 0;
+  await page.route("**/api/week**", (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/fetch")) {
+      return route.fulfill({
+        status: 200,
+        json: { start: THIS_WEEK, end: weekBody.end, created: 0, updated: 0, keptLocal: [], failures: [] },
+      });
+    }
+
+    weekReads += 1;
+    // The mount's own read succeeds, so Refresh reaches its enabled state;
+    // the read the press itself triggers is the one that fails.
+    if (weekReads > 1) {
+      return route.fulfill({
+        status: 500,
+        json: { code: "store_failed", message: "could not read the stored week" },
+      });
+    }
+
+    return route.fulfill({ status: 200, json: weekBody });
+  });
+
+  await page.goto("/week");
+
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
+  await expect(refreshControl).toBeEnabled();
+  await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
+
+  await refreshControl.click();
+
+  await expect(page.getByText("could not read the stored week")).toBeVisible();
+  // Neither control is left stuck disabled behind the failure — the same
+  // recovery fetch.spec.ts already proves for a failed fetch.
+  await expect(refreshControl).toBeEnabled();
+  await expect(fetchControl).toBeEnabled();
+});
+
+/**
  * void show() after a push is the only thing that settles the grid, and without
  * a fixture that changes underneath it nothing here would fail if it were
  * deleted.

@@ -118,7 +118,19 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
       fetchControl.disabled = true;
       refreshControl.disabled = true;
       try {
+        // A read that fails here is already visible: show()'s own catch
+        // replaces the grid with an alert, the same path a direct navigation
+        // to a bad week or a post-push re-read already goes through — refresh
+        // is not a new way to reach it. This catch is what fetchControl's
+        // wider try/catch already gives its own re-read for free, made
+        // explicit here since this handler's whole operation is that one
+        // call: anything show() itself throws, rather than merely reports
+        // through getWeek's own caught rejection, still reaches the user
+        // instead of becoming a silent, unhandled rejection.
         await show();
+      } catch (error) {
+        report.replaceChildren(alertFor("error", messageOf(error)));
+        report.hidden = false;
       } finally {
         busy = false;
         fetchControl.disabled = false;
