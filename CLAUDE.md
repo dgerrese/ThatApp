@@ -178,6 +178,12 @@ hand.
 `bug` and `enhancement` are a second, optional axis recording whether a ticket is a defect or new
 capability. At most one, and plenty of tickets are neither.
 
+`priority/high` and `priority/low` are a third, answering what to pick up next. The scope is
+exclusive, and **normal priority carries no label at all** — an unlabelled ticket is normal, not
+untriaged, so there is no `priority/normal` to add. Priority is the owner's to set; suggest, do not
+relabel. Every open issue also carries a **milestone**, `v1` or `v2`; that is a separate question
+from priority, and the milestone descriptions on Codeberg say what each one admits.
+
 **Cutting the branch is what moves a ticket to `status/in-progress`.** The trigger is the branch
 existing, not a judgement about how far the work has got: a ticket with `issue-<n>-<slug>` pushed is
 in progress even when that branch carries only a design and a plan. That makes `status/todo` mean
