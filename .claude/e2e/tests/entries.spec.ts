@@ -338,7 +338,7 @@ test("the dialog opens from a pinned row as well as an assigned one", async ({ p
 
   await expect(dialog(page).getByRole("heading")).toHaveText(/Ridgeline\s*·\s*SHARED-12/);
   // The summary is the subtitle now, and the status is off the sheet entirely.
-  await expect(dialog(page).locator("p")).toHaveText("Weekly standup");
+  await expect(dialog(page).locator("#that-entry-dialog-summary")).toHaveText("Weekly standup");
   await expect(dialog(page)).not.toContainText("In Progress");
 });
 
@@ -671,6 +671,63 @@ test("the dialog names the app's ink under a stored preference too", async ({ pa
 });
 
 /**
+ * `.sheet { border: 1px solid var(--edge) }` beneath `--shadow-dialog` —
+ * #117 task 11, D1. The shadow alone was the shipped state; the border is
+ * what the drawing adds under it.
+ */
+test("the dialog carries a 1px edge border beneath its shadow", async ({ page }) => {
+  await openToday(page);
+  await trigger(page, "WORK-412").click();
+
+  await expect(dialog(page)).toHaveCSS("border-width", "1px");
+  await expect(dialog(page)).toHaveCSS("border-style", "solid");
+  const shadow = await dialog(page).evaluate((el) => getComputedStyle(el).boxShadow);
+  expect(shadow).not.toBe("none");
+});
+
+/**
+ * The same edge, on that-confirm's own dialog — D1 names it "the same edge"
+ * for a reason: the drift and the fix are one component's rule, not two.
+ */
+test("the confirm dialog carries the same 1px edge border", async ({ page }) => {
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+  await trigger(page, "WORK-412").click();
+  await dialog(page).getByRole("button", { name: "Delete the 09:15 entry" }).click();
+
+  const confirm = page.locator("that-confirm dialog");
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toHaveCSS("border-width", "1px");
+  await expect(confirm).toHaveCSS("border-style", "solid");
+});
+
+/**
+ * The row's edit and delete controls carry their own `.tip` popover, like
+ * cancel beside them — #117 task 11, D2. The visible words are the plain
+ * "edit entry" / "delete entry": the tooltip is never the accessible name,
+ * which stays the time-specific aria-label asserted elsewhere in this file.
+ */
+test("the row's edit and delete controls carry a tooltip, like cancel beside them", async ({
+  page,
+}) => {
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+  await trigger(page, "WORK-412").click();
+
+  const row = entryRows(page).nth(0);
+  const editTip = row.locator("that-tooltip").nth(1);
+  const deleteTip = row.locator("that-tooltip").nth(2);
+
+  await expect(editTip).toBeHidden();
+  await dialog(page).getByRole("button", { name: "Edit the 09:15 entry" }).hover();
+  await expect(editTip).toBeVisible();
+  await expect(editTip).toHaveText("edit entry");
+
+  await expect(deleteTip).toBeHidden();
+  await dialog(page).getByRole("button", { name: "Delete the 09:15 entry" }).hover();
+  await expect(deleteTip).toBeVisible();
+  await expect(deleteTip).toHaveText("delete entry");
+});
+
+/**
  * The header is the instance, the key and the total. The status was there and
  * is not any more — the row that opened this already draws it — and the start
  * time is off the entry lines for the same reason.
@@ -691,7 +748,9 @@ test("the header carries the dot, the instance, the key and the total, and no st
   await expect(dialog(page)).not.toContainText("09:15");
 
   // The summary is a subtitle beneath the identity line, muted, not the heading.
-  const subtitle = dialog(page).locator("p");
+  // Named, not a bare "p": the empty line beneath the list (D6 of #117 task
+  // 11) is a second <p> in the sheet.
+  const subtitle = dialog(page).locator("#that-entry-dialog-summary");
   await expect(subtitle).toHaveText(workIssue.summary);
   await expect(subtitle).toHaveCSS("color", INK_MUTED_LIGHT);
 });
@@ -712,7 +771,7 @@ test("a ticket with no summary renders no subtitle at all", async ({ page }) => 
   await trigger(page, "WORK-412").click();
 
   await expect(dialog(page).getByRole("heading")).toHaveText(/^Ridgeline\s*·\s*WORK-412$/);
-  await expect(dialog(page).locator("p")).toHaveCount(0);
+  await expect(dialog(page).locator("#that-entry-dialog-summary")).toHaveCount(0);
 });
 
 /**
@@ -803,9 +862,10 @@ test("each entry carries a push-state mark naming its state", async ({ page }) =
     "pushed to Jira",
   );
 
-  // Scoped to this row: Today and Week both put tooltips on the page already,
-  // and an unscoped that-tooltip locator is a strict-mode violation.
-  const popover = entryRows(page).nth(0).locator("that-tooltip");
+  // Scoped to this row and to the first of its three tooltips: Today and Week
+  // both put tooltips on the page already, and edit and delete now carry their
+  // own beside this one — D2 of #117 task 11.
+  const popover = entryRows(page).nth(0).locator("that-tooltip").first();
   await expect(popover).toBeHidden();
   await entryRows(page).nth(0).getByRole("img").hover();
   await expect(popover).toBeVisible();
@@ -842,9 +902,9 @@ test("delete goes red under the pointer, and edit stays ink", async ({ page }) =
  * The foot form reads as one bar or it reads as a mistake. Measured rather than
  * eyeballed: the duration group, the comment field and the submit are three
  * components with three different paddings, and nothing but this says they have
- * to agree.
+ * to agree. 38px is `.btn`'s own drawn height — #117 task 11, D3.
  */
-test("the foot form's three controls share one height", async ({ page }) => {
+test("the foot form's three controls share the drawn 38px height", async ({ page }) => {
   await openToday(page);
 
   await trigger(page, "WORK-412").click();
@@ -861,7 +921,104 @@ test("the foot form's three controls share one height", async ({ page }) => {
 
   expect(heights.comment).toBe(heights.duration);
   expect(heights.submit).toBe(heights.duration);
-  expect(heights.duration).toBeGreaterThan(0);
+  expect(heights.duration).toBe(38);
+});
+
+/**
+ * `.durgroup input` and `.ecomment-in`'s own drawn paddings — #117 task 11,
+ * D3. Longhand rather than the shorthand `padding`, matching how this suite
+ * already asserts a computed padding elsewhere.
+ */
+test("the duration input and comment field carry the drawn padding", async ({ page }) => {
+  await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+
+  const duration = durationField(page);
+  await expect(duration).toHaveCSS("padding-top", "9px");
+  await expect(duration).toHaveCSS("padding-bottom", "9px");
+  await expect(duration).toHaveCSS("padding-left", "8px");
+  await expect(duration).toHaveCSS("padding-right", "8px");
+
+  const comment = dialog(page).locator("input[placeholder]");
+  await expect(comment).toHaveCSS("padding-top", "10px");
+  await expect(comment).toHaveCSS("padding-bottom", "10px");
+  await expect(comment).toHaveCSS("padding-left", "12px");
+  await expect(comment).toHaveCSS("padding-right", "12px");
+});
+
+/**
+ * `.durgroup input` wears Chivo Mono with tabular figures — #117 task 11, D4:
+ * figures are set in the mono face throughout the app, and the duration field
+ * was the one place still typing them in the prose face.
+ */
+test("the duration field is set in the mono face with tabular figures", async ({ page }) => {
+  await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+  const duration = durationField(page);
+
+  expect(await duration.evaluate((el) => getComputedStyle(el).fontFamily)).toContain("Chivo Mono");
+  expect(await duration.evaluate((el) => getComputedStyle(el).fontVariantNumeric)).toBe(
+    "tabular-nums",
+  );
+});
+
+/**
+ * `.eempty` sits beneath `.elist`, not inside it, padded to the header's own
+ * 20px gutter rather than the list's 14px — #117 task 11, D6.
+ */
+test("the empty line sits beneath the list, flush with the header's gutter", async ({ page }) => {
+  await openToday(page);
+
+  await trigger(page, "WORK-9").click();
+
+  await expect(entryRows(page)).toHaveCount(0);
+  const empty = dialog(page).getByText("Nothing logged against this ticket today.");
+  await expect(empty).toBeVisible();
+
+  const position = await empty.evaluate((el) => ({
+    followsList: el.previousElementSibling?.tagName === "UL",
+    insideList: el.closest("ul") !== null,
+  }));
+  expect(position.followsList).toBe(true);
+  expect(position.insideList).toBe(false);
+  await expect(empty).toHaveCSS("padding-left", "20px");
+});
+
+/**
+ * The stepper's glyphs read at the icon language's own default — 18px at a
+ * 1.9 stroke — rather than the prototype's own one-off 15px/2.1 markup for
+ * this one pair of icons. #117 task 11, D7.
+ */
+test("the duration stepper's glyphs match the icon language's size and stroke", async ({
+  page,
+}) => {
+  await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+  const glyph = dialog(page).locator("that-duration svg").first();
+
+  await expect(glyph).toHaveAttribute("width", "18");
+  await expect(glyph).toHaveAttribute("height", "18");
+  await expect(glyph).toHaveAttribute("stroke-width", "1.9");
+});
+
+/**
+ * The primary's hover lifts the colour itself rather than compositing toward
+ * whatever sits behind it — #117 task 11, D8. #rail-push already carries the
+ * drawn form; this asserts the shared component matches it.
+ */
+test("the primary button's hover lifts brightness rather than fading", async ({ page }) => {
+  await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+  const submit = dialog(page).getByRole("button", { name: "Add entry" });
+
+  await expect(submit).toHaveCSS("filter", "none");
+  await submit.hover();
+  await expect(submit).toHaveCSS("filter", "brightness(1.07)");
+  await expect(submit).toHaveCSS("opacity", "1");
 });
 
 /**

@@ -140,6 +140,7 @@ export class ThatEntryDialog extends HTMLElement {
   private dialog: HTMLDialogElement | undefined;
   private total: HTMLElement | undefined;
   private list: HTMLElement | undefined;
+  private empty: HTMLElement | undefined;
   private notice: HTMLElement | undefined;
   private duration: ThatDuration | undefined;
   private comment: HTMLInputElement | undefined;
@@ -163,10 +164,11 @@ export class ThatEntryDialog extends HTMLElement {
     // No padding of its own: the header, the list and the foot each own their
     // own, which is what lets the two hairlines between them run the full width.
     dialog.className =
-      "bg-raised text-ink shadow-dialog m-auto w-[580px] max-w-[calc(100vw-2rem)] rounded-md";
+      "bg-raised text-ink shadow-dialog border-edge m-auto w-[580px] max-w-[calc(100vw-2rem)] " +
+      "rounded-md border";
     dialog.setAttribute("aria-labelledby", this.headingId);
 
-    dialog.append(this.header(ticket), this.entryList(), this.footForm());
+    dialog.append(this.header(ticket), this.entryList(), this.emptyLine(), this.footForm());
     // Closing is the only exit, whether it came from Esc, the round Close or a
     // successful mutation, so the element removes itself from one place.
     dialog.addEventListener("close", () => {
@@ -249,6 +251,10 @@ export class ThatEntryDialog extends HTMLElement {
     // with a blank one.
     if (ticket.summary !== "") {
       const subtitle = document.createElement("p");
+      // Named, now that the empty line beneath the list (D6 of #117 task 11)
+      // is a second <p> in the sheet: a bare "p" locator would resolve either
+      // one.
+      subtitle.id = "that-entry-dialog-summary";
       subtitle.className =
         "text-ink-muted mt-[5px] text-base leading-[1.35] [overflow-wrap:anywhere]";
       subtitle.textContent = ticket.summary;
@@ -279,6 +285,22 @@ export class ThatEntryDialog extends HTMLElement {
     return list;
   }
 
+  /**
+   * Beneath the list rather than inside it — the prototype's `.eempty` is a
+   * sibling of `.elist`, not one of its items — and padded to the header's own
+   * 20px gutter rather than the list's 14px, which is what lines the line's
+   * left edge up with the heading above it.
+   */
+  private emptyLine(): HTMLElement {
+    const line = document.createElement("p");
+    line.className = "text-ink-muted px-5 pt-[10px] pb-4 text-base";
+    line.textContent = "Nothing logged against this ticket today.";
+    line.hidden = true;
+    this.empty = line;
+
+    return line;
+  }
+
   private footForm(): HTMLElement {
     const foot = document.createElement("div");
     foot.className = "border-edge border-t px-5 pt-3.5 pb-4";
@@ -303,14 +325,18 @@ export class ThatEntryDialog extends HTMLElement {
     const comment = document.createElement("input");
     comment.type = "text";
     comment.placeholder = "What did you work on?";
-    // text-sm, matching the duration field beside it rather than the prototype's
-    // 15px: this app's shipped that-button and that-duration are both smaller
-    // than the prototype's, and raising only this one puts the field 2px above
-    // the two controls it shares an `items-center` line with. The measured
-    // agreement is asserted in entries.spec.ts; matching the prototype's
-    // absolute sizes is a change to all three components, not to this one.
+    // text-sm, matching the duration field beside it rather than the
+    // prototype's 15px — the drawing's padding is transcribed, in the same
+    // ticket that raises the button and the duration field beside it, but the
+    // 15px font size was never one of the drawn drift criteria. The measured
+    // agreement between the three is asserted in entries.spec.ts.
+    // h-[38px] rather than leaving the height to padding plus line height, for
+    // the same reason that-duration's group pins its own: this field's font
+    // and the duration field's mono face resolve "normal" line-height a pixel
+    // or two apart at the same nominal size, and only an explicit height keeps
+    // all three foot-form controls at the drawn 38px regardless.
     comment.className =
-      "border-edge bg-surface min-w-0 flex-1 rounded-sm border px-3 py-1.5 text-sm " +
+      "border-edge bg-surface min-w-0 h-[38px] flex-1 rounded-sm border px-3 py-[10px] text-sm " +
       "focus:border-ink focus:outline-none";
     comment.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
@@ -394,17 +420,14 @@ export class ThatEntryDialog extends HTMLElement {
   private renderEntries(): void {
     const list = this.list;
     const total = this.total;
-    if (!list || !total) return;
+    const empty = this.empty;
+    if (!list || !total || !empty) return;
 
     total.textContent = totalFigure(this.entries.reduce((sum, entry) => sum + entry.seconds, 0));
 
-    if (this.entries.length === 0) {
-      list.replaceChildren(emptyLine());
-
-      return;
-    }
-
-    list.replaceChildren(...this.entries.map((entry) => this.entryRow(entry)));
+    const hasEntries = this.entries.length > 0;
+    empty.hidden = hasEntries;
+    list.replaceChildren(...(hasEntries ? this.entries.map((entry) => this.entryRow(entry)) : []));
   }
 
   /**
@@ -440,12 +463,26 @@ export class ThatEntryDialog extends HTMLElement {
     const actions = document.createElement("div");
     actions.className = "flex shrink-0 items-center gap-1.5";
     actions.append(
-      rowAction("edit", `Edit the ${clockTime(entry.startedAt)} entry`, false, () => {
-        this.startEditing(entry);
-      }),
-      rowAction("trash", `Delete the ${clockTime(entry.startedAt)} entry`, true, () => {
-        void this.confirmAndDelete(entry);
-      }),
+      ...rowAction(
+        "edit",
+        `Edit the ${clockTime(entry.startedAt)} entry`,
+        "edit entry",
+        false,
+        `that-entry-edit-${this.sequence}-${entry.id}`,
+        () => {
+          this.startEditing(entry);
+        },
+      ),
+      ...rowAction(
+        "trash",
+        `Delete the ${clockTime(entry.startedAt)} entry`,
+        "delete entry",
+        true,
+        `that-entry-delete-${this.sequence}-${entry.id}`,
+        () => {
+          void this.confirmAndDelete(entry);
+        },
+      ),
     );
 
     // The popover rides inside the row rather than beside it. It is closed —
@@ -601,31 +638,34 @@ export class ThatEntryDialog extends HTMLElement {
 }
 
 /**
- * An icon-only control on a row. The mark is aria-hidden by construction, so
- * the name has to be the label — never the icon's own shape.
+ * An icon-only control on a row, with its `.tip` popover — the same shape
+ * `cancelEditControl` uses beside it. The mark is aria-hidden by construction,
+ * so the name has to be the label; the tooltip is never that name, which is
+ * why its words are the plain "edit entry" / "delete entry" rather than the
+ * aria-label's time-specific sentence.
  */
 function rowAction(
   icon: "edit" | "trash",
   description: string,
+  words: string,
   destructive: boolean,
+  id: string,
   act: () => void,
-): HTMLElement {
+): HTMLElement[] {
   const button = document.createElement("button");
   button.type = "button";
+  button.id = id;
   button.setAttribute("aria-label", description);
   button.className = destructive ? ICON_BUTTON_DESTRUCTIVE : ICON_BUTTON;
   button.innerHTML = iconMarkup(icon, 17);
   button.addEventListener("click", act);
 
-  return button;
-}
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", id);
+  tooltip.setAttribute("anchor", "end");
+  tooltip.textContent = words;
 
-function emptyLine(): HTMLElement {
-  const line = document.createElement("li");
-  line.className = "text-ink-muted px-2.5 py-2 text-base";
-  line.textContent = "Nothing logged against this ticket today.";
-
-  return line;
+  return [button, tooltip];
 }
 
 /**
