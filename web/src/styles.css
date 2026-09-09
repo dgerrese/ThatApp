@@ -178,12 +178,23 @@
   text-decoration: none;
 }
 a.that-nav:hover {
+  background: var(--color-rail-active);
   color: var(--color-rail-ink);
 }
 .that-nav[aria-current="page"] {
   background: var(--color-rail-active);
   color: var(--color-rail-ink);
   font-weight: 700;
+}
+
+/* Every rail control gets a visible keyboard focus, which nothing here drew
+   before. #rail-push is excluded: it already carries the drawing's own live
+   colour and hover, and this wash would sit on top of a utility class rather
+   than beside it — unlayered rules always win over Tailwind's, regardless of
+   specificity, so it would silently replace the button's fill instead of
+   merely ringing it. */
+.that-rail :focus-visible:not(#rail-push) {
+  background: var(--color-hover-rail);
 }
 
 /* The issue key is a column, not a word. Its width is the table's business now

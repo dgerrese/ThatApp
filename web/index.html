@@ -52,7 +52,7 @@
         really is zero, there really is nothing to split, no timer is running,
         and there is nothing to push.
       -->
-      <aside class="that-rail bg-rail text-rail-ink flex flex-col gap-[30px] px-3.5 py-6">
+      <aside class="that-rail bg-rail text-rail-ink flex flex-col gap-[26px] px-3.5 py-[22px]">
         <h1 class="text-primary-rail text-xs font-bold tracking-[0.16em] uppercase">
           ThatApp
         </h1>
@@ -73,11 +73,11 @@
           <!-- #7 fills this with the split bar and a figure per instance. The
                resting line is inside it rather than replaced by it, so the bar
                is absent — not zero width — until there is something to divide. -->
-          <div id="rail-split" class="flex flex-col gap-3">
+          <div id="rail-split" class="flex flex-col gap-2">
             <span class="text-rail-muted text-base">Nothing to split yet</span>
           </div>
 
-          <div class="bg-rail-active h-px"></div>
+          <div class="bg-rail-active h-0.5 my-1 rounded-xs"></div>
 
           <!-- #8 makes this the running timer. -->
           <div id="rail-timer" class="flex items-center gap-2">
@@ -100,6 +100,8 @@
           >
             Push to Jira
           </button>
+
+          <div class="bg-rail-active h-0.5 my-1 rounded-xs"></div>
         </div>
 
         <nav class="flex flex-col gap-0.5">

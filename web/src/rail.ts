@@ -41,12 +41,14 @@ export interface RailPeriod {
   viewPath: string;
   range?: { from: string; to: string };
   pushHeading: string;
+  pushLabel: string;
 }
 
 export const TODAY_PERIOD: RailPeriod = {
   label: "Today",
   viewPath: "/today",
   pushHeading: "Push today's time to Jira?",
+  pushLabel: "Push to Jira",
 };
 
 let currentPeriod: RailPeriod = TODAY_PERIOD;
@@ -127,6 +129,7 @@ export function startRail(): void {
 
   const paint = (entries: Entry[]): void => {
     period.textContent = currentPeriod.label;
+    push.textContent = currentPeriod.pushLabel;
     painted = true;
     retryDelay = FIRST_RETRY_MS;
     total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
@@ -385,7 +388,7 @@ function restingLine(): HTMLElement {
  */
 function bar(slices: Slice[]): HTMLElement {
   const wrapper = document.createElement("div");
-  wrapper.className = "that-split-bar flex h-[7px] gap-[3px]";
+  wrapper.className = "that-split-bar flex h-1.5 gap-[3px] mt-1";
   wrapper.setAttribute("aria-hidden", "true");
 
   for (const slice of slices) {
@@ -402,7 +405,7 @@ function bar(slices: Slice[]): HTMLElement {
 
 function figures(slices: Slice[]): HTMLElement {
   const list = document.createElement("div");
-  list.className = "flex flex-col gap-[7px]";
+  list.className = "flex flex-col gap-2";
 
   for (const slice of slices) {
     const row = document.createElement("div");
@@ -417,11 +420,11 @@ function figures(slices: Slice[]): HTMLElement {
     dot.setAttribute("aria-hidden", "true");
 
     const name = document.createElement("span");
-    name.className = "min-w-0 flex-1 truncate";
+    name.className = "text-rail-muted min-w-0 flex-1 truncate";
     name.textContent = slice.name;
 
     const figure = document.createElement("span");
-    figure.className = "that-tnum font-mono font-bold";
+    figure.className = "that-tnum text-rail-ink font-mono font-bold";
     figure.textContent = totalFigure(slice.seconds);
 
     row.append(dot, name, figure);

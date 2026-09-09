@@ -1,7 +1,6 @@
 {
   "--color-running-rail": "The rail's running-timer line is #8. Remove this entry when #8 lands.",
   "--text-2xl": "The type ramp is a scale, declared whole; no component sits at this step yet.",
-  "--color-hover-rail": "Task 2 of #117 consumes this. Remove this entry when that lands.",
   "--radius-lg": "Declared and unused on purpose per its own comment in styles.css: the reference's five-step ramp, inherited whole; a later ticket may re-map which component uses which step.",
   "--radius-xl": "Same ramp, same comment, same reason as --radius-lg.",
   "--color-ink-faint": "Unconsumed. #126 asks whether it should be consumed or deleted. Remove this entry when #126 is answered.",

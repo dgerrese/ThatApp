@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 test("the app shell boots and the bundle runs", async ({ page }) => {
   // Today fetches on render, and the e2e stack shares the dev database, so this
@@ -48,4 +48,129 @@ test("no service worker registers in a spec that has not opted back in", async (
   await expect
     .poll(() => page.evaluate(() => navigator.serviceWorker.getRegistrations().then((all) => all.length)))
     .toBe(0);
+});
+
+/**
+ * The colour a Tailwind utility class actually resolves to in this browser,
+ * read off a throwaway probe rather than a literal `oklch()` string in this
+ * file — see the identical helper in push.spec.ts.
+ */
+async function computedColor(
+  page: Page,
+  className: string,
+  property: "backgroundColor",
+): Promise<string> {
+  return page.evaluate(
+    ({ className, property }) => {
+      const probe = document.createElement("span");
+      probe.className = className;
+      document.body.appendChild(probe);
+      const value = getComputedStyle(probe)[property];
+      probe.remove();
+
+      return value;
+    },
+    { className, property },
+  );
+}
+
+async function gotoEmptyToday(page: Page): Promise<void> {
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
+  await page.goto("/today");
+}
+
+/**
+ * #117: the shipped rail drifted from the drawing it was built from. These
+ * assertions read the drawing's own values back off the live page —
+ * docs/superpowers/prototypes/2026-09-03-app-prototype.html's .rail, .sbar,
+ * .hr and nav.rn button rules — rather than trusting that a past "looks
+ * right" still holds.
+ */
+test.describe("the rail's geometry", () => {
+  test("the rail's own padding and row gap match the drawing", async ({ page }) => {
+    await gotoEmptyToday(page);
+
+    const rail = page.locator("aside.that-rail");
+    // The shorthand's serialised form (2-value vs. 4-value) is not consistent
+    // across engines, so each longhand is asserted on its own.
+    await expect(rail).toHaveCSS("padding-top", "22px");
+    await expect(rail).toHaveCSS("padding-bottom", "22px");
+    await expect(rail).toHaveCSS("padding-left", "14px");
+    await expect(rail).toHaveCSS("padding-right", "14px");
+    await expect(rail).toHaveCSS("row-gap", "26px");
+  });
+
+  test("two dividers cut the rail, each styled as the drawing's .hr", async ({ page }) => {
+    await gotoEmptyToday(page);
+
+    const activeColor = await computedColor(page, "bg-rail-active", "backgroundColor");
+    const dividers = await page.locator("aside.that-rail").evaluate(
+      (rail, activeColor) =>
+        [...rail.querySelectorAll<HTMLElement>("div")].filter((el) => {
+          const style = getComputedStyle(el);
+
+          // The drawing's border-radius: 1px is named as rounded-xs (2px) —
+          // web/src/vocabulary.test.ts forbids a radius literal off the ramp
+          // — which renders identically here anyway: CSS clamps a corner
+          // radius to half the box's own dimension, and this box is 2px
+          // tall, so both 1px and 2px paint the same curve.
+          return (
+            style.backgroundColor === activeColor &&
+            style.height === "2px" &&
+            style.borderRadius === "2px" &&
+            style.marginTop === "4px" &&
+            style.marginBottom === "4px"
+          );
+        }).length,
+      activeColor,
+    );
+
+    expect(dividers).toBe(2);
+  });
+
+  test("hovering an inactive nav row washes it in the rail's active tone", async ({ page }) => {
+    await gotoEmptyToday(page);
+
+    // Week, not Today: Today carries aria-current="page" at rest, which paints
+    // the same background regardless of hover and would prove nothing.
+    const week = page.getByRole("link", { name: "Week", exact: true });
+    const activeColor = await computedColor(page, "bg-rail-active", "backgroundColor");
+
+    await expect(week).not.toHaveCSS("background-color", activeColor);
+    await week.hover();
+    await expect(week).toHaveCSS("background-color", activeColor);
+  });
+
+  test("keyboard focus reaches a nav row and rings it in the rail's hover wash", async ({ page }) => {
+    await gotoEmptyToday(page);
+
+    // Real Tab presses, not .focus(): a programmatic focus() does not reliably
+    // arm :focus-visible the way keyboard navigation does.
+    const navLink = page.locator("aside.that-rail a.that-nav:focus");
+    let reached = false;
+    for (let presses = 0; presses < 8 && !reached; presses++) {
+      await page.keyboard.press("Tab");
+      reached = (await navLink.count()) > 0;
+    }
+    expect(reached).toBe(true);
+
+    const background = await navLink.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(background).not.toBe("rgba(0, 0, 0, 0)");
+    expect(background).not.toBe(await computedColor(page, "bg-rail-active", "backgroundColor"));
+  });
+
+  // R3: the button's own words follow the period, not merely what was true on
+  // first paint. week.ts and TODAY_PERIOD both hand the rail a pushLabel.
+  test("Push's label follows the period after navigating, not only at boot", async ({ page }) => {
+    await gotoEmptyToday(page);
+
+    const push = page.getByRole("button", { name: "Push to Jira" });
+    await expect(push).toBeVisible();
+
+    await page.getByRole("link", { name: "Week", exact: true }).click();
+    await expect(page).toHaveURL(/\/week$/);
+    await expect(page.getByRole("button", { name: "Push this week" })).toBeVisible();
+  });
 });

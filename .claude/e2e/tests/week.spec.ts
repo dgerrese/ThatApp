@@ -233,10 +233,10 @@ async function shapeOf(marker: Locator): Promise<{ radius: string; bottomBorder:
   });
 }
 
-/** The rail owns the only "Push to Jira" button, and it now sends every day the
- *  week holds rather than only today. */
+/** The rail owns the only Push button, worded "Push this week" here — #117's
+ *  R3 — and it sends every day the week holds rather than only today. */
 async function pushEverything(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push this week" }).click();
   await page.getByRole("button", { name: "Push", exact: true }).click();
 }
 
@@ -362,7 +362,7 @@ test("pushing from the Week view reports below the grid and names the day that f
   await expect(page.locator("#rail-period")).toHaveText("Week 37 · 7–13 Sep");
   await expect(page.locator("#rail-total")).toHaveText("1h 30m");
 
-  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push this week" }).click();
   await expect(page.getByText(/2 entries totalling 1h 30m across 2 days/)).toBeVisible();
   await page.getByRole("button", { name: "Push", exact: true }).click();
 
@@ -718,7 +718,7 @@ test("the three week controls share one height", async ({ page }) => {
 
   const controls = [
     page.getByRole("button", { name: "Previous week" }),
-    page.getByRole("button", { name: "This week" }),
+    page.getByRole("button", { name: "This week", exact: true }),
     page.getByRole("button", { name: "Next week" }),
   ];
   const heights = await Promise.all(
@@ -741,7 +741,7 @@ test("the fetch control sits beside the label, and the week controls do not move
   await expect(fetchControl).toBeVisible();
 
   const label = page.getByRole("heading", { level: 2 });
-  const thisWeek = page.getByRole("button", { name: "This week" });
+  const thisWeek = page.getByRole("button", { name: "This week", exact: true });
 
   const labelBox = (await label.boundingBox()) ?? null;
   const fetchBox = (await fetchControl.boundingBox()) ?? null;
@@ -810,7 +810,7 @@ test("a week the server refuses still offers a way back to this one", async ({ p
 
   await expect(page.getByText("start must be a Monday, of the form YYYY-MM-DD")).toBeVisible();
 
-  await page.getByRole("button", { name: "This week" }).click();
+  await page.getByRole("button", { name: "This week", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Week 37 · 7–13 Sep" })).toBeVisible();
   await expect(ticketRow(page, "RIDGE-1")).toBeVisible();

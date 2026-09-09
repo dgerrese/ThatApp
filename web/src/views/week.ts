@@ -217,6 +217,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     viewPath: "/week",
     range: { from: rollup.start, to: rollup.end },
     pushHeading: "Push this week's time to Jira?",
+    pushLabel: "Push this week",
   });
 }
 
