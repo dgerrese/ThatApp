@@ -487,6 +487,43 @@ surface in the app.
 Darkening a white page by that much is a decision about modality rather than about depth, and it was not
 settled on 2026-09-04.
 
+## Decision 12 — a toolbar button carries words, an inline control carries a glyph
+
+Settled by the owner on 2026-09-09, while #117 asked where Week's refresh control goes now that the
+header also carries #10's fetch. The placement question turned out to be the smaller half: the pair
+looked unfinished because one control wore a label and the other did not, and nothing in this
+language said which was right.
+
+**A toolbar button carries words.** A toolbar is the group of controls in a view's or a dialog's
+header that act on what the view shows. Its buttons render an icon *and* a label — `Refresh`,
+`Fetch worklogs` — because a header control acts on everything below it and its consequence is not
+recoverable by looking.
+
+**An inline control carries a glyph alone.** A control inside a row, a cell, a field or a search
+result is inline: pin and unpin, edit and delete, the duration stepper's two steps. It sits beside
+the thing it acts on, which is what says what it will do, and a label repeated down forty rows is
+noise. Inline controls keep the tooltip and the `aria-label` they already carry.
+
+**Two exemptions, both settled the same day.**
+
+- **A paired directional group is one control.** Week's previous and next arrows keep their glyphs;
+  the words live in the `This week` button between them. Labelling the arrows would widen the group
+  by about 140px to say what their shape already says.
+- **A window control is not a toolbar button.** Close and dismiss are chrome rather than actions on
+  the view's data, so the entry dialog's close stays a glyph, and Settings' will too under #89.
+
+The accessible-name rules are untouched by all of this. A glyph-only control still carries its own
+`aria-label`, and **a tooltip is never the accessible name** — #110 exists because nothing checks
+that.
+
+**What this changes in the shipped app.** Week's refresh is built to this rule from the start, and
+**Today's refresh gains a label**: it is a header control acting on the whole view, and it is
+icon-only today. Nothing inline changes.
+
+**The drawing is corrected rather than excepted.** The prototype draws both refreshes as icons
+alone, and draws no fetch control at all, because it predates both this decision and #10. Its Today
+and Week headers are brought to this rule as part of #117.
+
 ## What the first edition still governs
 
 Unchanged, and this document does not restate them. Read
