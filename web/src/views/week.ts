@@ -3,7 +3,7 @@ import "../components/that-alert";
 import { ApiError, fetchWeek, getWeek } from "../api";
 import { CARD_SURFACE_CLASSES } from "../card-surface";
 import { openEntryDialog } from "../components/that-entry-dialog";
-import { announceEntriesChanged } from "../entries-changed";
+import { announceEntriesChanged, onEntriesChanged } from "../entries-changed";
 import { fetchReportNodes } from "../fetch-report";
 import { totalFigure } from "../format";
 import { iconMarkup } from "../icons";
@@ -228,6 +228,15 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     return rollup;
   };
 
+  // Set for the one entries-changed announcement rail.ts fires right after
+  // reporting a push (see its push handler): that announcement exists for
+  // listeners with nothing better to go on, where Week already has the exact
+  // push responses. Left clear, the entries-changed subscription below would
+  // re-read a second time on the push's own tail and, since that read carries
+  // no failures of its own, immediately paint over the marks this handler's
+  // own show() just drew — before anyone had a chance to see them.
+  let pushJustReported = false;
+
   // Registered before the first read, so a push that lands while it is still in
   // flight is still heard. The rail owns the Push; this only renders what came
   // back, and then re-reads — every marker the rollup knows about settles only
@@ -236,6 +245,21 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     report.replaceChildren(...pushReportNodes(responses, unanswered, { nameDays: true }));
     report.hidden = false;
     failures = failuresIn(responses);
+    pushJustReported = true;
+    void show();
+  });
+
+  // The entries dialog announces a mutation with no payload whenever it is
+  // scoped to a day other than today's (see afterMutation in
+  // that-entry-dialog.ts), which is every day Week's own cells open it for —
+  // so the payload carries nothing this grid could paint from and the only
+  // honest response is to re-read the week whole, the same as a push report.
+  const stopEntriesListening = onEntriesChanged(() => {
+    if (pushJustReported) {
+      pushJustReported = false;
+
+      return;
+    }
     void show();
   });
 
@@ -246,6 +270,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   registerTeardown(() => {
     mounted = false;
     stopPushListening();
+    stopEntriesListening();
   });
 
   const rollup = await show();
@@ -674,6 +699,11 @@ function ticketCell(
       issueKey: row.issueKey,
       summary: "",
       status: "",
+      // Set on every cell, today's column included: the dialog compares this
+      // against the day the server resolves as today, so a cell for today
+      // still behaves correctly on its own — a presence-only check here would
+      // single today's column out and defeat that comparison.
+      day,
     });
   });
 

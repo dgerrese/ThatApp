@@ -1470,3 +1470,145 @@ test("the previous week is a place you can go back from", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Week 37 · 7–13 Sep" })).toBeVisible();
   await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
 });
+
+/**
+ * Task 5's own assertion: a cell in a week that is not this one opens the
+ * dialog on the day it belongs to, not on whatever the server resolves as
+ * today — and once the dialog adds time, the whole grid it came from settles
+ * to match, which is only possible because Week is listening for the
+ * announcement its own dialog fires.
+ *
+ * The POST stub only bumps 2026-08-31's rollup when the request itself named
+ * that day: a cell that silently fell back to sending no day at all would
+ * leave every assertion below reading the grid's untouched, original figures
+ * instead of failing loudly.
+ */
+test("opening a past Monday's cell and adding time moves the cell, its row total, that day's total, and the week total — and the dialog names that Monday, not today", async ({
+  page,
+}) => {
+  const entries: StubEntry[] = [entry(1, "RIDGE-9", "2026-08-31", 3600, "pushed")];
+  let nextId = 2;
+
+  const rollups: Record<string, StubRollup> = {
+    [THIS_WEEK]: rollup(THIS_WEEK, []),
+    "2026-08-31": rollup("2026-08-31", [
+      row("RIDGE-9", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  };
+
+  await openWeek(page, rollups, [], "/week?start=2026-08-31");
+
+  // Overrides openWeek's own blanket /api/entries stub: this one actually
+  // answers a ranged GET from the list a POST just grew, the way the real
+  // server does, so the dialog and the grid can be proven to agree.
+  await page.route("**/api/entries**", async (route) => {
+    const request = route.request();
+
+    if (request.method() === "POST") {
+      const body = request.postDataJSON() as {
+        issueKey: string;
+        day?: string;
+        seconds: number;
+        comment: string;
+      };
+      const created = entry(nextId, body.issueKey, body.day ?? THIS_WEEK, body.seconds, "unpushed");
+      nextId += 1;
+      entries.push(created);
+
+      // pushed, not unpushed: the footer's own day total would otherwise grow
+      // a worst-wins marker and the sr-only words beside it, which is a
+      // separate claim from the one this test makes about the figures alone.
+      if (body.day === "2026-08-31") {
+        rollups["2026-08-31"] = rollup("2026-08-31", [
+          row("RIDGE-9", [{ at: 0, seconds: 3600 + body.seconds, pushState: "pushed" }]),
+        ]);
+      }
+
+      await route.fulfill({ status: 201, json: created });
+
+      return;
+    }
+
+    const url = new URL(request.url());
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    const scoped =
+      from && to ? entries.filter((candidate) => candidate.day >= from && candidate.day <= to) : entries;
+    // THIS_WEEK stands in for whatever the server resolves as today — a
+    // different string from 2026-08-31, which is the whole point: the day
+    // line below must not read as today's.
+    await route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: scoped } });
+  });
+
+  await expect(page.getByRole("heading", { name: "Week 36 · 31 Aug – 6 Sep" })).toBeVisible();
+
+  const cell = ticketRow(page, "RIDGE-9").locator("td").first().locator("button");
+  await expect(cell).toContainText("1h 00m");
+  await cell.click();
+
+  const dialog = page.locator("dialog[open]");
+  await expect(dialog).toBeVisible();
+  // Monday 31 August, per format.ts's longDay — never today's own weekday,
+  // which is what a ticket that forgot to carry its day would show instead.
+  await expect(page.locator("#that-entry-dialog-day")).toHaveText("Monday 31 August");
+
+  await dialog.getByLabel("Duration").fill("30");
+  await dialog.getByLabel("Duration").press("Enter");
+  await dialog.getByRole("button", { name: "Add entry" }).click();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect(cell).toHaveText("1h 30m");
+  await expect(ticketRow(page, "RIDGE-9").locator("td").last()).toHaveText("1h 30m");
+  // tfoot's first td is Monday's own day total — the "Total" label beside it
+  // is a <th>, so the day totals are tds from index 0.
+  await expect(page.locator("tfoot td").first()).toHaveText("1h 30m");
+  await expect(page.locator("tfoot td").last()).toHaveText("1h 30m");
+});
+
+/**
+ * `onEntriesChanged` returns its own unsubscribe, and Week is supposed to
+ * hand that to the router's teardown the way Today already does for its
+ * "online" listener. Nothing on screen would show a leaked subscription —
+ * the grid it would repaint is not there to look at — so this proves it by
+ * counting: a leaked listener re-reads /api/week after the announcement,
+ * a torn-down one does not.
+ */
+test("navigating away from Week removes its entries-changed listener, so a later change triggers no re-read", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }])]),
+  });
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
+
+  // The mount's own read has to settle before the counting route goes on
+  // below, or that first read races the route registration and can land
+  // inside the count it is trying to keep at zero.
+  await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
+
+  let weekReads = 0;
+  // Registered after openWeek's own /api/week route, so this one is asked
+  // first and falls back to it — counting reads without reimplementing what
+  // they answer with, the same trick the Refresh test above uses.
+  await page.route("**/api/week**", (route) => {
+    if (!new URL(route.request().url()).pathname.endsWith("/fetch")) weekReads += 1;
+
+    return route.fallback();
+  });
+
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+
+  // The event Week's own dialog fires after a mutation elsewhere — see
+  // entries-changed.ts. Dispatched directly here since Settings mounts no
+  // dialog of its own to fire it through.
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("that-entries-changed")));
+
+  // No positive signal exists for "nothing happened" — a leaked listener's
+  // re-read would land well inside this window, the same margin
+  // today.spec.ts gives its own "online" leak test.
+  await page.waitForTimeout(500);
+
+  expect(weekReads).toBe(0);
+});
