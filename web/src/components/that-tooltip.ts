@@ -81,7 +81,7 @@ export class ThatTooltip extends HTMLElement {
     if (!this.matches(":popover-open")) this.showPopover();
 
     const box = trigger.getBoundingClientRect();
-    const gap = 6;
+    const gap = 7;
     const left =
       this.getAttribute("anchor") === "end"
         ? box.right - this.offsetWidth
@@ -90,7 +90,7 @@ export class ThatTooltip extends HTMLElement {
     // All four longhands, not just top/left: the UA stylesheet gives an open
     // popover `inset: 0` for its default centred position, and leaving right
     // or bottom set would fight the explicit placement on some engines.
-    this.style.top = `${box.bottom + gap}px`;
+    this.style.top = `${box.top - this.offsetHeight - gap}px`;
     this.style.left = `${left}px`;
     this.style.right = "auto";
     this.style.bottom = "auto";

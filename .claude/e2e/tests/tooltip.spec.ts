@@ -118,6 +118,41 @@ test("hovering a trigger shows the tooltip, and pointerleave hides it again", as
   await expect(tooltip).toBeHidden();
 });
 
+// The drawing's .tip sits at bottom: calc(100% + 7px) — above the trigger,
+// centred — and reveal() is meant to compute the same box. Fixed-positioned
+// at mid-viewport rather than relying on mountTrigger's natural flow
+// position: this is the case with room on both sides, distinct from the
+// no-room-above case a trigger near the top of the viewport would raise.
+test("the tooltip opens above its trigger, with the drawn 7px gap", async ({ page }) => {
+  await page.evaluate(() => {
+    const trigger = document.createElement("button");
+    trigger.id = "midpoint-trigger";
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", "Pin this issue");
+    trigger.textContent = "•";
+    trigger.style.cssText = "position: fixed; top: 300px; left: 300px;";
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "midpoint-trigger");
+    tooltip.textContent = "Pin this issue";
+
+    document.body.append(trigger, tooltip);
+  });
+
+  await page.locator("#midpoint-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const tooltipBox = await tooltip.boundingBox();
+  const triggerBox = await page.locator("#midpoint-trigger").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(triggerBox).not.toBeNull();
+
+  // Tooltip's bottom edge sits 7px above the trigger's top edge.
+  expect(triggerBox!.y - (tooltipBox!.y + tooltipBox!.height)).toBeCloseTo(7, 0);
+});
+
 test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) => {
   await mountTrigger(page);
   const tooltip = page.locator("that-tooltip[data-fixture]");
@@ -200,22 +235,30 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
   // the viewport, and appending after the rest of the shell's content would
   // place this region below the fold.
   //
-  // No spacer, and no explicit height on the region: it is left to size
-  // itself to the trigger, its only content, so the trigger sits flush
-  // against the region's own top edge and needs no scrolling to reach —
-  // by any interaction method — while the region's rendered box still ends
+  // No spacer inside the region, and no explicit height on it: it is left to
+  // size itself to the trigger, its only content, so the trigger sits flush
+  // against the region's own top edge and needs no scrolling to reach — by
+  // any interaction method — while the region's rendered box still ends
   // exactly at the trigger's bottom, with nothing below it visible. An
   // earlier version pushed the trigger down with a spacer instead, and both
   // hover and focus scroll a programmatically-scrollable overflow: hidden
   // ancestor to bring an off-screen target within reach, which moved this
-  // region's own scrollTop and put the naive control (below) at the wrong
+  // region's own scrollTop and put the naive control at the wrong
   // coordinates — a false pass for a reason that had nothing to do with
   // clipping. Flush placement removes the scroll from the picture entirely.
+  //
+  // The region does carry a margin-top, unlike before reveal() opened
+  // upward: with the region prepended flush at the page's own top edge, the
+  // tooltip's box would land above the viewport and elementFromPoint below
+  // could never hit it — the escape would be real but unobservable. The
+  // margin only moves the region within the page; it adds no space between
+  // the region's own top edge and the trigger inside it, so the flush
+  // placement above still holds and the scrollTop guard below still applies.
   await page.evaluate(() => {
     const region = document.createElement("div");
     region.id = "clip-region";
     region.style.cssText =
-      "overflow: hidden; width: 200px; transform: translateZ(0); position: relative;";
+      "overflow: hidden; width: 200px; margin-top: 80px; transform: translateZ(0); position: relative;";
 
     const trigger = document.createElement("button");
     trigger.id = "clipped-trigger";
@@ -253,8 +296,9 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
   expect(regionBox).not.toBeNull();
 
   // Necessary but not sufficient on its own (see the comment above the
-  // test): the tooltip's box starts below the region's own bottom edge.
-  expect(tooltipBox!.y).toBeGreaterThanOrEqual(regionBox!.y + regionBox!.height);
+  // test): the tooltip's box ends above the region's own top edge — reveal()
+  // opens upward, and the trigger sits flush against that edge.
+  expect(tooltipBox!.y + tooltipBox!.height).toBeLessThanOrEqual(regionBox!.y);
 
   // What actually proves escape: the pixel at the tooltip's own centre is
   // painted by the tooltip itself.
@@ -266,9 +310,8 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
 
   // Free the point for the control below: the real tooltip, being in the top
   // layer, would otherwise paint over it regardless of what the control does.
-  // (500, 500) rather than (0, 0): the region is prepended flush against the
-  // page's own top-left corner, so (0, 0) can still land on the trigger
-  // itself and never fire pointerleave at all.
+  // Far from the region, the trigger and the tooltip's box above it, so the
+  // move reliably fires pointerleave.
   await page.mouse.move(500, 500);
   await expect(tooltip).toBeHidden();
 
@@ -282,8 +325,13 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
     // The exact box the real tooltip just occupied, so this is "positioned
     // off the trigger's rect the same way" — the only difference from the
     // real tooltip is that this element is never promoted to the top layer.
+    // region's own transform makes it this element's containing block, so a
+    // position: fixed child is fixed to region's box, not the viewport —
+    // box.y/box.x (viewport-relative, from the real tooltip's own rect) are
+    // translated into the region's own coordinate space first.
+    const regionRect = region.getBoundingClientRect();
     naive.style.cssText =
-      `position: fixed; top: ${box.y}px; left: ${box.x}px; ` +
+      `position: fixed; top: ${box.y - regionRect.top}px; left: ${box.x - regionRect.left}px; ` +
       `width: ${box.width}px; height: ${box.height}px;`;
     region.append(naive);
 
