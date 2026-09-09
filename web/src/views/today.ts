@@ -255,33 +255,54 @@ function paintTotals(regions: Regions): void {
     row.setAttribute("seconds", String(regions.totals.get(totalKey(instanceId, issueKey)) ?? 0));
   }
 
-  paintInstanceTallies();
+  paintInstanceTallies(regions);
 }
 
 /**
- * What each instance's card holds and what has gone against it today, beside
- * its name. Summed from the rows on screen rather than from the totals map:
- * the card shows the issues that survived the pin dedupe, and a figure counting
- * the ones it is not showing would not add up to what the reader can see.
+ * What each instance's card holds, and what has gone against it today, beside
+ * its name. The issue count is still the rows the card shows: the pin dedupe
+ * has already moved the rest into Pinned above, and a count claiming rows it
+ * is not showing would be wrong, not merely inconsistent. The time is not
+ * summed from those rows any more — it comes from `regions.totals`, added up
+ * over every entry whose instanceId matches this section's, the same set the
+ * rail's split slices. That is what lets "3 issues · 6h 45m" carry more time
+ * than its three visible rows add up to: a pinned ticket's time still counts,
+ * because it is still the instance's day, even once its row moves elsewhere.
  *
- * Called from paintTotals because the seconds it reads are what paintTotals
+ * Called from paintTotals because the totals it reads are what paintTotals
  * has just written.
  */
-function paintInstanceTallies(): void {
+function paintInstanceTallies(regions: Regions): void {
   for (const tally of document.querySelectorAll<HTMLElement>("[data-instance-tally]")) {
     const section = tally.closest("section");
     if (!section) continue;
 
+    const instanceId = instanceIdOf(section);
+    if (instanceId === null) continue;
+
     const rows = section.querySelectorAll("that-ticket-row");
+
     let seconds = 0;
-    for (const row of rows) {
-      seconds += Number(row.getAttribute("seconds") ?? "0");
+    for (const [key, value] of regions.totals) {
+      if (instanceIdOfTotalKey(key) === instanceId) seconds += value;
     }
 
     // A middot between two facts is typography, not an icon — the one place
     // the language says a typed character stays a typed character.
     tally.textContent = `${String(rows.length)} ${rows.length === 1 ? "issue" : "issues"} · ${totalFigure(seconds)}`;
   }
+}
+
+/** The instance a section's heading names, read from the id `instanceSection`
+ *  built it with (`today-instance-<id>`) rather than tracked a second way. */
+function instanceIdOf(section: Element): number | null {
+  const match = /^today-instance-(\d+)$/.exec(section.getAttribute("aria-labelledby") ?? "");
+
+  return match ? Number(match[1]) : null;
+}
+
+function instanceIdOfTotalKey(key: string): number {
+  return Number(key.slice(0, key.indexOf(":")));
 }
 
 function currentPins(regions: Regions): Pin[] {

@@ -553,3 +553,87 @@ test("an instance's tally is muted against its name", async ({ page }) => {
   await expect(tally).toBeVisible();
   await expect(tally).toHaveCSS("opacity", "0.75");
 });
+
+/**
+ * #117's T7: an instance's card filters its pinned issues out — they already
+ * appear in Pinned above — but the tally beside its name must still count
+ * their time, because the rail's split does. Only the issue count stays what
+ * the card shows: one row is visible here, but its time is two entries' worth.
+ *
+ * Registered after the shared beforeEach so these two routes win — Playwright
+ * checks the most recently registered matching handler first.
+ */
+test("an instance's tally counts a pinned issue's time too", async ({ page }) => {
+  const second: StubIssue = {
+    key: "WORK-500",
+    summary: "Rotate the deploy key",
+    status: "To Do",
+    url: "https://work.atlassian.net/browse/WORK-500",
+  };
+
+  await stubIssues(page, [group(1, "Work", [workIssue, second])]);
+
+  await page.route("**/api/pins**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          id: 1,
+          instanceId: 1,
+          instanceName: "Work",
+          instancePosition: 0,
+          key: workIssue.key,
+          summary: workIssue.summary,
+          status: workIssue.status,
+          url: workIssue.url,
+          error: null,
+        },
+      ],
+    }),
+  );
+
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          id: 1,
+          instanceId: 1,
+          instanceName: "Work",
+          instancePosition: 0,
+          issueKey: workIssue.key,
+          day: "2026-09-09",
+          startedAt: "2026-09-09T09:00:00+02:00",
+          seconds: 1800,
+          comment: "",
+          pushState: "unpushed",
+        },
+        {
+          id: 2,
+          instanceId: 1,
+          instanceName: "Work",
+          instancePosition: 0,
+          issueKey: second.key,
+          day: "2026-09-09",
+          startedAt: "2026-09-09T10:00:00+02:00",
+          seconds: 900,
+          comment: "",
+          pushState: "unpushed",
+        },
+      ],
+    }),
+  );
+
+  await page.goto("/today");
+
+  // Only WORK-500 is visible in the Work card — WORK-412 is pinned, so it is
+  // filtered out of it (it still shows in Pinned above, hence the region
+  // scope) — yet the tally carries both entries' time.
+  const workCard = page.getByRole("region", { name: "Work", exact: true });
+  await expect(workCard.getByText("Rotate the deploy key")).toBeVisible();
+  await expect(workCard.getByText("Fix the CSV export encoding")).toHaveCount(0);
+
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toHaveText("1 issue · 0h 45m");
+  await expect(page.locator("#rail-split")).toContainText("0h 45m");
+});
