@@ -1396,6 +1396,12 @@ test("columns keep their drawn 10px gap, Ticket stays content-width, and a row's
   const dayWidth = (await dayHeader.boundingBox())?.width ?? 0;
   expect(tkWidth).toBeLessThan(dayWidth);
 
+  // The first day cell (Monday, nth(0)) follows the row's <th>, not a <td> —
+  // `.grid td + td` never matches there, so its gap comes only from `.tk`'s
+  // own 10px padding-right, not a second 10px stacked onto it.
+  const firstDayCell = ticketRow(page, "RIDGE-1").locator("td").nth(0);
+  await expect(firstDayCell).toHaveCSS("padding-left", "0px");
+
   const dayCell = ticketRow(page, "RIDGE-1").locator("td").nth(1);
   await expect(dayCell).toHaveCSS("padding-left", "10px");
 

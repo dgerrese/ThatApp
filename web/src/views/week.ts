@@ -521,9 +521,9 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
   // footer says which days still hold time Jira has not got. It is still a
   // sum — of every row's cell for that day — so it stays inert like the row
   // and week totals rather than becoming a control.
-  for (const day of rollup.days) {
-    footRow.append(dayTotal(day, failures.days.has(day.day)));
-  }
+  rollup.days.forEach((day, index) => {
+    footRow.append(dayTotal(day, failures.days.has(day.day), index === 0));
+  });
   footRow.append(totalCell(rollup.seconds, true));
 
   const foot = document.createElement("tfoot");
@@ -632,7 +632,12 @@ function ticketCell(
   root: HTMLElement,
 ): HTMLTableCellElement {
   const td = document.createElement("td");
-  td.className = "h-[46px] pl-[10px] text-right align-middle";
+  // `.grid td + td { padding-left: 10px }` in the drawing never reaches
+  // Monday: the Ticket cell before it is a `<th>`, not a `<td>`, so that
+  // sibling rule does not match and Monday's own gap is carried by th.tk's
+  // padding-right alone (prototype lines 167, 170). Utility classes have no
+  // sibling combinator, so the index stands in for it here.
+  td.className = `h-[46px] text-right align-middle ${dayIndex === 0 ? "" : "pl-[10px]"}`;
 
   const id = `that-week-cell-${String(++weekCellSequence)}`;
   const empty = cell.seconds === 0;
@@ -709,9 +714,11 @@ function ticketCell(
  *  never a control: it is a sum, and there is nothing on it to edit. Wears
  *  .fig (mono) even at zero — unlike a day cell's own em dash, the footer's
  *  keeps the class regardless, per the drawing's tfoot markup. */
-function dayTotal(day: WeekDay, failed: boolean): HTMLTableCellElement {
+function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCellElement {
   const td = document.createElement("td");
-  td.className = "pl-[10px] py-3 text-right align-middle font-mono";
+  // Same reasoning as ticketCell's td: the footer's Ticket cell is also a
+  // `<th>`, so Monday's own `.grid td + td` gap never fires for it either.
+  td.className = `py-3 text-right align-middle font-mono ${isFirst ? "" : "pl-[10px]"}`;
 
   if (day.seconds === 0) {
     td.classList.add("text-ink-muted");
