@@ -48,9 +48,15 @@ Remote `main` is at **`5446ad1`**. #94 shipped the second edition's whole token 
 wash, elevation rule and drawn icon set; #99 fixed the `color-scheme` value the minifier was
 reversing — see the 2026-09-06 day file for both, and for why no test caught the second one.
 
-**In progress: #117**, started 2026-09-09 on `issue-117-prototype-drift`, cut from `5446ad1`. Its
-plan is `docs/superpowers/plans/2026-09-09-prototype-drift.md`, twelve tasks, executing under
-subagent-driven development. Before it, #10 (edit after push, widened on 2026-09-07 to carry a
+**In progress: #105**, started 2026-09-09 on `issue-105-day-scoped-dialog`, cut from
+`issue-117-prototype-drift` **while that branch is still unmerged** — the owner's instruction. Its
+design is `docs/superpowers/specs/2026-09-09-day-scoped-entries-dialog-design.md` and its plan
+`docs/superpowers/plans/2026-09-09-day-scoped-entries-dialog.md`, six tasks, none executed yet.
+**Task 1 cannot be split**: `GET /api/entries` gains an envelope and every consumer of that shape —
+six client readers, 26 end-to-end stubs across ten spec files — moves with it.
+**#117 is finished and open as PR #128**, all 48 criteria met, 33 signed commits, both gates green.
+Its plan was `docs/superpowers/plans/2026-09-09-prototype-drift.md`, twelve tasks under
+subagent-driven development, plus a whole-branch review whose fix wave carried nine findings. Before it, #10 (edit after push, widened on 2026-09-07 to carry a
 week's fetch) was the last one, and it merged as PR #120 on 2026-09-08. Its design was approved that morning, its
 twelve-task plan executed, and the whole-branch review caught two Critical defects the task reviews
 could not — see the day file. **`issue-10-edit-after-push-and-week-fetch` is merged and can be
@@ -66,24 +72,9 @@ rather than into `main`, because #86 could not go green on its own — see *Deci
 style is rebase-merge, so every one of those commits has a new SHA on `main`.
 Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
-**`worktrees-without-the-tax` as the only branch pushed with no pull request behind it**, carried
-across the forge move with its work intact. The GitHub pull request that used to hold it did not
-migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8 and **#105**;
-**#117 left that state on 2026-09-09** when its branch was cut.
-**Needs refinement, twenty-nine** as of 2026-09-08: #13 (LAN/HTTPS phone access — deferred, and needs
-the owner's explicit go-ahead even to refine), #19, #35, #39, #40, #41, #42, #43, #47, #53, #55, #56,
-#57, #58, #66, #67, #71, #79, #80, #83, #84, #89, #91, #102, #116, #121, #122, #123 and
-**#111** (a todo list with markdown text, a due date and an optional link to a ticket, asked for by
-the owner on 2026-09-07). Thirteen of those arrived on 2026-09-02, when the owner triaged the whole
-intake queue one ticket at a time, and **#102, #105 and #121 were promoted out of intake on
-2026-09-08** alongside the priority pass. **Intake, nine:** #74, #119;
-#97 and #101 from 2026-09-06; and four still open from #95's reviews on 2026-09-07 — **#106**
-(push-state marks defined twice, already drifted on size), **#107** (closing the dialog reopens the
-cell's tooltip over the row beneath),
-**#108** (the focus ring is the app's ink where the prototype uses the accent), **#109** (a failed pin
-reported in the Pinned section rather than beside the row that failed) and **#110** ("a tooltip is
-never the accessible name" is a rule nothing checks). All nine are the owner's to approve or decline. **Declined on 2026-09-02:** #59, `wontfix` and closed. **Closed as not planned:**
-#21, #22 — folded into #4, not rejected; both labelled `wontfix`.
+**`worktrees-without-the-tax` and `issue-105-day-scoped-dialog` are pushed with no pull request
+behind them.** The first predates the forge move and still needs the rebase treatment its own bullet
+describes; the second is live work, and its pull request opens when #105 is finished, not before.
 
 **The board's own hygiene was re-audited on 2026-09-07 and is clean**: all 36 open issues carry
 exactly one `status/*` label, and none of the 50 closed ones carries any. **Merging a pull request
@@ -1043,6 +1034,26 @@ found something every time**. This is worth keeping as practice, not just as a n
 
 ## Facts worth not rediscovering
 
+**A test that cannot fail is the failure mode this project keeps meeting.** #117's whole-branch
+review found three defects on 2026-09-09 that had passed their own task reviews, and each existed
+*because* its test asserted the wrong thing: a column's alignment asserted on the cell rather than
+the label it could not move, a sideways-scroll ban asserted that nobody had scrolled rather than
+that scrolling was impossible, and a tooltip's placement asserted only at mid-viewport where its
+unclamped case never arises. Ask of a new assertion what it produces against the *old* code — three
+of the branch's fix rounds started there.
+
+**Two process rules are the owner's, asked for on 2026-09-09, and live only in this machine's memory
+until they reach the `ticket-workflow` skill.** They are due as one project-design pull request:
+a ticket's acceptance criteria are ticked as reviews confirm them and unticked on a regression, the
+tick following a review rather than an implementer's claim; and a progress update leads with the
+ledger — done, running, left — whenever a task actually moves, not in every message.
+
+**`fs.inotify.max_user_instances` is 1024 on this machine as of 2026-09-09**, set permanently in
+`/etc/sysctl.d/60-inotify.conf`. Before that it was the default 128, which is fewer than this
+machine's containers and watchers need: it broke `make up`'s frontend watcher with `EMFILE: too many
+open files` and stopped the brainstorming companion from starting at all. If either fails that way
+again, the limit is the first thing to check.
+
 **A toolbar button carries words, an inline control carries a glyph** — Decision 12 of the visual
 language, settled 2026-09-09 out of #117's W5. A toolbar is the group of controls in a view's or a
 dialog's header; inline is a control in a row, a cell or a field. Two exemptions: a paired
@@ -1370,9 +1381,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Left over from the forge move, 2026-09-01:**
 
-- **Local `main` lags the forge and only the owner may move it.** Verified 2026-09-08: it is at
-  `41b60b1` while remote `main` is at `23fe1d6`, sixteen merges ahead — PRs #82, #85, #86, #90, #92,
-  #93, #96, #98, #100, #103, #104, #112, #114, #115, #118 and #120. It is no longer the
+- **Local `main` lags the forge and only the owner may move it.** Verified 2026-09-09: it is still at
+  `41b60b1` while remote `main` is at `5446ad1`, eighteen merges ahead — PRs #82, #85, #86, #90, #92,
+  #93, #96, #98, #100, #103, #104, #112, #114, #115, #118, #120, #124 and #125. It is no longer the
   pre-rename tip, so branching from it no longer produces the old names and the old module path;
   it is simply behind. **Verify the gap against the API before repeating a number here**, because a
   blocked fetch leaves the local `codeberg/*` refs frozen and makes local `git` quietly wrong.
@@ -1404,11 +1415,12 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 - **Whether the owner's other repo mirrors this label set** is still unanswered, and the gap widened
   on 2026-08-20: this repo now has five statuses plus `bug`/`enhancement`/`wontfix`, having deleted
   `review`, `done` and `declined` and renamed two more. Ask before assuming the two still match.
-- **Seven local branches are contained in Codeberg's `main` and droppable** whenever the owner says
-  so, verified on 2026-09-08 with `git cherry` — each reports zero patches not upstream:
-  `handoff-2026-09-02`, `handoff-pr-prefix`, `issue-11-week-view`, `issue-51-frontend-unit-tests`,
-  `issue-87-e2e-on-codeberg`, `issue-94-visual-language`, `issue-95-today-and-week`. Sixteen more
-  went on 2026-09-08 after PR #120 merged; these seven need a force delete for the reason below.
+- **Nine local branches are contained in Codeberg's `main` and droppable** whenever the owner says
+  so, re-verified on 2026-09-09 with `git cherry` — each reports zero patches not upstream:
+  `handoff-2026-09-02`, `handoff-2026-09-08`, `handoff-pr-prefix`, `issue-11-week-view`,
+  `issue-51-frontend-unit-tests`, `issue-87-e2e-on-codeberg`, `issue-94-visual-language`,
+  `issue-95-today-and-week` and `project-design-priority-axis`. The last three joined when PRs #120,
+  #124 and #125 merged; they need a force delete for the reason below.
   `worktrees-without-the-tax` is the only merged-branch exception: it is genuinely unmerged and is
   kept deliberately (see below).
   **`git branch --merged` under-reports this, and will keep doing so.** Rebase-merge rewrites the
@@ -1487,10 +1499,10 @@ unbraced `"$snap:refs/eod/..."` loses it and pushes to `...c6cdefs/eod/...`, whi
 refspec matching nothing. **`"${snap}:refs/..."` is the form that works.** Found 2026-09-08; the
 skill still carries the unbraced version.
 
-**This branch:** `issue-117-prototype-drift`, cut from `5446ad1`. It carries #117's work *and*, for
-now, the 2026-09-09 handoff edits — they are a project-design change and belong on their own branch
-before the end-of-day push, so **split them out rather than letting them ride on the ticket's pull
-request**. `handoff-2026-09-08` merged as PR #125 on 2026-09-09 and can be deleted on the owner's
+**This branch:** `issue-105-day-scoped-dialog`, carrying #105's design document and plan on top of
+#117's 33 commits. The 2026-09-09 handoff went out separately on `handoff-2026-09-09`, as it should.
+**`issue-117-prototype-drift` is pushed and open as PR #128**; if it rebase-merges, #105's branch
+rebases onto the new `main` before opening its own pull request. `handoff-2026-09-08` merged as PR #125 on 2026-09-09 and can be deleted on the owner's
 word, along with `project-design-priority-axis` from PR #124. **`issue-10-edit-after-push-and-week-fetch` merged
 as PR #120 on 2026-09-08** and is deleted on both the forge and this machine. The 2026-09-08 handoff
 edits were being written on that branch, so they were carried across to this one before it went.
