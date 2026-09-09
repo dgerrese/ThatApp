@@ -58,14 +58,14 @@
   .app { color: var(--ink); position: relative; display: flex; height: 880px; border-radius: var(--r-md); overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,.3), 0 24px 52px -26px rgba(0,0,0,.65); }
   .rail { width: 216px; flex: none; box-sizing: border-box; padding: 22px 14px; background: var(--rail); color: var(--rail-ink); display: flex; flex-direction: column; gap: 26px; }
   .wmrow { display: flex; align-items: center; gap: 8px; }
-  .wm { font-size: 16px; font-weight: 700; letter-spacing: -.02em; color: var(--pri); }
+  .wm { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--pri); }
   /* No negative margin: the 34px hover box ends on the rail's content edge, so it
      shares that edge with the nav rows below instead of escaping the 14px gutter. */
   .cog { position: relative; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-sm); color: var(--rail-muted); }
   .cog:hover, .cog:focus-visible { background: var(--hover-rail); color: var(--rail-ink); }
   .readout { display: flex; flex-direction: column; gap: 8px; }
   .per { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--rail-muted); }
-  .hero { font-family: 'Chivo Mono', monospace; font-size: 46px; font-weight: 700; letter-spacing: -.045em; line-height: .88; font-variant-numeric: tabular-nums; }
+  .hero { font-family: 'Chivo Mono', monospace; font-size: 46px; font-weight: 700; letter-spacing: -0.035em; line-height: .88; font-variant-numeric: tabular-nums; }
   .sbar { display: flex; gap: 3px; height: 6px; margin-top: 4px; }
   .sbar i { display: block; border-radius: 999px; }
   .sline { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--rail-muted); }
@@ -86,6 +86,13 @@
   .pageh h3 { margin: 0; font-size: 15px; font-weight: 500; }
   .pageh .sp { flex: 1; }
   .ctlgroup { display: inline-flex; align-items: center; gap: 4px; }
+  /* Separates the view's own controls (refresh, fetch) from its title —
+     web/src/views/week.ts's `rule`, transcribed. */
+  .rule { width: 1px; height: 20px; background: var(--edge); flex: none; }
+  /* A header control acting on the whole view, per Decision 12 of the visual
+     language: words, not a tooltip — toolbar-button.ts's shape, transcribed. */
+  .tbtn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: var(--r-sm); font-size: 14px; font-weight: 700; color: var(--ink-muted); }
+  .tbtn:hover { background: var(--hover); color: var(--ink); }
 
   .tcard { background: var(--raised); border-radius: var(--r-md); padding: 14px 20px; box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.62); }
   .grouph { display: flex; align-items: center; gap: 9px; margin: 0 2px 6px; font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); }
@@ -173,6 +180,9 @@
   .m-unpushed { width: 7px; height: 7px; border-radius: 999px; background: var(--pend); flex: none; }
   .m-dirty { width: 7px; height: 7px; border-radius: 999px; border: 1.5px solid var(--pri); flex: none; }
   .m-failed { width: 0; height: 0; border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; border-bottom: 8px solid var(--fail); flex: none; }
+  /* The footer's own day-total marker sits outside a .cell, so it carries its
+     own spacing rather than borrowing the button's flex gap. */
+  .dmark { display: inline-block; vertical-align: 1px; margin-right: 7px; }
   .wctl { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: var(--r-sm); font-size: 14px; font-weight: 700; color: var(--ink-muted); }
   .wctl:hover { background: var(--hover); color: var(--ink); }
   .wctl.icon { width: 36px; padding: 0; }
@@ -279,6 +289,7 @@
   <g id="p-clock"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></g>
   <g id="p-cal"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M9 5V3M15 5V3"/></g>
   <g id="p-refresh"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3.5V9h-5.5"/></g>
+  <g id="p-fetch"><path d="M7.4 19h9.9a3.6 3.6 0 0 0 .5-7.16 5.6 5.6 0 0 0-10.8-1.2A3.98 3.98 0 0 0 7.4 19Z"/><path d="M12 10.5v6"/><path d="M9.4 14 12 16.6l2.6-2.6"/></g>
   <g id="p-prev"><path d="M14.5 5.5 8 12l6.5 6.5"/></g>
   <g id="p-next"><path d="M9.5 5.5 16 12l-6.5 6.5"/></g>
   <g id="p-close"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></g>
@@ -319,7 +330,7 @@
       <div class="tcard"><table class="tbl"><thead><tr><th class="c-key"><button class="sortbtn">Key <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-sum"><button class="sortbtn">Summary <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-status"><button class="sortbtn">Status <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.45"><use href="#p-sort"/></svg></button></th><th class="c-today sorted"><button class="sortbtn">Today <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#p-desc"/></svg></button></th><th class="c-act"></th></tr></thead><tbody><tr><td class="c-key"><span class="kw"><i class="dot" style="background:var(--h265)"></i><a href="#" title="Open RIDGE-5325 in Jira">RIDGE-5325</a></span></td><td class="c-sum"><span class="clip">Rebuild the worklog sync queue</span></td><td class="c-status">In Progress</td><td class="c-today"><button class="durbtn"><span class="fig">2:15</span></button></td><td class="c-act"><button class="iconbtn on" aria-label="unpin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pinoff"/></svg><span class="tip end">unpin ticket</span></button></td></tr><tr><td class="c-key"><span class="kw"><i class="dot" style="background:var(--h175)"></i><a href="#" title="Open NW-812 in Jira">NW-812</a></span></td><td class="c-sum"><span class="clip">Migrate the billing cron to the new scheduler</span></td><td class="c-status">In Review</td><td class="c-today"><button class="durbtn"><span class="fig">2:00</span></button></td><td class="c-act"><button class="iconbtn on" aria-label="unpin ticket"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-pinoff"/></svg><span class="tip end">unpin ticket</span></button></td></tr></tbody></table></div>
       <div class="pageh" style="margin-top:20px">
         <h3>Assigned issues</h3>
-        <button class="iconbtn" style="margin-right:0" aria-label="Refresh"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-refresh"/></svg><span class="tip below">refresh</span></button>
+        <button class="tbtn" aria-label="Refresh"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-refresh"/></svg><span>Refresh</span></button>
         <span class="sp"></span><span class="field"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><use href="#p-search"/></svg>
   <input placeholder="Search all instances">
   <div class="results">
@@ -341,7 +352,9 @@
     <section class="view" id="v-week">
       <div class="pageh">
         <h3>Week 36 &middot; 31 Aug &ndash; 6 Sep</h3>
-        <button class="iconbtn" style="margin-right:0" aria-label="Refresh"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-refresh"/></svg><span class="tip below">refresh</span></button>
+        <span class="rule" aria-hidden="true"></span>
+        <button class="tbtn" aria-label="Refresh"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-refresh"/></svg><span>Refresh</span></button>
+        <button class="tbtn" aria-label="Fetch worklogs"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><use href="#p-fetch"/></svg><span>Fetch worklogs</span></button>
         <span class="sp"></span><span class="field"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><use href="#p-search"/></svg>
   <input placeholder="Add a ticket to this week">
   <div class="results">
@@ -360,7 +373,7 @@
       <div class="tcard"><table class="grid">
         <thead><tr><th class="tk">Ticket</th><th>Mon 31</th><th>Tue 1</th><th>Wed 2</th><th>Thu 3</th><th>Fri 4</th><th>Sat 5</th><th>Sun 6</th><th>Total</th></tr></thead>
         <tbody><tr><th class="tk" scope="row"><span class="kw"><i class="dot" style="background:var(--h265)"></i><a class="kk" href="#" title="Open RIDGE-5325 in Jira">RIDGE-5325</a></span></th><td><button class="cell"><span class="fig">3h 00m</span><span class="tip">3h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><i class="m-unpushed"></i><span class="fig">2h 15m</span><span class="tip">2h 15m &middot; not pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><span class="fig">4h 00m</span><span class="tip">4h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><i class="m-dirty"></i><span class="fig">1h 30m</span><span class="tip">1h 30m &middot; edited since it was pushed &middot; click to edit</span></button></td><td><button class="cell"><span class="fig">2h 45m</span><span class="tip">2h 45m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td class="fig tot">13h 30m</td></tr><tr><th class="tk" scope="row"><span class="kw"><i class="dot" style="background:var(--h265)"></i><a class="kk" href="#" title="Open RIDGE-5301 in Jira">RIDGE-5301</a></span></th><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><span class="fig">1h 30m</span><span class="tip">1h 30m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><i class="m-unpushed"></i><span class="fig">1h 20m</span><span class="tip">1h 20m &middot; not pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><span class="fig">2h 00m</span><span class="tip">2h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td class="fig tot">4h 50m</td></tr><tr><th class="tk" scope="row"><span class="kw"><i class="dot" style="background:var(--h175)"></i><a class="kk" href="#" title="Open NW-812 in Jira">NW-812</a></span></th><td><button class="cell"><span class="fig">2h 00m</span><span class="tip">2h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><i class="m-failed"></i><span class="fig">1h 45m</span><span class="tip">1h 45m &middot; did not reach Jira &middot; click to edit</span></button></td><td><button class="cell"><span class="fig">3h 00m</span><span class="tip">3h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td class="fig tot">6h 45m</td></tr><tr><th class="tk" scope="row"><span class="kw"><i class="dot" style="background:var(--h175)"></i><a class="kk" href="#" title="Open NW-806 in Jira">NW-806</a></span></th><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><span class="fig">1h 10m</span><span class="tip">1h 10m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell"><i class="m-unpushed"></i><span class="fig">1h 30m</span><span class="tip">1h 30m &middot; not pushed to Jira &middot; click to edit</span></button></td><td><button class="cell"><span class="fig">1h 00m</span><span class="tip">1h 00m &middot; pushed to Jira &middot; click to edit</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td><button class="cell empty">&mdash;<span class="tip">No time logged &middot; click to add</span></button></td><td class="fig tot">3h 40m</td></tr></tbody>
-        <tfoot><tr><th class="tk">Total</th><td class="fig">5h 00m</td><td class="fig">4h 55m</td><td class="fig">7h 05m</td><td class="fig">6h 00m</td><td class="fig">5h 45m</td><td class="fig">&mdash;</td><td class="fig">&mdash;</td><td class="fig">28h 45m</td></tr></tfoot>
+        <tfoot><tr><th class="tk">Total</th><td class="fig">5h 00m</td><td class="fig"><i class="m-unpushed dmark" title="not pushed to Jira"></i>4h 55m</td><td class="fig"><i class="m-failed dmark" title="did not reach Jira"></i>7h 05m</td><td class="fig"><i class="m-unpushed dmark" title="not pushed to Jira"></i>6h 00m</td><td class="fig">5h 45m</td><td class="fig">&mdash;</td><td class="fig">&mdash;</td><td class="fig">28h 45m</td></tr></tfoot>
       </table></div>
     </section>
   </div></div>
@@ -421,8 +434,8 @@
 </div>
 
 <p class="cap">
-  <b>Today</b> &mdash; refresh is an icon beside the title, summaries link and underline in magenta on
-  hover, the pinned dot sits 8px from its key exactly as Week's does, and the Log hint has 10px of air.
+  <b>Today</b> &mdash; refresh carries its label beside the title, per Decision 12, summaries link and
+  underline in magenta on hover, the pinned dot sits 8px from its key exactly as Week's does, and the Log hint has 10px of air.
   <b>Both tables</b> &mdash; the duration and icon controls grew their padding and handed the space back
   as negative margin, so the hit area is larger and nothing moved.
   <b>Week</b> &mdash; the three week controls share one 36px height, every cell is a button including the
