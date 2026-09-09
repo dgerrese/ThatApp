@@ -230,9 +230,11 @@ done. Disabled, it is outlined rather than filled — `--color-rail-active` bord
 ### Nav
 
 Three destinations, below a divider under Push, with no bottom-pinning: **Today**, **Week**,
-**Settings**. #117 restored that divider — `height: 2px`, `--color-rail-active`, `border-radius: 1px`,
-`4px` of margin either side — after it shipped without one; this line said "no divider" until then.
-Each is a 38px row, `9px` radius, `2px` apart, with a 16px stroked icon `11px` from its label.
+**Settings**. #117 restored that divider — `height: 2px`, `--color-rail-active`, `rounded-xs`
+(`--radius-xs`, `2px` — a 2px corner on a 2px-tall bar clamps to a 1px curve, which is why it reads
+as one), `4px` of margin either side — after it shipped without one; this line said "no divider"
+until then. Each is a 38px row, `9px` radius, `2px` apart, with a 16px stroked icon `11px` from its
+label.
 
 | State | Fill | Ink | Weight |
 | --- | --- | --- | --- |
