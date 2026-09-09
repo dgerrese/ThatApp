@@ -431,6 +431,10 @@ regardless, because a tooltip that only appears on hover reaches neither a keybo
 reader on its own. And a tooltip on a **trailing** control anchors to its right edge rather than
 centring on it, or it hangs past the card.
 
+**It opens above its trigger, the drawing's `.tip`, and falls back below — the drawing's own
+`.tip.below` — when there is not enough room above.** #content starts flush against the window's
+top edge, so a trigger near the top of the content column has nowhere to open upward into.
+
 ## Decision 8 — the breakpoint scale, and one collision it walks into
 
 Tailwind v4's defaults are used unmodified — `sm` 40rem, `md` 48rem, `lg` 64rem, `xl` 80rem, `2xl`

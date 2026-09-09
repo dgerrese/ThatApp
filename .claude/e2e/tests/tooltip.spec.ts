@@ -166,6 +166,40 @@ test("the tooltip opens above its trigger, with the drawn 7px gap", async ({ pag
   expect(triggerBox!.y - (tooltipBox!.y + tooltipBox!.height)).toBeCloseTo(7, 0);
 });
 
+// The drawing's own fallback — `.tip.below` (prototype line 144) — for the
+// case a trigger flush against the window's own top edge raises: there is no
+// room above it to open into. Week's header arrows and a Today row scrolled
+// to the top of #content hit exactly this.
+test("the tooltip falls back below when there is no room above", async ({ page }) => {
+  await page.evaluate(() => {
+    const trigger = document.createElement("button");
+    trigger.id = "top-trigger";
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", "Pin this issue");
+    trigger.textContent = "•";
+    trigger.style.cssText = "position: fixed; top: 10px; left: 300px;";
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "top-trigger");
+    tooltip.textContent = "Pin this issue";
+
+    document.body.append(trigger, tooltip);
+  });
+
+  await page.locator("#top-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const tooltipBox = await tooltip.boundingBox();
+  const triggerBox = await page.locator("#top-trigger").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(triggerBox).not.toBeNull();
+
+  // Tooltip's top edge sits 7px below the trigger's bottom edge, not above it.
+  expect(tooltipBox!.y - (triggerBox!.y + triggerBox!.height)).toBeCloseTo(7, 0);
+});
+
 test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) => {
   await mountTrigger(page);
   const tooltip = page.locator("that-tooltip[data-fixture]");
