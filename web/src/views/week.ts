@@ -341,9 +341,12 @@ let weekButtonSequence = 0;
  * gives its own trigger-and-tooltip pair, and weekControls spreads every call
  * flat into the header.
  */
-function weekButton(
-  control: { mark?: string; label: string; tip?: string; path: string },
-): HTMLElement[] {
+function weekButton(control: {
+  mark?: string;
+  label: string;
+  tip?: string;
+  path: string;
+}): HTMLElement[] {
   const button = document.createElement("button");
   button.type = "button";
   button.className =
@@ -586,7 +589,10 @@ type PushState = WeekCell["pushState"];
  *  rollup said, because it is newer than the rollup: it comes off the push
  *  that just happened, and a re-read reports those entries as unpushed again
  *  — true, but not the thing the reader needs in the seconds after Push. */
-function markerFor(pushState: PushState, failed: boolean): { className: string; words: string } | undefined {
+function markerFor(
+  pushState: PushState,
+  failed: boolean,
+): { className: string; words: string } | undefined {
   return MARKERS[failed ? "failed" : (pushState ?? "pushed")];
 }
 
