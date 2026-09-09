@@ -1218,8 +1218,14 @@ test("the week title takes the page-heading shape: 15px at weight 500", async ({
  * #117 task 9, W9: `th + th`/`td + td` carry a 10px column gap; `.tk` stays
  * content-width and nowrap with its own 10px right padding rather than the
  * generic left one; `.tot` overrides the gap to 18px.
+ *
+ * `.tot` belongs to a row's own total alone — the prototype's tfoot markup
+ * carries `fig` on every cell and `tot` on none of them, so the week total
+ * takes the same generic 10px `dayTotal` beside it does. Fix round 1 caught
+ * this test asserting 18px for both, the same misreading the source carried,
+ * so the earlier green run proved nothing about the week total's own gap.
  */
-test("columns keep their drawn 10px gap, Ticket stays content-width, and totals sit 18px off it", async ({
+test("columns keep their drawn 10px gap, Ticket stays content-width, and a row's own total sits 18px off it", async ({
   page,
 }) => {
   await openWeek(page, {
@@ -1249,8 +1255,10 @@ test("columns keep their drawn 10px gap, Ticket stays content-width, and totals 
   const rowTotal = ticketRow(page, "RIDGE-1").locator("td").last();
   await expect(rowTotal).toHaveCSS("padding-left", "18px");
 
+  // The week total in tfoot is not `.tot` in the drawing — it wears the same
+  // generic 10px gap as the day total beside it, not the row total's 18px.
   const weekTotal = page.locator("tfoot td").last();
-  await expect(weekTotal).toHaveCSS("padding-left", "18px");
+  await expect(weekTotal).toHaveCSS("padding-left", "10px");
 });
 
 test("the previous week is a place you can go back from", async ({ page }) => {

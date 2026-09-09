@@ -690,14 +690,17 @@ function dayTotal(day: WeekDay, failed: boolean): HTMLTableCellElement {
 
 /**
  * A row or week total: a sum of cells, so a sum's shape, and never a marker —
- * the states it spans are already marked on the cells it adds up. `.tot`'s
- * own 18px overrides the generic 10px column gap. `foot` distinguishes the
- * week total in tfoot — 12px block padding, no fixed row height — from a
- * row's own total in tbody, which is fixed to the 46px row instead.
+ * the states it spans are already marked on the cells it adds up. `foot`
+ * distinguishes the week total in tfoot from a row's own total in tbody, and
+ * the two differ in more than block padding and row height: the prototype's
+ * tfoot markup carries `fig` on every cell and `tot` on none of them, so only
+ * a row's own total wears `.tot`'s 18px — the week total takes the same
+ * generic 10px `dayTotal` beside it does.
  */
 function totalCell(seconds: number, foot: boolean): HTMLTableCellElement {
   const td = document.createElement("td");
-  td.className = `pl-[18px] text-right align-middle font-mono font-bold ${foot ? "py-3" : "h-[46px]"}`;
+  const gap = foot ? "pl-[10px] py-3" : "pl-[18px] h-[46px]";
+  td.className = `${gap} text-right align-middle font-mono font-bold`;
   td.textContent = totalFigure(seconds);
 
   return td;
