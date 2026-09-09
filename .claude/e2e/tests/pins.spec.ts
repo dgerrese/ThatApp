@@ -496,6 +496,23 @@ test("Cancel restores the Pin an issue button", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Pin an issue" })).toBeVisible();
 });
 
+/**
+ * that-button's shared `h-[38px]` (#117 task 11, D3) reaches every consumer,
+ * not just the entries dialog it was written for. "Pin an issue" is the pin
+ * form's own that-button, on screen with no setup beyond an empty pin list.
+ */
+test("the Pin an issue button carries the app-wide drawn 38px height", async ({ page }) => {
+  await stubPins(page, []);
+  await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+
+  await page.goto("/today");
+  const height = await page
+    .getByRole("button", { name: "Pin an issue" })
+    .evaluate((element) => Math.round(element.getBoundingClientRect().height));
+
+  expect(height).toBe(38);
+});
+
 // A pending debounce timer that outlives the form closing would fire on a
 // detached that-combobox, dispatch that-search anyway, and start an un-abortable
 // fan-out the user can no longer see — this is what disconnectedCallback's

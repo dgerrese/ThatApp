@@ -183,8 +183,11 @@ async function typeDuration(page: Page, typed: string): Promise<void> {
   await durationField(page).press("Enter");
 }
 
-/** The logged entries, and only those: the empty line is an <li> too, and each
- *  row now carries a that-tooltip of its own that must not be counted. */
+/** The logged entries, and only those. The empty line is a `<p>` sibling of
+ *  the list now (D6 of #117 task 11), not an `<li>` inside it, so a bare "li"
+ *  selector would already exclude it; "ul >" keeps this scoped to the list's
+ *  own rows regardless of what a row's descendants (each carries several
+ *  `that-tooltip`s) might otherwise match. */
 function entryRows(page: Page) {
   return dialog(page).locator("ul > li");
 }
