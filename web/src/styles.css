@@ -241,17 +241,31 @@ a.that-key:hover {
    its 5px block padding is chosen so the row height does not move.
    One hairline under every row, header included, and none under the last —
    the rule the list this replaced drew with divide-y, and the prototype's
-   .tbl border-bottom pair. */
+   .tbl border-bottom pair. Block padding is split rather than shared: the
+   prototype's header sits tighter than its body, 9px against 11px. */
 .that-tbl th,
 .that-tbl td {
-  padding: 11px 0;
+  padding-inline: 0;
   text-align: left;
   vertical-align: baseline;
   border-bottom: 1px solid var(--color-edge);
 }
+.that-tbl th {
+  padding-block: 9px;
+}
+.that-tbl td {
+  padding-block: 11px;
+}
 .that-tbl td.c-act {
   padding-block: 5px;
   vertical-align: middle;
+}
+
+/* The one column read right to left: a duration, unlike a key or a status, is
+   compared by magnitude rather than read as a word. */
+.that-tbl .c-today,
+.that-tbl th.c-today {
+  text-align: right;
 }
 
 /* Every column but the summary keeps to its content's width; the summary is

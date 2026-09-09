@@ -147,9 +147,11 @@ export class ThatTicketRow extends HTMLElement {
     // the give-back this cell was the tallest in the row and every card grew
     // by it. The left margin is not returned — the prototype's durbtn keeps
     // that side, so the figure stays clear of the summary beside it.
+    // No gap: the hint's own margin-right is the only space between it and the
+    // figure, matching .durbtn's gap: 0 in the prototype.
     trigger.className =
       "group hover:bg-hover -my-0.5 -mr-1.5 flex shrink-0 cursor-pointer items-baseline " +
-      "gap-1.5 rounded-sm px-1.5 py-0.5";
+      "rounded-sm px-1.5 py-0.5";
 
     // Decision 10 reverses the first edition's choice for a table: the hint
     // always occupies its width and only its opacity fades in, so the status
@@ -315,6 +317,7 @@ export class ThatTicketRow extends HTMLElement {
     if (url === "") {
       const span = document.createElement("span");
       span.className = "that-key that-tnum text-ink-muted";
+      span.title = `Open ${key} in Jira`;
       span.textContent = key;
 
       return span;
@@ -326,6 +329,7 @@ export class ThatTicketRow extends HTMLElement {
     // Without noopener the opened page gets a window.opener handle back here.
     link.rel = "noopener";
     link.className = "that-key that-tnum text-ink-muted";
+    link.title = `Open ${key} in Jira`;
     link.textContent = key;
 
     return link;

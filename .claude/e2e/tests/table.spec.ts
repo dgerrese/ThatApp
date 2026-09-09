@@ -176,3 +176,105 @@ test("a row holding controls is no taller than a row of text alone", async ({ pa
   expect(heights).not.toBeNull();
   expect(heights!.withControls).toBeLessThanOrEqual(heights!.textAlone);
 });
+
+/**
+ * #117's T1: `.tbl th` in the prototype (line 99) sets 12px/700/.06em
+ * uppercase text and a 9px block padding, distinct from the body's 11px —
+ * the two were one shared rule in styles.css before this, both hard-coded to
+ * 11px with no type spec of their own beyond a hand-me-down text-sm/font-bold.
+ */
+test("a header cell wears the drawn type and its own 9px block padding", async ({ page }) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const th = page.locator("that-table thead th").first();
+  const button = th.locator("button");
+
+  const type = await button.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return {
+      fontSize: parseFloat(computed.fontSize),
+      fontWeight: computed.fontWeight,
+      letterSpacing: parseFloat(computed.letterSpacing),
+      textTransform: computed.textTransform,
+    };
+  });
+  expect(type.fontSize).toBe(12);
+  expect(type.fontWeight).toBe("700");
+  // 0.06em against a 12px font-size.
+  expect(type.letterSpacing).toBeCloseTo(0.72, 1);
+  expect(type.textTransform).toBe("uppercase");
+
+  const blockPadding = await th.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { top: parseFloat(computed.paddingTop), bottom: parseFloat(computed.paddingBottom) };
+  });
+  expect(blockPadding.top).toBe(9);
+  expect(blockPadding.bottom).toBe(9);
+});
+
+/** T2: `.tbl .c-today, .tbl th.c-today { text-align: right }` — a duration is
+ *  compared by magnitude, not read as a word. */
+test("the Today column is right-aligned, header and body", async ({ page }) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const th = page.locator("that-table thead th.c-today").first();
+  const td = page.locator("that-table tbody td.c-today").first();
+
+  await expect(th).toHaveCSS("text-align", "right");
+  await expect(td).toHaveCSS("text-align", "right");
+});
+
+/** T8: the sort chevron carries opacity: .45 at rest. There is no sorted
+ *  column yet (#83's), so every chevron on screen must show it. */
+test("the sort chevron carries opacity .45 at rest", async ({ page }) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const chevron = page.locator("that-table thead th button svg").first();
+  await expect(chevron).toHaveCSS("opacity", "0.45");
+});
+
+/**
+ * T9: `.durbtn .hint { margin-right: 10px }` and nothing else between hint
+ * and figure. The trigger used to also carry a flex gap, which stacked an
+ * extra 6px onto the hint's own margin.
+ */
+test("the duration trigger's hint keeps only its own margin between it and the figure", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const trigger = page.locator("that-ticket-row td.c-today button").first();
+  const spacing = await trigger.evaluate((button) => {
+    const hint = button.querySelector("span") as HTMLElement;
+    return {
+      hintMarginRight: getComputedStyle(hint).marginRight,
+      gap: getComputedStyle(button).columnGap,
+    };
+  });
+
+  expect(spacing.hintMarginRight).toBe("10px");
+  expect(spacing.gap).toBe("normal");
+});
+
+/**
+ * T11: `.tcard { padding: 14px 20px }` — the app's `px-5 py-4` shipped 16px
+ * block padding instead. The correction lives in card-surface.ts, shared by
+ * `that-card` and `that-table`; this checks the table's own surface.
+ */
+test("the table card's own padding is 20px inline and 14px block", async ({ page }) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const card = page.locator("that-table").first();
+  const padding = await card.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { top: parseFloat(computed.paddingTop), left: parseFloat(computed.paddingLeft) };
+  });
+
+  expect(padding.top).toBe(14);
+  expect(padding.left).toBe(20);
+});

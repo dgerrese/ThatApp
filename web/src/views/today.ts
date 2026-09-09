@@ -93,7 +93,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // page heading level with the other rather than a card with a label inside
   // it — the prototype's two .pageh blocks, lines 318 and 320.
   const pinnedList = document.createElement("div");
-  pinnedList.append(loadingLine());
+  pinnedList.append(cardHolding(loadingLine()));
 
   const pinnedForm = document.createElement("div");
   pinnedForm.className = "mt-3";
@@ -105,9 +105,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   const header = pageHeading("Assigned issues", ASSIGNED_HEADING_ID);
   const refresh = appendIconButton(header, "Refresh", "refresh", "refresh");
 
-  // Hidden until the first response: there is nothing to refresh yet, and with
-  // no instances configured it stays hidden for good.
-  header.hidden = true;
+  // The heading itself is drawn from the first frame — both .pageh blocks,
+  // the prototype's lines 318 and 320. Only the refresh control waits: there
+  // is nothing to refresh yet, and with no instances configured it stays
+  // hidden for good.
+  refresh.hidden = true;
 
   const results = document.createElement("div");
   // One card across, two from the point the content column can hold two
@@ -115,7 +117,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // layout decision 2. The breakpoint is a container query against the region
   // in index.html, not the window, so the rail costs the grid nothing.
   results.className = "grid grid-cols-1 gap-4 @min-[80rem]:grid-cols-2";
-  results.append(loadingLine());
+  results.append(cardHolding(loadingLine()));
 
   const assignedSection = document.createElement("section");
   assignedSection.setAttribute("aria-labelledby", ASSIGNED_HEADING_ID);
@@ -576,7 +578,7 @@ async function refreshResults(regions: Regions): Promise<void> {
     regions.issuesCachedAt = cachedAt;
     renderResponse(regions, response);
   } catch (error) {
-    regions.header.hidden = false;
+    regions.refresh.hidden = false;
     regions.issuesCachedAt = null;
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
   }
@@ -644,8 +646,8 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
     // No instances means no pins either — the cascade took them with the last
     // instance — so a Pinned section would be a control with nothing to do.
     regions.pinnedSection.remove();
-    regions.header.hidden = true;
-    regions.results.replaceChildren(noInstances());
+    regions.refresh.hidden = true;
+    regions.results.replaceChildren(cardHolding(noInstances()));
 
     return;
   }
@@ -654,7 +656,7 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
     regions.assignedSection.before(regions.pinnedSection);
   }
 
-  regions.header.hidden = false;
+  regions.refresh.hidden = false;
   regions.results.replaceChildren(
     // The index is the instance's position in created_at order, which is what
     // the hue ramp is keyed off: the store lists instances in that order and
@@ -714,7 +716,7 @@ function instanceSection(group: InstanceIssues, position: number, pins: Pin[]): 
   // that already says why it is empty is a second answer to a settled question.
   const tally = document.createElement("span");
   tally.dataset["instanceTally"] = "";
-  tally.className = "ml-auto font-normal tracking-normal normal-case";
+  tally.className = "ml-auto font-normal tracking-normal normal-case opacity-75";
   heading.append(tally);
 
   const table = document.createElement("that-table") as ThatTable;

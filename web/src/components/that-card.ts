@@ -1,3 +1,5 @@
+import { CARD_SURFACE_CLASSES } from "../card-surface";
+
 /**
  * A titled container. Light DOM: children stay in the document, so Tailwind
  * utilities on them keep working and the card adds only its own wrapper classes.
@@ -7,7 +9,7 @@
  */
 export class ThatCard extends HTMLElement {
   connectedCallback(): void {
-    this.className = "bg-raised shadow-card block rounded-md px-5 py-4";
+    this.className = CARD_SURFACE_CLASSES;
 
     const heading = this.getAttribute("heading");
     if (heading && !this.querySelector("[data-card-heading]")) {

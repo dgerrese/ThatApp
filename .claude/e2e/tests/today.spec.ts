@@ -479,3 +479,77 @@ test("the content column caps at 120rem and stays centred", async ({ page }) => 
     Math.round(main!.x + main!.width - (column.x + column.width)),
   );
 });
+
+/**
+ * #117's T13: the prototype draws both .pageh blocks — Pinned and Assigned
+ * issues — from the first frame (lines 318 and 320). `render()` used to hide
+ * the whole Assigned issues header, refresh control included, until the
+ * first `/api/issues` response landed. The route below is gated on a promise
+ * this test controls, so the assertion runs while that response is still
+ * outstanding.
+ */
+test("both page headings are visible before the /api/issues response resolves", async ({ page }) => {
+  let releaseIssues: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    releaseIssues = resolve;
+  });
+  await page.route("**/api/issues", async (route) => {
+    await gate;
+    await route.fulfill({ status: 200, json: { instances: [group(1, "Work", [workIssue])] } });
+  });
+
+  await page.goto("/today");
+
+  await expect(page.getByRole("heading", { name: "Pinned" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Assigned issues" })).toBeVisible();
+
+  releaseIssues?.();
+});
+
+/**
+ * T14: a message state sits in `.tcard` like every other. loadingLine() used
+ * to render as a bare paragraph — no card underneath it, unlike every other
+ * message state in this view.
+ */
+test("the loading line sits inside a that-card", async ({ page }) => {
+  let releaseIssues: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    releaseIssues = resolve;
+  });
+  await page.route("**/api/issues", async (route) => {
+    await gate;
+    await route.fulfill({ status: 200, json: { instances: [] } });
+  });
+
+  await page.goto("/today");
+
+  const parentTag = await page
+    .getByText("Loading…")
+    .first()
+    .evaluate((element) => element.closest("that-card")?.tagName ?? null);
+  expect(parentTag).toBe("THAT-CARD");
+
+  releaseIssues?.();
+});
+
+/** T12: every key carries the native title the prototype writes — "Open <KEY>
+ *  in Jira" — verbatim, not merely a link. */
+test("a ticket key carries the native Jira title", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.goto("/today");
+
+  await expect(page.getByRole("link", { name: "WORK-412" })).toHaveAttribute(
+    "title",
+    "Open WORK-412 in Jira",
+  );
+});
+
+/** T10: `.grouph .n { opacity: .75 }` — the instance tally beside the name. */
+test("an instance's tally is muted against its name", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.goto("/today");
+
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toBeVisible();
+  await expect(tally).toHaveCSS("opacity", "0.75");
+});
