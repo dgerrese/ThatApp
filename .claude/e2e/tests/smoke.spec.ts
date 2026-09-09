@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 test("the app shell boots and the bundle runs", async ({ page }) => {
   // Today fetches on render, and the e2e stack shares the dev database, so this
@@ -82,6 +82,21 @@ async function gotoEmptyToday(page: Page): Promise<void> {
 }
 
 /**
+ * Real Tab presses, not `.focus()`: a programmatic focus() does not reliably
+ * arm `:focus-visible` the way keyboard navigation does. `target` is a
+ * `:focus`-scoped locator, re-queried on every press, so this stops the
+ * moment whichever element it names is the one that has it.
+ */
+async function tabUntilFocused(page: Page, target: Locator, maxPresses = 8): Promise<boolean> {
+  for (let presses = 0; presses < maxPresses; presses++) {
+    await page.keyboard.press("Tab");
+    if ((await target.count()) > 0) return true;
+  }
+
+  return false;
+}
+
+/**
  * #117: the shipped rail drifted from the drawing it was built from. These
  * assertions read the drawing's own values back off the live page —
  * docs/superpowers/prototypes/2026-09-03-app-prototype.html's .rail, .sbar,
@@ -143,20 +158,30 @@ test.describe("the rail's geometry", () => {
     await expect(week).toHaveCSS("background-color", activeColor);
   });
 
-  test("keyboard focus reaches a nav row and rings it in the rail's hover wash", async ({ page }) => {
+  test("the current nav row keeps its active fill when it gains keyboard focus", async ({ page }) => {
     await gotoEmptyToday(page);
 
-    // Real Tab presses, not .focus(): a programmatic focus() does not reliably
-    // arm :focus-visible the way keyboard navigation does.
-    const navLink = page.locator("aside.that-rail a.that-nav:focus");
-    let reached = false;
-    for (let presses = 0; presses < 8 && !reached; presses++) {
-      await page.keyboard.press("Tab");
-      reached = (await navLink.count()) > 0;
-    }
-    expect(reached).toBe(true);
+    // Today is aria-current="page" at rest on /today. Where you are is shown
+    // by fill and weight (2026-08-20-visual-design-language.md) — focus must
+    // not trade that solid fill for the translucent wash other rows take.
+    const current = page.locator("aside.that-rail .that-nav[aria-current='page']:focus");
+    expect(await tabUntilFocused(page, current)).toBe(true);
 
-    const background = await navLink.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await expect(current).toHaveCSS(
+      "background-color",
+      await computedColor(page, "bg-rail-active", "backgroundColor"),
+    );
+  });
+
+  test("a non-current nav row takes the rail's hover wash when it gains keyboard focus", async ({
+    page,
+  }) => {
+    await gotoEmptyToday(page);
+
+    const notCurrent = page.locator("aside.that-rail a.that-nav:focus:not([aria-current='page'])");
+    expect(await tabUntilFocused(page, notCurrent)).toBe(true);
+
+    const background = await notCurrent.evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(background).not.toBe("rgba(0, 0, 0, 0)");
     expect(background).not.toBe(await computedColor(page, "bg-rail-active", "backgroundColor"));
   });

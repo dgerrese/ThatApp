@@ -188,12 +188,22 @@ a.that-nav:hover {
 }
 
 /* Every rail control gets a visible keyboard focus, which nothing here drew
-   before. #rail-push is excluded: it already carries the drawing's own live
-   colour and hover, and this wash would sit on top of a utility class rather
-   than beside it — unlayered rules always win over Tailwind's, regardless of
-   specificity, so it would silently replace the button's fill instead of
-   merely ringing it. */
-.that-rail :focus-visible:not(#rail-push) {
+   before. Two exclusions, for two different reasons:
+   - #rail-push already carries the drawing's own live colour and hover, and
+     this wash would sit on top of a utility class rather than beside it —
+     unlayered rules always win over Tailwind's, regardless of specificity,
+     so it would silently replace the button's fill instead of merely
+     ringing it. A layering problem.
+   - [aria-current="page"] is where "you are here" is shown by fill and
+     weight (2026-08-20-visual-design-language.md) — a rule this file
+     already declares above, at the same unlayered footing as this one. Left
+     unexcluded, :not(#rail-push)'s own ID pulls this rule's specificity
+     past [aria-current="page"]'s, so focusing the current row would replace
+     its solid fill with this translucent wash instead of layering beside
+     it. A same-layer specificity fight, not a layering one — so the
+     exclusion goes through :where(), which never contributes specificity of
+     its own, rather than :not(), which would just restart the fight. */
+.that-rail :focus-visible:not(#rail-push):where(:not([aria-current="page"])) {
   background: var(--color-hover-rail);
 }
 
