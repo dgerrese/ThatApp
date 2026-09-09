@@ -236,6 +236,69 @@ test("the Today column is right-aligned, header and body", async ({ page }) => {
   expect(Math.abs(buttonBox.x + buttonBox.width - (thBox.x + thBox.width))).toBeLessThan(1);
 });
 
+/**
+ * R13 residual: the same defect T2 fixed in the header — a block-level `flex`
+ * box fills width: 1%'s column and ignores `text-align: right` — was still
+ * live one row down. The body's duration trigger (that-ticket-row.ts) carried
+ * `flex` where the drawing's `.durbtn` is `display: inline-flex` (prototype
+ * line 122).
+ *
+ * A single row can't discriminate this: with only one row, that row's own
+ * content sets the column's width, so a block box that fills the column and
+ * an inline box sized to its content land in the same place. The bug only
+ * shows once a second row makes the column wider than the first row's own
+ * figure — the trigger's own -mr-[13px] give-back (see the give-back comment
+ * in that-ticket-row.ts) also means neither box sits flush with the td's
+ * literal right edge, so the discriminating check is that every row's right
+ * edge lands in the *same* place, not that it touches the td.
+ */
+test("the duration trigger's right edge does not move with its own figure's width", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          id: 1,
+          instanceId: 1,
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          issueKey: ridgelineIssues[0]!.key,
+          day: "2026-09-09",
+          startedAt: "2026-09-09T09:00:00+02:00",
+          seconds: 0,
+          comment: "",
+          pushState: "unpushed",
+        },
+        {
+          id: 2,
+          instanceId: 1,
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          issueKey: ridgelineIssues[1]!.key,
+          day: "2026-09-09",
+          startedAt: "2026-09-09T10:00:00+02:00",
+          seconds: 36000,
+          comment: "",
+          pushState: "unpushed",
+        },
+      ],
+    }),
+  );
+  await page.goto("/today");
+
+  const rows = page.locator("that-table tbody > *");
+  await expect(rows).toHaveCount(2);
+
+  const rights = await rows.evaluateAll((elements) =>
+    elements.map((row) => row.querySelector("td.c-today button")!.getBoundingClientRect().right),
+  );
+  expect(rights).toHaveLength(2);
+  expect(Math.abs(rights[0]! - rights[1]!)).toBeLessThan(1);
+});
+
 /** T8: the sort chevron carries opacity: .45 at rest. There is no sorted
  *  column yet (#83's), so every chevron on screen must show it. */
 test("the sort chevron carries opacity .45 at rest", async ({ page }) => {

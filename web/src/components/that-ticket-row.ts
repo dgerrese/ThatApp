@@ -150,8 +150,11 @@ export class ThatTicketRow extends HTMLElement {
     // are .durbtn's own: padding 9px 13px, margin -9px -13px -9px 0.
     // No gap: the hint's own margin-right is the only space between it and the
     // figure, matching .durbtn's gap: 0 in the prototype.
+    // inline-flex, not flex: the cell is width: 1% with text-align: right (see
+    // that-table.ts's sortHeaderCell for the header's own case of this), and a
+    // block-level flex box fills the column and ignores that alignment.
     trigger.className =
-      "group hover:bg-hover -my-[9px] -mr-[13px] flex shrink-0 cursor-pointer items-baseline " +
+      "group hover:bg-hover -my-[9px] -mr-[13px] inline-flex shrink-0 cursor-pointer items-baseline " +
       "rounded-sm px-[13px] py-[9px]";
 
     // Decision 10 reverses the first edition's choice for a table: the hint
