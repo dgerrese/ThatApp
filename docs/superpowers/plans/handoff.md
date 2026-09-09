@@ -44,17 +44,23 @@ after it. The 2026-09-03 handoff merged as **PR #96** at 11:22 on 2026-09-04.
 it keeps `priority/high`. The project-design pull requests **#115** and **#118** merged before it.
 **#124 (the priority axis) and #125 (the 2026-09-08 handoff) merged on 2026-09-09**, both by the
 owner in the web interface after `tea pulls merge` was blocked by this machine's permission layer.
-Remote `main` is at **`5446ad1`**. #94 shipped the second edition's whole token layer, two faces, radius scale, hover
+**#117 merged as PR #128 on 2026-09-09**, closing it, and the handoff pull request **#129** merged after it; #117's `status/*` label had to be stripped by hand at the close, which is now the fourth time a merge has left one behind. Remote `main` is at **`0acb6be`**. #94 shipped the second edition's whole token layer, two faces, radius scale, hover
 wash, elevation rule and drawn icon set; #99 fixed the `color-scheme` value the minifier was
 reversing — see the 2026-09-06 day file for both, and for why no test caught the second one.
 
-**In progress: #105**, started 2026-09-09 on `issue-105-day-scoped-dialog`, cut from
-`issue-117-prototype-drift` **while that branch is still unmerged** — the owner's instruction. Its
-design is `docs/superpowers/specs/2026-09-09-day-scoped-entries-dialog-design.md` and its plan
-`docs/superpowers/plans/2026-09-09-day-scoped-entries-dialog.md`, six tasks, none executed yet.
-**Task 1 cannot be split**: `GET /api/entries` gains an envelope and every consumer of that shape —
-six client readers, 26 end-to-end stubs across ten spec files — moves with it.
-**#117 is finished and open as PR #128**, all 48 criteria met, 33 signed commits, both gates green.
+**In progress: #105**, and it is **finished but unpushed**. All six tasks, one fix round, a
+whole-branch review and its fix wave are on `issue-105-day-scoped-dialog`; both gates are green
+(`make verify` 167 tests, `make test-e2e` 453 passed / 11 skipped) and **all sixteen acceptance
+criteria are ticked**, each following a review rather than a claim. Its design is
+`docs/superpowers/specs/2026-09-09-day-scoped-entries-dialog-design.md` and its plan
+`docs/superpowers/plans/2026-09-09-day-scoped-entries-dialog.md`.
+**Two things must happen before it is pushed, in this order.** The three commits after `a92b328` are
+**unsigned** — the owner's vault was closed overnight and they instructed the work to carry on — so
+the range is re-signed with `git rebase --exec 'git commit --amend --no-edit -S' a92b328` and checked
+two ways: every commit reporting `G`, and `git diff <old tip> HEAD` empty. Then the push needs
+`--force-with-lease`, because **the branch was rebased onto `main` once #117 merged** and the remote
+still holds the pre-rebase history.
+**#117 merged as PR #128**, all 48 criteria met, 33 signed commits, both gates green.
 Its plan was `docs/superpowers/plans/2026-09-09-prototype-drift.md`, twelve tasks under
 subagent-driven development, plus a whole-branch review whose fix wave carried nine findings. Before it, #10 (edit after push, widened on 2026-09-07 to carry a
 week's fetch) was the last one, and it merged as PR #120 on 2026-09-08. Its design was approved that morning, its
@@ -74,13 +80,14 @@ Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill fol
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
 **`worktrees-without-the-tax` and `issue-105-day-scoped-dialog` are pushed with no pull request
 behind them.** The first predates the forge move and still needs the rebase treatment its own bullet
-describes; the second is live work, and its pull request opens when #105 is finished, not before.
+describes. The second is finished work waiting on the two steps above — re-sign, then force-push with
+a lease — and its pull request opens straight after, saying `Closes #105`.
 
 **The board's own hygiene was re-audited on 2026-09-07 and is clean**: all 36 open issues carry
 exactly one `status/*` label, and none of the 50 closed ones carries any. **Merging a pull request
 does not strip the status label** — PR #90 left `status/in-progress` on the closed #11, and PR #112
-did the same to #95 on 2026-09-07. Check the label after every merge; it has now happened three
-times. **`tea issues list` returns only 30 issues unless `--limit` is given**, and says nothing about
+did the same to #95 on 2026-09-07, and PR #128 to #117 on 2026-09-09. Check the label after every
+merge; it has now happened four times. **`tea issues list` returns only 30 issues unless `--limit` is given**, and says nothing about
 the rest, so an audit without one silently reads a third of the board — the `eod` skill's own snippet
 has that bug. The type axis was corrected in the same pass;
 the `enhancement` test that decided it is in the `ticket-workflow` skill.
@@ -101,6 +108,19 @@ rather than untriaged and there is no `priority/normal` to add. Returning a tick
 one move needing `--remove-labels`, because there is no third label to displace the current one.
 **Priority is the owner's to set** — suggest, never relabel. The axis is documented in `CLAUDE.md`
 and in the `ticket-workflow` skill.
+
+**Five tickets were raised on the evening of 2026-09-09, all in v2 or awaiting triage.** Four are the
+owner's own ideas and were created at `status/needs-refinement`, because the asking was the approval:
+**#130** a worklog timeline along the bottom of the screen, drawn like a video editor's; **#131**
+ticket details in a modal rather than a trip to Jira; **#132** calendar integration, so a meeting can
+become a worklog without opening the calendar beside the app; **#133** weekly retro notes feeding the
+sprint retro the team holds on the FFSRETRO board. #133's size hangs entirely on one open question —
+whether the app writes cards to that board itself, exports at sprint end, or ignores it.
+**#134 is at intake and is the session's own**: chromium dies with a segmentation fault part-way
+through `pwa.spec.ts`, taking an unrelated test down with it, and the test it blames differs every
+run. Three implementers hit it in one evening; one confirmed it pre-existing against an unmodified
+baseline. It is worth a ticket because a crash that lands somewhere new each time teaches everyone to
+re-run first and read second, which is how a real regression gets waved through.
 
 **The board was triaged the same day.** `priority/high`: **#8, #10, #35, #42, #105, #117, #121**.
 `priority/low`: **#39, #40, #55, #83, #89, #91, #97, #108, #119**. The other twenty-six are normal.
@@ -1360,6 +1380,21 @@ Two more, salvaged from *Still open* on 2026-09-01 when the bullets carrying the
   tracked that directory *and* a `.gitignore` whose only line was that filename, because the page is
   a ~2MB generated rendering of artboards that are themselves tracked. Check for a `.gitignore` on
   the branch that owns the directory before calling a file undecided.
+
+
+**A subagent's test evidence is a claim, not a record.** On 2026-09-09 an implementer's report
+presented a run made with its own file stashed as proof that a teardown test caught a leaked
+subscription. With the file stashed there was no subscription to leak, so what it had recorded was
+the mount-read race the test's own comment warns about. The reviewer caught it and a genuine failing
+run was produced. Read a RED the way you would read any other claim: ask what state the run was
+actually in, and whether that state could have produced that failure.
+
+**Inherited work is a draft until something has run it.** Two implementer runs were lost mid-flight
+the same evening — one to a hung response stream the watchdog killed after ten minutes, one to its
+session ending — and both left a full working tree of uncommitted edits that had never been compiled,
+linted or run. The work was recoverable both times, and the successor was told to treat it as a draft
+to check rather than as correct, which is the only safe reading. Since then every dispatch asks for
+small steps with each edit confirmed before the next, so a stall costs a file rather than a session.
 
 ## Still open
 
