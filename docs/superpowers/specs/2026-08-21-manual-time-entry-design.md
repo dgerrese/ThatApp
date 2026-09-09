@@ -106,7 +106,7 @@ a timezone name at request time.
 ## The API — `internal/server/entries.go`
 
 ```
-GET    /api/entries?from=&to=     bare array, oldest first
+GET    /api/entries?from=&to=     { today, entries }, entries oldest first
 POST   /api/entries               201, the created row
 PATCH  /api/entries/{id}          200, the updated row
 DELETE /api/entries/{id}          204
@@ -122,8 +122,13 @@ Its own file; `instances.go` and `issues.go` are untouched.
   "seconds": 1800, "comment": "Refinement" }
 ```
 
-A bare array, matching `/api/instances` and `/api/pins`: entries are a CRUD resource, not a fan-out
-report. `instanceName` and `instancePosition` are joined in by the handler from the instances it
+The row itself is unchanged; the collection around it is not. **#105** wraps `GET`'s response in
+`{ today, entries }` — see
+[`2026-09-09-day-scoped-entries-dialog-design.md`](2026-09-09-day-scoped-entries-dialog-design.md)'s
+decision 3 — so a dialog scoped to a day it did not compute itself still learns what today is.
+`entries` is still the bare array matching `/api/instances` and `/api/pins`: entries are a CRUD
+resource, not a fan-out report; only the date the server resolved when answering now travels with
+them. `instanceName` and `instancePosition` are joined in by the handler from the instances it
 already loads — the rail's split draws the same coloured dots #6 introduced, and `instancePosition`
 is the same 0-based index into `store.Instances`'s `created_at` order.
 
@@ -142,8 +147,13 @@ endpoint with a range. A malformed date or `from` after `to` is 400 `invalid_req
 
 Body: `{ "instanceId": 1, "issueKey": "RIDGE-4929", "seconds": 1800, "comment": "" }`.
 
-**`day` and `startedAt` are never accepted from the client**, so a browser cannot post itself into
-another day. Rejections, in order:
+**`startedAt` is never accepted from the client.** `day` was rejected on the same page for the same
+reason: accepting either would let a browser post itself into a day its own start time contradicts.
+**#105** lifts that for `day` alone — a Week cell opened for a day that is not today needs to log
+against it — so `day` may now name any day, and the server resolves `startedAt` to that day's local
+midnight in `THAT_TIMEZONE` rather than to `now()`. `startedAt` itself still never comes from the
+client, so the contradiction the original rule ruled out is still unconstructible: whichever day a
+`POST` names, its start time is the server's to set, not the browser's. Rejections, in order:
 
 1. A malformed body, a blank `issueKey`, or a missing `instanceId` — 400 `invalid_request`.
 2. An unknown `instanceId` — 404 `instance_not_found`.

@@ -72,7 +72,7 @@ before this branch opens its own pull request, this branch rebases onto the new 
 | `web/src/rail.ts` | Three reads move to the envelope. |
 | `web/src/views/today.ts` | Its totals read moves to the envelope. |
 | `web/src/components/that-entry-dialog.ts` | Reads its own day, sends it, names it, and scopes what it announces. |
-| `web/src/format.ts` | `longDay()` — a `YYYY-MM-DD` rendered as `Monday 8 September`. |
+| `web/src/format.ts` | `longDay()` — a `YYYY-MM-DD` rendered as `Tuesday 8 September`. |
 | `web/src/views/week.ts` | Cells pass their day; the view subscribes to the announcement. |
 | `.claude/e2e/tests/*.spec.ts` | 26 stubs of `/api/entries` across ten files move to the envelope. |
 | `docs/superpowers/specs/2026-08-04-thatapp-design.md`, `…/2026-08-21-manual-time-entry-design.md` | The rule that a client may never name a day. |
@@ -274,7 +274,7 @@ git commit -m "feat(#105): the dialog reads, writes and announces its own day"
 
 **Interfaces:**
 - Consumes: `EntryTicket.day` from Task 3, `EntriesResponse.today` from Task 1.
-- Produces: `longDay(day: string): string` — `"2026-09-08"` becomes `"Monday 8 September"`.
+- Produces: `longDay(day: string): string` — `"2026-09-08"` becomes `"Tuesday 8 September"`.
 
 **What the design settled**, from Decision 1, 2 and 4 of the spec:
 
@@ -282,7 +282,7 @@ git commit -m "feat(#105): the dialog reads, writes and announces its own day"
   uses — `text-ink-muted`, 14px, the existing `.etitle` treatment.
 - **Every dialog names its day.** Today's has none of its own, so it names the `today` the envelope
   carried. Where a summary also exists, **the day sits above it**.
-- The empty line reads `Nothing logged against this ticket on Monday 8 September.` when the dialog is
+- The empty line reads `Nothing logged against this ticket on Tuesday 8 September.` when the dialog is
   scoped, and keeps `… today.` when it is not.
 
 **`longDay` must not construct a date from parts and read it back.** Parsing `YYYY-MM-DD` into a
@@ -295,7 +295,7 @@ test rather than an end-to-end one.
 
 ```ts
 test("a day renders as its full weekday and month", () => {
-  assert.equal(longDay("2026-09-08"), "Monday 8 September");
+  assert.equal(longDay("2026-09-08"), "Tuesday 8 September");
   assert.equal(longDay("2026-01-01"), "Thursday 1 January");
   assert.equal(longDay("2024-02-29"), "Thursday 29 February");
 });

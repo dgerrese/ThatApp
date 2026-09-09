@@ -30,7 +30,7 @@ line, because Week's rows carry keys only.
 ## Decision 1 — the day takes the line under the key
 
 The identity row is unchanged: the instance's dot, its name as an eyebrow, the middot, the key, the
-day's total, and Close. **The day is written in full on the line beneath it** — `Monday 8 September`
+day's total, and Close. **The day is written in full on the line beneath it** — `Tuesday 8 September`
 — in the ink-muted 14px the summary line already uses.
 
 The two rejected placements, and why:
@@ -83,7 +83,7 @@ end-to-end stub that answers `/api/entries` with a bare array.
 
 ## Decision 4 — the empty line names the day it is empty for
 
-`Nothing logged against this ticket on Monday 8 September.` when the dialog is scoped, keeping
+`Nothing logged against this ticket on Tuesday 8 September.` when the dialog is scoped, keeping
 `Nothing logged against this ticket today.` when it is not. The wording mirrors the header's own, so
 the two agree rather than describing the same day two ways.
 
