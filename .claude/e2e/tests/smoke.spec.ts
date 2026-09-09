@@ -305,4 +305,36 @@ test.describe("the content region owns the scroll, not the page", () => {
     await expect(page.getByText("Row 39")).toBeAttached();
     expect(await content(page).evaluate((element) => element.scrollTop)).toBe(0);
   });
+
+  // #117 task 3, fix round 1: the md:-gating that keeps the rail from being
+  // pinned below that breakpoint (see the task report) had no committed
+  // test — an unconditional h-screen passed every other test in this file,
+  // because none of them run under md:. 390×844 matches today.spec.ts's own
+  // narrow-viewport tests, which only ever assert horizontal overflow.
+  test("below md:, the page itself scrolls and the rail travels with it, not the content region", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/today");
+    await expect(page.getByText("Row 39")).toBeAttached();
+
+    const rail = page.locator("aside.that-rail");
+    const before = await rail.boundingBox();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+    // window.scrollY is the direct claim ("the page itself scrolls"); the
+    // rail's box moving by the same amount is the honest sign that it is not
+    // pinned in place the way it is at md: and up — a fixed rail would stay
+    // at the same y while the page scrolled past it.
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    const after = await rail.boundingBox();
+    expect(after?.y).toBeLessThan(before?.y ?? 0);
+
+    // The counterpart to the md: tests above: #content never becomes the
+    // scrolling region below the breakpoint, so its own scrollTop stays 0
+    // throughout — the scroll happened on window, not here.
+    expect(await content(page).evaluate((element) => element.scrollTop)).toBe(0);
+  });
 });
