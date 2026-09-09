@@ -1,7 +1,7 @@
 /**
  * A section or view's title and the controls beside it — the prototype's
  * `.pageh` (docs/superpowers/prototypes/2026-09-03-app-prototype.html, lines
- * 318 and 340). Today's two sections and Week's own title all wear this
+ * 329, 331 and 353). Today's two sections and Week's own title all wear this
  * shape; before this it was two copies, one per view, which is exactly the
  * drift #117 exists to undo.
  *

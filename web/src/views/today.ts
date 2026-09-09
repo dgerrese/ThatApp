@@ -43,7 +43,6 @@ interface Regions {
   pinnedList: HTMLElement;
   pinnedForm: HTMLElement;
   assignedSection: HTMLElement;
-  header: HTMLElement;
   refresh: HTMLElement;
   results: HTMLElement;
   /** One banner above both lists, per the design spec's singular "the
@@ -88,7 +87,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
   // Pinned and Assigned issues are two sections of one list, so Pinned is a
   // page heading level with the other rather than a card with a label inside
-  // it — the prototype's two .pageh blocks, lines 318 and 320.
+  // it — the prototype's two .pageh blocks, lines 329 and 331.
   const pinnedList = document.createElement("div");
   pinnedList.append(cardHolding(loadingLine()));
 
@@ -107,7 +106,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   header.append(refresh);
 
   // The heading itself is drawn from the first frame — both .pageh blocks,
-  // the prototype's lines 318 and 320. Only the refresh control waits: there
+  // the prototype's lines 329 and 331. Only the refresh control waits: there
   // is nothing to refresh yet, and with no instances configured it stays
   // hidden for good.
   refresh.hidden = true;
@@ -132,7 +131,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     pinnedList,
     pinnedForm,
     assignedSection,
-    header,
     refresh,
     results,
     stale,
