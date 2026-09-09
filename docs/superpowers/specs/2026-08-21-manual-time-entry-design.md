@@ -85,12 +85,17 @@ written here — push state stays derived, and #7 must not introduce a flag.
 
 ## The day boundary
 
-**Resolved once, server-side, at creation.** `POST /api/entries` stamps two fields from one instant:
+**Resolved server-side, at creation.** `POST /api/entries` stamps two fields from one instant when
+the client names no day, and from that day's own local midnight, clock untouched, when it does —
+**#105** lets a Week cell pass one for a day that is not today:
 
 ```go
 now := s.now()                                   // injected, see below
 started := now
 day := now.In(s.cfg.Location).Format("2006-01-02")
+
+// day given instead — #105: the clock is not read at all
+started = localMidnight(day, s.cfg.Location)
 ```
 
 The browser never computes a date. It reads the `day` the server stamped and groups by it, which is
@@ -156,8 +161,10 @@ client, so the contradiction the original rule ruled out is still unconstructibl
 `POST` names, its start time is the server's to set, not the browser's. Rejections, in order:
 
 1. A malformed body, a blank `issueKey`, or a missing `instanceId` — 400 `invalid_request`.
-2. An unknown `instanceId` — 404 `instance_not_found`.
-3. `seconds` of zero or less, or over 24 hours — 400 `invalid_request`.
+2. A malformed `day` — 400 `invalid_request`, checked before the instance lookup below, so a
+   malformed `day` alongside an unknown `instanceId` answers 400.
+3. An unknown `instanceId` — 404 `instance_not_found`.
+4. `seconds` of zero or less, or over 24 hours — 400 `invalid_request`.
 
 `POST` does **not** verify the issue exists: no Jira call anywhere in this ticket. The keys come
 from rows already on screen.

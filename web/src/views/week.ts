@@ -218,6 +218,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
         label.textContent = "Week";
         controls.append(...weekButton({ label: "This week", path: "/week" }));
       }
+      // The grid no longer shows what `painted` describes, so the next read —
+      // a plain retry naming the same week is the ordinary case — must not
+      // compare against it: an identical signature would otherwise skip the
+      // repaint that recovers from the alert.
+      painted = null;
       grid.replaceChildren(alertFor("error", messageOf(error)));
 
       return null;
@@ -232,7 +237,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     // for the paint that does happen.
     if (mine !== epoch) return rollup;
 
-    const marked = failures;
+    // A read the user asked for consumes the marks immediately — `marked`
+    // itself withholds them, not only the state left for the next read —
+    // so one Refresh press is enough. Reading `failures` first and clearing
+    // it after would still paint the stale marks once, on this very read.
+    const marked = options.preserveFailures ? failures : noFailures();
     if (!options.preserveFailures) failures = noFailures();
 
     showing = rollup.start;
@@ -721,8 +730,12 @@ function ticketCell(
       // Set on every cell, today's column included: the dialog compares this
       // against the day the server resolves as today, so a cell for today
       // still behaves correctly on its own — a presence-only check here would
-      // single today's column out and defeat that comparison.
-      day,
+      // single today's column out and defeat that comparison. `|| undefined`
+      // rather than the bare string: `day` is `""` only when `/api/week`
+      // broke its seven-day contract, and an empty string would still be
+      // `!== undefined` — scoping the dialog to a day that does not exist —
+      // where `undefined` degrades to the safe, existing "today" behaviour.
+      day: day || undefined,
     });
   });
 

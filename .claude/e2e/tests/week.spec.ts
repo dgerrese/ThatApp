@@ -477,10 +477,14 @@ test("a day whose push never answered is named rather than counted as pushed", a
  * The failed marker is the one thing in this grid that does not come from
  * /api/week — it comes from the push response, because a re-read reports those
  * entries as unpushed again, which is true and not what the reader needs in the
- * seconds after pressing Push. It lives for exactly the paint that reports the
- * push, so the read after that one shows the rollup's own answer again.
+ * seconds after pressing Push. It survives every read Week triggers on its own
+ * behalf — the push report's own re-read here, since nothing else changed the
+ * week in between — and is consumed only by the next read the user actually
+ * asks for: one Refresh press, not two.
  */
-test("a failed cell is marked, and the read after the reporting one clears it", async ({ page }) => {
+test("a failed cell is marked, survives the push report's own re-read, and one Refresh press clears it", async ({
+  page,
+}) => {
   await openWeek(
     page,
     {
@@ -495,19 +499,13 @@ test("a failed cell is marked, and the read after the reporting one clears it", 
     ],
   );
 
-  let wednesdayAttempts = 0;
   await page.route("**/api/push**", (route) => {
     const day = new URL(route.request().url()).searchParams.get("day") ?? "";
     if (day === "2026-09-07") {
       return route.fulfill({ status: 200, json: { day, results: [pushed(1, "RIDGE-1")] } });
     }
 
-    // Unreachable the first time and reachable the second, so the retry that the
-    // report asks for is the thing that clears the marker.
-    wednesdayAttempts += 1;
-    const result = wednesdayAttempts === 1 ? unreachable(2, "RIDGE-2") : pushed(2, "RIDGE-2");
-
-    return route.fulfill({ status: 200, json: { day, results: [result] } });
+    return route.fulfill({ status: 200, json: { day, results: [unreachable(2, "RIDGE-2")] } });
   });
 
   // The trigger, not the td: the td also holds a that-tooltip sibling whose
@@ -522,7 +520,11 @@ test("a failed cell is marked, and the read after the reporting one clears it", 
   await pushEverything(page);
   await expect(wednesday).toHaveAttribute("aria-label", /did not reach Jira/);
 
-  await pushEverything(page);
+  // /api/week is unchanged from the read above — the entry never actually
+  // pushed, so its own rollup still says "unpushed" either way — which is
+  // what proves the marker's survival is Week's own doing, not the server's.
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  await refreshControl.click();
   await expect(wednesday).not.toHaveAttribute("aria-label", /did not reach Jira/);
 });
 
@@ -1005,8 +1007,16 @@ test("the fetch control is disabled while a refresh is in flight, and a press on
  * grid with that alert on any failed read (the same path a direct navigation
  * to a bad week already goes through), so this is what proves refresh's own
  * press actually reaches it rather than swallowing the failure unseen.
+ *
+ * A second Refresh press must recover the grid, even when the read it
+ * triggers comes back byte-identical to the last one that succeeded —
+ * `showing` last resolved before the failed read ever painted, so a retry
+ * naming the same week and returning the same body is the ordinary case, not
+ * an edge one. `painted` must therefore forget what was on screen the moment
+ * the alert replaces it, or an identical retry has nothing to compare against
+ * and never repaints.
  */
-test("a failed read on a refresh press surfaces the same way a failed fetch does", async ({
+test("a failed read on a refresh press surfaces the same way a failed fetch does, and a further refresh recovers it", async ({
   page,
 }) => {
   await page.route("**/api/entries**", (route) =>
@@ -1028,8 +1038,11 @@ test("a failed read on a refresh press surfaces the same way a failed fetch does
 
     weekReads += 1;
     // The mount's own read succeeds, so Refresh reaches its enabled state;
-    // the read the press itself triggers is the one that fails.
-    if (weekReads > 1) {
+    // the read the first press triggers is the one that fails. Every read
+    // after that — a second Refresh press among them — answers with the same
+    // body the mount already painted, which is what proves recovery does not
+    // depend on the retry returning something new.
+    if (weekReads === 2) {
       return route.fulfill({
         status: 500,
         json: { code: "store_failed", message: "could not read the stored week" },
@@ -1053,6 +1066,11 @@ test("a failed read on a refresh press surfaces the same way a failed fetch does
   // recovery fetch.spec.ts already proves for a failed fetch.
   await expect(refreshControl).toBeEnabled();
   await expect(fetchControl).toBeEnabled();
+
+  await refreshControl.click();
+
+  await expect(page.getByText("could not read the stored week")).not.toBeVisible();
+  await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
 });
 
 /**
