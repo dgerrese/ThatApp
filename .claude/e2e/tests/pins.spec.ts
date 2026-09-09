@@ -996,4 +996,76 @@ test.describe("the ticket row's own pin control", () => {
 
     expect(tooltipBox!.x + tooltipBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
   });
+
+  // .iconbtn's margin-right: -8px (T4). The button's own hit area already
+  // reaches the card's content edge without it — the cell shrinks to the
+  // button's width, and it is the last column — so the assertion is on the
+  // mark itself, centred inside the 34px button, which stops 8px short of
+  // that edge until the negative margin carries the whole box past it.
+  test("the pin control's ink reaches the card's content edge", async ({ page }) => {
+    await mountRows(page, [ridge5301]);
+
+    const card = page.locator("that-table");
+    const trigger = page.getByRole("button", { name: "Pin RIDGE-5301", exact: true });
+
+    const cardBox = await card.boundingBox();
+    const svgBox = await trigger.locator("svg").boundingBox();
+    expect(cardBox).not.toBeNull();
+    expect(svgBox).not.toBeNull();
+
+    const paddingRight = await card.evaluate((el) => parseFloat(getComputedStyle(el).paddingRight));
+    const contentEdge = cardBox!.x + cardBox!.width - paddingRight;
+
+    expect(Math.abs(svgBox!.x + svgBox!.width - contentEdge)).toBeLessThanOrEqual(1.5);
+  });
+
+  // .durbtn's own values (T5): padding: 9px 13px; margin: -9px -13px -9px 0.
+  // Asserting on computed style rather than only on a bounding box, because a
+  // box that is merely wider than its text passes whether or not the margin
+  // gives the padding back — it is the cancellation itself that keeps the
+  // row's height, and so its neighbours, from moving.
+  test("the duration control gives back exactly the padding it took, except on the left", async ({
+    page,
+  }) => {
+    await mountRows(page, [ridge5301]);
+
+    const trigger = page.locator("that-table tbody .c-today button");
+    const style = await trigger.evaluate((el) => {
+      const computed = getComputedStyle(el);
+      return {
+        paddingTop: computed.paddingTop,
+        paddingRight: computed.paddingRight,
+        paddingBottom: computed.paddingBottom,
+        paddingLeft: computed.paddingLeft,
+        marginTop: computed.marginTop,
+        marginRight: computed.marginRight,
+        marginBottom: computed.marginBottom,
+        marginLeft: computed.marginLeft,
+      };
+    });
+
+    expect(style.paddingTop).toBe("9px");
+    expect(style.paddingRight).toBe("13px");
+    expect(style.paddingBottom).toBe("9px");
+    expect(style.paddingLeft).toBe("13px");
+    expect(style.marginTop).toBe("-9px");
+    expect(style.marginRight).toBe("-13px");
+    expect(style.marginBottom).toBe("-9px");
+    // Not given back on the left, so the figure stays clear of the summary.
+    expect(style.marginLeft).toBe("0px");
+  });
+
+  test("the duration control's hover box is wider than its figure", async ({ page }) => {
+    await mountRows(page, [ridge5301]);
+
+    const trigger = page.locator("that-table tbody .c-today button");
+    const figure = trigger.locator(".that-tnum");
+
+    const triggerBox = await trigger.boundingBox();
+    const figureBox = await figure.boundingBox();
+    expect(triggerBox).not.toBeNull();
+    expect(figureBox).not.toBeNull();
+
+    expect(triggerBox!.width).toBeGreaterThan(figureBox!.width);
+  });
 });

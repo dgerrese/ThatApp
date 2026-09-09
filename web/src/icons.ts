@@ -44,10 +44,11 @@ const PATHS: Record<IconName, string> = {
   // shared one glyph and differed by colour alone, which this language forbids.
   warning: '<path d="M12 4.6 21 19.4H3L12 4.6Z"/><path d="M12 10.2v3.6M12 16.6h.01"/>',
   failed: '<circle cx="12" cy="12" r="8.5"/><path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/>',
-  pin: '<path d="M10 3.5h4M12 3.5v5.5M7.5 9h9l1.2 5.2H6.3L7.5 9ZM12 14.2v6.3"/>',
+  pin: '<path d="M8.6 3.5h6.8M10.2 3.5v5.3l-2.7 3.2a1 1 0 0 0 .77 1.64h7.46a1 1 0 0 0 .77-1.64L13.8 8.8V3.5M12 13.64V20.5"/>',
   // The slash is the whole difference, so it is drawn corner to corner rather
   // than as a short stroke: at 18px a subtle one reads as a rendering artefact.
-  "pin-off": '<path d="M10 3.5h4M12 3.5v5.5M7.5 9h9l1.2 5.2H6.3L7.5 9ZM12 14.2v6.3"/><path d="M4 4l16 16"/>',
+  "pin-off":
+    '<path d="M8.6 3.5h6.8M13.8 3.5v5.3l2.7 3.2a1 1 0 0 1-.77 1.64h-3.4M10.2 5.4v3.4l-2.7 3.2a1 1 0 0 0 .77 1.64h3.2M12 13.64V20.5M4.2 4.2 19.8 19.8"/>',
   sortable: '<path d="M8 10.5 12 6.5l4 4M8 13.5l4 4 4-4"/>',
   // An arc rather than a closed ring, with the arrowhead standing in for the
   // missing quarter: a full circle reads as a spinner, which promises motion
