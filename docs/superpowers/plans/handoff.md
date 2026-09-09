@@ -42,12 +42,16 @@ after it. The 2026-09-03 handoff merged as **PR #96** at 11:22 on 2026-09-04.
 2026-09-07**, closing it, and the handoff pull requests **#103** and **#104** merged before it.
 **#10 merged as PR #120 on 2026-09-08**, closing it; its `status/*` label came off at the close and
 it keeps `priority/high`. The project-design pull requests **#115** and **#118** merged before it.
-Remote `main` is at **`23fe1d6`**. #94 shipped the second edition's whole token layer, two faces, radius scale, hover
+**#124 (the priority axis) and #125 (the 2026-09-08 handoff) merged on 2026-09-09**, both by the
+owner in the web interface after `tea pulls merge` was blocked by this machine's permission layer.
+Remote `main` is at **`5446ad1`**. #94 shipped the second edition's whole token layer, two faces, radius scale, hover
 wash, elevation rule and drawn icon set; #99 fixed the `color-scheme` value the minifier was
 reversing — see the 2026-09-06 day file for both, and for why no test caught the second one.
 
-**In progress: none.** #10 (edit after push, widened on 2026-09-07 to carry a week's fetch) was the
-last one, and it merged as PR #120 on 2026-09-08. Its design was approved that morning, its
+**In progress: #117**, started 2026-09-09 on `issue-117-prototype-drift`, cut from `5446ad1`. Its
+plan is `docs/superpowers/plans/2026-09-09-prototype-drift.md`, twelve tasks, executing under
+subagent-driven development. Before it, #10 (edit after push, widened on 2026-09-07 to carry a
+week's fetch) was the last one, and it merged as PR #120 on 2026-09-08. Its design was approved that morning, its
 twelve-task plan executed, and the whole-branch review caught two Critical defects the task reviews
 could not — see the day file. **`issue-10-edit-after-push-and-week-fetch` is merged and can be
 deleted on the owner's word.**
@@ -64,8 +68,8 @@ Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill fol
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
 **`worktrees-without-the-tax` as the only branch pushed with no pull request behind it**, carried
 across the forge move with its work intact. The GitHub pull request that used to hold it did not
-migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8, **#105**
-and **#117**, the last two refined on 2026-09-08.
+migrate, so re-opening it on Codeberg is a decision still waiting to be made. **To do:** #8 and **#105**;
+**#117 left that state on 2026-09-09** when its branch was cut.
 **Needs refinement, twenty-nine** as of 2026-09-08: #13 (LAN/HTTPS phone access — deferred, and needs
 the owner's explicit go-ahead even to refine), #19, #35, #39, #40, #41, #42, #43, #47, #53, #55, #56,
 #57, #58, #66, #67, #71, #79, #80, #83, #84, #89, #91, #102, #116, #121, #122, #123 and
@@ -1039,6 +1043,23 @@ found something every time**. This is worth keeping as practice, not just as a n
 
 ## Facts worth not rediscovering
 
+**A toolbar button carries words, an inline control carries a glyph** — Decision 12 of the visual
+language, settled 2026-09-09 out of #117's W5. A toolbar is the group of controls in a view's or a
+dialog's header; inline is a control in a row, a cell or a field. Two exemptions: a paired
+directional group is one control with the words in its middle button (Week's arrows), and a window
+control such as a dialog's close is chrome rather than an action on the view's data. It reaches past
+the ticket that raised it — Today's refresh gains a label, which is #117's T15.
+
+**`ssh-add -l` in a Claude session does not describe the agent git uses.** The session's
+`SSH_AUTH_SOCK` points at an empty OpenSSH agent; `~/.ssh/config` routes `codeberg.org` to
+`~/.1password/agent.sock`, which holds the keys. A `Permission denied (publickey)` here is not
+evidence that 1Password is locked — check `SSH_AUTH_SOCK=~/.1password/agent.sock ssh-add -l` or read
+`GIT_SSH_COMMAND='ssh -v'` output before saying so. Misdiagnosed once on 2026-09-09.
+
+**`tea pulls merge` is blocked by auto mode's classifier on this machine.** It is a permission-layer
+block, not the workflow's rule: when the owner asks for a merge, the routes are the web interface,
+the owner running the command, or a Bash permission rule. Found 2026-09-09 on PR #124.
+
 - **`tea issues list --output json` prints only the first label per issue.** A board audit run through
   it reports most tickets as carrying no `status/*` label at all, which is alarming and wrong. Use the
   API — `tea api "repos/{owner}/{repo}/issues?state=open&limit=50"` — whose `labels` array is complete.
@@ -1466,9 +1487,11 @@ unbraced `"$snap:refs/eod/..."` loses it and pushes to `...c6cdefs/eod/...`, whi
 refspec matching nothing. **`"${snap}:refs/..."` is the form that works.** Found 2026-09-08; the
 skill still carries the unbraced version.
 
-**This branch:** `handoff-2026-09-08`, cut from `23fe1d6`, `main`'s tip once PR #120 had merged. It
-carries the day file and goes out as one pull request at the end-of-day signal, titled with the
-`[Handoff]` prefix that PR #104 made the rule. **`issue-10-edit-after-push-and-week-fetch` merged
+**This branch:** `issue-117-prototype-drift`, cut from `5446ad1`. It carries #117's work *and*, for
+now, the 2026-09-09 handoff edits — they are a project-design change and belong on their own branch
+before the end-of-day push, so **split them out rather than letting them ride on the ticket's pull
+request**. `handoff-2026-09-08` merged as PR #125 on 2026-09-09 and can be deleted on the owner's
+word, along with `project-design-priority-axis` from PR #124. **`issue-10-edit-after-push-and-week-fetch` merged
 as PR #120 on 2026-09-08** and is deleted on both the forge and this machine. The 2026-09-08 handoff
 edits were being written on that branch, so they were carried across to this one before it went.
 `worktrees-without-the-tax` is still pushed with no pull request behind it. **A second branch went
