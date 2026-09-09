@@ -6,7 +6,7 @@ import "./that-duration";
 import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "../api";
 import { confirmDestructive } from "./that-confirm";
 import { announceEntriesChanged } from "../entries-changed";
-import { totalFigure } from "../format";
+import { longDay, totalFigure } from "../format";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
 import type { Entry } from "../types";
@@ -59,6 +59,10 @@ const ICON_BUTTON = `${ICON_BUTTON_BASE} hover:text-ink focus-visible:text-ink`;
 /** Delete is the one irreversible thing on a row, and the only control in the
  *  app that announces itself before it is pressed. */
 const ICON_BUTTON_DESTRUCTIVE = `${ICON_BUTTON_BASE} hover:text-failed focus-visible:text-failed`;
+
+/** The prototype's `.etitle`: the day line and the summary beneath the
+ *  identity row both wear it, so the two lines read as one register. */
+const SUBLINE_CLASS = "text-ink-muted mt-[5px] text-base leading-[1.35] [overflow-wrap:anywhere]";
 
 interface PushMarkStyle {
   words: string;
@@ -143,6 +147,7 @@ export class ThatEntryDialog extends HTMLElement {
 
   private dialog: HTMLDialogElement | undefined;
   private total: HTMLElement | undefined;
+  private dayLine: HTMLElement | undefined;
   private list: HTMLElement | undefined;
   private empty: HTMLElement | undefined;
   private notice: HTMLElement | undefined;
@@ -157,7 +162,8 @@ export class ThatEntryDialog extends HTMLElement {
   private readonly sequence = ++dialogSequence;
   /** The day the last successful reload resolved as "today", per the server's
    *  own clock — what afterMutation compares the ticket's day against to
-   *  decide whether an announcement may carry a payload. */
+   *  decide whether an announcement may carry a payload, and what an
+   *  unscoped dialog's day line names once it is known. */
   private today: string | undefined;
 
   connectedCallback(): void {
@@ -176,7 +182,7 @@ export class ThatEntryDialog extends HTMLElement {
       "rounded-md border";
     dialog.setAttribute("aria-labelledby", this.headingId);
 
-    dialog.append(this.header(ticket), this.entryList(), this.emptyLine(), this.footForm());
+    dialog.append(this.header(ticket), this.entryList(), this.emptyLine(ticket), this.footForm());
     // Closing is the only exit, whether it came from Esc, the round Close or a
     // successful mutation, so the element removes itself from one place.
     dialog.addEventListener("close", () => {
@@ -195,10 +201,10 @@ export class ThatEntryDialog extends HTMLElement {
 
   /**
    * The instance dot, the instance and the key on one line, with the total and
-   * Close pushed right by the total's own auto margin; the summary is a
-   * subtitle beneath it. Neither the status nor the day is here — the row that
-   * opened this already draws the status, and the day is the whole dialog's
-   * subject rather than one fact in it.
+   * Close pushed right by the total's own auto margin. The day sits on the
+   * line beneath — every dialog names its day, per the design's Decision 2 —
+   * and the summary, when there is one, follows beneath that. The status is
+   * not here: the row that opened this already draws it.
    *
    * The dot sits outside the heading on purpose: it carries the instance name
    * as its accessible label, and inside the heading that name would be read
@@ -254,6 +260,17 @@ export class ThatEntryDialog extends HTMLElement {
     identity.append(heading, total, this.closeButton());
     header.append(identity);
 
+    // Hidden until updateDayLine has a day to show: a scoped ticket's day is
+    // known synchronously, but an unscoped one waits on reload() to learn
+    // what the server resolved as today.
+    const dayLine = document.createElement("p");
+    dayLine.id = "that-entry-dialog-day";
+    dayLine.className = SUBLINE_CLASS;
+    dayLine.hidden = true;
+    this.dayLine = dayLine;
+    header.append(dayLine);
+    this.updateDayLine();
+
     // Nothing at all when there is no summary, rather than an empty line the
     // layout still pays for: Week's rows carry keys only and open this dialog
     // with a blank one.
@@ -263,13 +280,32 @@ export class ThatEntryDialog extends HTMLElement {
       // is a second <p> in the sheet: a bare "p" locator would resolve either
       // one.
       subtitle.id = "that-entry-dialog-summary";
-      subtitle.className =
-        "text-ink-muted mt-[5px] text-base leading-[1.35] [overflow-wrap:anywhere]";
+      subtitle.className = SUBLINE_CLASS;
       subtitle.textContent = ticket.summary;
       header.append(subtitle);
     }
 
     return header;
+  }
+
+  /**
+   * Fills in the day line once it is known: `ticket.day` when the dialog is
+   * scoped, `this.today` — the server's own resolved "today" — otherwise.
+   * Called from `header()` for the synchronous case and again from
+   * `reload()` once an unscoped dialog's `today` arrives.
+   */
+  private updateDayLine(): void {
+    const line = this.dayLine;
+    if (!line) return;
+
+    const day = this.ticket?.day ?? this.today;
+    if (day === undefined) {
+      line.hidden = true;
+
+      return;
+    }
+    line.textContent = longDay(day);
+    line.hidden = false;
   }
 
   private closeButton(): HTMLElement {
@@ -298,11 +334,18 @@ export class ThatEntryDialog extends HTMLElement {
    * sibling of `.elist`, not one of its items — and padded to the header's own
    * 20px gutter rather than the list's 14px, which is what lines the line's
    * left edge up with the heading above it.
+   *
+   * Names the day it is empty for when the ticket is scoped, per Decision 4;
+   * an unscoped ticket keeps the plain "today" wording rather than spelling
+   * out the date, so it reads as it always has.
    */
-  private emptyLine(): HTMLElement {
+  private emptyLine(ticket: EntryTicket): HTMLElement {
     const line = document.createElement("p");
     line.className = "text-ink-muted px-5 pt-[10px] pb-4 text-base";
-    line.textContent = "Nothing logged against this ticket today.";
+    line.textContent =
+      ticket.day === undefined
+        ? "Nothing logged against this ticket today."
+        : `Nothing logged against this ticket on ${longDay(ticket.day)}.`;
     line.hidden = true;
     this.empty = line;
 
@@ -415,6 +458,7 @@ export class ThatEntryDialog extends HTMLElement {
       const range = ticket.day === undefined ? undefined : { from: ticket.day, to: ticket.day };
       const { today, entries } = await listEntries(range);
       this.today = today;
+      this.updateDayLine();
       this.entries = entries.filter(
         (entry) => entry.instanceId === ticket.instanceId && entry.issueKey === ticket.issueKey,
       );

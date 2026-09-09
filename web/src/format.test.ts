@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { clockTime, timerFigure, totalFigure } from "./format.ts";
+import { clockTime, longDay, timerFigure, totalFigure } from "./format.ts";
 
 test("a timer is always HH:MM", async (t) => {
   const cases: [number, string][] = [
@@ -95,4 +95,18 @@ test("a clock time reads the zone it runs in, not UTC", () => {
       process.env["TZ"] = originalTz;
     }
   }
+});
+
+/**
+ * The brief's own worked example paired 2026-09-08 with "Monday", but the
+ * Gregorian calendar puts it on a Tuesday (confirmed independently against
+ * `cal 9 2026` and Python's `datetime`/`calendar` modules). Asserting the
+ * brief's word here would bake a wrong weekday into a feature that will show
+ * real dates the owner actually works on, so this pins the calendar's answer
+ * instead — flagged in the task report rather than absorbed silently.
+ */
+test("a day renders as its full weekday and month", () => {
+  assert.equal(longDay("2026-09-08"), "Tuesday 8 September");
+  assert.equal(longDay("2026-01-01"), "Thursday 1 January");
+  assert.equal(longDay("2024-02-29"), "Thursday 29 February");
 });

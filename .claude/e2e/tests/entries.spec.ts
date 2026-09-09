@@ -206,7 +206,13 @@ async function typeDuration(page: Page, typed: string): Promise<void> {
  */
 async function openDialogWithDay(
   page: Page,
-  ticket: { instanceId: number; instanceName: string; issueKey: string; day: string },
+  ticket: {
+    instanceId: number;
+    instanceName: string;
+    issueKey: string;
+    day: string;
+    summary?: string;
+  },
 ): Promise<void> {
   await page.evaluate(async (ticket) => {
     await customElements.whenDefined("that-entry-dialog");
@@ -606,6 +612,52 @@ test("adding against a past day's dialog leaves Today's own figures unchanged", 
 });
 
 /**
+ * #105 task 4, Decisions 1 and 2: a scoped dialog names its own day, on the
+ * line beneath the key — full weekday and month, above the summary when one
+ * exists rather than in the identity row or the total.
+ */
+test("a day-scoped dialog names its own day, above the summary", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openToday(page);
+
+  await openDialogWithDay(page, {
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    issueKey: "WORK-412",
+    day: PAST_DAY,
+    summary: "Fix the CSV export encoding",
+  });
+
+  const dayLine = dialog(page).locator("#that-entry-dialog-day");
+  const summary = dialog(page).locator("#that-entry-dialog-summary");
+  await expect(dayLine).toHaveText("Thursday 20 August");
+  await expect(dayLine).toHaveCSS("color", INK_MUTED_LIGHT);
+
+  const precedingId = await summary.evaluate((el) => el.previousElementSibling?.id);
+  expect(precedingId).toBe("that-entry-dialog-day");
+});
+
+/**
+ * #105 task 4, Decision 4: the empty line names the day it is empty for when
+ * the dialog is scoped. The unscoped "... today." wording is covered above,
+ * by "a ticket with nothing logged says so".
+ */
+test("a day-scoped dialog with nothing logged names the day it is empty for", async ({ page }) => {
+  await openToday(page);
+
+  await openDialogWithDay(page, {
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    issueKey: "WORK-412",
+    day: PAST_DAY,
+  });
+
+  await expect(
+    dialog(page).getByText("Nothing logged against this ticket on Thursday 20 August."),
+  ).toBeVisible();
+});
+
+/**
  * The colon the user typed carries structure. Stripping it first read "1:5" as
  * the digits 15 — an hour typed, a quarter of it posted, and only the field's
  * snap-back as a clue.
@@ -886,6 +938,19 @@ test("the header carries the dot, the instance, the key and the total, and no st
   const subtitle = dialog(page).locator("#that-entry-dialog-summary");
   await expect(subtitle).toHaveText(workIssue.summary);
   await expect(subtitle).toHaveCSS("color", INK_MUTED_LIGHT);
+});
+
+/**
+ * #105 task 4, Decision 2: every dialog names its day, not only a scoped one.
+ * Today's ticket carries no day of its own, so the header names the `today`
+ * the envelope carried instead of staying silent about its subject.
+ */
+test("the header names today's own day when the dialog carries none", async ({ page }) => {
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+
+  await trigger(page, "WORK-412").click();
+
+  await expect(dialog(page).locator("#that-entry-dialog-day")).toHaveText("Saturday 22 August");
 });
 
 /**
