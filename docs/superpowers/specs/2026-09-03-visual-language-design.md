@@ -382,7 +382,9 @@ separating two facts on one line, are typography and stay as characters. The rul
 character standing in for a *drawn mark*, not a licence to redraw punctuation.
 
 The set the app needs: pin, pin-off, search, sortable, ascending, descending, pushed, warning,
-failed, success, and the three nav marks already drawn in `index.html`.
+failed, success, and the three nav marks, transcribed from the prototype's `#p-clock`, `#p-cal`
+and `#p-gear` into `index.html`. `index.html` is where they are drawn from, not what settles what
+they should be — #117 found one of the three drifted from its source and corrected it.
 
 ## Decision 9 — one surface reacts at a time
 
