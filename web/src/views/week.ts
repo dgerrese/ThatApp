@@ -191,7 +191,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
       // A later failure keeps whatever week is already on screen.
       if (controls.childElementCount === 0) {
         label.textContent = "Week";
-        controls.append(weekButton({ label: "This week", path: "/week" }));
+        controls.append(...weekButton({ label: "This week", path: "/week" }));
       }
       grid.replaceChildren(alertFor("error", messageOf(error)));
 
@@ -308,19 +308,23 @@ function failuresIn(responses: PushResponse[]): Failures {
  */
 function weekControls(rollup: WeekRollup): HTMLElement[] {
   return [
-    weekButton({
+    ...weekButton({
       mark: iconMarkup("arrow-left"),
       label: "Previous week",
+      tip: "previous week",
       path: `/week?start=${rollup.prevStart}`,
     }),
-    weekButton({ label: "This week", path: "/week" }),
-    weekButton({
+    ...weekButton({ label: "This week", path: "/week" }),
+    ...weekButton({
       mark: iconMarkup("arrow-right"),
       label: "Next week",
+      tip: "next week",
       path: `/week?start=${rollup.nextStart}`,
     }),
   ];
 }
+
+let weekButtonSequence = 0;
 
 /**
  * The neighbouring starts come off the response; nothing here adds seven days.
@@ -328,32 +332,50 @@ function weekControls(rollup: WeekRollup): HTMLElement[] {
  * `h-9` is fixed rather than left to padding: the icon buttons either side of
  * "This week" hold an 18px mark with nothing else to give it a text line's
  * height, so padding alone left them shorter than the text button and the
- * three did not sit on a line.
+ * three did not sit on a line. An icon button is additionally `w-9 p-0` —
+ * the drawing's `.wctl.icon`, square at the shared height — where the text
+ * button keeps its horizontal padding instead.
+ *
+ * Returns an array rather than one element: an icon button's popover is a
+ * sibling in the DOM, the same shape appendPinControl in that-ticket-row.ts
+ * gives its own trigger-and-tooltip pair, and weekControls spreads every call
+ * flat into the header.
  */
-function weekButton(control: { mark?: string; label: string; path: string }): HTMLElement {
+function weekButton(
+  control: { mark?: string; label: string; tip?: string; path: string },
+): HTMLElement[] {
   const button = document.createElement("button");
   button.type = "button";
   button.className =
-    "inline-flex h-9 cursor-pointer items-center justify-center rounded-sm px-3 text-base " +
-    "font-bold text-ink-muted hover:bg-hover hover:text-ink";
-
-  if (control.mark === undefined) {
-    button.textContent = control.label;
-  } else {
-    // The mark is decorative (icons.ts sets aria-hidden); the name it stands
-    // for is not, and a screen reader would otherwise read the button empty.
-    button.setAttribute("aria-label", control.label);
-    button.title = control.label;
-    const mark = document.createElement("span");
-    mark.innerHTML = control.mark;
-    button.append(mark);
-  }
+    "inline-flex h-9 cursor-pointer items-center justify-center rounded-sm text-base " +
+    `font-bold text-ink-muted hover:bg-hover hover:text-ink ${control.mark === undefined ? "px-3" : "w-9 p-0"}`;
 
   button.addEventListener("click", () => {
     void navigate(control.path);
   });
 
-  return button;
+  if (control.mark === undefined) {
+    button.textContent = control.label;
+
+    return [button];
+  }
+
+  // The mark is decorative (icons.ts sets aria-hidden); the name it stands
+  // for is not, and a screen reader would otherwise read the button empty.
+  button.setAttribute("aria-label", control.label);
+  const id = `that-week-control-${String(++weekButtonSequence)}`;
+  button.id = id;
+  const mark = document.createElement("span");
+  mark.innerHTML = control.mark;
+  button.append(mark);
+
+  // that-tooltip, not a native title (W13): the tooltip is never the
+  // accessible name, so the aria-label above stays exactly where it is.
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", id);
+  tooltip.textContent = control.tip ?? control.label;
+
+  return [button, tooltip];
 }
 
 /**
@@ -402,6 +424,36 @@ function refreshButton(): HTMLButtonElement {
  */
 const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap align-middle";
 
+/**
+ * A row's key, linked to the issue in Jira — the drawing's `.kk`, Chivo Mono
+ * at 13px/700 via `.that-key`, ink-muted at rest and brightening to ink on
+ * hover through `a.that-key:hover` in styles.css. Mirrors that-ticket-row.ts's
+ * keyLabel: an anchor with an empty href would navigate to the current page
+ * instead of doing nothing, so an instance migrated from a gateway URL — which
+ * carries no site to link to — draws plain text instead.
+ */
+function keyLink(issueKey: string, url: string): HTMLElement {
+  if (url === "") {
+    const span = document.createElement("span");
+    span.className = "that-key text-ink-muted";
+    span.title = `Open ${issueKey} in Jira`;
+    span.textContent = issueKey;
+
+    return span;
+  }
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  // Without noopener the opened page gets a window.opener handle back here.
+  link.rel = "noopener";
+  link.className = "that-key text-ink-muted";
+  link.title = `Open ${issueKey} in Jira`;
+  link.textContent = issueKey;
+
+  return link;
+}
+
 function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): HTMLTableElement {
   const table = document.createElement("table");
   // that-tnum on the table, so every figure under it is tabular — figures that
@@ -442,11 +494,7 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
     // paintInstanceDot labels the dot with the instance name, so the row says
     // which Jira it came from without the hue having to carry it alone.
     paintInstanceDot(dot, row.instancePosition, row.instanceName);
-    const key = document.createElement("span");
-    // that-key: the drawing's .kk — Chivo Mono, 13px, weight 700.
-    key.className = "that-key text-ink-muted";
-    key.textContent = row.issueKey;
-    holder.append(dot, key);
+    holder.append(dot, keyLink(row.issueKey, row.url));
     ticket.append(holder);
     tr.append(ticket);
 
@@ -595,8 +643,8 @@ function ticketCell(
   // where the td's own padding would put it and the hover wash hugs the
   // figure rather than spanning the column, which stays the td's job alone.
   trigger.className =
-    "hover:bg-hover -mx-[13px] -my-[9px] inline-flex cursor-pointer items-baseline " +
-    "rounded-sm px-[13px] py-[9px]";
+    "hover:bg-hover focus-visible:bg-hover -mx-[13px] -my-[9px] inline-flex cursor-pointer " +
+    "items-baseline rounded-sm px-[13px] py-[9px]";
   // Independent of the popover below, which reaches neither a keyboard nor a
   // screen reader on its own.
   trigger.setAttribute(

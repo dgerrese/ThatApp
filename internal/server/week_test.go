@@ -204,6 +204,51 @@ func TestWeekSumsCellsRowsAndDays(t *testing.T) {
 	}
 }
 
+// TestWeekRowCarriesTheBrowseURL covers W4: the ticket key becomes a link, and
+// the browser must not be the one guessing Jira's URL shape from a site URL it
+// already has for other purposes.
+func TestWeekRowCarriesTheBrowseURL(t *testing.T) {
+	srv, db, inst := serverInZone(t, "Europe/Amsterdam",
+		time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC))
+
+	seedEntry(t, db, store.EntryInput{
+		InstanceID: inst.ID, IssueKey: "WORK-1", Day: "2026-09-07",
+		StartedAt: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), Seconds: 600,
+	})
+
+	got := decodeWeek(t, callWeek(t, srv, "/api/week?start=2026-09-07"))
+
+	if len(got.Rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(got.Rows))
+	}
+	if got.Rows[0].URL != "https://work.atlassian.net/browse/WORK-1" {
+		t.Fatalf("url = %q, want https://work.atlassian.net/browse/WORK-1", got.Rows[0].URL)
+	}
+}
+
+// TestWeekRowFromAMigratedInstanceCarriesNoURL covers the instance that has no
+// site to link to: browseURL returns "", and the row must pass that straight
+// through rather than building a broken link from an empty base.
+func TestWeekRowFromAMigratedInstanceCarriesNoURL(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	srv.now = func() time.Time { return time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC) }
+	inst := seedInstance(t, db, sealer, "Migrated", "", "https://api.example")
+
+	seedEntry(t, db, store.EntryInput{
+		InstanceID: inst.ID, IssueKey: "WORK-1", Day: "2026-09-07",
+		StartedAt: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), Seconds: 600,
+	})
+
+	got := decodeWeek(t, callWeek(t, srv, "/api/week?start=2026-09-07"))
+
+	if len(got.Rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(got.Rows))
+	}
+	if got.Rows[0].URL != "" {
+		t.Fatalf("url = %q, want empty — a migrated instance has no site to link to", got.Rows[0].URL)
+	}
+}
+
 func TestWeekKeepsTheSameKeyInTwoInstancesApart(t *testing.T) {
 	srv, db, first := serverInZone(t, "Europe/Amsterdam",
 		time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC))

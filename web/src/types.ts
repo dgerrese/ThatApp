@@ -189,6 +189,8 @@ export interface WeekRow {
   /** 0-based index into the instance list's created_at order — what instanceHue keys its dot off. */
   instancePosition: number;
   issueKey: string;
+  /** Empty when the instance has no site URL, which leaves nothing to link to. */
+  url: string;
   /** Exactly seven, index-aligned with the rollup's `days`. */
   cells: WeekCell[];
   seconds: number;

@@ -22,6 +22,7 @@ interface StubRow {
   instanceName: string;
   instancePosition: number;
   issueKey: string;
+  url: string;
   cells: StubCell[];
   seconds: number;
 }
@@ -101,7 +102,13 @@ interface Logged {
   pushState: "unpushed" | "pushed" | "dirty";
 }
 
-function row(issueKey: string, logged: Logged[], instance = 1): StubRow {
+/** The site each stub instance stands in for — what a real rollup would build
+ *  the row's browse URL from server-side. */
+function siteOf(instance: number): string {
+  return instance === 2 ? "https://personal.atlassian.net" : "https://ridgeline.atlassian.net";
+}
+
+function row(issueKey: string, logged: Logged[], instance = 1, url?: string): StubRow {
   const cells: StubCell[] = Array.from({ length: 7 }, () => ({ seconds: 0, pushState: null }));
   for (const entry of logged) {
     cells[entry.at] = { seconds: entry.seconds, pushState: entry.pushState };
@@ -112,6 +119,7 @@ function row(issueKey: string, logged: Logged[], instance = 1): StubRow {
     instanceName: instance === 2 ? "Personal" : "Ridgeline",
     instancePosition: instance === 2 ? 1 : 0,
     issueKey,
+    url: url ?? `${siteOf(instance)}/browse/${issueKey}`,
     cells,
     seconds: cells.reduce((sum, cell) => sum + cell.seconds, 0),
   };
@@ -627,6 +635,11 @@ test("every cell is a control that opens the entries dialog for its ticket", asy
 const RIDGELINE_HUE = "oklch(0.6 0.13 265)";
 const NORTHWIND_HUE = "oklch(0.6 0.13 175)";
 
+/** --color-ink and --color-ink-muted in the light theme Playwright runs in by
+ *  default — see styles.css. */
+const INK_LIGHT = "oklch(0.195 0.009 55)";
+const INK_MUTED_LIGHT = "oklch(0.465 0.01 55)";
+
 /**
  * A total is a sum, never a control — worth proving now that every other cell
  * in the grid has become one. Neither total carries a button to click, and
@@ -726,6 +739,64 @@ test("the three week controls share one height", async ({ page }) => {
   );
 
   expect(heights).toEqual([36, 36, 36]);
+});
+
+/**
+ * #117 task 10, W14: the drawing's `.wctl.icon` is `width: 36px; padding: 0`
+ * — square at the shared 36px height. "This week" is a text button and stays
+ * unsquared, which is what tells the two variants apart in this assertion.
+ */
+test("each arrow is square at the shared 36px control height", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const arrows = [
+    page.getByRole("button", { name: "Previous week" }),
+    page.getByRole("button", { name: "Next week" }),
+  ];
+  const boxes = await Promise.all(arrows.map((arrow) => arrow.boundingBox()));
+
+  for (const box of boxes) {
+    expect(box).not.toBeNull();
+    expect(box?.width).toBe(36);
+    expect(box?.height).toBe(36);
+  }
+});
+
+/**
+ * #117 task 10, W13: the arrows carry the app's own popover rather than a
+ * native `title` — dropping `button.title` in favour of a `that-tooltip` is
+ * the whole change, and the aria-label stays exactly where it was, since a
+ * tooltip is never the accessible name.
+ */
+test("the week arrows carry the drawn popover rather than a native title", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const previous = page.getByRole("button", { name: "Previous week" });
+  const next = page.getByRole("button", { name: "Next week" });
+
+  await expect(previous).not.toHaveAttribute("title");
+  await expect(next).not.toHaveAttribute("title");
+  // The accessible name is unchanged by the tooltip's presence.
+  await expect(previous).toHaveAttribute("aria-label", "Previous week");
+  await expect(next).toHaveAttribute("aria-label", "Next week");
+
+  await previous.hover();
+  const previousTip = page.locator("that-tooltip", { hasText: "previous week" });
+  await expect(previousTip).toBeVisible();
+  await expect(previousTip).toHaveText("previous week");
+
+  await next.hover();
+  const nextTip = page.locator("that-tooltip", { hasText: "next week" });
+  await expect(nextTip).toBeVisible();
+  await expect(nextTip).toHaveText("next week");
 });
 
 test("the fetch control sits beside the label, and the week controls do not move", async ({
@@ -1115,6 +1186,46 @@ test("a filled cell's figure and a row's key wear the mono face", async ({ page 
 });
 
 /**
+ * #117 task 10, W4: the ticket key is a link to the issue in Jira — its
+ * `href` is the browse URL the rollup carries — muted at rest and brightening
+ * to full ink on hover, the rule `.that-key` already states for Today.
+ */
+test("the ticket key opens the issue in Jira, ink-muted at rest and full ink on hover", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const key = ticketRow(page, "RIDGE-1").locator(".that-key");
+  await expect(key).toHaveAttribute("href", "https://ridgeline.atlassian.net/browse/RIDGE-1");
+  await expect(key).toHaveCSS("color", INK_MUTED_LIGHT);
+
+  await key.hover();
+  await expect(key).toHaveCSS("color", INK_LIGHT);
+});
+
+/**
+ * #117 task 10, W4: an instance migrated from a gateway URL carries no site to
+ * link to, so its row's key stays plain text rather than a dead anchor —
+ * the same rule Today's own keyLabel already follows.
+ */
+test("a key from an instance with no site URL renders as plain text", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }], 1, ""),
+    ]),
+  });
+
+  const key = ticketRow(page, "RIDGE-1").locator(".that-key");
+  await expect(key).toHaveText("RIDGE-1");
+  const tagName = await key.evaluate((element) => element.tagName);
+  expect(tagName).toBe("SPAN");
+});
+
+/**
  * #117 task 9, W3: `.grid thead th` — 12px, weight 700, .06em tracking,
  * uppercase, a 9px bottom padding and a hairline beneath. Read off a day
  * column rather than Ticket, whose own `.tk` class wins the weight back to
@@ -1191,6 +1302,32 @@ test("a body row is 46px, a cell's trigger carries the drawn padding, and tfoot 
   });
   expect(footPadding.top).toBe(12);
   expect(footPadding.bottom).toBe(12);
+});
+
+/**
+ * #117 task 10, W12: `.cell:hover, .cell:focus-visible { background: var(--hover) }`
+ * — a grid cell takes the same hover wash on keyboard focus that it takes
+ * under the pointer, which is what makes tabbing through a week legible.
+ */
+test("a cell takes the hover wash on keyboard focus as well as pointer hover", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const trigger = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  const resting = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  await trigger.hover();
+  const hovered = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await page.mouse.move(0, 0);
+
+  await trigger.focus();
+  const focused = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  expect(hovered).not.toBe(resting);
+  expect(focused).toBe(hovered);
 });
 
 /**
