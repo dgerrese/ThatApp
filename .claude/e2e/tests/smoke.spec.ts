@@ -225,6 +225,7 @@ test.describe("the content region owns the scroll, not the page", () => {
     instanceName: "Work",
     instancePosition: 0,
     issueKey: `WORK-${1000 + index}`,
+    url: `https://work.atlassian.net/browse/WORK-${1000 + index}`,
     cells: WEEK_DAYS.map(() => ({ seconds: 0, pushState: null })),
     seconds: 0,
   }));
