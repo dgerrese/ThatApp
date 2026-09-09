@@ -337,4 +337,23 @@ test.describe("the content region owns the scroll, not the page", () => {
     // throughout — the scroll happened on window, not here.
     expect(await content(page).evaluate((element) => element.scrollTop)).toBe(0);
   });
+
+  // R7 says a view change resets scroll. router.ts's resetContentScroll used
+  // to reset only #content, which is a no-op below md: — window is the
+  // scroller there, per the test above — so a phone landed Today-to-Week
+  // navigation mid-page. Asserting #content.scrollTop === 0 here would be
+  // trivially true regardless, since it is never the scroller at this width.
+  test("below md:, navigating Today to Week resets the window's scroll", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/today");
+    await expect(page.getByText("Row 39")).toBeAttached();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Week", exact: true }).click();
+    await expect(page).toHaveURL(/\/week$/);
+    await expect(page.getByText("WORK-1039")).toBeAttached();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
 });
