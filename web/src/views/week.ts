@@ -1,12 +1,14 @@
 import "../components/that-alert";
 
 import { ApiError, fetchWeek, getWeek } from "../api";
+import { CARD_SURFACE_CLASSES } from "../card-surface";
 import { openEntryDialog } from "../components/that-entry-dialog";
 import { announceEntriesChanged } from "../entries-changed";
 import { fetchReportNodes } from "../fetch-report";
 import { totalFigure } from "../format";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
+import { pageHeading } from "../page-heading";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod } from "../rail";
@@ -44,18 +46,13 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   const container = document.createElement("div");
   container.className = "space-y-4";
 
-  const header = document.createElement("div");
-  header.className = "flex flex-wrap items-baseline justify-between gap-3";
-
-  const label = document.createElement("h2");
-  label.className = "text-xl font-bold";
-
-  // The label, a rule, and the fetch. Its own flex box rather than three more
-  // children of the header: the header aligns on baselines, and a group's
-  // baseline is its first item's, so the heading still sits on the same line as
-  // the week controls opposite it.
-  const identity = document.createElement("div");
-  identity.className = "flex items-center gap-3";
+  // The pageHeading shape Today's sections wear — #117's W7 — rather than
+  // week.ts's own text-xl font-bold, which was the drift. mb-2.5 is stripped
+  // back off: the container's own space-y-4 already gives the grid its gap
+  // below, and the two together would double it, which pageHeading's other
+  // callers never hit because theirs sits inside a <section> instead.
+  const { box: header, heading: label } = pageHeading("");
+  header.classList.remove("mb-2.5");
 
   const rule = document.createElement("span");
   rule.className = "bg-edge h-5 w-px";
@@ -139,11 +136,16 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     })();
   });
 
-  identity.append(label, rule, refreshControl, fetchControl);
-
   const controls = document.createElement("div");
   controls.className = "flex items-center gap-1";
-  header.append(identity, controls);
+
+  // Pushes controls to the far end of the header — the prototype's own `.sp`,
+  // a bare flex-1 spacer beside the label, the rule and the two buttons.
+  const spacer = document.createElement("span");
+  spacer.className = "flex-1";
+  spacer.setAttribute("aria-hidden", "true");
+
+  header.append(rule, refreshControl, fetchControl, spacer, controls);
 
   const grid = document.createElement("div");
   grid.append(loadingLine());
@@ -211,7 +213,9 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     showing = rollup.start;
     label.textContent = periodLabel(rollup);
     controls.replaceChildren(...weekControls(rollup));
-    grid.replaceChildren(rollup.rows.length === 0 ? emptyWeek() : gridTable(rollup, marked, root));
+    grid.replaceChildren(
+      rollup.rows.length === 0 ? emptyWeek() : gridCard(gridTable(rollup, marked, root)),
+    );
     // There is a week on screen to read again now. Guarded on `busy` because
     // both the fetch and the refresh end by calling show() themselves, and
     // re-enabling here would hand a control back a moment before the round
@@ -386,7 +390,19 @@ function refreshButton(): HTMLButtonElement {
   return button;
 }
 
-function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): HTMLElement {
+/**
+ * Shared by every `.tk` cell — the Ticket header, a row's own key cell, and
+ * the footer's "Total" label — because the drawing gives all three the same
+ * treatment regardless of which section they sit in: content-width, nowrap,
+ * a 10px right padding standing in for the generic column gap, and a
+ * font-weight of 400 that outranks the header row's own bold and the
+ * footer's own bold alike (`.grid th.tk`'s two classes beat `.grid thead th`
+ * and `.grid tfoot th`'s one class plus one type, the same specificity edge
+ * the prototype's cascade relies on).
+ */
+const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap align-middle";
+
+function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): HTMLTableElement {
   const table = document.createElement("table");
   // that-tnum on the table, so every figure under it is tabular — figures that
   // sit above one another have to align or the column reads as noise.
@@ -398,12 +414,15 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
   table.append(caption);
 
   const headRow = document.createElement("tr");
-  headRow.className = "border-edge text-ink-muted border-b text-sm";
-  headRow.append(headCell("Ticket", "text-left"));
+  // Type carried here rather than per th: font-size, weight, tracking and
+  // transform all inherit, and only the block padding below needs a cell of
+  // its own to land on.
+  headRow.className = "text-ink-muted text-xs font-bold tracking-[0.06em] uppercase";
+  headRow.append(tkHeadCell("Ticket"));
   rollup.days.forEach((day, index) => {
-    headRow.append(headCell(dayHeading(day.day, index), "text-right"));
+    headRow.append(headCell(dayHeading(day.day, index)));
   });
-  headRow.append(headCell("Total", "text-right"));
+  headRow.append(headCell("Total"));
 
   const head = document.createElement("thead");
   head.append(headRow);
@@ -415,7 +434,7 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
 
     const ticket = document.createElement("th");
     ticket.scope = "row";
-    ticket.className = "px-2 py-1.5 text-left font-normal";
+    ticket.className = `${TK_CLASSES} h-[46px]`;
 
     const holder = document.createElement("span");
     holder.className = "flex items-center gap-2";
@@ -424,7 +443,8 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
     // which Jira it came from without the hue having to carry it alone.
     paintInstanceDot(dot, row.instancePosition, row.instanceName);
     const key = document.createElement("span");
-    key.className = "font-bold";
+    // that-key: the drawing's .kk — Chivo Mono, 13px, weight 700.
+    key.className = "that-key text-ink-muted";
     key.textContent = row.issueKey;
     holder.append(dot, key);
     ticket.append(holder);
@@ -435,7 +455,7 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
       const failed = failures.cells.has(cellKey(row.instanceId, row.issueKey, day));
       tr.append(ticketCell(row, index, day, cell, failed, root));
     });
-    tr.append(totalCell(row.seconds));
+    tr.append(totalCell(row.seconds, false));
     body.append(tr);
   }
 
@@ -443,7 +463,7 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
   footRow.className = "border-edge border-t";
   const footHead = document.createElement("th");
   footHead.scope = "row";
-  footHead.className = "px-2 py-1.5 text-left";
+  footHead.className = `${TK_CLASSES} py-3`;
   footHead.textContent = "Total";
   footRow.append(footHead);
   // A day's own worst-wins state, the same rule the cells above follow, so the
@@ -453,7 +473,7 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
   for (const day of rollup.days) {
     footRow.append(dayTotal(day, failures.days.has(day.day)));
   }
-  footRow.append(totalCell(rollup.seconds));
+  footRow.append(totalCell(rollup.seconds, true));
 
   const foot = document.createElement("tfoot");
   foot.className = "font-bold";
@@ -462,6 +482,21 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
   table.append(head, body, foot);
 
   return table;
+}
+
+/**
+ * The card the grid sits in — the drawing's `.tcard` around `.grid`.
+ * CARD_SURFACE_CLASSES rather than that-card, which would add a heading slot
+ * the grid has no use for. overflow-x-auto so the table can be wider than
+ * the card without the page itself scrolling sideways — the same bargain
+ * that-table already makes for the phone.
+ */
+function gridCard(table: HTMLTableElement): HTMLElement {
+  const card = document.createElement("div");
+  card.className = `${CARD_SURFACE_CLASSES} overflow-x-auto`;
+  card.append(table);
+
+  return card;
 }
 
 const MARKER_BASE = "mr-1.5 inline-block align-[1px]";
@@ -543,7 +578,7 @@ function ticketCell(
   root: HTMLElement,
 ): HTMLTableCellElement {
   const td = document.createElement("td");
-  td.className = "px-2 py-1.5 text-right";
+  td.className = "h-[46px] pl-[10px] text-right align-middle";
 
   const id = `that-week-cell-${String(++weekCellSequence)}`;
   const empty = cell.seconds === 0;
@@ -555,13 +590,13 @@ function ticketCell(
   trigger.type = "button";
   trigger.id = id;
   trigger.setAttribute("aria-haspopup", "dialog");
-  // The padding is given back as negative margin on every side, so the figure
-  // lands exactly where the td's own padding already puts it and the hover
-  // wash reaches no further than that — hugging the figure rather than
-  // spanning the column, which stays the td's job alone.
+  // The padding is given back as negative margin on every side — the
+  // drawing's .cell, 9px block and 13px inline — so the figure lands exactly
+  // where the td's own padding would put it and the hover wash hugs the
+  // figure rather than spanning the column, which stays the td's job alone.
   trigger.className =
-    "hover:bg-hover -mx-1.5 -my-0.5 inline-flex cursor-pointer items-baseline rounded-sm " +
-    "px-1.5 py-0.5";
+    "hover:bg-hover -mx-[13px] -my-[9px] inline-flex cursor-pointer items-baseline " +
+    "rounded-sm px-[13px] py-[9px]";
   // Independent of the popover below, which reaches neither a keyboard nor a
   // screen reader on its own.
   trigger.setAttribute(
@@ -582,7 +617,10 @@ function ticketCell(
   });
 
   if (empty) {
+    // No .fig wrapping here — the drawing's own empty cell is a bare em dash,
+    // unlike the footer's, which keeps .fig even when it has nothing to show.
     trigger.classList.add("text-ink-muted");
+    trigger.append(document.createTextNode(figure));
   } else {
     // Inline with no reserved width: the column is right-aligned, so the
     // figure ends at the same edge whether or not a marker precedes it, and a
@@ -594,8 +632,12 @@ function ticketCell(
       mark.setAttribute("aria-hidden", "true");
       trigger.append(mark);
     }
+    // .fig: the drawing's mono face for a real figure.
+    const fig = document.createElement("span");
+    fig.className = "font-mono";
+    fig.textContent = figure;
+    trigger.append(fig);
   }
-  trigger.append(document.createTextNode(figure));
 
   const tooltip = document.createElement("that-tooltip");
   tooltip.setAttribute("for", id);
@@ -610,13 +652,15 @@ function ticketCell(
 }
 
 /** A day's own total across every ticket, worst-wins marked like a cell but
- *  never a control: it is a sum, and there is nothing on it to edit. */
+ *  never a control: it is a sum, and there is nothing on it to edit. Wears
+ *  .fig (mono) even at zero — unlike a day cell's own em dash, the footer's
+ *  keeps the class regardless, per the drawing's tfoot markup. */
 function dayTotal(day: WeekDay, failed: boolean): HTMLTableCellElement {
   const td = document.createElement("td");
-  td.className = "px-2 py-1.5 text-right";
+  td.className = "pl-[10px] py-3 text-right align-middle font-mono";
 
   if (day.seconds === 0) {
-    td.className += " text-ink-muted";
+    td.classList.add("text-ink-muted");
     td.textContent = "—";
 
     return td;
@@ -644,20 +688,40 @@ function dayTotal(day: WeekDay, failed: boolean): HTMLTableCellElement {
   return td;
 }
 
-/** A row or week total: a sum of cells, so a sum's shape, and never a marker —
- *  the states it spans are already marked on the cells it adds up. */
-function totalCell(seconds: number): HTMLTableCellElement {
+/**
+ * A row or week total: a sum of cells, so a sum's shape, and never a marker —
+ * the states it spans are already marked on the cells it adds up. `.tot`'s
+ * own 18px overrides the generic 10px column gap. `foot` distinguishes the
+ * week total in tfoot — 12px block padding, no fixed row height — from a
+ * row's own total in tbody, which is fixed to the 46px row instead.
+ */
+function totalCell(seconds: number, foot: boolean): HTMLTableCellElement {
   const td = document.createElement("td");
-  td.className = "px-2 py-1.5 text-right font-bold";
+  td.className = `pl-[18px] text-right align-middle font-mono font-bold ${foot ? "py-3" : "h-[46px]"}`;
   td.textContent = totalFigure(seconds);
 
   return td;
 }
 
-function headCell(text: string, align: string): HTMLTableCellElement {
+/** The Ticket column's header — see TK_CLASSES. border-b lands on the cell
+ *  itself rather than the row: a `<tr>`'s own border does not show up on a
+ *  `<th>`'s computed style even under border-collapse, so the hairline has
+ *  to be each header cell's own. */
+function tkHeadCell(text: string): HTMLTableCellElement {
   const th = document.createElement("th");
   th.scope = "col";
-  th.className = `px-2 pb-1.5 font-normal ${align}`;
+  th.className = `${TK_CLASSES} border-edge border-b pb-[9px]`;
+  th.textContent = text;
+
+  return th;
+}
+
+/** Every other header cell — a day or the week Total, right-aligned and
+ *  wearing the header row's own weight, tracking and 9px bottom padding. */
+function headCell(text: string): HTMLTableCellElement {
+  const th = document.createElement("th");
+  th.scope = "col";
+  th.className = "border-edge border-b pl-[10px] pb-[9px] text-right align-middle";
   th.textContent = text;
 
   return th;

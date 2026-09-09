@@ -1040,6 +1040,219 @@ test("a week the server refuses still offers a way back to this one", async ({ p
   await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
 });
 
+/**
+ * #117 task 9, W1: the drawing puts the grid in `.tcard` — `--raised`, the
+ * card shadow — and scrolls it inside its own container rather than letting
+ * the page scroll sideways. The viewport is narrowed to force the nine-column
+ * grid past it, the same bargain that-table already documents for the phone.
+ * `document.scrollingElement.scrollLeft` staying 0 is the half that matters:
+ * measuring the card's own scroll alone would still pass if the page moved
+ * with it.
+ */
+test("the grid sits in a raised card with the card shadow, and a wide week scrolls inside it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const card = page.locator("table").locator("xpath=..");
+  await expect(card).toBeVisible();
+
+  const style = await card.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { background: computed.backgroundColor, shadow: computed.boxShadow, overflowX: computed.overflowX };
+  });
+  const surface = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.className = "bg-raised shadow-card";
+    document.body.append(probe);
+    const computed = getComputedStyle(probe);
+    const result = { background: computed.backgroundColor, shadow: computed.boxShadow };
+    probe.remove();
+    return result;
+  });
+
+  expect(style.background).toBe(surface.background);
+  expect(style.shadow).toBe(surface.shadow);
+  expect(style.overflowX).toBe("auto");
+
+  await card.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+  });
+  await expect.poll(() => card.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.scrollingElement?.scrollLeft ?? -1)).toBe(0);
+});
+
+/**
+ * #117 task 9, W2: `.grid .fig` and `.grid .kk` wear Chivo Mono, and the
+ * whole table keeps its figures tabular via `.that-tnum`.
+ */
+test("a filled cell's figure and a row's key wear the mono face", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const figure = ticketRow(page, "RIDGE-1").locator("td").first().locator("button span");
+  await expect(figure).toHaveText("1h 00m");
+  expect(await figure.evaluate((element) => getComputedStyle(element).fontFamily)).toContain(
+    "Chivo Mono",
+  );
+
+  const key = ticketRow(page, "RIDGE-1").locator(".that-key");
+  expect(await key.evaluate((element) => getComputedStyle(element).fontFamily)).toContain(
+    "Chivo Mono",
+  );
+
+  expect(await page.locator("table").evaluate((element) => getComputedStyle(element).fontVariantNumeric)).toBe(
+    "tabular-nums",
+  );
+});
+
+/**
+ * #117 task 9, W3: `.grid thead th` — 12px, weight 700, .06em tracking,
+ * uppercase, a 9px bottom padding and a hairline beneath. Read off a day
+ * column rather than Ticket, whose own `.tk` class wins the weight back to
+ * 400 in the drawing.
+ */
+test("a header cell wears the drawn type, its own 9px bottom padding, and a hairline", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const th = page.locator("table thead th").nth(1);
+  const type = await th.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return {
+      fontSize: parseFloat(computed.fontSize),
+      fontWeight: computed.fontWeight,
+      letterSpacing: parseFloat(computed.letterSpacing),
+      textTransform: computed.textTransform,
+      paddingBottom: parseFloat(computed.paddingBottom),
+    };
+  });
+
+  expect(type.fontSize).toBe(12);
+  expect(type.fontWeight).toBe("700");
+  // 0.06em against a 12px font-size.
+  expect(type.letterSpacing).toBeCloseTo(0.72, 1);
+  expect(type.textTransform).toBe("uppercase");
+  expect(type.paddingBottom).toBe(9);
+  await expect(th).toHaveCSS("border-bottom-width", "1px");
+});
+
+/**
+ * #117 task 9, W6: a tbody row is 46px tall; a cell's trigger carries the
+ * drawing's 9px/13px padding given back as the same negative margin; tfoot
+ * carries a 12px block padding.
+ */
+test("a body row is 46px, a cell's trigger carries the drawn padding, and tfoot is padded 12px", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const height = await ticketRow(page, "RIDGE-1").evaluate(
+    (element) => element.getBoundingClientRect().height,
+  );
+  expect(Math.round(height)).toBe(46);
+
+  const trigger = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  const cell = await trigger.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return {
+      paddingTop: parseFloat(computed.paddingTop),
+      paddingLeft: parseFloat(computed.paddingLeft),
+      marginTop: parseFloat(computed.marginTop),
+      marginLeft: parseFloat(computed.marginLeft),
+    };
+  });
+  expect(cell.paddingTop).toBe(9);
+  expect(cell.paddingLeft).toBe(13);
+  expect(cell.marginTop).toBe(-9);
+  expect(cell.marginLeft).toBe(-13);
+
+  const footCell = page.locator("tfoot td").first();
+  const footPadding = await footCell.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { top: parseFloat(computed.paddingTop), bottom: parseFloat(computed.paddingBottom) };
+  });
+  expect(footPadding.top).toBe(12);
+  expect(footPadding.bottom).toBe(12);
+});
+
+/**
+ * #117 task 9, W7: the drawing's `.pageh h3` is 15px at weight 500 — a
+ * downgrade from the app's shipped `text-xl font-bold` — because Week's title
+ * now takes the app's shared page-heading shape rather than its own.
+ */
+test("the week title takes the page-heading shape: 15px at weight 500", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const heading = page.getByRole("heading", { level: 2 });
+  const type = await heading.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { fontSize: parseFloat(computed.fontSize), fontWeight: computed.fontWeight };
+  });
+  expect(type.fontSize).toBe(15);
+  expect(type.fontWeight).toBe("500");
+});
+
+/**
+ * #117 task 9, W9: `th + th`/`td + td` carry a 10px column gap; `.tk` stays
+ * content-width and nowrap with its own 10px right padding rather than the
+ * generic left one; `.tot` overrides the gap to 18px.
+ */
+test("columns keep their drawn 10px gap, Ticket stays content-width, and totals sit 18px off it", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const tkHeader = page.locator("table thead th").first();
+  const dayHeader = page.locator("table thead th").nth(1);
+  await expect(dayHeader).toHaveCSS("padding-left", "10px");
+
+  const tk = await tkHeader.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { paddingRight: parseFloat(computed.paddingRight), whiteSpace: computed.whiteSpace };
+  });
+  expect(tk.paddingRight).toBe(10);
+  expect(tk.whiteSpace).toBe("nowrap");
+
+  const tkWidth = (await tkHeader.boundingBox())?.width ?? 0;
+  const dayWidth = (await dayHeader.boundingBox())?.width ?? 0;
+  expect(tkWidth).toBeLessThan(dayWidth);
+
+  const dayCell = ticketRow(page, "RIDGE-1").locator("td").nth(1);
+  await expect(dayCell).toHaveCSS("padding-left", "10px");
+
+  const rowTotal = ticketRow(page, "RIDGE-1").locator("td").last();
+  await expect(rowTotal).toHaveCSS("padding-left", "18px");
+
+  const weekTotal = page.locator("tfoot td").last();
+  await expect(weekTotal).toHaveCSS("padding-left", "18px");
+});
+
 test("the previous week is a place you can go back from", async ({ page }) => {
   await openWeek(page, {
     [THIS_WEEK]: rollup(THIS_WEEK, [

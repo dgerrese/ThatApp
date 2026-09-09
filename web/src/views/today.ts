@@ -23,6 +23,7 @@ import { LOG_TIME, PIN, UNPIN } from "../components/that-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
 import { clockTime, totalFigure } from "../format";
 import { paintInstanceDot } from "../instance-hue";
+import { pageHeading } from "../page-heading";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
@@ -96,9 +97,9 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
   const pinnedSection = document.createElement("section");
   pinnedSection.setAttribute("aria-labelledby", PINNED_HEADING_ID);
-  pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID), pinnedList, pinnedForm);
+  pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID).box, pinnedList, pinnedForm);
 
-  const header = pageHeading("Assigned issues", ASSIGNED_HEADING_ID);
+  const header = pageHeading("Assigned issues", ASSIGNED_HEADING_ID).box;
   // A header control acting on the whole view, so it carries the toolbar
   // shape rather than appendIconButton's icon-and-tooltip one — Decision 12
   // of the visual language.
@@ -808,24 +809,6 @@ function noInstances(): HTMLElement {
 // helpers in views/settings.ts. Extracting them into a shared module is the
 // right end state, but it means editing settings.ts, which is outside this
 // ticket's scope. Worth its own ticket.
-
-/**
- * A section's heading and the controls that belong beside it — the prototype's
- * .pageh, line 318. Pinned and Assigned issues wear the same one: they are two
- * sections of one list, not a card and a list.
- */
-function pageHeading(text: string, headingId: string): HTMLElement {
-  const box = document.createElement("div");
-  box.className = "mb-2.5 flex items-center gap-2";
-
-  const heading = document.createElement("h2");
-  heading.id = headingId;
-  heading.className = "text-lg font-medium";
-  heading.textContent = text;
-  box.append(heading);
-
-  return box;
-}
 
 /** The raised surface a message sits on where a table would otherwise be. */
 function cardHolding(node: Node): HTMLElement {
