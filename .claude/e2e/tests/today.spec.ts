@@ -131,6 +131,25 @@ test("no configured instances offers Settings instead of a Refresh button", asyn
   await expect(page.getByRole("button", { name: "Refresh" })).toBeHidden();
 });
 
+/**
+ * #117's Decision 12: a header control acting on the whole view carries
+ * words, not merely a tooltip on a bare glyph. Refresh used to render with an
+ * aria-label and no visible text at all, backed by a that-tooltip that
+ * repeated the same word on hover — which is never the accessible name, and
+ * proves nothing about what the button itself says.
+ */
+test("Today's refresh carries its own words rather than a tooltip alone", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.goto("/today");
+
+  const refresh = page.getByRole("button", { name: "Refresh" });
+  await expect(refresh).toBeVisible();
+  await expect(refresh).toHaveText("Refresh");
+  // Scoped to the heading it sits beside, not the page: pin and unpin are
+  // inline controls and keep their own tooltips under Decision 12.
+  await expect(page.locator("#today-assigned").locator("..").locator("that-tooltip")).toHaveCount(0);
+});
+
 test("Refresh replaces the list", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [workIssue])], [group(1, "Work", [personalIssue])]);
   await page.goto("/today");

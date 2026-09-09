@@ -12,6 +12,7 @@ import { onPushReported } from "../push-reported";
 import { setRailPeriod } from "../rail";
 import { navigate } from "../router";
 import type { RegisterTeardown } from "../router";
+import { toolbarButton } from "../toolbar-button";
 import type { PushResponse, WeekCell, WeekDay, WeekRollup, WeekRow } from "../types";
 import { weekLabel } from "../week-label";
 
@@ -60,21 +61,27 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   rule.className = "bg-edge h-5 w-px";
   rule.setAttribute("aria-hidden", "true");
 
+  const refreshControl = refreshButton();
   const fetchControl = fetchButton();
 
-  // Attached the moment the control exists rather than after the first read.
-  // render appends this header synchronously and the router awaits it, so the
-  // button is painted and focusable from the first frame; a listener added
-  // after the read would swallow every press until then, and for the whole
-  // mount if that read failed. What keeps a press from arriving too early is
-  // the control's own disabled state, which the first successful read lifts.
-  let fetching = false;
+  // Attached the moment the controls exist rather than after the first read.
+  // render appends this header synchronously and the router awaits it, so
+  // both buttons are painted and focusable from the first frame; a listener
+  // added after the read would swallow every press until then, and for the
+  // whole mount if that read failed. What keeps a press from arriving too
+  // early is each control's own disabled state, which the first successful
+  // read lifts.
+  //
+  // One flag shared by both: a refresh landing mid-fetch would paint a
+  // half-applied week, and a fetch launched mid-refresh is the same risk the
+  // other way round, so either press disables both controls for its whole
+  // round trip.
+  let busy = false;
   fetchControl.addEventListener("click", () => {
     void (async () => {
-      // Disabled for the whole round trip: a second press would run the same
-      // week again over half-applied results.
-      fetching = true;
+      busy = true;
       fetchControl.disabled = true;
+      refreshControl.disabled = true;
       try {
         // The week on screen, not the one the mount opened with: show() keeps
         // this in step with whatever the server answered.
@@ -94,13 +101,33 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
         report.replaceChildren(alertFor("error", messageOf(error)));
         report.hidden = false;
       } finally {
-        fetching = false;
+        busy = false;
         fetchControl.disabled = false;
+        refreshControl.disabled = false;
       }
     })();
   });
 
-  identity.append(label, rule, fetchControl);
+  // The same read the mount and every push already use — nothing written,
+  // no Jira endpoint called. show() itself repaints the grid and the week
+  // controls; this only has to bracket the round trip the way the fetch
+  // handler above does.
+  refreshControl.addEventListener("click", () => {
+    void (async () => {
+      busy = true;
+      fetchControl.disabled = true;
+      refreshControl.disabled = true;
+      try {
+        await show();
+      } finally {
+        busy = false;
+        fetchControl.disabled = false;
+        refreshControl.disabled = false;
+      }
+    })();
+  });
+
+  identity.append(label, rule, refreshControl, fetchControl);
 
   const controls = document.createElement("div");
   controls.className = "flex items-center gap-1";
@@ -173,10 +200,12 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     label.textContent = periodLabel(rollup);
     controls.replaceChildren(...weekControls(rollup));
     grid.replaceChildren(rollup.rows.length === 0 ? emptyWeek() : gridTable(rollup, marked, root));
-    // There is a week on screen to fetch now. Guarded on `fetching` because
-    // the fetch itself ends by calling show(), and re-enabling there would
-    // hand the button back a moment before the round trip it belongs to ends.
-    fetchControl.disabled = fetching;
+    // There is a week on screen to read again now. Guarded on `busy` because
+    // both the fetch and the refresh end by calling show() themselves, and
+    // re-enabling here would hand a control back a moment before the round
+    // trip it belongs to ends.
+    fetchControl.disabled = busy;
+    refreshControl.disabled = busy;
 
     return rollup;
   };
@@ -314,35 +343,33 @@ function weekButton(control: { mark?: string; label: string; path: string }): HT
 /**
  * Pulls the week's worklogs in.
  *
- * Labelled rather than an icon alone, and outside the week controls opposite it:
- * those three are navigation and share one height as one group, where this
- * writes entries to the database. The rule before it is what says so.
- *
- * A plain button for the same reason weekButton is one — CLAUDE.md reserves
- * `that-*` for reusable UI, and this is one control in one view.
+ * Outside the week controls opposite it: those three are navigation and
+ * share one height as one group, where this writes entries to the database.
+ * The rule before it is what says so. Built on toolbarButton, which is what
+ * fixes this control's rendered form — see the visual language's Decision
+ * 12; this function must not change what it draws.
  */
 function fetchButton(): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
+  const button = toolbarButton({ icon: "fetch", label: "Fetch worklogs" });
   // Enabled by the read that gives it a week to fetch. Until then there is
   // nothing for a press to do, and a control that looks pressable and answers
   // nothing is worse than one that says it is not ready.
   button.disabled = true;
-  button.className =
-    "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-sm px-3 " +
-    "text-base font-bold text-ink-muted hover:bg-hover hover:text-ink " +
-    "disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent";
-  // The label text already names the button; the explicit aria-label matches
-  // it rather than adding information, the same belt-and-braces
-  // sortHeaderCell in that-table.ts uses beside its own iconMarkup call.
-  button.setAttribute("aria-label", "Fetch worklogs");
 
-  const mark = document.createElement("span");
-  mark.innerHTML = iconMarkup("fetch", 17);
-  const text = document.createElement("span");
-  text.textContent = "Fetch worklogs";
+  return button;
+}
 
-  button.append(mark, text);
+/**
+ * Re-reads the week from this app's own database — the same call show()
+ * already makes on mount, on a push and on a navigation between weeks. It
+ * calls no Jira endpoint and writes nothing, which is what tells it apart
+ * from fetchButton beside it.
+ */
+function refreshButton(): HTMLButtonElement {
+  const button = toolbarButton({ icon: "refresh", label: "Refresh" });
+  // Enabled by the same first read that lets fetchButton go — see the `busy`
+  // guard shared by both in render().
+  button.disabled = true;
 
   return button;
 }

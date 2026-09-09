@@ -753,6 +753,175 @@ test("the fetch control sits beside the label, and the week controls do not move
 });
 
 /**
+ * Decision 12 of the visual language: Week gains a refresh control, labelled,
+ * after the rule and before Fetch worklogs. It re-reads the week from this
+ * app's own database — the same read show() already performs on mount — and
+ * calls no Jira endpoint, which is what tells it apart from the fetch beside
+ * it.
+ */
+test("Refresh sits between the rule and Fetch worklogs, and re-reads /api/week when pressed", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  await expect(refreshControl).toBeVisible();
+
+  // Document order rather than geometry: a wrapped header would still leave
+  // the rule and Fetch worklogs on either side of Refresh even though their
+  // bounding boxes stop agreeing about who is "before" whom.
+  const order = await page.evaluate(() => {
+    const byLabel = (label: string) =>
+      Array.from(document.querySelectorAll("button")).find(
+        (button) => button.getAttribute("aria-label") === label,
+      ) ?? null;
+    const rule = document.querySelector(".bg-edge");
+    const refresh = byLabel("Refresh");
+    const fetchButton = byLabel("Fetch worklogs");
+    if (!rule || !refresh || !fetchButton) return null;
+
+    const FOLLOWING = Node.DOCUMENT_POSITION_FOLLOWING;
+
+    return {
+      ruleThenRefresh: Boolean(rule.compareDocumentPosition(refresh) & FOLLOWING),
+      refreshThenFetch: Boolean(refresh.compareDocumentPosition(fetchButton) & FOLLOWING),
+    };
+  });
+  expect(order).toEqual({ ruleThenRefresh: true, refreshThenFetch: true });
+
+  let weekReads = 0;
+  // Registered after openWeek's own route for the same glob, so this one is
+  // asked first and falls back to it — counting the read without having to
+  // reimplement what it answers with.
+  await page.route("**/api/week**", (route) => {
+    if (!new URL(route.request().url()).pathname.endsWith("/fetch")) weekReads += 1;
+
+    return route.fallback();
+  });
+
+  await refreshControl.click();
+  await expect.poll(() => weekReads).toBe(1);
+});
+
+/**
+ * A refresh landing mid-fetch would paint a half-applied week, and a fetch
+ * launched mid-refresh is the same risk the other way round — so each
+ * control disables the other for the whole of its own round trip. The two
+ * directions are proven separately: holding the fetch's own response and
+ * holding the read a refresh press triggers are different gates, and
+ * conflating them into one route would gate the fetch's own internal re-read
+ * by mistake.
+ */
+test("refresh is disabled while a fetch is in flight, and a press on it does nothing", async ({
+  page,
+}) => {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+
+  const weekBody = rollup(THIS_WEEK, [
+    row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+  ]);
+
+  let weekReads = 0;
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await page.route("**/api/week**", async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/fetch")) {
+      await held;
+
+      return route.fulfill({
+        status: 200,
+        json: { start: THIS_WEEK, end: weekBody.end, created: 0, updated: 0, keptLocal: [], failures: [] },
+      });
+    }
+
+    weekReads += 1;
+
+    return route.fulfill({ status: 200, json: weekBody });
+  });
+
+  await page.goto("/week");
+
+  const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  await expect(fetchControl).toBeEnabled();
+
+  await fetchControl.click();
+  await expect(fetchControl).toBeDisabled();
+  await expect(refreshControl).toBeDisabled();
+
+  const readsBeforePress = weekReads;
+  // Disabled buttons ignore a real click on their own; forcing one through is
+  // what proves the press does nothing, rather than merely that it cannot be
+  // aimed at.
+  await refreshControl.click({ force: true });
+  expect(weekReads).toBe(readsBeforePress);
+
+  release();
+  await expect(refreshControl).toBeEnabled();
+  await expect(fetchControl).toBeEnabled();
+});
+
+test("the fetch control is disabled while a refresh is in flight, and a press on it does nothing", async ({
+  page,
+}) => {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+
+  const weekBody = rollup(THIS_WEEK, [
+    row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+  ]);
+
+  let fetchCalls = 0;
+  let weekReads = 0;
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await page.route("**/api/week**", async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/fetch")) {
+      fetchCalls += 1;
+
+      return route.fulfill({
+        status: 200,
+        json: { start: THIS_WEEK, end: weekBody.end, created: 0, updated: 0, keptLocal: [], failures: [] },
+      });
+    }
+
+    weekReads += 1;
+    // The mount's own read answers at once; only the read a refresh press
+    // triggers — the second — is held, which is what catches that press in
+    // flight rather than the mount itself.
+    if (weekReads > 1) await held;
+
+    return route.fulfill({ status: 200, json: weekBody });
+  });
+
+  await page.goto("/week");
+
+  const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  await expect(refreshControl).toBeEnabled();
+
+  await refreshControl.click();
+  await expect(refreshControl).toBeDisabled();
+  await expect(fetchControl).toBeDisabled();
+
+  await fetchControl.click({ force: true });
+  expect(fetchCalls).toBe(0);
+
+  release();
+  await expect(fetchControl).toBeEnabled();
+  await expect(refreshControl).toBeEnabled();
+});
+
+/**
  * void show() after a push is the only thing that settles the grid, and without
  * a fixture that changes underneath it nothing here would fail if it were
  * deleted.

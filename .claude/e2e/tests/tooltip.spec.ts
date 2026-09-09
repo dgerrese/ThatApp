@@ -43,11 +43,12 @@ async function mountTrigger(
  * there), so a <that-tooltip> can sit in the DOM un-upgraded for as long as
  * that chunk takes to arrive — or forever, on a cache miss or a 404 in this
  * offline PWA's service worker. Un-upgraded, it is display: inline with a
- * real box, and its text renders as page content: Today's own Refresh button
- * carries one reading "refresh". The chunk's filename carries a build hash
- * this spec cannot predict, so the block below finds it by what it contains —
- * fetching every script for real and inspecting the body — rather than by
- * name.
+ * real box, and its text renders as page content: a ticket row's own pin
+ * control carries one reading "pin ticket" — an inline control, which keeps
+ * its tooltip under Decision 12 where Today's Refresh no longer does. The
+ * chunk's filename carries a build hash this spec cannot predict, so the
+ * block below finds it by what it contains — fetching every script for real
+ * and inspecting the body — rather than by name.
  *
  * The refetch goes through THAT_BASE_URL directly rather than route.fetch():
  * the chromium project (see playwright.config.ts) points the *browser* at
@@ -62,12 +63,24 @@ test("a that-tooltip that never upgrades stays invisible, not printed into the p
 }) => {
   const base = process.env["THAT_BASE_URL"] ?? "http://that-app:8080";
 
-  // The outer beforeEach's empty /api/issues keeps Today's header — and the
-  // Refresh button this test needs — permanently hidden (today.ts: "no
-  // instances configured, stays hidden for good"). One configured instance
-  // with no issues is enough to show it without pulling in a ticket row.
+  // One issue is enough to render a ticket row, and its pin control is what
+  // carries the real that-tooltip this test needs — that-ticket-row.ts is
+  // part of Today's own chunk, not that-tooltip's, so blocking the latter
+  // below leaves the row free to render normally.
   await page.route("**/api/issues", (route) =>
-    route.fulfill({ status: 200, json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] } }),
+    route.fulfill({
+      status: 200,
+      json: {
+        instances: [
+          {
+            id: 1,
+            name: "Work",
+            issues: [{ key: "WORK-1", summary: "Fix the thing", status: "To Do", url: "" }],
+            error: null,
+          },
+        ],
+      },
+    }),
   );
   await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
 
@@ -87,7 +100,7 @@ test("a that-tooltip that never upgrades stays invisible, not printed into the p
   });
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
+  await expect(page.getByText("Fix the thing")).toBeVisible();
 
   // Proves the block actually worked — the element never upgraded — so the
   // assertions below are proving the CSS rule in styles.css, not a
@@ -95,10 +108,10 @@ test("a that-tooltip that never upgrades stays invisible, not printed into the p
   const upgraded = await page.evaluate(() => customElements.get("that-tooltip") !== undefined);
   expect(upgraded).toBe(false);
 
-  const refreshTooltip = page.locator("that-tooltip", { hasText: "refresh" });
-  await expect(refreshTooltip).toBeAttached();
-  await expect(refreshTooltip).toBeHidden();
-  expect(await refreshTooltip.boundingBox()).toBeNull();
+  const pinTooltip = page.locator("that-tooltip", { hasText: "pin ticket" });
+  await expect(pinTooltip).toBeAttached();
+  await expect(pinTooltip).toBeHidden();
+  expect(await pinTooltip.boundingBox()).toBeNull();
 });
 
 test("hovering a trigger shows the tooltip, and pointerleave hides it again", async ({ page }) => {

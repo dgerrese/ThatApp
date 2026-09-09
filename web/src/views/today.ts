@@ -22,13 +22,12 @@ import type { ThatTable } from "../components/that-table";
 import { LOG_TIME, PIN, UNPIN } from "../components/that-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
 import { clockTime, totalFigure } from "../format";
-import type { IconName } from "../icons";
-import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import type { RegisterTeardown } from "../router";
+import { toolbarButton } from "../toolbar-button";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
@@ -67,9 +66,6 @@ interface Regions {
 const PINNED_HEADING_ID = "today-pinned";
 const ASSIGNED_HEADING_ID = "today-assigned";
 
-/** One id per icon button mounted, so each tooltip's `for` resolves its own. */
-let iconButtonSequence = 0;
-
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   setRailPeriod(TODAY_PERIOD);
 
@@ -103,7 +99,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID), pinnedList, pinnedForm);
 
   const header = pageHeading("Assigned issues", ASSIGNED_HEADING_ID);
-  const refresh = appendIconButton(header, "Refresh", "refresh", "refresh");
+  // A header control acting on the whole view, so it carries the toolbar
+  // shape rather than appendIconButton's icon-and-tooltip one — Decision 12
+  // of the visual language.
+  const refresh = toolbarButton({ icon: "refresh", label: "Refresh" });
+  header.append(refresh);
 
   // The heading itself is drawn from the first frame — both .pageh blocks,
   // the prototype's lines 318 and 320. Only the refresh control waits: there
@@ -825,31 +825,6 @@ function pageHeading(text: string, headingId: string): HTMLElement {
   box.append(heading);
 
   return box;
-}
-
-/**
- * A control that is only a drawn mark, and the tooltip saying in words what
- * the mark means. The label is the button's own — a tooltip reaches neither a
- * keyboard nor a screen reader, so it is never the accessible name.
- */
-function appendIconButton(host: HTMLElement, label: string, icon: IconName, tip: string): HTMLElement {
-  const control = document.createElement("button");
-  control.type = "button";
-  control.id = `today-icon-${String(++iconButtonSequence)}`;
-  control.setAttribute("aria-label", label);
-  control.className =
-    "hover:bg-hover focus-visible:bg-hover text-ink-muted hover:text-ink " +
-    "focus-visible:text-ink flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center " +
-    "justify-center rounded-sm disabled:cursor-not-allowed disabled:opacity-50";
-  control.innerHTML = iconMarkup(icon, 17);
-
-  const tooltip = document.createElement("that-tooltip");
-  tooltip.setAttribute("for", control.id);
-  tooltip.textContent = tip;
-
-  host.append(control, tooltip);
-
-  return control;
 }
 
 /** The raised surface a message sits on where a table would otherwise be. */
