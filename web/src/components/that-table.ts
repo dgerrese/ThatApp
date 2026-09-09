@@ -79,8 +79,12 @@ export class ThatTable extends HTMLElement {
     // Colour only on hover: a padded hover box would shift the label off its
     // column, which is the whole thing the spacing rule in styles.css exists
     // to prevent.
+    // inline-flex, not flex: the header cell is width: 1% and text-align:
+    // right (styles.css), which only moves an inline-level box. A block-level
+    // flex box ignores text-align and instead fills the column, which is what
+    // left the Today header flush left over a column of flush-right figures.
     button.className =
-      "text-ink-muted hover:text-ink flex cursor-pointer items-center gap-1 text-xs " +
+      "text-ink-muted hover:text-ink inline-flex cursor-pointer items-center gap-1 text-xs " +
       "font-bold tracking-[0.06em] uppercase";
     button.setAttribute("aria-label", `Sort by ${label}`);
     button.innerHTML = `${label} ${iconMarkup("sortable", 13)}`;

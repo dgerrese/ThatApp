@@ -224,6 +224,16 @@ test("the Today column is right-aligned, header and body", async ({ page }) => {
 
   await expect(th).toHaveCSS("text-align", "right");
   await expect(td).toHaveCSS("text-align", "right");
+
+  // text-align: right cannot be seen through `toHaveCSS` alone — it holds
+  // whether or not it does anything, because it only moves an inline-level
+  // box. Compare the header button's own bounding box against the column's:
+  // a block-level button fills the column and sits flush left regardless of
+  // the declared alignment, so only the box position catches that failure.
+  const thBox = await th.boundingBox();
+  const buttonBox = await th.locator("button").boundingBox();
+  if (thBox === null || buttonBox === null) throw new Error("missing boundingBox");
+  expect(Math.abs(buttonBox.x + buttonBox.width - (thBox.x + thBox.width))).toBeLessThan(1);
 });
 
 /** T8: the sort chevron carries opacity: .45 at rest. There is no sorted
