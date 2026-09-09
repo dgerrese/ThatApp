@@ -1362,6 +1362,29 @@ test("the week title takes the page-heading shape: 15px at weight 500", async ({
 });
 
 /**
+ * #117 fix wave, finding 7: `.pageh` carries 10px in the drawing wherever it
+ * appears (prototype lines 329, 331, 353) — the same value Today's own
+ * heading-to-content gap uses. Week's header used to strip its own mb-2.5,
+ * on the mistaken belief that the container's space-y-4 would stack another
+ * 16px onto it; space-y-4's margin lands through a zero-specificity
+ * `:where()`, so header's real `.mb-2.5` class already wins outright and the
+ * strip only left the wrong value (16px) standing.
+ */
+test("the week header keeps the drawn 10px gap above the grid", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const header = page.getByRole("heading", { level: 2 }).locator("xpath=..");
+  const marginBottom = await header.evaluate(
+    (element) => getComputedStyle(element).marginBottom,
+  );
+  expect(marginBottom).toBe("10px");
+});
+
+/**
  * #117 task 9, W9: `th + th`/`td + td` carry a 10px column gap; `.tk` stays
  * content-width and nowrap with its own 10px right padding rather than the
  * generic left one; `.tot` overrides the gap to 18px.

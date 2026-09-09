@@ -47,12 +47,14 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   container.className = "space-y-4";
 
   // The pageHeading shape Today's sections wear — #117's W7 — rather than
-  // week.ts's own text-xl font-bold, which was the drift. mb-2.5 is stripped
-  // back off: the container's own space-y-4 already gives the grid its gap
-  // below, and the two together would double it, which pageHeading's other
-  // callers never hit because theirs sits inside a <section> instead.
+  // week.ts's own text-xl font-bold, which was the drift. mb-2.5 is kept: the
+  // container's own space-y-4 gives every non-last child a bottom margin
+  // through `:where()`, which carries zero specificity, so header's own real
+  // `.mb-2.5` class already wins over it and the drawn 10px stands — stripping
+  // it was based on a fear the two stack, which they never do. Today's own
+  // heading gets the identical 10px from the same class, just with no
+  // space-y-4 rule beside it to out-specify.
   const { box: header, heading: label } = pageHeading("");
-  header.classList.remove("mb-2.5");
 
   const rule = document.createElement("span");
   rule.className = "bg-edge h-5 w-px";
