@@ -127,12 +127,28 @@ async function renderCurrent(): Promise<void> {
   const load = routes[window.location.pathname];
   if (!load) {
     renderPlaceholder(root);
+    resetContentScroll();
     return;
   }
 
   const view = await load();
   root.replaceChildren();
   await view.render(root, registerTeardown);
+  resetContentScroll();
+}
+
+/**
+ * `main#content` is the scrolling region from `md:` up (index.html's
+ * `md:overflow-y-auto md:min-h-0`), not `window` — see that file's comment on
+ * why the scroll moved off the page. Below `md:` it is the other way round:
+ * `#content` never scrolls and `window` does, so both are reset here — R7
+ * says a view change resets scroll, and it must hold in both layouts. Reset
+ * here, once, rather than in every view: a view that forgets is exactly the
+ * drift #117 fixed.
+ */
+function resetContentScroll(): void {
+  document.getElementById("content")?.scrollTo(0, 0);
+  window.scrollTo(0, 0);
 }
 
 /**

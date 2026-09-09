@@ -1,17 +1,20 @@
 import "../components/that-alert";
 
 import { ApiError, fetchWeek, getWeek } from "../api";
+import { CARD_SURFACE_CLASSES } from "../card-surface";
 import { openEntryDialog } from "../components/that-entry-dialog";
 import { announceEntriesChanged } from "../entries-changed";
 import { fetchReportNodes } from "../fetch-report";
 import { totalFigure } from "../format";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
+import { pageHeading } from "../page-heading";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod } from "../rail";
 import { navigate } from "../router";
 import type { RegisterTeardown } from "../router";
+import { toolbarButton } from "../toolbar-button";
 import type { PushResponse, WeekCell, WeekDay, WeekRollup, WeekRow } from "../types";
 import { weekLabel } from "../week-label";
 
@@ -43,38 +46,41 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   const container = document.createElement("div");
   container.className = "space-y-4";
 
-  const header = document.createElement("div");
-  header.className = "flex flex-wrap items-baseline justify-between gap-3";
-
-  const label = document.createElement("h2");
-  label.className = "text-xl font-bold";
-
-  // The label, a rule, and the fetch. Its own flex box rather than three more
-  // children of the header: the header aligns on baselines, and a group's
-  // baseline is its first item's, so the heading still sits on the same line as
-  // the week controls opposite it.
-  const identity = document.createElement("div");
-  identity.className = "flex items-center gap-3";
+  // The pageHeading shape Today's sections wear — #117's W7 — rather than
+  // week.ts's own text-xl font-bold, which was the drift. mb-2.5 is kept: the
+  // container's own space-y-4 gives every non-last child a bottom margin
+  // through `:where()`, which carries zero specificity, so header's own real
+  // `.mb-2.5` class already wins over it and the drawn 10px stands — stripping
+  // it was based on a fear the two stack, which they never do. Today's own
+  // heading gets the identical 10px from the same class, just with no
+  // space-y-4 rule beside it to out-specify.
+  const { box: header, heading: label } = pageHeading("");
 
   const rule = document.createElement("span");
   rule.className = "bg-edge h-5 w-px";
   rule.setAttribute("aria-hidden", "true");
 
+  const refreshControl = refreshButton();
   const fetchControl = fetchButton();
 
-  // Attached the moment the control exists rather than after the first read.
-  // render appends this header synchronously and the router awaits it, so the
-  // button is painted and focusable from the first frame; a listener added
-  // after the read would swallow every press until then, and for the whole
-  // mount if that read failed. What keeps a press from arriving too early is
-  // the control's own disabled state, which the first successful read lifts.
-  let fetching = false;
+  // Attached the moment the controls exist rather than after the first read.
+  // render appends this header synchronously and the router awaits it, so
+  // both buttons are painted and focusable from the first frame; a listener
+  // added after the read would swallow every press until then, and for the
+  // whole mount if that read failed. What keeps a press from arriving too
+  // early is each control's own disabled state, which the first successful
+  // read lifts.
+  //
+  // One flag shared by both: a refresh landing mid-fetch would paint a
+  // half-applied week, and a fetch launched mid-refresh is the same risk the
+  // other way round, so either press disables both controls for its whole
+  // round trip.
+  let busy = false;
   fetchControl.addEventListener("click", () => {
     void (async () => {
-      // Disabled for the whole round trip: a second press would run the same
-      // week again over half-applied results.
-      fetching = true;
+      busy = true;
       fetchControl.disabled = true;
+      refreshControl.disabled = true;
       try {
         // The week on screen, not the one the mount opened with: show() keeps
         // this in step with whatever the server answered.
@@ -94,17 +100,54 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
         report.replaceChildren(alertFor("error", messageOf(error)));
         report.hidden = false;
       } finally {
-        fetching = false;
+        busy = false;
         fetchControl.disabled = false;
+        refreshControl.disabled = false;
       }
     })();
   });
 
-  identity.append(label, rule, fetchControl);
+  // The same read the mount and every push already use — nothing written,
+  // no Jira endpoint called. show() itself repaints the grid and the week
+  // controls; this only has to bracket the round trip the way the fetch
+  // handler above does.
+  refreshControl.addEventListener("click", () => {
+    void (async () => {
+      busy = true;
+      fetchControl.disabled = true;
+      refreshControl.disabled = true;
+      try {
+        // A read that fails here is already visible: show()'s own catch
+        // replaces the grid with an alert, the same path a direct navigation
+        // to a bad week or a post-push re-read already goes through — refresh
+        // is not a new way to reach it. This catch is what fetchControl's
+        // wider try/catch already gives its own re-read for free, made
+        // explicit here since this handler's whole operation is that one
+        // call: anything show() itself throws, rather than merely reports
+        // through getWeek's own caught rejection, still reaches the user
+        // instead of becoming a silent, unhandled rejection.
+        await show();
+      } catch (error) {
+        report.replaceChildren(alertFor("error", messageOf(error)));
+        report.hidden = false;
+      } finally {
+        busy = false;
+        fetchControl.disabled = false;
+        refreshControl.disabled = false;
+      }
+    })();
+  });
 
   const controls = document.createElement("div");
   controls.className = "flex items-center gap-1";
-  header.append(identity, controls);
+
+  // Pushes controls to the far end of the header — the prototype's own `.sp`,
+  // a bare flex-1 spacer beside the label, the rule and the two buttons.
+  const spacer = document.createElement("span");
+  spacer.className = "flex-1";
+  spacer.setAttribute("aria-hidden", "true");
+
+  header.append(rule, refreshControl, fetchControl, spacer, controls);
 
   const grid = document.createElement("div");
   grid.append(loadingLine());
@@ -150,7 +193,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
       // A later failure keeps whatever week is already on screen.
       if (controls.childElementCount === 0) {
         label.textContent = "Week";
-        controls.append(weekButton({ label: "This week", path: "/week" }));
+        controls.append(...weekButton({ label: "This week", path: "/week" }));
       }
       grid.replaceChildren(alertFor("error", messageOf(error)));
 
@@ -172,11 +215,15 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     showing = rollup.start;
     label.textContent = periodLabel(rollup);
     controls.replaceChildren(...weekControls(rollup));
-    grid.replaceChildren(rollup.rows.length === 0 ? emptyWeek() : gridTable(rollup, marked, root));
-    // There is a week on screen to fetch now. Guarded on `fetching` because
-    // the fetch itself ends by calling show(), and re-enabling there would
-    // hand the button back a moment before the round trip it belongs to ends.
-    fetchControl.disabled = fetching;
+    grid.replaceChildren(
+      rollup.rows.length === 0 ? emptyWeek() : gridCard(gridTable(rollup, marked, root)),
+    );
+    // There is a week on screen to read again now. Guarded on `busy` because
+    // both the fetch and the refresh end by calling show() themselves, and
+    // re-enabling here would hand a control back a moment before the round
+    // trip it belongs to ends.
+    fetchControl.disabled = busy;
+    refreshControl.disabled = busy;
 
     return rollup;
   };
@@ -217,6 +264,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     viewPath: "/week",
     range: { from: rollup.start, to: rollup.end },
     pushHeading: "Push this week's time to Jira?",
+    pushLabel: "Push this week",
   });
 }
 
@@ -262,19 +310,23 @@ function failuresIn(responses: PushResponse[]): Failures {
  */
 function weekControls(rollup: WeekRollup): HTMLElement[] {
   return [
-    weekButton({
+    ...weekButton({
       mark: iconMarkup("arrow-left"),
       label: "Previous week",
+      tip: "previous week",
       path: `/week?start=${rollup.prevStart}`,
     }),
-    weekButton({ label: "This week", path: "/week" }),
-    weekButton({
+    ...weekButton({ label: "This week", path: "/week" }),
+    ...weekButton({
       mark: iconMarkup("arrow-right"),
       label: "Next week",
+      tip: "next week",
       path: `/week?start=${rollup.nextStart}`,
     }),
   ];
 }
+
+let weekButtonSequence = 0;
 
 /**
  * The neighbouring starts come off the response; nothing here adds seven days.
@@ -282,71 +334,132 @@ function weekControls(rollup: WeekRollup): HTMLElement[] {
  * `h-9` is fixed rather than left to padding: the icon buttons either side of
  * "This week" hold an 18px mark with nothing else to give it a text line's
  * height, so padding alone left them shorter than the text button and the
- * three did not sit on a line.
+ * three did not sit on a line. An icon button is additionally `w-9 p-0` —
+ * the drawing's `.wctl.icon`, square at the shared height — where the text
+ * button keeps its horizontal padding instead.
+ *
+ * Returns an array rather than one element: an icon button's popover is a
+ * sibling in the DOM, the same shape appendPinControl in that-ticket-row.ts
+ * gives its own trigger-and-tooltip pair, and weekControls spreads every call
+ * flat into the header.
  */
-function weekButton(control: { mark?: string; label: string; path: string }): HTMLElement {
+function weekButton(control: {
+  mark?: string;
+  label: string;
+  tip?: string;
+  path: string;
+}): HTMLElement[] {
   const button = document.createElement("button");
   button.type = "button";
   button.className =
-    "inline-flex h-9 cursor-pointer items-center justify-center rounded-sm px-3 text-base " +
-    "font-bold text-ink-muted hover:bg-hover hover:text-ink";
-
-  if (control.mark === undefined) {
-    button.textContent = control.label;
-  } else {
-    // The mark is decorative (icons.ts sets aria-hidden); the name it stands
-    // for is not, and a screen reader would otherwise read the button empty.
-    button.setAttribute("aria-label", control.label);
-    button.title = control.label;
-    const mark = document.createElement("span");
-    mark.innerHTML = control.mark;
-    button.append(mark);
-  }
+    "inline-flex h-9 cursor-pointer items-center justify-center rounded-sm text-base " +
+    `font-bold text-ink-muted hover:bg-hover hover:text-ink ${control.mark === undefined ? "px-3" : "w-9 p-0"}`;
 
   button.addEventListener("click", () => {
     void navigate(control.path);
   });
 
-  return button;
+  if (control.mark === undefined) {
+    button.textContent = control.label;
+
+    return [button];
+  }
+
+  // The mark is decorative (icons.ts sets aria-hidden); the name it stands
+  // for is not, and a screen reader would otherwise read the button empty.
+  button.setAttribute("aria-label", control.label);
+  const id = `that-week-control-${String(++weekButtonSequence)}`;
+  button.id = id;
+  const mark = document.createElement("span");
+  mark.innerHTML = control.mark;
+  button.append(mark);
+
+  // that-tooltip, not a native title (W13): the tooltip is never the
+  // accessible name, so the aria-label above stays exactly where it is.
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", id);
+  tooltip.textContent = control.tip ?? control.label;
+
+  return [button, tooltip];
 }
 
 /**
  * Pulls the week's worklogs in.
  *
- * Labelled rather than an icon alone, and outside the week controls opposite it:
- * those three are navigation and share one height as one group, where this
- * writes entries to the database. The rule before it is what says so.
- *
- * A plain button for the same reason weekButton is one — CLAUDE.md reserves
- * `that-*` for reusable UI, and this is one control in one view.
+ * Outside the week controls opposite it: those three are navigation and
+ * share one height as one group, where this writes entries to the database.
+ * The rule before it is what says so. Built on toolbarButton, which is what
+ * fixes this control's rendered form — see the visual language's Decision
+ * 12; this function must not change what it draws.
  */
 function fetchButton(): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
+  const button = toolbarButton({ icon: "fetch", label: "Fetch worklogs" });
   // Enabled by the read that gives it a week to fetch. Until then there is
   // nothing for a press to do, and a control that looks pressable and answers
   // nothing is worse than one that says it is not ready.
   button.disabled = true;
-  button.className =
-    "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-sm px-3 " +
-    "text-base font-bold text-ink-muted hover:bg-hover hover:text-ink " +
-    "disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent";
-  // The label text already names the button; the explicit aria-label matches
-  // it rather than adding information, the same belt-and-braces
-  // sortHeaderCell in that-table.ts uses beside its own iconMarkup call.
-  button.setAttribute("aria-label", "Fetch worklogs");
-
-  const mark = document.createElement("span");
-  mark.innerHTML = iconMarkup("fetch", 17);
-  const text = document.createElement("span");
-  text.textContent = "Fetch worklogs";
-
-  button.append(mark, text);
 
   return button;
 }
 
-function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): HTMLElement {
+/**
+ * Re-reads the week from this app's own database — the same call show()
+ * already makes on mount, on a push and on a navigation between weeks. It
+ * calls no Jira endpoint and writes nothing, which is what tells it apart
+ * from fetchButton beside it.
+ */
+function refreshButton(): HTMLButtonElement {
+  const button = toolbarButton({ icon: "refresh", label: "Refresh" });
+  // Enabled by the same first read that lets fetchButton go — see the `busy`
+  // guard shared by both in render().
+  button.disabled = true;
+
+  return button;
+}
+
+/**
+ * Shared by every `.tk` cell — the Ticket header, a row's own key cell, and
+ * the footer's "Total" label — because the drawing gives all three the same
+ * treatment regardless of which section they sit in: content-width, nowrap,
+ * a 10px right padding standing in for the generic column gap, and a
+ * font-weight of 400 that outranks the header row's own bold and the
+ * footer's own bold alike (`.grid th.tk`'s two classes beat `.grid thead th`
+ * and `.grid tfoot th`'s one class plus one type, the same specificity edge
+ * the prototype's cascade relies on).
+ */
+const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap align-middle";
+
+/**
+ * A row's key, linked to the issue in Jira — the drawing's `.kk`, Chivo Mono
+ * at 13px/700 via `.that-key`, ink-muted at rest and brightening to ink on
+ * hover through `a.that-key:hover` in styles.css. Mirrors that-ticket-row.ts's
+ * keyLabel: an anchor with an empty href would navigate to the current page
+ * instead of doing nothing, so an instance migrated from a gateway URL — which
+ * carries no site to link to — draws plain text instead.
+ */
+function keyLink(issueKey: string, url: string): HTMLElement {
+  if (url === "") {
+    const span = document.createElement("span");
+    span.className = "that-key text-ink-muted";
+    span.title = `Open ${issueKey} in Jira`;
+    span.textContent = issueKey;
+
+    return span;
+  }
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  // Without noopener the opened page gets a window.opener handle back here.
+  link.rel = "noopener";
+  link.className = "that-key text-ink-muted";
+  link.title = `Open ${issueKey} in Jira`;
+  link.textContent = issueKey;
+
+  return link;
+}
+
+function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): HTMLTableElement {
   const table = document.createElement("table");
   // that-tnum on the table, so every figure under it is tabular — figures that
   // sit above one another have to align or the column reads as noise.
@@ -358,12 +471,15 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
   table.append(caption);
 
   const headRow = document.createElement("tr");
-  headRow.className = "border-edge text-ink-muted border-b text-sm";
-  headRow.append(headCell("Ticket", "text-left"));
+  // Type carried here rather than per th: font-size, weight, tracking and
+  // transform all inherit, and only the block padding below needs a cell of
+  // its own to land on.
+  headRow.className = "text-ink-muted text-xs font-bold tracking-[0.06em] uppercase";
+  headRow.append(tkHeadCell("Ticket"));
   rollup.days.forEach((day, index) => {
-    headRow.append(headCell(dayHeading(day.day, index), "text-right"));
+    headRow.append(headCell(dayHeading(day.day, index)));
   });
-  headRow.append(headCell("Total", "text-right"));
+  headRow.append(headCell("Total"));
 
   const head = document.createElement("thead");
   head.append(headRow);
@@ -375,7 +491,7 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
 
     const ticket = document.createElement("th");
     ticket.scope = "row";
-    ticket.className = "px-2 py-1.5 text-left font-normal";
+    ticket.className = `${TK_CLASSES} h-[46px]`;
 
     const holder = document.createElement("span");
     holder.className = "flex items-center gap-2";
@@ -383,10 +499,7 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
     // paintInstanceDot labels the dot with the instance name, so the row says
     // which Jira it came from without the hue having to carry it alone.
     paintInstanceDot(dot, row.instancePosition, row.instanceName);
-    const key = document.createElement("span");
-    key.className = "font-bold";
-    key.textContent = row.issueKey;
-    holder.append(dot, key);
+    holder.append(dot, keyLink(row.issueKey, row.url));
     ticket.append(holder);
     tr.append(ticket);
 
@@ -395,7 +508,7 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
       const failed = failures.cells.has(cellKey(row.instanceId, row.issueKey, day));
       tr.append(ticketCell(row, index, day, cell, failed, root));
     });
-    tr.append(totalCell(row.seconds));
+    tr.append(totalCell(row.seconds, false));
     body.append(tr);
   }
 
@@ -403,17 +516,17 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
   footRow.className = "border-edge border-t";
   const footHead = document.createElement("th");
   footHead.scope = "row";
-  footHead.className = "px-2 py-1.5 text-left";
+  footHead.className = `${TK_CLASSES} py-3`;
   footHead.textContent = "Total";
   footRow.append(footHead);
   // A day's own worst-wins state, the same rule the cells above follow, so the
   // footer says which days still hold time Jira has not got. It is still a
   // sum — of every row's cell for that day — so it stays inert like the row
   // and week totals rather than becoming a control.
-  for (const day of rollup.days) {
-    footRow.append(dayTotal(day, failures.days.has(day.day)));
-  }
-  footRow.append(totalCell(rollup.seconds));
+  rollup.days.forEach((day, index) => {
+    footRow.append(dayTotal(day, failures.days.has(day.day), index === 0));
+  });
+  footRow.append(totalCell(rollup.seconds, true));
 
   const foot = document.createElement("tfoot");
   foot.className = "font-bold";
@@ -422,6 +535,21 @@ function gridTable(rollup: WeekRollup, failures: Failures, root: HTMLElement): H
   table.append(head, body, foot);
 
   return table;
+}
+
+/**
+ * The card the grid sits in — the drawing's `.tcard` around `.grid`.
+ * CARD_SURFACE_CLASSES rather than that-card, which would add a heading slot
+ * the grid has no use for. overflow-x-auto so the table can be wider than
+ * the card without the page itself scrolling sideways — the same bargain
+ * that-table already makes for the phone.
+ */
+function gridCard(table: HTMLTableElement): HTMLElement {
+  const card = document.createElement("div");
+  card.className = `${CARD_SURFACE_CLASSES} overflow-x-auto`;
+  card.append(table);
+
+  return card;
 }
 
 const MARKER_BASE = "mr-1.5 inline-block align-[1px]";
@@ -463,7 +591,10 @@ type PushState = WeekCell["pushState"];
  *  rollup said, because it is newer than the rollup: it comes off the push
  *  that just happened, and a re-read reports those entries as unpushed again
  *  — true, but not the thing the reader needs in the seconds after Push. */
-function markerFor(pushState: PushState, failed: boolean): { className: string; words: string } | undefined {
+function markerFor(
+  pushState: PushState,
+  failed: boolean,
+): { className: string; words: string } | undefined {
   return MARKERS[failed ? "failed" : (pushState ?? "pushed")];
 }
 
@@ -503,7 +634,12 @@ function ticketCell(
   root: HTMLElement,
 ): HTMLTableCellElement {
   const td = document.createElement("td");
-  td.className = "px-2 py-1.5 text-right";
+  // `.grid td + td { padding-left: 10px }` in the drawing never reaches
+  // Monday: the Ticket cell before it is a `<th>`, not a `<td>`, so that
+  // sibling rule does not match and Monday's own gap is carried by th.tk's
+  // padding-right alone (prototype lines 167, 170). Utility classes have no
+  // sibling combinator, so the index stands in for it here.
+  td.className = `h-[46px] text-right align-middle ${dayIndex === 0 ? "" : "pl-[10px]"}`;
 
   const id = `that-week-cell-${String(++weekCellSequence)}`;
   const empty = cell.seconds === 0;
@@ -515,13 +651,13 @@ function ticketCell(
   trigger.type = "button";
   trigger.id = id;
   trigger.setAttribute("aria-haspopup", "dialog");
-  // The padding is given back as negative margin on every side, so the figure
-  // lands exactly where the td's own padding already puts it and the hover
-  // wash reaches no further than that — hugging the figure rather than
-  // spanning the column, which stays the td's job alone.
+  // The padding is given back as negative margin on every side — the
+  // drawing's .cell, 9px block and 13px inline — so the figure lands exactly
+  // where the td's own padding would put it and the hover wash hugs the
+  // figure rather than spanning the column, which stays the td's job alone.
   trigger.className =
-    "hover:bg-hover -mx-1.5 -my-0.5 inline-flex cursor-pointer items-baseline rounded-sm " +
-    "px-1.5 py-0.5";
+    "hover:bg-hover focus-visible:bg-hover -mx-[13px] -my-[9px] inline-flex cursor-pointer " +
+    "items-baseline rounded-sm px-[13px] py-[9px]";
   // Independent of the popover below, which reaches neither a keyboard nor a
   // screen reader on its own.
   trigger.setAttribute(
@@ -542,7 +678,10 @@ function ticketCell(
   });
 
   if (empty) {
+    // No .fig wrapping here — the drawing's own empty cell is a bare em dash,
+    // unlike the footer's, which keeps .fig even when it has nothing to show.
     trigger.classList.add("text-ink-muted");
+    trigger.append(document.createTextNode(figure));
   } else {
     // Inline with no reserved width: the column is right-aligned, so the
     // figure ends at the same edge whether or not a marker precedes it, and a
@@ -554,8 +693,12 @@ function ticketCell(
       mark.setAttribute("aria-hidden", "true");
       trigger.append(mark);
     }
+    // .fig: the drawing's mono face for a real figure.
+    const fig = document.createElement("span");
+    fig.className = "font-mono";
+    fig.textContent = figure;
+    trigger.append(fig);
   }
-  trigger.append(document.createTextNode(figure));
 
   const tooltip = document.createElement("that-tooltip");
   tooltip.setAttribute("for", id);
@@ -570,13 +713,17 @@ function ticketCell(
 }
 
 /** A day's own total across every ticket, worst-wins marked like a cell but
- *  never a control: it is a sum, and there is nothing on it to edit. */
-function dayTotal(day: WeekDay, failed: boolean): HTMLTableCellElement {
+ *  never a control: it is a sum, and there is nothing on it to edit. Wears
+ *  .fig (mono) even at zero — unlike a day cell's own em dash, the footer's
+ *  keeps the class regardless, per the drawing's tfoot markup. */
+function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCellElement {
   const td = document.createElement("td");
-  td.className = "px-2 py-1.5 text-right";
+  // Same reasoning as ticketCell's td: the footer's Ticket cell is also a
+  // `<th>`, so Monday's own `.grid td + td` gap never fires for it either.
+  td.className = `py-3 text-right align-middle font-mono ${isFirst ? "" : "pl-[10px]"}`;
 
   if (day.seconds === 0) {
-    td.className += " text-ink-muted";
+    td.classList.add("text-ink-muted");
     td.textContent = "—";
 
     return td;
@@ -604,20 +751,43 @@ function dayTotal(day: WeekDay, failed: boolean): HTMLTableCellElement {
   return td;
 }
 
-/** A row or week total: a sum of cells, so a sum's shape, and never a marker —
- *  the states it spans are already marked on the cells it adds up. */
-function totalCell(seconds: number): HTMLTableCellElement {
+/**
+ * A row or week total: a sum of cells, so a sum's shape, and never a marker —
+ * the states it spans are already marked on the cells it adds up. `foot`
+ * distinguishes the week total in tfoot from a row's own total in tbody, and
+ * the two differ in more than block padding and row height: the prototype's
+ * tfoot markup carries `fig` on every cell and `tot` on none of them, so only
+ * a row's own total wears `.tot`'s 18px — the week total takes the same
+ * generic 10px `dayTotal` beside it does.
+ */
+function totalCell(seconds: number, foot: boolean): HTMLTableCellElement {
   const td = document.createElement("td");
-  td.className = "px-2 py-1.5 text-right font-bold";
+  const gap = foot ? "pl-[10px] py-3" : "pl-[18px] h-[46px]";
+  td.className = `${gap} text-right align-middle font-mono font-bold`;
   td.textContent = totalFigure(seconds);
 
   return td;
 }
 
-function headCell(text: string, align: string): HTMLTableCellElement {
+/** The Ticket column's header — see TK_CLASSES. border-b lands on the cell
+ *  itself rather than the row: a `<tr>`'s own border does not show up on a
+ *  `<th>`'s computed style even under border-collapse, so the hairline has
+ *  to be each header cell's own. */
+function tkHeadCell(text: string): HTMLTableCellElement {
   const th = document.createElement("th");
   th.scope = "col";
-  th.className = `px-2 pb-1.5 font-normal ${align}`;
+  th.className = `${TK_CLASSES} border-edge border-b pb-[9px]`;
+  th.textContent = text;
+
+  return th;
+}
+
+/** Every other header cell — a day or the week Total, right-aligned and
+ *  wearing the header row's own weight, tracking and 9px bottom padding. */
+function headCell(text: string): HTMLTableCellElement {
+  const th = document.createElement("th");
+  th.scope = "col";
+  th.className = "border-edge border-b pl-[10px] pb-[9px] text-right align-middle";
   th.textContent = text;
 
   return th;

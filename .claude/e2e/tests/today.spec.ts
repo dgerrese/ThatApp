@@ -131,6 +131,25 @@ test("no configured instances offers Settings instead of a Refresh button", asyn
   await expect(page.getByRole("button", { name: "Refresh" })).toBeHidden();
 });
 
+/**
+ * #117's Decision 12: a header control acting on the whole view carries
+ * words, not merely a tooltip on a bare glyph. Refresh used to render with an
+ * aria-label and no visible text at all, backed by a that-tooltip that
+ * repeated the same word on hover — which is never the accessible name, and
+ * proves nothing about what the button itself says.
+ */
+test("Today's refresh carries its own words rather than a tooltip alone", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.goto("/today");
+
+  const refresh = page.getByRole("button", { name: "Refresh" });
+  await expect(refresh).toBeVisible();
+  await expect(refresh).toHaveText("Refresh");
+  // Scoped to the heading it sits beside, not the page: pin and unpin are
+  // inline controls and keep their own tooltips under Decision 12.
+  await expect(page.locator("#today-assigned").locator("..").locator("that-tooltip")).toHaveCount(0);
+});
+
 test("Refresh replaces the list", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [workIssue])], [group(1, "Work", [personalIssue])]);
   await page.goto("/today");
@@ -478,4 +497,162 @@ test("the content column caps at 120rem and stays centred", async ({ page }) => 
   expect(Math.round(column.x - main!.x)).toBe(
     Math.round(main!.x + main!.width - (column.x + column.width)),
   );
+});
+
+/**
+ * #117's T13: the prototype draws both .pageh blocks — Pinned and Assigned
+ * issues — from the first frame (lines 318 and 320). `render()` used to hide
+ * the whole Assigned issues header, refresh control included, until the
+ * first `/api/issues` response landed. The route below is gated on a promise
+ * this test controls, so the assertion runs while that response is still
+ * outstanding.
+ */
+test("both page headings are visible before the /api/issues response resolves", async ({ page }) => {
+  let releaseIssues: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    releaseIssues = resolve;
+  });
+  await page.route("**/api/issues", async (route) => {
+    await gate;
+    await route.fulfill({ status: 200, json: { instances: [group(1, "Work", [workIssue])] } });
+  });
+
+  await page.goto("/today");
+
+  await expect(page.getByRole("heading", { name: "Pinned" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Assigned issues" })).toBeVisible();
+
+  releaseIssues?.();
+});
+
+/**
+ * T14: a message state sits in `.tcard` like every other. loadingLine() used
+ * to render as a bare paragraph — no card underneath it, unlike every other
+ * message state in this view.
+ */
+test("the loading line sits inside a that-card", async ({ page }) => {
+  let releaseIssues: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    releaseIssues = resolve;
+  });
+  await page.route("**/api/issues", async (route) => {
+    await gate;
+    await route.fulfill({ status: 200, json: { instances: [] } });
+  });
+
+  await page.goto("/today");
+
+  const parentTag = await page
+    .getByText("Loading…")
+    .first()
+    .evaluate((element) => element.closest("that-card")?.tagName ?? null);
+  expect(parentTag).toBe("THAT-CARD");
+
+  releaseIssues?.();
+});
+
+/** T12: every key carries the native title the prototype writes — "Open <KEY>
+ *  in Jira" — verbatim, not merely a link. */
+test("a ticket key carries the native Jira title", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.goto("/today");
+
+  await expect(page.getByRole("link", { name: "WORK-412" })).toHaveAttribute(
+    "title",
+    "Open WORK-412 in Jira",
+  );
+});
+
+/** T10: `.grouph .n { opacity: .75 }` — the instance tally beside the name. */
+test("an instance's tally is muted against its name", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await page.goto("/today");
+
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toBeVisible();
+  await expect(tally).toHaveCSS("opacity", "0.75");
+});
+
+/**
+ * #117's T7: an instance's card filters its pinned issues out — they already
+ * appear in Pinned above — but the tally beside its name must still count
+ * their time, because the rail's split does. Only the issue count stays what
+ * the card shows: one row is visible here, but its time is two entries' worth.
+ *
+ * Registered after the shared beforeEach so these two routes win — Playwright
+ * checks the most recently registered matching handler first.
+ */
+test("an instance's tally counts a pinned issue's time too", async ({ page }) => {
+  const second: StubIssue = {
+    key: "WORK-500",
+    summary: "Rotate the deploy key",
+    status: "To Do",
+    url: "https://work.atlassian.net/browse/WORK-500",
+  };
+
+  await stubIssues(page, [group(1, "Work", [workIssue, second])]);
+
+  await page.route("**/api/pins**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          id: 1,
+          instanceId: 1,
+          instanceName: "Work",
+          instancePosition: 0,
+          key: workIssue.key,
+          summary: workIssue.summary,
+          status: workIssue.status,
+          url: workIssue.url,
+          error: null,
+        },
+      ],
+    }),
+  );
+
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          id: 1,
+          instanceId: 1,
+          instanceName: "Work",
+          instancePosition: 0,
+          issueKey: workIssue.key,
+          day: "2026-09-09",
+          startedAt: "2026-09-09T09:00:00+02:00",
+          seconds: 1800,
+          comment: "",
+          pushState: "unpushed",
+        },
+        {
+          id: 2,
+          instanceId: 1,
+          instanceName: "Work",
+          instancePosition: 0,
+          issueKey: second.key,
+          day: "2026-09-09",
+          startedAt: "2026-09-09T10:00:00+02:00",
+          seconds: 900,
+          comment: "",
+          pushState: "unpushed",
+        },
+      ],
+    }),
+  );
+
+  await page.goto("/today");
+
+  // Only WORK-500 is visible in the Work card — WORK-412 is pinned, so it is
+  // filtered out of it (it still shows in Pinned above, hence the region
+  // scope) — yet the tally carries both entries' time.
+  const workCard = page.getByRole("region", { name: "Work", exact: true });
+  await expect(workCard.getByText("Rotate the deploy key")).toBeVisible();
+  await expect(workCard.getByText("Fix the CSV export encoding")).toHaveCount(0);
+
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toHaveText("1 issue · 0h 45m");
+  await expect(page.locator("#rail-split")).toContainText("0h 45m");
 });

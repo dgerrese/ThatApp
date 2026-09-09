@@ -38,7 +38,14 @@
     </script>
   </head>
   <body class="bg-surface text-ink font-sans text-base tracking-[-0.011em]">
-    <div class="grid min-h-screen grid-cols-1 md:grid-cols-[216px_minmax(0,1fr)]">
+    <!--
+      h-screen only from md: up: below it the grid is one column and rows
+      still size to their content (min-h-screen, as before), so the page
+      itself scrolls and the rail travels with it. At and above md: the row
+      is fixed to the screen and the two children below split its overflow
+      instead, which is the point of this shell.
+    -->
+    <div class="grid min-h-screen grid-cols-1 md:h-screen md:grid-cols-[216px_minmax(0,1fr)]">
       <!--
         The rail is the instrument, not a menu: the thing you glance at sits in
         the same place whatever view you are on. It is dark in both themes and
@@ -52,7 +59,7 @@
         really is zero, there really is nothing to split, no timer is running,
         and there is nothing to push.
       -->
-      <aside class="that-rail bg-rail text-rail-ink flex flex-col gap-[30px] px-3.5 py-6">
+      <aside class="that-rail bg-rail text-rail-ink flex flex-col gap-[26px] px-3.5 py-[22px] md:overflow-y-auto">
         <h1 class="text-primary-rail text-xs font-bold tracking-[0.16em] uppercase">
           ThatApp
         </h1>
@@ -73,11 +80,11 @@
           <!-- #7 fills this with the split bar and a figure per instance. The
                resting line is inside it rather than replaced by it, so the bar
                is absent — not zero width — until there is something to divide. -->
-          <div id="rail-split" class="flex flex-col gap-3">
+          <div id="rail-split" class="flex flex-col gap-2">
             <span class="text-rail-muted text-base">Nothing to split yet</span>
           </div>
 
-          <div class="bg-rail-active h-px"></div>
+          <div class="bg-rail-active h-0.5 my-1 rounded-xs"></div>
 
           <!-- #8 makes this the running timer. -->
           <div id="rail-timer" class="flex items-center gap-2">
@@ -96,10 +103,12 @@
             id="rail-push"
             type="button"
             disabled
-            class="border-rail-active bg-rail-active text-rail-ink text-base mt-0.5 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm border font-bold disabled:cursor-not-allowed disabled:bg-transparent disabled:text-rail-muted"
+            class="border-rail-active bg-primary-rail text-primary-rail-ink text-base mt-0.5 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm border font-bold hover:brightness-[1.07] disabled:cursor-not-allowed disabled:bg-transparent disabled:text-rail-muted"
           >
             Push to Jira
           </button>
+
+          <div class="bg-rail-active h-0.5 my-1 rounded-xs"></div>
         </div>
 
         <nav class="flex flex-col gap-0.5">
@@ -138,14 +147,22 @@
             data-route
             class="that-nav text-base flex h-[38px] items-center gap-[11px] rounded-xs px-2.5"
           >
+            <!-- Transcribed from the prototype's #p-gear (line 283), not drawn
+                 here: this app previously carried a hand-drawn substitute. 1.7
+                 stroke, not this file's usual 1.9 — the prototype's own use of
+                 #p-gear (line 308) draws it at 1.7, and a specific drawn value
+                 takes precedence over the language's general rule for a mark
+                 the language did not itself draw. stroke-linejoin is likewise
+                 the prototype's own choice for this mark: the tooth corners
+                 miter to points without it. -->
             <svg
               width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.9" stroke-linecap="round" aria-hidden="true"
+              stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
             >
-              <circle cx="12" cy="12" r="3" />
               <path
-                d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M18 6l-1.5 1.5M7.5 16.5 6 18M18 18l-1.5-1.5M7.5 7.5 6 6"
+                d="M9.62 5.10 L10.33 2.55 L13.67 2.55 L14.38 5.10 A 7.30 7.30 0 0 1 15.20 5.44 L17.51 4.14 L19.86 6.49 L18.56 8.80 A 7.30 7.30 0 0 1 18.90 9.62 L21.45 10.33 L21.45 13.67 L18.90 14.38 A 7.30 7.30 0 0 1 18.56 15.20 L19.86 17.51 L17.51 19.86 L15.20 18.56 A 7.30 7.30 0 0 1 14.38 18.90 L13.67 21.45 L10.33 21.45 L9.62 18.90 A 7.30 7.30 0 0 1 8.80 18.56 L6.49 19.86 L4.14 17.51 L5.44 15.20 A 7.30 7.30 0 0 1 5.10 14.38 L2.55 13.67 L2.55 10.33 L5.10 9.62 A 7.30 7.30 0 0 1 5.44 8.80 L4.14 6.49 L6.49 4.14 L8.80 5.44 A 7.30 7.30 0 0 1 9.62 5.10 Z"
               />
+              <circle cx="12" cy="12" r="3.3" />
             </svg>
             Settings
           </a>
@@ -161,7 +178,7 @@
         .viewport/.pad pair, so a card grid asks how much room the view has and
         not how much of it the cap is using.
       -->
-      <main class="@container min-w-0">
+      <main id="content" class="@container min-w-0 md:min-h-0 md:overflow-y-auto">
         <div class="mx-auto flex max-w-[120rem] flex-col gap-4 px-7 py-6">
           <div id="view"></div>
         </div>

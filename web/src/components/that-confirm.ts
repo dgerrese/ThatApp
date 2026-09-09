@@ -16,7 +16,8 @@ export class ThatConfirm extends HTMLElement {
     // Preflight's `* { margin: 0 }` is author origin, which beats the UA's own
     // `dialog { margin: auto }` regardless of specificity — without this the
     // dialog resolves to the top-left corner in both Firefox and Chromium.
-    dialog.className = "bg-raised text-ink shadow-dialog m-auto max-w-sm rounded-md p-5";
+    dialog.className =
+      "bg-raised text-ink shadow-dialog border-edge m-auto max-w-sm rounded-md border p-5";
 
     const heading = document.createElement("h2");
     heading.id = "that-confirm-heading";

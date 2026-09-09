@@ -52,8 +52,14 @@ export class ThatDuration extends HTMLElement {
 
   private build(): void {
     const group = document.createElement("div");
+    // Height set here rather than left to the input's padding plus its line
+    // height: Chivo Mono's own line-height differs from Chivo's, so the same
+    // nominal font-size does not sum to the same pixel height across the two
+    // faces. Pinning it here is what lets `.durgroup input`'s drawn 9px 8px
+    // padding sit inside the same 38px `.btn` draws, instead of chasing a
+    // font metric no CSS property here controls.
     group.className =
-      "inline-flex items-stretch overflow-hidden rounded-sm border border-edge " +
+      "inline-flex h-[38px] items-stretch overflow-hidden rounded-sm border border-edge " +
       "focus-within:border-ink";
 
     const minus = this.stepButton("minus", -1, "Fifteen minutes less");
@@ -72,7 +78,7 @@ export class ThatDuration extends HTMLElement {
     input.inputMode = "numeric";
     input.setAttribute("aria-label", this.getAttribute("label") ?? "Duration");
     input.className =
-      "w-16 bg-transparent px-2 py-1.5 text-center text-sm tabular-nums " +
+      "w-16 bg-transparent px-2 py-[9px] text-center font-mono text-sm tabular-nums " +
       "focus:outline-none disabled:cursor-not-allowed";
     this.input = input;
 

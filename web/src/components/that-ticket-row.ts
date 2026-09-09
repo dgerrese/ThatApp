@@ -146,10 +146,16 @@ export class ThatTicketRow extends HTMLElement {
     // not the hit area, and the row is the height its text asks for. Without
     // the give-back this cell was the tallest in the row and every card grew
     // by it. The left margin is not returned — the prototype's durbtn keeps
-    // that side, so the figure stays clear of the summary beside it.
+    // that side, so the figure stays clear of the summary beside it. Values
+    // are .durbtn's own: padding 9px 13px, margin -9px -13px -9px 0.
+    // No gap: the hint's own margin-right is the only space between it and the
+    // figure, matching .durbtn's gap: 0 in the prototype.
+    // inline-flex, not flex: the cell is width: 1% with text-align: right (see
+    // that-table.ts's sortHeaderCell for the header's own case of this), and a
+    // block-level flex box fills the column and ignores that alignment.
     trigger.className =
-      "group hover:bg-hover -my-0.5 -mr-1.5 flex shrink-0 cursor-pointer items-baseline " +
-      "gap-1.5 rounded-sm px-1.5 py-0.5";
+      "group hover:bg-hover -my-[9px] -mr-[13px] inline-flex shrink-0 cursor-pointer items-baseline " +
+      "rounded-sm px-[13px] py-[9px]";
 
     // Decision 10 reverses the first edition's choice for a table: the hint
     // always occupies its width and only its opacity fades in, so the status
@@ -217,8 +223,11 @@ export class ThatTicketRow extends HTMLElement {
     const trigger = document.createElement("button");
     trigger.type = "button";
     trigger.id = this.pinTriggerId;
+    // -mr-2 is .iconbtn's own margin-right: -8px, so the control's ink reaches
+    // the card's content edge instead of stopping short of it behind the
+    // button's own hit area.
     trigger.className =
-      "hover:bg-hover focus-visible:bg-hover flex h-[34px] w-[34px] shrink-0 cursor-pointer " +
+      "hover:bg-hover focus-visible:bg-hover -mr-2 flex h-[34px] w-[34px] shrink-0 cursor-pointer " +
       "items-center justify-center rounded-sm text-ink-muted hover:text-ink focus-visible:text-ink";
     trigger.addEventListener("click", () => {
       this.togglePinned();
@@ -315,6 +324,7 @@ export class ThatTicketRow extends HTMLElement {
     if (url === "") {
       const span = document.createElement("span");
       span.className = "that-key that-tnum text-ink-muted";
+      span.title = `Open ${key} in Jira`;
       span.textContent = key;
 
       return span;
@@ -326,6 +336,7 @@ export class ThatTicketRow extends HTMLElement {
     // Without noopener the opened page gets a window.opener handle back here.
     link.rel = "noopener";
     link.className = "that-key that-tnum text-ink-muted";
+    link.title = `Open ${key} in Jira`;
     link.textContent = key;
 
     return link;

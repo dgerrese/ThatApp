@@ -81,16 +81,26 @@ export class ThatTooltip extends HTMLElement {
     if (!this.matches(":popover-open")) this.showPopover();
 
     const box = trigger.getBoundingClientRect();
-    const gap = 6;
+    const gap = 7;
     const left =
       this.getAttribute("anchor") === "end"
         ? box.right - this.offsetWidth
         : box.left + box.width / 2 - this.offsetWidth / 2;
 
+    // Above by default — the drawing's .tip — falling back below when there
+    // is not enough room, the drawing's own .tip.below (prototype line 144).
+    // #content starts flush against the window's top edge (#3's), so a
+    // trigger at the top of the content column, or Week's own header arrows,
+    // would otherwise open partly off-screen.
+    const top =
+      box.top - this.offsetHeight - gap < 0
+        ? box.bottom + gap
+        : box.top - this.offsetHeight - gap;
+
     // All four longhands, not just top/left: the UA stylesheet gives an open
     // popover `inset: 0` for its default centred position, and leaving right
     // or bottom set would fight the explicit placement on some engines.
-    this.style.top = `${box.bottom + gap}px`;
+    this.style.top = `${top}px`;
     this.style.left = `${left}px`;
     this.style.right = "auto";
     this.style.bottom = "auto";

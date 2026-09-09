@@ -53,12 +53,16 @@ type weekDayDTO struct {
 // 0-based position instanceHue keys its dot off — so a row needs no second call
 // to colour itself.
 type weekRowDTO struct {
-	InstanceID       int64         `json:"instanceId"`
-	InstanceName     string        `json:"instanceName"`
-	InstancePosition int           `json:"instancePosition"`
-	IssueKey         string        `json:"issueKey"`
-	Cells            []weekCellDTO `json:"cells"`
-	Seconds          int           `json:"seconds"`
+	InstanceID       int64  `json:"instanceId"`
+	InstanceName     string `json:"instanceName"`
+	InstancePosition int    `json:"instancePosition"`
+	IssueKey         string `json:"issueKey"`
+	// The human-facing link to the issue, empty when its instance has no site —
+	// see browseURL. Built here rather than in the browser, which would put
+	// Jira's URL shape in two places.
+	URL     string        `json:"url"`
+	Cells   []weekCellDTO `json:"cells"`
+	Seconds int           `json:"seconds"`
 }
 
 // weekRollupDTO is aggregated here rather than in the browser: the day boundary
@@ -226,6 +230,7 @@ func rollUp(
 			InstanceName:     instances[key.instanceID].Name,
 			InstancePosition: positions[key.instanceID],
 			IssueKey:         key.issueKey,
+			URL:              browseURL(instances[key.instanceID].SiteURL, key.issueKey),
 			Cells:            make([]weekCellDTO, daysInWeek),
 		}
 		for i, cell := range byCell[key] {

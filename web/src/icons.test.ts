@@ -42,6 +42,18 @@ test("pin and pin-off differ by more than a slash's absence", () => {
   assert.notEqual(iconMarkup("pin"), iconMarkup("pin-off"));
 });
 
+test("pin and pin-off are transcribed from the prototype's #p-pin and #p-pinoff", () => {
+  // Pasted verbatim from docs/superpowers/prototypes/2026-09-03-app-prototype.html's <defs>.
+  assert.match(
+    iconMarkup("pin"),
+    /<path d="M8\.6 3\.5h6\.8M10\.2 3\.5v5\.3l-2\.7 3\.2a1 1 0 0 0 \.77 1\.64h7\.46a1 1 0 0 0 \.77-1\.64L13\.8 8\.8V3\.5M12 13\.64V20\.5"\/>/,
+  );
+  assert.match(
+    iconMarkup("pin-off"),
+    /<path d="M8\.6 3\.5h6\.8M13\.8 3\.5v5\.3l2\.7 3\.2a1 1 0 0 1-\.77 1\.64h-3\.4M10\.2 5\.4v3\.4l-2\.7 3\.2a1 1 0 0 0 \.77 1\.64h3\.2M12 13\.64V20\.5M4\.2 4\.2 19\.8 19\.8"\/>/,
+  );
+});
+
 test("the three sort marks are three different shapes", () => {
   const shapes = new Set(["sortable", "ascending", "descending"].map((n) => iconMarkup(n as IconName)));
   assert.equal(shapes.size, 3, "a sort state told apart by colour alone is the defect this avoids");

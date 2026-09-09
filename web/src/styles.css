@@ -178,12 +178,33 @@
   text-decoration: none;
 }
 a.that-nav:hover {
+  background: var(--color-rail-active);
   color: var(--color-rail-ink);
 }
 .that-nav[aria-current="page"] {
   background: var(--color-rail-active);
   color: var(--color-rail-ink);
   font-weight: 700;
+}
+
+/* Every rail control gets a visible keyboard focus, which nothing here drew
+   before. Two exclusions, for two different reasons:
+   - #rail-push already carries the drawing's own live colour and hover, and
+     this wash would sit on top of a utility class rather than beside it —
+     unlayered rules always win over Tailwind's, regardless of specificity,
+     so it would silently replace the button's fill instead of merely
+     ringing it. A layering problem.
+   - [aria-current="page"] is where "you are here" is shown by fill and
+     weight (2026-08-20-visual-design-language.md) — a rule this file
+     already declares above, at the same unlayered footing as this one. Left
+     unexcluded, :not(#rail-push)'s own ID pulls this rule's specificity
+     past [aria-current="page"]'s, so focusing the current row would replace
+     its solid fill with this translucent wash instead of layering beside
+     it. A same-layer specificity fight, not a layering one — so the
+     exclusion goes through :where(), which never contributes specificity of
+     its own, rather than :not(), which would just restart the fight. */
+.that-rail :focus-visible:not(#rail-push):where(:not([aria-current="page"])) {
+  background: var(--color-hover-rail);
 }
 
 /* The issue key is a column, not a word. Its width is the table's business now
@@ -220,17 +241,31 @@ a.that-key:hover {
    its 5px block padding is chosen so the row height does not move.
    One hairline under every row, header included, and none under the last —
    the rule the list this replaced drew with divide-y, and the prototype's
-   .tbl border-bottom pair. */
+   .tbl border-bottom pair. Block padding is split rather than shared: the
+   prototype's header sits tighter than its body, 9px against 11px. */
 .that-tbl th,
 .that-tbl td {
-  padding: 11px 0;
+  padding-inline: 0;
   text-align: left;
   vertical-align: baseline;
   border-bottom: 1px solid var(--color-edge);
 }
+.that-tbl th {
+  padding-block: 9px;
+}
+.that-tbl td {
+  padding-block: 11px;
+}
 .that-tbl td.c-act {
   padding-block: 5px;
   vertical-align: middle;
+}
+
+/* The one column read right to left: a duration, unlike a key or a status, is
+   compared by magnitude rather than read as a word. */
+.that-tbl .c-today,
+.that-tbl th.c-today {
+  text-align: right;
 }
 
 /* Every column but the summary keeps to its content's width; the summary is

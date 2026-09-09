@@ -176,3 +176,178 @@ test("a row holding controls is no taller than a row of text alone", async ({ pa
   expect(heights).not.toBeNull();
   expect(heights!.withControls).toBeLessThanOrEqual(heights!.textAlone);
 });
+
+/**
+ * #117's T1: `.tbl th` in the prototype (line 99) sets 12px/700/.06em
+ * uppercase text and a 9px block padding, distinct from the body's 11px —
+ * the two were one shared rule in styles.css before this, both hard-coded to
+ * 11px with no type spec of their own beyond a hand-me-down text-sm/font-bold.
+ */
+test("a header cell wears the drawn type and its own 9px block padding", async ({ page }) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const th = page.locator("that-table thead th").first();
+  const button = th.locator("button");
+
+  const type = await button.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return {
+      fontSize: parseFloat(computed.fontSize),
+      fontWeight: computed.fontWeight,
+      letterSpacing: parseFloat(computed.letterSpacing),
+      textTransform: computed.textTransform,
+    };
+  });
+  expect(type.fontSize).toBe(12);
+  expect(type.fontWeight).toBe("700");
+  // 0.06em against a 12px font-size.
+  expect(type.letterSpacing).toBeCloseTo(0.72, 1);
+  expect(type.textTransform).toBe("uppercase");
+
+  const blockPadding = await th.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { top: parseFloat(computed.paddingTop), bottom: parseFloat(computed.paddingBottom) };
+  });
+  expect(blockPadding.top).toBe(9);
+  expect(blockPadding.bottom).toBe(9);
+});
+
+/** T2: `.tbl .c-today, .tbl th.c-today { text-align: right }` — a duration is
+ *  compared by magnitude, not read as a word. */
+test("the Today column is right-aligned, header and body", async ({ page }) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const th = page.locator("that-table thead th.c-today").first();
+  const td = page.locator("that-table tbody td.c-today").first();
+
+  await expect(th).toHaveCSS("text-align", "right");
+  await expect(td).toHaveCSS("text-align", "right");
+
+  // text-align: right cannot be seen through `toHaveCSS` alone — it holds
+  // whether or not it does anything, because it only moves an inline-level
+  // box. Compare the header button's own bounding box against the column's:
+  // a block-level button fills the column and sits flush left regardless of
+  // the declared alignment, so only the box position catches that failure.
+  const thBox = await th.boundingBox();
+  const buttonBox = await th.locator("button").boundingBox();
+  if (thBox === null || buttonBox === null) throw new Error("missing boundingBox");
+  expect(Math.abs(buttonBox.x + buttonBox.width - (thBox.x + thBox.width))).toBeLessThan(1);
+});
+
+/**
+ * R13 residual: the same defect T2 fixed in the header — a block-level `flex`
+ * box fills width: 1%'s column and ignores `text-align: right` — was still
+ * live one row down. The body's duration trigger (that-ticket-row.ts) carried
+ * `flex` where the drawing's `.durbtn` is `display: inline-flex` (prototype
+ * line 122).
+ *
+ * A single row can't discriminate this: with only one row, that row's own
+ * content sets the column's width, so a block box that fills the column and
+ * an inline box sized to its content land in the same place. The bug only
+ * shows once a second row makes the column wider than the first row's own
+ * figure — the trigger's own -mr-[13px] give-back (see the give-back comment
+ * in that-ticket-row.ts) also means neither box sits flush with the td's
+ * literal right edge, so the discriminating check is that every row's right
+ * edge lands in the *same* place, not that it touches the td.
+ */
+test("the duration trigger's right edge does not move with its own figure's width", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          id: 1,
+          instanceId: 1,
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          issueKey: ridgelineIssues[0]!.key,
+          day: "2026-09-09",
+          startedAt: "2026-09-09T09:00:00+02:00",
+          seconds: 0,
+          comment: "",
+          pushState: "unpushed",
+        },
+        {
+          id: 2,
+          instanceId: 1,
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          issueKey: ridgelineIssues[1]!.key,
+          day: "2026-09-09",
+          startedAt: "2026-09-09T10:00:00+02:00",
+          seconds: 36000,
+          comment: "",
+          pushState: "unpushed",
+        },
+      ],
+    }),
+  );
+  await page.goto("/today");
+
+  const rows = page.locator("that-table tbody > *");
+  await expect(rows).toHaveCount(2);
+
+  const rights = await rows.evaluateAll((elements) =>
+    elements.map((row) => row.querySelector("td.c-today button")!.getBoundingClientRect().right),
+  );
+  expect(rights).toHaveLength(2);
+  expect(Math.abs(rights[0]! - rights[1]!)).toBeLessThan(1);
+});
+
+/** T8: the sort chevron carries opacity: .45 at rest. There is no sorted
+ *  column yet (#83's), so every chevron on screen must show it. */
+test("the sort chevron carries opacity .45 at rest", async ({ page }) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const chevron = page.locator("that-table thead th button svg").first();
+  await expect(chevron).toHaveCSS("opacity", "0.45");
+});
+
+/**
+ * T9: `.durbtn .hint { margin-right: 10px }` and nothing else between hint
+ * and figure. The trigger used to also carry a flex gap, which stacked an
+ * extra 6px onto the hint's own margin.
+ */
+test("the duration trigger's hint keeps only its own margin between it and the figure", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const trigger = page.locator("that-ticket-row td.c-today button").first();
+  const spacing = await trigger.evaluate((button) => {
+    const hint = button.querySelector("span") as HTMLElement;
+    return {
+      hintMarginRight: getComputedStyle(hint).marginRight,
+      gap: getComputedStyle(button).columnGap,
+    };
+  });
+
+  expect(spacing.hintMarginRight).toBe("10px");
+  expect(spacing.gap).toBe("normal");
+});
+
+/**
+ * T11: `.tcard { padding: 14px 20px }` — the app's `px-5 py-4` shipped 16px
+ * block padding instead. The correction lives in card-surface.ts, shared by
+ * `that-card` and `that-table`; this checks the table's own surface.
+ */
+test("the table card's own padding is 20px inline and 14px block", async ({ page }) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const card = page.locator("that-table").first();
+  const padding = await card.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { top: parseFloat(computed.paddingTop), left: parseFloat(computed.paddingLeft) };
+  });
+
+  expect(padding.top).toBe(14);
+  expect(padding.left).toBe(20);
+});

@@ -1,5 +1,8 @@
 const VARIANTS: Record<string, string> = {
-  primary: "bg-primary text-primary-ink hover:opacity-90",
+  // brightness, not opacity: opacity composites toward whatever sits behind
+  // the button, so its hover would shift with the background. brightness
+  // lifts the colour itself — the form #rail-push already carries.
+  primary: "bg-primary text-primary-ink hover:brightness-[1.07]",
   // A ghost, not an outlined box: the design keeps quiet actions quiet and
   // spends its one loud colour on Push.
   secondary: "text-ink-muted hover:bg-hover hover:text-ink",
@@ -45,7 +48,7 @@ export class ThatButton extends HTMLElement {
     // disabled variant outranks it on specificity, so a dead button still says
     // so.
     const base =
-      "inline-flex cursor-pointer items-center rounded-sm px-3 py-1.5 text-base font-bold " +
+      "inline-flex h-[38px] cursor-pointer items-center rounded-sm px-3 text-base font-bold " +
       "disabled:cursor-not-allowed disabled:opacity-50";
     button.className = `${base} ${VARIANTS[variant] ?? VARIANTS["secondary"] ?? ""}`;
     button.disabled = this.hasAttribute("disabled");

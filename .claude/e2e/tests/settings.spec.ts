@@ -113,6 +113,23 @@ test("an instance can be added and appears in the list", async ({ page }) => {
   await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
 });
 
+/**
+ * that-button's shared `h-[38px]` (#117 task 11, D3) reaches every consumer,
+ * not just the entries dialog it was written for. "Add instance" is the one
+ * always on screen with no instance needed first, so it stands in as the
+ * regression net for this surface.
+ */
+test("the Add instance button carries the app-wide drawn 38px height", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+
+  const height = await page
+    .getByRole("button", { name: "Add instance" })
+    .evaluate((element) => Math.round(element.getBoundingClientRect().height));
+
+  expect(height).toBe(38);
+});
+
 test("a successful connection test names the account", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
   await page.goto("/settings");

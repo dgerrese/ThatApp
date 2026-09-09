@@ -22,6 +22,7 @@ interface StubRow {
   instanceName: string;
   instancePosition: number;
   issueKey: string;
+  url: string;
   cells: StubCell[];
   seconds: number;
 }
@@ -101,7 +102,13 @@ interface Logged {
   pushState: "unpushed" | "pushed" | "dirty";
 }
 
-function row(issueKey: string, logged: Logged[], instance = 1): StubRow {
+/** The site each stub instance stands in for — what a real rollup would build
+ *  the row's browse URL from server-side. */
+function siteOf(instance: number): string {
+  return instance === 2 ? "https://personal.atlassian.net" : "https://ridgeline.atlassian.net";
+}
+
+function row(issueKey: string, logged: Logged[], instance = 1, url?: string): StubRow {
   const cells: StubCell[] = Array.from({ length: 7 }, () => ({ seconds: 0, pushState: null }));
   for (const entry of logged) {
     cells[entry.at] = { seconds: entry.seconds, pushState: entry.pushState };
@@ -112,6 +119,7 @@ function row(issueKey: string, logged: Logged[], instance = 1): StubRow {
     instanceName: instance === 2 ? "Personal" : "Ridgeline",
     instancePosition: instance === 2 ? 1 : 0,
     issueKey,
+    url: url ?? `${siteOf(instance)}/browse/${issueKey}`,
     cells,
     seconds: cells.reduce((sum, cell) => sum + cell.seconds, 0),
   };
@@ -233,10 +241,10 @@ async function shapeOf(marker: Locator): Promise<{ radius: string; bottomBorder:
   });
 }
 
-/** The rail owns the only "Push to Jira" button, and it now sends every day the
- *  week holds rather than only today. */
+/** The rail owns the only Push button, worded "Push this week" here — #117's
+ *  R3 — and it sends every day the week holds rather than only today. */
 async function pushEverything(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push this week" }).click();
   await page.getByRole("button", { name: "Push", exact: true }).click();
 }
 
@@ -362,7 +370,7 @@ test("pushing from the Week view reports below the grid and names the day that f
   await expect(page.locator("#rail-period")).toHaveText("Week 37 · 7–13 Sep");
   await expect(page.locator("#rail-total")).toHaveText("1h 30m");
 
-  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push this week" }).click();
   await expect(page.getByText(/2 entries totalling 1h 30m across 2 days/)).toBeVisible();
   await page.getByRole("button", { name: "Push", exact: true }).click();
 
@@ -627,6 +635,11 @@ test("every cell is a control that opens the entries dialog for its ticket", asy
 const RIDGELINE_HUE = "oklch(0.6 0.13 265)";
 const NORTHWIND_HUE = "oklch(0.6 0.13 175)";
 
+/** --color-ink and --color-ink-muted in the light theme Playwright runs in by
+ *  default — see styles.css. */
+const INK_LIGHT = "oklch(0.195 0.009 55)";
+const INK_MUTED_LIGHT = "oklch(0.465 0.01 55)";
+
 /**
  * A total is a sum, never a control — worth proving now that every other cell
  * in the grid has become one. Neither total carries a button to click, and
@@ -718,7 +731,7 @@ test("the three week controls share one height", async ({ page }) => {
 
   const controls = [
     page.getByRole("button", { name: "Previous week" }),
-    page.getByRole("button", { name: "This week" }),
+    page.getByRole("button", { name: "This week", exact: true }),
     page.getByRole("button", { name: "Next week" }),
   ];
   const heights = await Promise.all(
@@ -726,6 +739,64 @@ test("the three week controls share one height", async ({ page }) => {
   );
 
   expect(heights).toEqual([36, 36, 36]);
+});
+
+/**
+ * #117 task 10, W14: the drawing's `.wctl.icon` is `width: 36px; padding: 0`
+ * — square at the shared 36px height. "This week" is a text button and stays
+ * unsquared, which is what tells the two variants apart in this assertion.
+ */
+test("each arrow is square at the shared 36px control height", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const arrows = [
+    page.getByRole("button", { name: "Previous week" }),
+    page.getByRole("button", { name: "Next week" }),
+  ];
+  const boxes = await Promise.all(arrows.map((arrow) => arrow.boundingBox()));
+
+  for (const box of boxes) {
+    expect(box).not.toBeNull();
+    expect(box?.width).toBe(36);
+    expect(box?.height).toBe(36);
+  }
+});
+
+/**
+ * #117 task 10, W13: the arrows carry the app's own popover rather than a
+ * native `title` — dropping `button.title` in favour of a `that-tooltip` is
+ * the whole change, and the aria-label stays exactly where it was, since a
+ * tooltip is never the accessible name.
+ */
+test("the week arrows carry the drawn popover rather than a native title", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const previous = page.getByRole("button", { name: "Previous week" });
+  const next = page.getByRole("button", { name: "Next week" });
+
+  await expect(previous).not.toHaveAttribute("title");
+  await expect(next).not.toHaveAttribute("title");
+  // The accessible name is unchanged by the tooltip's presence.
+  await expect(previous).toHaveAttribute("aria-label", "Previous week");
+  await expect(next).toHaveAttribute("aria-label", "Next week");
+
+  await previous.hover();
+  const previousTip = page.locator("that-tooltip", { hasText: "previous week" });
+  await expect(previousTip).toBeVisible();
+  await expect(previousTip).toHaveText("previous week");
+
+  await next.hover();
+  const nextTip = page.locator("that-tooltip", { hasText: "next week" });
+  await expect(nextTip).toBeVisible();
+  await expect(nextTip).toHaveText("next week");
 });
 
 test("the fetch control sits beside the label, and the week controls do not move", async ({
@@ -741,7 +812,7 @@ test("the fetch control sits beside the label, and the week controls do not move
   await expect(fetchControl).toBeVisible();
 
   const label = page.getByRole("heading", { level: 2 });
-  const thisWeek = page.getByRole("button", { name: "This week" });
+  const thisWeek = page.getByRole("button", { name: "This week", exact: true });
 
   const labelBox = (await label.boundingBox()) ?? null;
   const fetchBox = (await fetchControl.boundingBox()) ?? null;
@@ -750,6 +821,230 @@ test("the fetch control sits beside the label, and the week controls do not move
 
   expect(fetchBox.x).toBeGreaterThan(labelBox.x);
   expect(fetchBox.x + fetchBox.width).toBeLessThan(weekBox.x);
+});
+
+/**
+ * Decision 12 of the visual language: Week gains a refresh control, labelled,
+ * after the rule and before Fetch worklogs. It re-reads the week from this
+ * app's own database — the same read show() already performs on mount — and
+ * calls no Jira endpoint, which is what tells it apart from the fetch beside
+ * it.
+ */
+test("Refresh sits between the rule and Fetch worklogs, and re-reads /api/week when pressed", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  await expect(refreshControl).toBeVisible();
+
+  // Document order rather than geometry: a wrapped header would still leave
+  // the rule and Fetch worklogs on either side of Refresh even though their
+  // bounding boxes stop agreeing about who is "before" whom.
+  const order = await page.evaluate(() => {
+    const byLabel = (label: string) =>
+      Array.from(document.querySelectorAll("button")).find(
+        (button) => button.getAttribute("aria-label") === label,
+      ) ?? null;
+    const rule = document.querySelector(".bg-edge");
+    const refresh = byLabel("Refresh");
+    const fetchButton = byLabel("Fetch worklogs");
+    if (!rule || !refresh || !fetchButton) return null;
+
+    const FOLLOWING = Node.DOCUMENT_POSITION_FOLLOWING;
+
+    return {
+      ruleThenRefresh: Boolean(rule.compareDocumentPosition(refresh) & FOLLOWING),
+      refreshThenFetch: Boolean(refresh.compareDocumentPosition(fetchButton) & FOLLOWING),
+    };
+  });
+  expect(order).toEqual({ ruleThenRefresh: true, refreshThenFetch: true });
+
+  let weekReads = 0;
+  // Registered after openWeek's own route for the same glob, so this one is
+  // asked first and falls back to it — counting the read without having to
+  // reimplement what it answers with.
+  await page.route("**/api/week**", (route) => {
+    if (!new URL(route.request().url()).pathname.endsWith("/fetch")) weekReads += 1;
+
+    return route.fallback();
+  });
+
+  await refreshControl.click();
+  await expect.poll(() => weekReads).toBe(1);
+});
+
+/**
+ * A refresh landing mid-fetch would paint a half-applied week, and a fetch
+ * launched mid-refresh is the same risk the other way round — so each
+ * control disables the other for the whole of its own round trip. The two
+ * directions are proven separately: holding the fetch's own response and
+ * holding the read a refresh press triggers are different gates, and
+ * conflating them into one route would gate the fetch's own internal re-read
+ * by mistake.
+ */
+test("refresh is disabled while a fetch is in flight, and a press on it does nothing", async ({
+  page,
+}) => {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+
+  const weekBody = rollup(THIS_WEEK, [
+    row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+  ]);
+
+  let weekReads = 0;
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await page.route("**/api/week**", async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/fetch")) {
+      await held;
+
+      return route.fulfill({
+        status: 200,
+        json: { start: THIS_WEEK, end: weekBody.end, created: 0, updated: 0, keptLocal: [], failures: [] },
+      });
+    }
+
+    weekReads += 1;
+
+    return route.fulfill({ status: 200, json: weekBody });
+  });
+
+  await page.goto("/week");
+
+  const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  await expect(fetchControl).toBeEnabled();
+
+  await fetchControl.click();
+  await expect(fetchControl).toBeDisabled();
+  await expect(refreshControl).toBeDisabled();
+
+  const readsBeforePress = weekReads;
+  // Disabled buttons ignore a real click on their own; forcing one through is
+  // what proves the press does nothing, rather than merely that it cannot be
+  // aimed at.
+  await refreshControl.click({ force: true });
+  expect(weekReads).toBe(readsBeforePress);
+
+  release();
+  await expect(refreshControl).toBeEnabled();
+  await expect(fetchControl).toBeEnabled();
+});
+
+test("the fetch control is disabled while a refresh is in flight, and a press on it does nothing", async ({
+  page,
+}) => {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+
+  const weekBody = rollup(THIS_WEEK, [
+    row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+  ]);
+
+  let fetchCalls = 0;
+  let weekReads = 0;
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await page.route("**/api/week**", async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/fetch")) {
+      fetchCalls += 1;
+
+      return route.fulfill({
+        status: 200,
+        json: { start: THIS_WEEK, end: weekBody.end, created: 0, updated: 0, keptLocal: [], failures: [] },
+      });
+    }
+
+    weekReads += 1;
+    // The mount's own read answers at once; only the read a refresh press
+    // triggers — the second — is held, which is what catches that press in
+    // flight rather than the mount itself.
+    if (weekReads > 1) await held;
+
+    return route.fulfill({ status: 200, json: weekBody });
+  });
+
+  await page.goto("/week");
+
+  const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  await expect(refreshControl).toBeEnabled();
+
+  await refreshControl.click();
+  await expect(refreshControl).toBeDisabled();
+  await expect(fetchControl).toBeDisabled();
+
+  await fetchControl.click({ force: true });
+  expect(fetchCalls).toBe(0);
+
+  release();
+  await expect(fetchControl).toBeEnabled();
+  await expect(refreshControl).toBeEnabled();
+});
+
+/**
+ * A read that fails on a refresh press must surface the same way a read that
+ * fails on a fetch press does — a visible alert naming what went wrong,
+ * neither button left disabled behind it. show() itself already replaces the
+ * grid with that alert on any failed read (the same path a direct navigation
+ * to a bad week already goes through), so this is what proves refresh's own
+ * press actually reaches it rather than swallowing the failure unseen.
+ */
+test("a failed read on a refresh press surfaces the same way a failed fetch does", async ({
+  page,
+}) => {
+  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+
+  const weekBody = rollup(THIS_WEEK, [
+    row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+  ]);
+
+  let weekReads = 0;
+  await page.route("**/api/week**", (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/fetch")) {
+      return route.fulfill({
+        status: 200,
+        json: { start: THIS_WEEK, end: weekBody.end, created: 0, updated: 0, keptLocal: [], failures: [] },
+      });
+    }
+
+    weekReads += 1;
+    // The mount's own read succeeds, so Refresh reaches its enabled state;
+    // the read the press itself triggers is the one that fails.
+    if (weekReads > 1) {
+      return route.fulfill({
+        status: 500,
+        json: { code: "store_failed", message: "could not read the stored week" },
+      });
+    }
+
+    return route.fulfill({ status: 200, json: weekBody });
+  });
+
+  await page.goto("/week");
+
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
+  await expect(refreshControl).toBeEnabled();
+  await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
+
+  await refreshControl.click();
+
+  await expect(page.getByText("could not read the stored week")).toBeVisible();
+  // Neither control is left stuck disabled behind the failure — the same
+  // recovery fetch.spec.ts already proves for a failed fetch.
+  await expect(refreshControl).toBeEnabled();
+  await expect(fetchControl).toBeEnabled();
 });
 
 /**
@@ -810,10 +1105,336 @@ test("a week the server refuses still offers a way back to this one", async ({ p
 
   await expect(page.getByText("start must be a Monday, of the form YYYY-MM-DD")).toBeVisible();
 
-  await page.getByRole("button", { name: "This week" }).click();
+  await page.getByRole("button", { name: "This week", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Week 37 · 7–13 Sep" })).toBeVisible();
   await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
+});
+
+/**
+ * #117 task 9, W1: the drawing puts the grid in `.tcard` — `--raised`, the
+ * card shadow — and scrolls it inside its own container rather than letting
+ * the page scroll sideways. The viewport is narrowed to force the nine-column
+ * grid past it, the same bargain that-table already documents for the phone.
+ * The page's own scrollWidth staying within its clientWidth is the half that
+ * matters: measuring the card's own scroll alone would still pass if the page
+ * moved with it, and so would asserting scrollLeft stays 0 without ever
+ * scrolling the page — that holds whether or not the page *can* scroll, which
+ * is what let the fix-wave's header overflow (finding 2) go uncaught here.
+ */
+test("the grid sits in a raised card with the card shadow, and a wide week scrolls inside it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const card = page.locator("table").locator("xpath=..");
+  await expect(card).toBeVisible();
+
+  const style = await card.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { background: computed.backgroundColor, shadow: computed.boxShadow, overflowX: computed.overflowX };
+  });
+  const surface = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.className = "bg-raised shadow-card";
+    document.body.append(probe);
+    const computed = getComputedStyle(probe);
+    const result = { background: computed.backgroundColor, shadow: computed.boxShadow };
+    probe.remove();
+    return result;
+  });
+
+  expect(style.background).toBe(surface.background);
+  expect(style.shadow).toBe(surface.shadow);
+  expect(style.overflowX).toBe("auto");
+
+  await card.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+  });
+  await expect.poll(() => card.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+
+  // Nobody scrolled the page, so scrollLeft alone would stay 0 whether or not
+  // it could — comparing scrollWidth against clientWidth is what actually
+  // fails when the overflow reaches <body>.
+  const pageOverflow = await page.evaluate(() => {
+    const root = document.scrollingElement;
+    return root ? root.scrollWidth - root.clientWidth : -1;
+  });
+  expect(pageOverflow).toBeLessThanOrEqual(0);
+});
+
+/**
+ * #117 task 9, W2: `.grid .fig` and `.grid .kk` wear Chivo Mono, and the
+ * whole table keeps its figures tabular via `.that-tnum`.
+ */
+test("a filled cell's figure and a row's key wear the mono face", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const figure = ticketRow(page, "RIDGE-1").locator("td").first().locator("button span");
+  await expect(figure).toHaveText("1h 00m");
+  expect(await figure.evaluate((element) => getComputedStyle(element).fontFamily)).toContain(
+    "Chivo Mono",
+  );
+
+  const key = ticketRow(page, "RIDGE-1").locator(".that-key");
+  expect(await key.evaluate((element) => getComputedStyle(element).fontFamily)).toContain(
+    "Chivo Mono",
+  );
+
+  expect(await page.locator("table").evaluate((element) => getComputedStyle(element).fontVariantNumeric)).toBe(
+    "tabular-nums",
+  );
+});
+
+/**
+ * #117 task 10, W4: the ticket key is a link to the issue in Jira — its
+ * `href` is the browse URL the rollup carries — muted at rest and brightening
+ * to full ink on hover, the rule `.that-key` already states for Today.
+ */
+test("the ticket key opens the issue in Jira, ink-muted at rest and full ink on hover", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const key = ticketRow(page, "RIDGE-1").locator(".that-key");
+  await expect(key).toHaveAttribute("href", "https://ridgeline.atlassian.net/browse/RIDGE-1");
+  await expect(key).toHaveCSS("color", INK_MUTED_LIGHT);
+
+  await key.hover();
+  await expect(key).toHaveCSS("color", INK_LIGHT);
+});
+
+/**
+ * #117 task 10, W4: an instance migrated from a gateway URL carries no site to
+ * link to, so its row's key stays plain text rather than a dead anchor —
+ * the same rule Today's own keyLabel already follows.
+ */
+test("a key from an instance with no site URL renders as plain text", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }], 1, ""),
+    ]),
+  });
+
+  const key = ticketRow(page, "RIDGE-1").locator(".that-key");
+  await expect(key).toHaveText("RIDGE-1");
+  const tagName = await key.evaluate((element) => element.tagName);
+  expect(tagName).toBe("SPAN");
+});
+
+/**
+ * #117 task 9, W3: `.grid thead th` — 12px, weight 700, .06em tracking,
+ * uppercase, a 9px bottom padding and a hairline beneath. Read off a day
+ * column rather than Ticket, whose own `.tk` class wins the weight back to
+ * 400 in the drawing.
+ */
+test("a header cell wears the drawn type, its own 9px bottom padding, and a hairline", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const th = page.locator("table thead th").nth(1);
+  const type = await th.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return {
+      fontSize: parseFloat(computed.fontSize),
+      fontWeight: computed.fontWeight,
+      letterSpacing: parseFloat(computed.letterSpacing),
+      textTransform: computed.textTransform,
+      paddingBottom: parseFloat(computed.paddingBottom),
+    };
+  });
+
+  expect(type.fontSize).toBe(12);
+  expect(type.fontWeight).toBe("700");
+  // 0.06em against a 12px font-size.
+  expect(type.letterSpacing).toBeCloseTo(0.72, 1);
+  expect(type.textTransform).toBe("uppercase");
+  expect(type.paddingBottom).toBe(9);
+  await expect(th).toHaveCSS("border-bottom-width", "1px");
+});
+
+/**
+ * #117 task 9, W6: a tbody row is 46px tall; a cell's trigger carries the
+ * drawing's 9px/13px padding given back as the same negative margin; tfoot
+ * carries a 12px block padding.
+ */
+test("a body row is 46px, a cell's trigger carries the drawn padding, and tfoot is padded 12px", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const height = await ticketRow(page, "RIDGE-1").evaluate(
+    (element) => element.getBoundingClientRect().height,
+  );
+  expect(Math.round(height)).toBe(46);
+
+  const trigger = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  const cell = await trigger.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return {
+      paddingTop: parseFloat(computed.paddingTop),
+      paddingLeft: parseFloat(computed.paddingLeft),
+      marginTop: parseFloat(computed.marginTop),
+      marginLeft: parseFloat(computed.marginLeft),
+    };
+  });
+  expect(cell.paddingTop).toBe(9);
+  expect(cell.paddingLeft).toBe(13);
+  expect(cell.marginTop).toBe(-9);
+  expect(cell.marginLeft).toBe(-13);
+
+  const footCell = page.locator("tfoot td").first();
+  const footPadding = await footCell.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { top: parseFloat(computed.paddingTop), bottom: parseFloat(computed.paddingBottom) };
+  });
+  expect(footPadding.top).toBe(12);
+  expect(footPadding.bottom).toBe(12);
+});
+
+/**
+ * #117 task 10, W12: `.cell:hover, .cell:focus-visible { background: var(--hover) }`
+ * — a grid cell takes the same hover wash on keyboard focus that it takes
+ * under the pointer, which is what makes tabbing through a week legible.
+ */
+test("a cell takes the hover wash on keyboard focus as well as pointer hover", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const trigger = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  const resting = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  await trigger.hover();
+  const hovered = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await page.mouse.move(0, 0);
+
+  await trigger.focus();
+  const focused = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+  expect(hovered).not.toBe(resting);
+  expect(focused).toBe(hovered);
+});
+
+/**
+ * #117 task 9, W7: the drawing's `.pageh h3` is 15px at weight 500 — a
+ * downgrade from the app's shipped `text-xl font-bold` — because Week's title
+ * now takes the app's shared page-heading shape rather than its own.
+ */
+test("the week title takes the page-heading shape: 15px at weight 500", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const heading = page.getByRole("heading", { level: 2 });
+  const type = await heading.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { fontSize: parseFloat(computed.fontSize), fontWeight: computed.fontWeight };
+  });
+  expect(type.fontSize).toBe(15);
+  expect(type.fontWeight).toBe("500");
+});
+
+/**
+ * #117 fix wave, finding 7: `.pageh` carries 10px in the drawing wherever it
+ * appears (prototype lines 329, 331, 353) — the same value Today's own
+ * heading-to-content gap uses. Week's header used to strip its own mb-2.5,
+ * on the mistaken belief that the container's space-y-4 would stack another
+ * 16px onto it; space-y-4's margin lands through a zero-specificity
+ * `:where()`, so header's real `.mb-2.5` class already wins outright and the
+ * strip only left the wrong value (16px) standing.
+ */
+test("the week header keeps the drawn 10px gap above the grid", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const header = page.getByRole("heading", { level: 2 }).locator("xpath=..");
+  const marginBottom = await header.evaluate(
+    (element) => getComputedStyle(element).marginBottom,
+  );
+  expect(marginBottom).toBe("10px");
+});
+
+/**
+ * #117 task 9, W9: `th + th`/`td + td` carry a 10px column gap; `.tk` stays
+ * content-width and nowrap with its own 10px right padding rather than the
+ * generic left one; `.tot` overrides the gap to 18px.
+ *
+ * `.tot` belongs to a row's own total alone — the prototype's tfoot markup
+ * carries `fig` on every cell and `tot` on none of them, so the week total
+ * takes the same generic 10px `dayTotal` beside it does. Fix round 1 caught
+ * this test asserting 18px for both, the same misreading the source carried,
+ * so the earlier green run proved nothing about the week total's own gap.
+ */
+test("columns keep their drawn 10px gap, Ticket stays content-width, and a row's own total sits 18px off it", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const tkHeader = page.locator("table thead th").first();
+  const dayHeader = page.locator("table thead th").nth(1);
+  await expect(dayHeader).toHaveCSS("padding-left", "10px");
+
+  const tk = await tkHeader.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { paddingRight: parseFloat(computed.paddingRight), whiteSpace: computed.whiteSpace };
+  });
+  expect(tk.paddingRight).toBe(10);
+  expect(tk.whiteSpace).toBe("nowrap");
+
+  const tkWidth = (await tkHeader.boundingBox())?.width ?? 0;
+  const dayWidth = (await dayHeader.boundingBox())?.width ?? 0;
+  expect(tkWidth).toBeLessThan(dayWidth);
+
+  // The first day cell (Monday, nth(0)) follows the row's <th>, not a <td> —
+  // `.grid td + td` never matches there, so its gap comes only from `.tk`'s
+  // own 10px padding-right, not a second 10px stacked onto it.
+  const firstDayCell = ticketRow(page, "RIDGE-1").locator("td").nth(0);
+  await expect(firstDayCell).toHaveCSS("padding-left", "0px");
+
+  const dayCell = ticketRow(page, "RIDGE-1").locator("td").nth(1);
+  await expect(dayCell).toHaveCSS("padding-left", "10px");
+
+  const rowTotal = ticketRow(page, "RIDGE-1").locator("td").last();
+  await expect(rowTotal).toHaveCSS("padding-left", "18px");
+
+  // The week total in tfoot is not `.tot` in the drawing — it wears the same
+  // generic 10px gap as the day total beside it, not the row total's 18px.
+  const weekTotal = page.locator("tfoot td").last();
+  await expect(weekTotal).toHaveCSS("padding-left", "10px");
 });
 
 test("the previous week is a place you can go back from", async ({ page }) => {

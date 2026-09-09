@@ -22,13 +22,13 @@ import type { ThatTable } from "../components/that-table";
 import { LOG_TIME, PIN, UNPIN } from "../components/that-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
 import { clockTime, totalFigure } from "../format";
-import type { IconName } from "../icons";
-import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
+import { pageHeading } from "../page-heading";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import type { RegisterTeardown } from "../router";
+import { toolbarButton } from "../toolbar-button";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
@@ -43,7 +43,6 @@ interface Regions {
   pinnedList: HTMLElement;
   pinnedForm: HTMLElement;
   assignedSection: HTMLElement;
-  header: HTMLElement;
   refresh: HTMLElement;
   results: HTMLElement;
   /** One banner above both lists, per the design spec's singular "the
@@ -67,9 +66,6 @@ interface Regions {
 const PINNED_HEADING_ID = "today-pinned";
 const ASSIGNED_HEADING_ID = "today-assigned";
 
-/** One id per icon button mounted, so each tooltip's `for` resolves its own. */
-let iconButtonSequence = 0;
-
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   setRailPeriod(TODAY_PERIOD);
 
@@ -91,23 +87,29 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
   // Pinned and Assigned issues are two sections of one list, so Pinned is a
   // page heading level with the other rather than a card with a label inside
-  // it — the prototype's two .pageh blocks, lines 318 and 320.
+  // it — the prototype's two .pageh blocks, lines 329 and 331.
   const pinnedList = document.createElement("div");
-  pinnedList.append(loadingLine());
+  pinnedList.append(cardHolding(loadingLine()));
 
   const pinnedForm = document.createElement("div");
   pinnedForm.className = "mt-3";
 
   const pinnedSection = document.createElement("section");
   pinnedSection.setAttribute("aria-labelledby", PINNED_HEADING_ID);
-  pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID), pinnedList, pinnedForm);
+  pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID).box, pinnedList, pinnedForm);
 
-  const header = pageHeading("Assigned issues", ASSIGNED_HEADING_ID);
-  const refresh = appendIconButton(header, "Refresh", "refresh", "refresh");
+  const header = pageHeading("Assigned issues", ASSIGNED_HEADING_ID).box;
+  // A header control acting on the whole view, so it carries the toolbar
+  // shape rather than appendIconButton's icon-and-tooltip one — Decision 12
+  // of the visual language.
+  const refresh = toolbarButton({ icon: "refresh", label: "Refresh" });
+  header.append(refresh);
 
-  // Hidden until the first response: there is nothing to refresh yet, and with
-  // no instances configured it stays hidden for good.
-  header.hidden = true;
+  // The heading itself is drawn from the first frame — both .pageh blocks,
+  // the prototype's lines 329 and 331. Only the refresh control waits: there
+  // is nothing to refresh yet, and with no instances configured it stays
+  // hidden for good.
+  refresh.hidden = true;
 
   const results = document.createElement("div");
   // One card across, two from the point the content column can hold two
@@ -115,7 +117,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // layout decision 2. The breakpoint is a container query against the region
   // in index.html, not the window, so the rail costs the grid nothing.
   results.className = "grid grid-cols-1 gap-4 @min-[80rem]:grid-cols-2";
-  results.append(loadingLine());
+  results.append(cardHolding(loadingLine()));
 
   const assignedSection = document.createElement("section");
   assignedSection.setAttribute("aria-labelledby", ASSIGNED_HEADING_ID);
@@ -129,7 +131,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     pinnedList,
     pinnedForm,
     assignedSection,
-    header,
     refresh,
     results,
     stale,
@@ -253,33 +254,54 @@ function paintTotals(regions: Regions): void {
     row.setAttribute("seconds", String(regions.totals.get(totalKey(instanceId, issueKey)) ?? 0));
   }
 
-  paintInstanceTallies();
+  paintInstanceTallies(regions);
 }
 
 /**
- * What each instance's card holds and what has gone against it today, beside
- * its name. Summed from the rows on screen rather than from the totals map:
- * the card shows the issues that survived the pin dedupe, and a figure counting
- * the ones it is not showing would not add up to what the reader can see.
+ * What each instance's card holds, and what has gone against it today, beside
+ * its name. The issue count is still the rows the card shows: the pin dedupe
+ * has already moved the rest into Pinned above, and a count claiming rows it
+ * is not showing would be wrong, not merely inconsistent. The time is not
+ * summed from those rows any more — it comes from `regions.totals`, added up
+ * over every entry whose instanceId matches this section's, the same set the
+ * rail's split slices. That is what lets "3 issues · 6h 45m" carry more time
+ * than its three visible rows add up to: a pinned ticket's time still counts,
+ * because it is still the instance's day, even once its row moves elsewhere.
  *
- * Called from paintTotals because the seconds it reads are what paintTotals
+ * Called from paintTotals because the totals it reads are what paintTotals
  * has just written.
  */
-function paintInstanceTallies(): void {
+function paintInstanceTallies(regions: Regions): void {
   for (const tally of document.querySelectorAll<HTMLElement>("[data-instance-tally]")) {
     const section = tally.closest("section");
     if (!section) continue;
 
+    const instanceId = instanceIdOf(section);
+    if (instanceId === null) continue;
+
     const rows = section.querySelectorAll("that-ticket-row");
+
     let seconds = 0;
-    for (const row of rows) {
-      seconds += Number(row.getAttribute("seconds") ?? "0");
+    for (const [key, value] of regions.totals) {
+      if (instanceIdOfTotalKey(key) === instanceId) seconds += value;
     }
 
     // A middot between two facts is typography, not an icon — the one place
     // the language says a typed character stays a typed character.
     tally.textContent = `${String(rows.length)} ${rows.length === 1 ? "issue" : "issues"} · ${totalFigure(seconds)}`;
   }
+}
+
+/** The instance a section's heading names, read from the id `instanceSection`
+ *  built it with (`today-instance-<id>`) rather than tracked a second way. */
+function instanceIdOf(section: Element): number | null {
+  const match = /^today-instance-(\d+)$/.exec(section.getAttribute("aria-labelledby") ?? "");
+
+  return match ? Number(match[1]) : null;
+}
+
+function instanceIdOfTotalKey(key: string): number {
+  return Number(key.slice(0, key.indexOf(":")));
 }
 
 function currentPins(regions: Regions): Pin[] {
@@ -576,7 +598,7 @@ async function refreshResults(regions: Regions): Promise<void> {
     regions.issuesCachedAt = cachedAt;
     renderResponse(regions, response);
   } catch (error) {
-    regions.header.hidden = false;
+    regions.refresh.hidden = false;
     regions.issuesCachedAt = null;
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
   }
@@ -644,8 +666,8 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
     // No instances means no pins either — the cascade took them with the last
     // instance — so a Pinned section would be a control with nothing to do.
     regions.pinnedSection.remove();
-    regions.header.hidden = true;
-    regions.results.replaceChildren(noInstances());
+    regions.refresh.hidden = true;
+    regions.results.replaceChildren(cardHolding(noInstances()));
 
     return;
   }
@@ -654,7 +676,7 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
     regions.assignedSection.before(regions.pinnedSection);
   }
 
-  regions.header.hidden = false;
+  regions.refresh.hidden = false;
   regions.results.replaceChildren(
     // The index is the instance's position in created_at order, which is what
     // the hue ramp is keyed off: the store lists instances in that order and
@@ -714,7 +736,7 @@ function instanceSection(group: InstanceIssues, position: number, pins: Pin[]): 
   // that already says why it is empty is a second answer to a settled question.
   const tally = document.createElement("span");
   tally.dataset["instanceTally"] = "";
-  tally.className = "ml-auto font-normal tracking-normal normal-case";
+  tally.className = "ml-auto font-normal tracking-normal normal-case opacity-75";
   heading.append(tally);
 
   const table = document.createElement("that-table") as ThatTable;
@@ -785,49 +807,6 @@ function noInstances(): HTMLElement {
 // helpers in views/settings.ts. Extracting them into a shared module is the
 // right end state, but it means editing settings.ts, which is outside this
 // ticket's scope. Worth its own ticket.
-
-/**
- * A section's heading and the controls that belong beside it — the prototype's
- * .pageh, line 318. Pinned and Assigned issues wear the same one: they are two
- * sections of one list, not a card and a list.
- */
-function pageHeading(text: string, headingId: string): HTMLElement {
-  const box = document.createElement("div");
-  box.className = "mb-2.5 flex items-center gap-2";
-
-  const heading = document.createElement("h2");
-  heading.id = headingId;
-  heading.className = "text-lg font-medium";
-  heading.textContent = text;
-  box.append(heading);
-
-  return box;
-}
-
-/**
- * A control that is only a drawn mark, and the tooltip saying in words what
- * the mark means. The label is the button's own — a tooltip reaches neither a
- * keyboard nor a screen reader, so it is never the accessible name.
- */
-function appendIconButton(host: HTMLElement, label: string, icon: IconName, tip: string): HTMLElement {
-  const control = document.createElement("button");
-  control.type = "button";
-  control.id = `today-icon-${String(++iconButtonSequence)}`;
-  control.setAttribute("aria-label", label);
-  control.className =
-    "hover:bg-hover focus-visible:bg-hover text-ink-muted hover:text-ink " +
-    "focus-visible:text-ink flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center " +
-    "justify-center rounded-sm disabled:cursor-not-allowed disabled:opacity-50";
-  control.innerHTML = iconMarkup(icon, 17);
-
-  const tooltip = document.createElement("that-tooltip");
-  tooltip.setAttribute("for", control.id);
-  tooltip.textContent = tip;
-
-  host.append(control, tooltip);
-
-  return control;
-}
 
 /** The raised surface a message sits on where a table would otherwise be. */
 function cardHolding(node: Node): HTMLElement {

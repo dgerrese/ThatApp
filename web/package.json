@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
-    "lint": "eslint src",
+    "lint": "node tools/unused-tokens.mjs && eslint src",
     "fmt": "prettier --write \"**/*.{ts,css,html,json}\""
   },
   "devDependencies": {
