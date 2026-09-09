@@ -1116,9 +1116,11 @@ test("a week the server refuses still offers a way back to this one", async ({ p
  * card shadow — and scrolls it inside its own container rather than letting
  * the page scroll sideways. The viewport is narrowed to force the nine-column
  * grid past it, the same bargain that-table already documents for the phone.
- * `document.scrollingElement.scrollLeft` staying 0 is the half that matters:
- * measuring the card's own scroll alone would still pass if the page moved
- * with it.
+ * The page's own scrollWidth staying within its clientWidth is the half that
+ * matters: measuring the card's own scroll alone would still pass if the page
+ * moved with it, and so would asserting scrollLeft stays 0 without ever
+ * scrolling the page — that holds whether or not the page *can* scroll, which
+ * is what let the fix-wave's header overflow (finding 2) go uncaught here.
  */
 test("the grid sits in a raised card with the card shadow, and a wide week scrolls inside it", async ({
   page,
@@ -1155,7 +1157,15 @@ test("the grid sits in a raised card with the card shadow, and a wide week scrol
     element.scrollLeft = element.scrollWidth;
   });
   await expect.poll(() => card.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
-  expect(await page.evaluate(() => document.scrollingElement?.scrollLeft ?? -1)).toBe(0);
+
+  // Nobody scrolled the page, so scrollLeft alone would stay 0 whether or not
+  // it could — comparing scrollWidth against clientWidth is what actually
+  // fails when the overflow reaches <body>.
+  const pageOverflow = await page.evaluate(() => {
+    const root = document.scrollingElement;
+    return root ? root.scrollWidth - root.clientWidth : -1;
+  });
+  expect(pageOverflow).toBeLessThanOrEqual(0);
 });
 
 /**

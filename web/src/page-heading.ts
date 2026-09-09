@@ -14,7 +14,12 @@ export function pageHeading(
   headingId?: string,
 ): { box: HTMLElement; heading: HTMLHeadingElement } {
   const box = document.createElement("div");
-  box.className = "mb-2.5 flex items-center gap-2";
+  // flex-wrap: Today's own heading never has enough content to need a second
+  // line, but Week's carries a rule, two toolbar buttons and the arrow
+  // controls beside the title — on a phone that row's unshrinkable content
+  // is wider than the column, and without wrap the overflow reached <body>
+  // and the page scrolled sideways, which no view may ever do.
+  box.className = "mb-2.5 flex flex-wrap items-center gap-2";
 
   const heading = document.createElement("h2");
   if (headingId !== undefined) heading.id = headingId;
