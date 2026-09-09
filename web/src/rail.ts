@@ -102,8 +102,8 @@ export function startRail(): void {
    * that is meant to supersede it.
    */
   const paintUnpushed = (): void => {
-    unpushed.classList.remove("text-failed-rail");
-    unpushed.classList.add("text-rail-muted");
+    unpushed.classList.remove("text-failed-rail", "text-rail-muted", "text-pending-rail");
+    unpushed.classList.add(pending.length === 0 ? "text-rail-muted" : "text-pending-rail");
     unpushed.textContent =
       pending.length === 0
         ? "Nothing to push"
