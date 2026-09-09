@@ -42,6 +42,13 @@ function noFailures(): Failures {
   return { cells: new Set(), days: new Set() };
 }
 
+/** A stable string for a `Failures` value, independent of `Set` iteration
+ *  order — what lets `show` tell two reads' failure sets apart by value
+ *  rather than by which read produced them. */
+function failuresKey(value: Failures): string {
+  return `${[...value.cells].sort().join(",")}|${[...value.days].sort().join(",")}`;
+}
+
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   const container = document.createElement("div");
   container.className = "space-y-4";
@@ -179,7 +186,23 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // away drops it with the rest of this mount's state.
   let failures: Failures = noFailures();
 
-  const show = async (): Promise<WeekRollup | null> => {
+  // What the grid last actually painted, so a read that comes back
+  // byte-identical to it — rail.ts's own trailing re-read after a push that
+  // changed nothing this view didn't already know, most often — repaints
+  // nothing rather than replacing the grid with a copy of itself. Two
+  // `show()` calls this close together are otherwise a real, if harmless,
+  // source of flicker: nulled by every navigation, since a fresh mount has
+  // painted nothing yet to compare against.
+  let painted: { rollup: string; failures: string } | null = null;
+
+  // `preserveFailures` is false for every user-initiated read (the mount, a
+  // Refresh or Fetch press, a week navigation's remount) and true for the two
+  // reads Week triggers on its own behalf — the push report's own re-read and
+  // the entries-changed re-read below — so a push's failure marks survive
+  // whichever of those two paints last, rather than the first one's paint
+  // erasing them for the second. Only a read the user actually asked for
+  // consumes them.
+  const show = async (options: { preserveFailures?: boolean } = {}): Promise<WeekRollup | null> => {
     const mine = ++epoch;
 
     let rollup: WeekRollup;
@@ -210,14 +233,19 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     if (mine !== epoch) return rollup;
 
     const marked = failures;
-    failures = noFailures();
+    if (!options.preserveFailures) failures = noFailures();
 
     showing = rollup.start;
-    label.textContent = periodLabel(rollup);
-    controls.replaceChildren(...weekControls(rollup));
-    grid.replaceChildren(
-      rollup.rows.length === 0 ? emptyWeek() : gridCard(gridTable(rollup, marked, root)),
-    );
+
+    const signature = { rollup: JSON.stringify(rollup), failures: failuresKey(marked) };
+    if (painted === null || painted.rollup !== signature.rollup || painted.failures !== signature.failures) {
+      painted = signature;
+      label.textContent = periodLabel(rollup);
+      controls.replaceChildren(...weekControls(rollup));
+      grid.replaceChildren(
+        rollup.rows.length === 0 ? emptyWeek() : gridCard(gridTable(rollup, marked, root)),
+      );
+    }
     // There is a week on screen to read again now. Guarded on `busy` because
     // both the fetch and the refresh end by calling show() themselves, and
     // re-enabling here would hand a control back a moment before the round
@@ -228,25 +256,15 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     return rollup;
   };
 
-  // Set for the one entries-changed announcement rail.ts fires right after
-  // reporting a push (see its push handler): that announcement exists for
-  // listeners with nothing better to go on, where Week already has the exact
-  // push responses. Left clear, the entries-changed subscription below would
-  // re-read a second time on the push's own tail and, since that read carries
-  // no failures of its own, immediately paint over the marks this handler's
-  // own show() just drew — before anyone had a chance to see them.
-  let pushJustReported = false;
-
   // Registered before the first read, so a push that lands while it is still in
   // flight is still heard. The rail owns the Push; this only renders what came
   // back, and then re-reads — every marker the rollup knows about settles only
-  // when the rollup is asked again.
+  // when a user-initiated read is asked for again (see `show`'s own comment).
   const stopPushListening = onPushReported((responses, unanswered) => {
     report.replaceChildren(...pushReportNodes(responses, unanswered, { nameDays: true }));
     report.hidden = false;
     failures = failuresIn(responses);
-    pushJustReported = true;
-    void show();
+    void show({ preserveFailures: true });
   });
 
   // The entries dialog announces a mutation with no payload whenever it is
@@ -254,13 +272,14 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // that-entry-dialog.ts), which is every day Week's own cells open it for —
   // so the payload carries nothing this grid could paint from and the only
   // honest response is to re-read the week whole, the same as a push report.
+  // `preserveFailures` for the same reason it matters there: rail.ts fires
+  // this same announcement right after reporting a push, and that trailing
+  // read must still show the marks the push report just set rather than
+  // wiping them — including when that trailing announcement never arrives at
+  // all (rail.ts swallows a failed re-read there), in which case this handler
+  // simply runs on the next real entries change instead, still holding them.
   const stopEntriesListening = onEntriesChanged(() => {
-    if (pushJustReported) {
-      pushJustReported = false;
-
-      return;
-    }
-    void show();
+    void show({ preserveFailures: true });
   });
 
   // The rail's period is global state that outlives this view, so a mount the

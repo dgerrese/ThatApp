@@ -1612,3 +1612,135 @@ test("navigating away from Week removes its entries-changed listener, so a later
 
   expect(weekReads).toBe(0);
 });
+
+/**
+ * Review finding on the first cut of this task: rail.ts's own push handler
+ * swallows a failing re-read after announcing the push report (see
+ * rail.ts:315-322), so its trailing entries-changed announcement — the one
+ * this view's own subscription exists to hear — sometimes never arrives at
+ * all. A guard that waited for exactly that announcement to clear itself
+ * would stay set, and every genuine entries-changed event after it — a cell's
+ * own dialog adding time, no less — would be swallowed right along with it:
+ * the user adds time and the grid does not move, silently.
+ *
+ * This is why the fix carries no such guard: `show`'s `preserveFailures`
+ * option lets the push's own re-read and the entries-changed re-read both
+ * paint the same marks without either one needing to know whether, or when,
+ * the other already ran.
+ */
+test("a push whose own trailing re-read fails still lets a later edit repaint the grid", async ({
+  page,
+}) => {
+  const entries: StubEntry[] = [entry(1, "RIDGE-1", THIS_WEEK, 3600, "unpushed")];
+  let nextId = 2;
+
+  const rollups: Record<string, StubRollup> = {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+    ]),
+  };
+
+  // Not openWeek(): its own /api/entries stub answers every request with the
+  // same blank list, and registering a replacement only after it — and after
+  // its page.goto() — leaves a real window where the app's own boot-time read
+  // reaches that blank stub before this one is in place, which starves Push
+  // this week of anything to push and hangs the test. Every route below goes
+  // on before the one navigation that can fire requests against them.
+  await page.route("**/api/week**", (route) => {
+    const start = new URL(route.request().url()).searchParams.get("start") ?? THIS_WEEK;
+    const body = rollups[start];
+    if (!body) {
+      return route.fulfill({
+        status: 400,
+        json: { code: "start_not_monday", message: "start must be a Monday, of the form YYYY-MM-DD" },
+      });
+    }
+
+    return route.fulfill({ status: 200, json: body });
+  });
+
+  // Flipped once the push itself has answered, so the whole-week read that
+  // fails below is only the one rail.ts fires *after* reporting the push —
+  // the rail's own boot read (which is what enables Push this week in the
+  // first place) still needs to succeed.
+  let pushAnswered = false;
+  await page.route("**/api/push**", async (route) => {
+    await route.fulfill({ status: 200, json: { day: THIS_WEEK, results: [unreachable(1, "RIDGE-1")] } });
+    pushAnswered = true;
+  });
+
+  // The whole handler this test needs — a ranged GET, an unranged GET (the
+  // rail's own boot and post-push reads), and a POST — rather than openWeek's
+  // blanket stub, for the reason given above.
+  await page.route("**/api/entries**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+
+    if (request.method() === "POST") {
+      const body = request.postDataJSON() as {
+        issueKey: string;
+        day?: string;
+        seconds: number;
+        comment: string;
+      };
+      const created = entry(nextId, body.issueKey, body.day ?? THIS_WEEK, body.seconds, "unpushed");
+      nextId += 1;
+      entries.push(created);
+
+      if (body.day === THIS_WEEK) {
+        rollups[THIS_WEEK] = rollup(THIS_WEEK, [
+          row("RIDGE-1", [{ at: 0, seconds: 3600 + body.seconds, pushState: "unpushed" }]),
+        ]);
+      }
+
+      await route.fulfill({ status: 201, json: created });
+
+      return;
+    }
+
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    if (pushAnswered && from === THIS_WEEK && to === "2026-09-13") {
+      await route.fulfill({
+        status: 500,
+        json: { code: "store_failed", message: "could not read the stored entries" },
+      });
+
+      return;
+    }
+
+    const scoped =
+      from && to ? entries.filter((candidate) => candidate.day >= from && candidate.day <= to) : entries;
+    await route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: scoped } });
+  });
+
+  await page.goto("/week");
+
+  const cell = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  await expect(cell).toContainText("1h 00m");
+  // Push this week reflects the rail's own boot read of the same entries
+  // stub above; waiting for it here (rather than letting pushEverything's
+  // own click retry blindly) is what turns a starved stub into a clear
+  // assertion failure instead of a 30-second timeout.
+  await expect(page.getByRole("button", { name: "Push this week" })).toBeEnabled();
+
+  await pushEverything(page);
+  // The push's own report still names the failure — its re-read (preserved)
+  // painted it, whether or not rail.ts's own trailing read ever landed.
+  await expect(cell).toHaveAttribute("aria-label", /did not reach Jira/);
+
+  // rail.ts's trailing read just failed, silently, so no second
+  // entries-changed announcement ever arrived for this push — the exact gap
+  // a staleness bug in the guard would have left open.
+  await cell.click();
+  const dialog = page.locator("dialog[open]");
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByLabel("Duration").fill("30");
+  await dialog.getByLabel("Duration").press("Enter");
+  await dialog.getByRole("button", { name: "Add entry" }).click();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect(cell).toHaveText("1h 30m");
+});
