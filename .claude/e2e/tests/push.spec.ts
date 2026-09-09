@@ -49,16 +49,19 @@ async function stubToday(
   await page.route("**/api/entries**", (route) =>
     route.fulfill({
       status: 200,
-      json: entries.map((entry) => ({
-        ...entry,
-        instanceId: 1,
-        instanceName: "Site",
-        instancePosition: 0,
-        day: "2026-08-31",
-        startedAt: "2026-08-31T09:00:00Z",
-        seconds: 1800,
-        comment: "",
-      })),
+      json: {
+        today: "2026-08-31",
+        entries: entries.map((entry) => ({
+          ...entry,
+          instanceId: 1,
+          instanceName: "Site",
+          instancePosition: 0,
+          day: "2026-08-31",
+          startedAt: "2026-08-31T09:00:00Z",
+          seconds: 1800,
+          comment: "",
+        })),
+      },
     }),
   );
 }
@@ -83,18 +86,21 @@ test("a push where one entry fails names the entry that did not make it", async 
   await page.route("**/api/entries**", (route) =>
     route.fulfill({
       status: 200,
-      json: [
-        {
-          id: 1, instanceId: 1, instanceName: "Site", instancePosition: 0,
-          issueKey: "RIDGE-1", day: "2026-08-31", startedAt: "2026-08-31T09:00:00Z",
-          seconds: 3600, comment: "one", pushState: "unpushed",
-        },
-        {
-          id: 2, instanceId: 1, instanceName: "Site", instancePosition: 0,
-          issueKey: "RIDGE-2", day: "2026-08-31", startedAt: "2026-08-31T10:00:00Z",
-          seconds: 1800, comment: "two", pushState: "unpushed",
-        },
-      ],
+      json: {
+        today: "2026-08-31",
+        entries: [
+          {
+            id: 1, instanceId: 1, instanceName: "Site", instancePosition: 0,
+            issueKey: "RIDGE-1", day: "2026-08-31", startedAt: "2026-08-31T09:00:00Z",
+            seconds: 3600, comment: "one", pushState: "unpushed",
+          },
+          {
+            id: 2, instanceId: 1, instanceName: "Site", instancePosition: 0,
+            issueKey: "RIDGE-2", day: "2026-08-31", startedAt: "2026-08-31T10:00:00Z",
+            seconds: 1800, comment: "two", pushState: "unpushed",
+          },
+        ],
+      },
     }),
   );
 

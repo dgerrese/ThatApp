@@ -111,12 +111,12 @@ func decodeEntry(t *testing.T, rec *httptest.ResponseRecorder) entryDTO {
 func decodeEntries(t *testing.T, rec *httptest.ResponseRecorder) []entryDTO {
 	t.Helper()
 
-	var dtos []entryDTO
-	if err := json.Unmarshal(rec.Body.Bytes(), &dtos); err != nil {
+	var body entriesResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decoding %s: %v", rec.Body.String(), err)
 	}
 
-	return dtos
+	return body.Entries
 }
 
 // assertRejected checks the status, the stable code and that a person was told
@@ -469,6 +469,37 @@ func TestGetEntriesDefaultsToTodayInTheConfiguredZone(t *testing.T) {
 	}
 }
 
+// TestListEntriesEnvelopeNamesTodayInTheConfiguredZone: the dialog needs a day
+// to name itself by, and Today's dialog has no day of its own to name — so
+// GET /api/entries answers with the date the server resolved, in
+// THAT_TIMEZONE, wrapping the same entries the bare array used to hold. The
+// clock sits at 13:00 UTC, already the 22nd in Auckland, so a UTC-only
+// reading of "today" would name the wrong day.
+func TestListEntriesEnvelopeNamesTodayInTheConfiguredZone(t *testing.T) {
+	srv, db, inst := serverInZone(t, "Pacific/Auckland",
+		time.Date(2026, 8, 21, 13, 0, 0, 0, time.UTC))
+	seedEntry(t, db, store.EntryInput{
+		InstanceID: inst.ID, IssueKey: "LOCAL-TODAY", Day: "2026-08-22",
+		StartedAt: time.Date(2026, 8, 21, 13, 0, 0, 0, time.UTC), Seconds: 900,
+	})
+
+	rec := callEntries(t, srv, http.MethodGet, "/api/entries", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var envelope entriesResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decoding %s: %v", rec.Body.String(), err)
+	}
+	if envelope.Today != "2026-08-22" {
+		t.Errorf("today = %q, want 2026-08-22, the date in the configured zone", envelope.Today)
+	}
+	if len(envelope.Entries) != 1 || envelope.Entries[0].IssueKey != "LOCAL-TODAY" {
+		t.Fatalf("entries = %v, want the one seeded entry", envelope.Entries)
+	}
+}
+
 func TestGetEntriesFiltersAnInclusiveRangeOldestFirst(t *testing.T) {
 	srv, db, inst := serverInZone(t, "Europe/Amsterdam",
 		time.Date(2026, 8, 21, 12, 5, 0, 0, time.UTC))
@@ -548,8 +579,9 @@ func TestGetEntriesWithNoneStoredIsAnEmptyArray(t *testing.T) {
 
 	// Asserted on the raw body: decoding cannot tell [] from null, and the rail
 	// iterates the array.
-	if strings.TrimSpace(rec.Body.String()) != "[]" {
-		t.Errorf("body = %s, want []", rec.Body.String())
+	want := `{"today":"2026-08-21","entries":[]}`
+	if strings.TrimSpace(rec.Body.String()) != want {
+		t.Errorf("body = %s, want %s", rec.Body.String(), want)
 	}
 }
 

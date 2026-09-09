@@ -197,7 +197,9 @@ async function openWeek(
   entries: StubEntry[] = [],
   path = "/week",
 ): Promise<void> {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: entries }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: THIS_WEEK, entries } }),
+  );
 
   await page.route("**/api/week**", (route) => {
     const start = new URL(route.request().url()).searchParams.get("start") ?? THIS_WEEK;
@@ -890,7 +892,9 @@ test("Refresh sits between the rule and Fetch worklogs, and re-reads /api/week w
 test("refresh is disabled while a fetch is in flight, and a press on it does nothing", async ({
   page,
 }) => {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: [] } }),
+  );
 
   const weekBody = rollup(THIS_WEEK, [
     row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
@@ -942,7 +946,9 @@ test("refresh is disabled while a fetch is in flight, and a press on it does not
 test("the fetch control is disabled while a refresh is in flight, and a press on it does nothing", async ({
   page,
 }) => {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: [] } }),
+  );
 
   const weekBody = rollup(THIS_WEEK, [
     row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
@@ -1003,7 +1009,9 @@ test("the fetch control is disabled while a refresh is in flight, and a press on
 test("a failed read on a refresh press surfaces the same way a failed fetch does", async ({
   page,
 }) => {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: [] } }),
+  );
 
   const weekBody = rollup(THIS_WEEK, [
     row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),

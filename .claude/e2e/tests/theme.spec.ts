@@ -4,7 +4,9 @@ import { expect, test, type Page } from "@playwright/test";
 // resting state, which is only resting while nothing is logged — and the
 // e2e stack shares the dev database.
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: "2026-09-09", entries: [] } }),
+  );
 });
 
 /**

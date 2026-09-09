@@ -106,6 +106,15 @@ func (s *Server) instanceIndex(
 	return byID, instancePositions(instances), true
 }
 
+// entriesResponse is what GET /api/entries answers with. Today names the date
+// the server resolved in THAT_TIMEZONE, the same value in a ranged read or a
+// bare one — a dialog with no day of its own to name is why it exists, and
+// that is true whatever range was asked for.
+type entriesResponse struct {
+	Today   string     `json:"today"`
+	Entries []entryDTO `json:"entries"`
+}
+
 // handleListEntries answers with the entries in an inclusive from/to range,
 // oldest first. Both bounds default to today resolved in THAT_TIMEZONE, so the
 // rail's call is a bare GET /api/entries and the browser never computes a date.
@@ -145,7 +154,7 @@ func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
 			s.entryDTOFrom(entry, instances[entry.InstanceID], positions[entry.InstanceID]))
 	}
 
-	writeJSON(w, http.StatusOK, dtos)
+	writeJSON(w, http.StatusOK, entriesResponse{Today: today, Entries: dtos})
 }
 
 // dayParam reads one inclusive YYYY-MM-DD bound, falling back to fallback when

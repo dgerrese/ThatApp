@@ -162,7 +162,7 @@ export function startRail(): void {
 
     let entries: Entry[];
     try {
-      entries = await listEntries(currentPeriod.range);
+      ({ entries } = await listEntries(currentPeriod.range));
     } catch {
       if (!painted && mine === epoch) {
         retryTimer = window.setTimeout(() => {
@@ -237,7 +237,7 @@ export function startRail(): void {
         // Scoped to the period, not just today: `due` below drives which days
         // get pushed, so a check that only ever saw today would silently push
         // nothing beyond it on any period wider than a day.
-        entries = await listEntries(currentPeriod.range);
+        ({ entries } = await listEntries(currentPeriod.range));
       } catch {
         showPushError("Could not check what's pending — press Push to Jira to retry.");
         return;
@@ -313,7 +313,8 @@ export function startRail(): void {
       announcePushReported(responses, unanswered);
 
       try {
-        announceEntriesChanged(await listEntries(currentPeriod.range));
+        const { entries } = await listEntries(currentPeriod.range);
+        announceEntriesChanged(entries);
       } catch {
         // The push itself already succeeded and is reported above; a failed
         // re-read here only means the rail's own total is stale until the

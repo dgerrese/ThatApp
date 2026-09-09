@@ -403,7 +403,7 @@ export class ThatEntryDialog extends HTMLElement {
     if (!ticket) return null;
 
     try {
-      const entries = await listEntries();
+      const { entries } = await listEntries();
       this.entries = entries.filter(
         (entry) => entry.instanceId === ticket.instanceId && entry.issueKey === ticket.issueKey,
       );

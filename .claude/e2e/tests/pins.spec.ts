@@ -4,7 +4,9 @@ import { expect, test, type Page } from "@playwright/test";
 // Stubbed for the same reason the pin and issue routes are: the e2e stack
 // shares the dev database.
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: "2026-08-31", entries: [] } }),
+  );
 });
 
 interface StubPin {

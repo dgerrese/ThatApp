@@ -69,7 +69,7 @@ async function stubEntries(page: Page, seed: StubEntry[] = []): Promise<Recorder
     switch (request.method()) {
       case "GET":
         recorder.gets += 1;
-        await route.fulfill({ status: 200, json: entries });
+        await route.fulfill({ status: 200, json: { today: DAY, entries } });
 
         return;
 
@@ -593,7 +593,7 @@ test("a failed first fetch retries until the rail holds a real figure", async ({
 
       return;
     }
-    await route.fulfill({ status: 200, json: [entry(1, "WORK-412", 3600)] });
+    await route.fulfill({ status: 200, json: { today: DAY, entries: [entry(1, "WORK-412", 3600)] } });
   });
   await stubPins(page, []);
   await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [workIssue], error: null }]);

@@ -44,7 +44,9 @@ test.beforeEach(async ({ page }) => {
   // fed by this endpoint. The e2e stack shares the dev database, so without
   // this a single entry logged by hand would move every figure these tests
   // measure — the same reason pins are stubbed above.
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: "2026-09-09", entries: [] } }),
+  );
 });
 
 function group(id: number, name: string, issues: StubIssue[]): StubGroup {
@@ -614,32 +616,35 @@ test("an instance's tally counts a pinned issue's time too", async ({ page }) =>
   await page.route("**/api/entries**", (route) =>
     route.fulfill({
       status: 200,
-      json: [
-        {
-          id: 1,
-          instanceId: 1,
-          instanceName: "Work",
-          instancePosition: 0,
-          issueKey: workIssue.key,
-          day: "2026-09-09",
-          startedAt: "2026-09-09T09:00:00+02:00",
-          seconds: 1800,
-          comment: "",
-          pushState: "unpushed",
-        },
-        {
-          id: 2,
-          instanceId: 1,
-          instanceName: "Work",
-          instancePosition: 0,
-          issueKey: second.key,
-          day: "2026-09-09",
-          startedAt: "2026-09-09T10:00:00+02:00",
-          seconds: 900,
-          comment: "",
-          pushState: "unpushed",
-        },
-      ],
+      json: {
+        today: "2026-09-09",
+        entries: [
+          {
+            id: 1,
+            instanceId: 1,
+            instanceName: "Work",
+            instancePosition: 0,
+            issueKey: workIssue.key,
+            day: "2026-09-09",
+            startedAt: "2026-09-09T09:00:00+02:00",
+            seconds: 1800,
+            comment: "",
+            pushState: "unpushed",
+          },
+          {
+            id: 2,
+            instanceId: 1,
+            instanceName: "Work",
+            instancePosition: 0,
+            issueKey: second.key,
+            day: "2026-09-09",
+            startedAt: "2026-09-09T10:00:00+02:00",
+            seconds: 900,
+            comment: "",
+            pushState: "unpushed",
+          },
+        ],
+      },
     }),
   );
 

@@ -32,7 +32,9 @@ async function stubIssues(page: Page, ...responses: StubGroup[][]): Promise<void
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: "2026-09-09", entries: [] } }),
+  );
 });
 
 function group(id: number, name: string, issues: StubIssue[]): StubGroup {
@@ -259,32 +261,35 @@ test("the duration trigger's right edge does not move with its own figure's widt
   await page.route("**/api/entries**", (route) =>
     route.fulfill({
       status: 200,
-      json: [
-        {
-          id: 1,
-          instanceId: 1,
-          instanceName: "Ridgeline",
-          instancePosition: 0,
-          issueKey: ridgelineIssues[0]!.key,
-          day: "2026-09-09",
-          startedAt: "2026-09-09T09:00:00+02:00",
-          seconds: 0,
-          comment: "",
-          pushState: "unpushed",
-        },
-        {
-          id: 2,
-          instanceId: 1,
-          instanceName: "Ridgeline",
-          instancePosition: 0,
-          issueKey: ridgelineIssues[1]!.key,
-          day: "2026-09-09",
-          startedAt: "2026-09-09T10:00:00+02:00",
-          seconds: 36000,
-          comment: "",
-          pushState: "unpushed",
-        },
-      ],
+      json: {
+        today: "2026-09-09",
+        entries: [
+          {
+            id: 1,
+            instanceId: 1,
+            instanceName: "Ridgeline",
+            instancePosition: 0,
+            issueKey: ridgelineIssues[0]!.key,
+            day: "2026-09-09",
+            startedAt: "2026-09-09T09:00:00+02:00",
+            seconds: 0,
+            comment: "",
+            pushState: "unpushed",
+          },
+          {
+            id: 2,
+            instanceId: 1,
+            instanceName: "Ridgeline",
+            instancePosition: 0,
+            issueKey: ridgelineIssues[1]!.key,
+            day: "2026-09-09",
+            startedAt: "2026-09-09T10:00:00+02:00",
+            seconds: 36000,
+            comment: "",
+            pushState: "unpushed",
+          },
+        ],
+      },
     }),
   );
   await page.goto("/today");
