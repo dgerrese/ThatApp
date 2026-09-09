@@ -155,6 +155,9 @@ export function listEntries(range?: { from: string; to: string }): Promise<Entri
   return request<EntriesResponse>(`/api/entries${query}`);
 }
 
+/** An absent `day` on the draft is dropped by JSON.stringify rather than
+ *  sent as null, which is what leaves the server's own "day absent means
+ *  today" default in charge. */
 export function createEntry(draft: EntryDraft): Promise<Entry> {
   return request<Entry>("/api/entries", {
     method: "POST",

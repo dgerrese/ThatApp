@@ -29,6 +29,10 @@ export interface EntryTicket {
   issueKey: string;
   summary: string;
   status: string;
+  /** The day this ticket's dialog edits, if it is not today's. Week sets this
+   *  from the cell it was opened from; Today never does — a row has no day of
+   *  its own to name, since it always means today. */
+  day?: string;
 }
 
 /** One id per dialog mounted, so the popovers inside it resolve their triggers
@@ -151,6 +155,10 @@ export class ThatEntryDialog extends HTMLElement {
   private editing: Entry | undefined;
   private busy = false;
   private readonly sequence = ++dialogSequence;
+  /** The day the last successful reload resolved as "today", per the server's
+   *  own clock — what afterMutation compares the ticket's day against to
+   *  decide whether an announcement may carry a payload. */
+  private today: string | undefined;
 
   connectedCallback(): void {
     if (this.dialog || !this.ticket) return;
@@ -392,18 +400,21 @@ export class ThatEntryDialog extends HTMLElement {
   }
 
   /**
-   * Re-reads the day and redraws everything that depends on it, returning the
-   * whole day so a mutation can hand it to the announcement. Filtered here
-   * rather than asked for by issue: the rail and the row totals want the same
-   * response, and one read keeps every figure agreeing by construction rather
-   * than by three reads of one table.
+   * Re-reads the ticket's own day — a ranged read when it has one, the bare
+   * (today) read when it does not — and redraws everything that depends on
+   * it, returning the whole day so a mutation can hand it to the
+   * announcement. Filtered here rather than asked for by issue: the rail and
+   * the row totals want the same response, and one read keeps every figure
+   * agreeing by construction rather than by three reads of one table.
    */
   private async reload(): Promise<Entry[] | null> {
     const ticket = this.ticket;
     if (!ticket) return null;
 
     try {
-      const { entries } = await listEntries();
+      const range = ticket.day === undefined ? undefined : { from: ticket.day, to: ticket.day };
+      const { today, entries } = await listEntries(range);
+      this.today = today;
       this.entries = entries.filter(
         (entry) => entry.instanceId === ticket.instanceId && entry.issueKey === ticket.issueKey,
       );
@@ -568,6 +579,7 @@ export class ThatEntryDialog extends HTMLElement {
         await createEntry({
           instanceId: ticket.instanceId,
           issueKey: ticket.issueKey,
+          day: ticket.day,
           seconds,
           comment: comment.value,
         });
@@ -601,13 +613,20 @@ export class ThatEntryDialog extends HTMLElement {
   }
 
   private async afterMutation(): Promise<void> {
-    const day = await this.reload();
-    // The reload's response rides on the announcement, so the rail and the row
-    // totals repaint from the read this dialog already made instead of racing
-    // three of their own. A failed reload announces without it — the mutation
-    // itself succeeded, so the listeners fall back to reading the day
-    // themselves.
-    announceEntriesChanged(day ?? undefined);
+    const entries = await this.reload();
+    // The reload's response rides on the announcement, so the rail and the
+    // row totals repaint from the read this dialog already made instead of
+    // racing three of their own. A failed reload announces without it — the
+    // mutation itself succeeded, so the listeners fall back to reading the
+    // day themselves.
+    //
+    // A ticket scoped to a day that is not today's is a second reason to
+    // withhold the payload: what was just read is that other day's whole
+    // list, and every listener answers its own period — Today's above all —
+    // so handing it over would paint those rows over today's instead of
+    // leaving each listener to re-read the period it actually shows.
+    const scopedToOtherDay = this.ticket?.day !== undefined && this.ticket.day !== this.today;
+    announceEntriesChanged(scopedToOtherDay ? undefined : (entries ?? undefined));
   }
 
   private setBusy(busy: boolean): void {

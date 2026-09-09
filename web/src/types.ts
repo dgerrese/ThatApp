@@ -118,10 +118,14 @@ export interface EntriesResponse {
   entries: Entry[];
 }
 
-/** The fields a create sends. The server stamps the rest. */
+/**
+ * The fields a create sends. The server stamps the rest — `startedAt` always,
+ * from its own clock when `day` is absent. An absent `day` means today.
+ */
 export interface EntryDraft {
   instanceId: number;
   issueKey: string;
+  day?: string;
   seconds: number;
   comment: string;
 }
