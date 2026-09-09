@@ -176,12 +176,37 @@ func dayParam(w http.ResponseWriter, r *http.Request, name, fallback string) (st
 	return raw, true
 }
 
-// createEntryRequest is the body POST accepts. day and startedAt are absent on
-// purpose: the server stamps both, so a browser cannot post itself into another
-// day, and a client sending them anyway has them dropped here.
+// startedAtForDay resolves the instant a created entry starts at. day absent
+// answers s.now(), one reading of the clock; day present answers local
+// midnight of that day in THAT_TIMEZONE instead, without touching the clock at
+// all. It shares dayParam's time.Parse rule, so 2026-02-30 is a day out of
+// range rather than 2 March, and answers false having already written the 400.
+func (s *Server) startedAtForDay(w http.ResponseWriter, day string) (time.Time, bool) {
+	if day == "" {
+		return s.now(), true
+	}
+
+	parsed, err := time.Parse(dayLayout, day)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request",
+			"day must be a date of the form YYYY-MM-DD")
+		return time.Time{}, false
+	}
+
+	y, m, d := parsed.Date()
+
+	return time.Date(y, m, d, 0, 0, 0, 0, s.cfg.Location), true
+}
+
+// createEntryRequest is the body POST accepts. startedAt has no field here: the
+// server always stamps it, so a client sending one has it dropped. Day does,
+// now — #105 lets a Week cell open the dialog for a day that is not today, and
+// day is how it says which one; absent still means today, from the server's
+// own clock.
 type createEntryRequest struct {
 	InstanceID int64  `json:"instanceId"`
 	IssueKey   string `json:"issueKey"`
+	Day        string `json:"day"`
 	Seconds    int    `json:"seconds"`
 	Comment    string `json:"comment"`
 }
@@ -206,6 +231,11 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	startedAt, ok := s.startedAtForDay(w, req.Day)
+	if !ok {
+		return
+	}
+
 	instances, positions, ok := s.instanceIndex(w, r)
 	if !ok {
 		return
@@ -220,15 +250,11 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// One reading of the clock, not two: a second call could land the other side
-	// of midnight and file the entry on a day its own start time contradicts.
-	now := s.now()
-
 	entry, err := s.db.CreateEntry(r.Context(), store.EntryInput{
 		InstanceID: inst.ID,
 		IssueKey:   key,
-		Day:        now.In(s.cfg.Location).Format(dayLayout),
-		StartedAt:  now,
+		Day:        startedAt.In(s.cfg.Location).Format(dayLayout),
+		StartedAt:  startedAt,
 		Seconds:    req.Seconds,
 		Comment:    req.Comment,
 	})
