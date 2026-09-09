@@ -199,3 +199,110 @@ test.describe("the rail's geometry", () => {
     await expect(page.getByRole("button", { name: "Push this week" })).toBeVisible();
   });
 });
+
+/**
+ * #117 task 3: the drawing puts the scroll on `.viewport`, not the page, so
+ * the rail — the instrument you glance at — never leaves the screen. These
+ * assertions stub enough rows into both Today and Week that each overflows
+ * the default viewport on its own, so a passing scrollTop-of-0 proves the
+ * router actually reset it rather than merely finding nothing to scroll.
+ */
+test.describe("the content region owns the scroll, not the page", () => {
+  const MANY_ISSUES = Array.from({ length: 40 }, (_, index) => ({
+    key: `WORK-${1000 + index}`,
+    summary: `Row ${index}`,
+    status: "To Do",
+    url: `https://work.atlassian.net/browse/WORK-${1000 + index}`,
+  }));
+
+  const WEEK_DAYS = [
+    "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10",
+    "2026-09-11", "2026-09-12", "2026-09-13",
+  ];
+
+  const MANY_WEEK_ROWS = Array.from({ length: 40 }, (_, index) => ({
+    instanceId: 1,
+    instanceName: "Work",
+    instancePosition: 0,
+    issueKey: `WORK-${1000 + index}`,
+    cells: WEEK_DAYS.map(() => ({ seconds: 0, pushState: null })),
+    seconds: 0,
+  }));
+
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+    await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+    await page.route("**/api/issues", (route) =>
+      route.fulfill({
+        status: 200,
+        json: { instances: [{ id: 1, name: "Work", issues: MANY_ISSUES, error: null }] },
+      }),
+    );
+    await page.route("**/api/week**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: {
+          start: WEEK_DAYS[0],
+          end: WEEK_DAYS[6],
+          prevStart: "2026-08-31",
+          nextStart: "2026-09-14",
+          weekNumber: 37,
+          days: WEEK_DAYS.map((day) => ({ day, seconds: 0, pushState: null })),
+          rows: MANY_WEEK_ROWS,
+          seconds: 0,
+        },
+      }),
+    );
+  });
+
+  /** `main#content`, index.html's scrolling region — see its overflow-y-auto comment. */
+  function content(page: Page): Locator {
+    return page.locator("#content");
+  }
+
+  test("the window stays put while the content region scrolls, and the rail does not move", async ({
+    page,
+  }) => {
+    await page.goto("/today");
+    await expect(page.getByText("Row 39")).toBeAttached();
+
+    const rail = page.locator("aside.that-rail");
+    const before = await rail.boundingBox();
+
+    await content(page).evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+
+    await expect.poll(() => content(page).evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await rail.boundingBox()).toEqual(before);
+  });
+
+  test("navigating Today to Week to Today resets the content region's scroll each time", async ({
+    page,
+  }) => {
+    await page.goto("/today");
+    await expect(page.getByText("Row 39")).toBeAttached();
+
+    await content(page).evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect.poll(() => content(page).evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Week", exact: true }).click();
+    await expect(page).toHaveURL(/\/week$/);
+    await expect(page.getByText("WORK-1039")).toBeAttached();
+    expect(await content(page).evaluate((element) => element.scrollTop)).toBe(0);
+
+    await content(page).evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect.poll(() => content(page).evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Today", exact: true }).click();
+    await expect(page).toHaveURL(/\/today$/);
+    await expect(page.getByText("Row 39")).toBeAttached();
+    expect(await content(page).evaluate((element) => element.scrollTop)).toBe(0);
+  });
+});

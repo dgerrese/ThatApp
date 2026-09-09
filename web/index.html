@@ -38,7 +38,14 @@
     </script>
   </head>
   <body class="bg-surface text-ink font-sans text-base tracking-[-0.011em]">
-    <div class="grid min-h-screen grid-cols-1 md:grid-cols-[216px_minmax(0,1fr)]">
+    <!--
+      h-screen only from md: up: below it the grid is one column and rows
+      still size to their content (min-h-screen, as before), so the page
+      itself scrolls and the rail travels with it. At and above md: the row
+      is fixed to the screen and the two children below split its overflow
+      instead, which is the point of this shell.
+    -->
+    <div class="grid min-h-screen grid-cols-1 md:h-screen md:grid-cols-[216px_minmax(0,1fr)]">
       <!--
         The rail is the instrument, not a menu: the thing you glance at sits in
         the same place whatever view you are on. It is dark in both themes and
@@ -52,7 +59,7 @@
         really is zero, there really is nothing to split, no timer is running,
         and there is nothing to push.
       -->
-      <aside class="that-rail bg-rail text-rail-ink flex flex-col gap-[26px] px-3.5 py-[22px]">
+      <aside class="that-rail bg-rail text-rail-ink flex flex-col gap-[26px] px-3.5 py-[22px] md:overflow-y-auto">
         <h1 class="text-primary-rail text-xs font-bold tracking-[0.16em] uppercase">
           ThatApp
         </h1>
@@ -163,7 +170,7 @@
         .viewport/.pad pair, so a card grid asks how much room the view has and
         not how much of it the cap is using.
       -->
-      <main class="@container min-w-0">
+      <main id="content" class="@container min-w-0 md:min-h-0 md:overflow-y-auto">
         <div class="mx-auto flex max-w-[120rem] flex-col gap-4 px-7 py-6">
           <div id="view"></div>
         </div>
