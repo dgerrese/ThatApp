@@ -25,6 +25,18 @@ async function computedColor(
   );
 }
 
+/** The three mutually-exclusive states #rail-unpushed's colour can be in — read
+ *  back rather than asserted against the full class attribute, so the test
+ *  doesn't care what order classList happens to leave the other, static
+ *  classes in. */
+async function unpushedStateClasses(page: Page): Promise<string[]> {
+  return page.locator("#rail-unpushed").evaluate((el) =>
+    [...el.classList].filter(
+      (name) => name === "text-rail-muted" || name === "text-pending-rail" || name === "text-failed-rail",
+    ),
+  );
+}
+
 async function stubToday(
   page: Page,
   entries: Array<{ id: number; issueKey: string; pushState: "unpushed" | "pushed" | "dirty" }>,
@@ -131,6 +143,31 @@ test("a pending queue paints the unpushed count amber and Push live", async ({ p
     "background-color",
     await computedColor(page, "bg-primary-rail", "backgroundColor"),
   );
+});
+
+test("a push that cannot recheck what's pending leaves the rail failed alone, not failed and pending", async ({
+  page,
+}) => {
+  await stubToday(page, [{ id: 1, issueKey: "RIDGE-1", pushState: "unpushed" }]);
+
+  await page.goto("/today");
+  const unpushed = page.locator("#rail-unpushed");
+  await expect(unpushed).toHaveText(/entry to push/);
+  await expect.poll(() => unpushedStateClasses(page)).toEqual(["text-pending-rail"]);
+
+  // Overrides the route above: handlePush re-checks what's pending before
+  // confirming (see web/src/rail.ts), and this is the request that fails.
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 500, json: { error: { code: "internal", message: "boom" } } }),
+  );
+  await page.getByRole("button", { name: "Push to Jira" }).click();
+
+  await expect(unpushed).toHaveText("Could not check what's pending — press Push to Jira to retry.");
+  // Both writers used to only remove their own idea of what might be on the
+  // element, so a failure while the queue was non-empty left text-pending-rail
+  // and text-failed-rail on it together — whichever token's declared later in
+  // styles.css happened to win the cascade. Exactly one state now, always.
+  await expect.poll(() => unpushedStateClasses(page)).toEqual(["text-failed-rail"]);
 });
 
 test("an empty queue leaves the unpushed count muted and Push resting", async ({ page }) => {
