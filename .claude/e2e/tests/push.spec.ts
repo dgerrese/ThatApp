@@ -135,6 +135,20 @@ test("a push where one entry fails names the entry that did not make it", async 
   await expect(page.getByText("RIDGE-1 —")).toHaveCount(0);
 });
 
+test("the confirmation does not claim a correction will be created", async ({ page }) => {
+  await stubToday(page, [
+    { id: 1, issueKey: "RIDGE-1", pushState: "unpushed" },
+    { id: 2, issueKey: "RIDGE-2", pushState: "dirty" },
+  ]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Push to Jira" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("2 entries totalling 1h 00m will be sent to 1 site.");
+  await expect(dialog).not.toContainText("created");
+});
+
 test("a pending queue paints the unpushed count amber and Push live", async ({ page }) => {
   await stubToday(page, [{ id: 1, issueKey: "RIDGE-1", pushState: "unpushed" }]);
 

@@ -275,7 +275,7 @@ export function startRail(): void {
       const confirmed = await confirmDestructive({
         heading: currentPeriod.pushHeading,
         body:
-          `${label} totalling ${totalFigure(seconds)}${across} will be created as worklogs on ` +
+          `${label} totalling ${totalFigure(seconds)}${across} will be sent to ` +
           `${String(sites)} ${sites === 1 ? "site" : "sites"}.`,
         confirmLabel: "Push",
       });
