@@ -176,6 +176,41 @@ test("a push that cannot recheck what's pending leaves the rail failed alone, no
   await expect.poll(() => unpushedStateClasses(page)).toEqual(["text-failed-rail"]);
 });
 
+test("a day whose only stale entry is a correction still offers a push", async ({ page }) => {
+  await stubToday(page, [{ id: 1, issueKey: "RIDGE-1", pushState: "dirty" }]);
+
+  await page.goto("/today");
+  const unpushed = page.locator("#rail-unpushed");
+
+  await expect(unpushed).toHaveText("1 entry to push");
+  await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-pending-rail", "color"));
+  await expect(page.getByRole("button", { name: "Push to Jira" })).toBeEnabled();
+});
+
+test("the count covers never-pushed and corrected entries as one number", async ({ page }) => {
+  await stubToday(page, [
+    { id: 1, issueKey: "RIDGE-1", pushState: "unpushed" },
+    { id: 2, issueKey: "RIDGE-2", pushState: "dirty" },
+    { id: 3, issueKey: "RIDGE-3", pushState: "pushed" },
+  ]);
+
+  await page.goto("/today");
+
+  await expect(page.locator("#rail-unpushed")).toHaveText("2 entries to push");
+  await expect(page.getByRole("button", { name: "Push to Jira" })).toBeEnabled();
+});
+
+test("a day whose entries are all pushed offers nothing", async ({ page }) => {
+  await stubToday(page, [{ id: 1, issueKey: "RIDGE-1", pushState: "pushed" }]);
+
+  await page.goto("/today");
+  const unpushed = page.locator("#rail-unpushed");
+
+  await expect(unpushed).toHaveText("Nothing to push");
+  await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-rail-muted", "color"));
+  await expect(page.getByRole("button", { name: "Push to Jira" })).toBeDisabled();
+});
+
 test("an empty queue leaves the unpushed count muted and Push resting", async ({ page }) => {
   await stubToday(page, []);
 
