@@ -1036,8 +1036,11 @@ found something every time**. This is worth keeping as practice, not just as a n
 - **`MarkEntryPushed` names only `worklog_id` and `pushed_at`.** Stamping `updated_at` there would
   race its own `pushed_at` and could mark a freshly pushed entry dirty. A test asserts `updated_at`
   is unchanged, and a plausible "just reuse `UpdateEntry`" refactor would fail it.
-- **`dirty` is reported, not repaired.** #7's edit stamps `updated_at`, so an edited pushed entry is
-  reachable today. #9 reports it honestly and skips it; the `PUT` is #10's.
+- **`dirty` is repaired now, and the rail offers it.** #7's edit stamps `updated_at`, so an edited
+  pushed entry has been reachable since then. #9 reported it honestly and skipped it, and the `PUT`
+  was #10's — both shipped. **The rail did not follow for free**: its two filters still admitted only
+  never-pushed entries, so a day whose only stale entry was a correction offered nothing at all. That
+  is #121, and it is what makes the repair reachable from the interface it belongs to.
 - **The confirmation is one plain sentence.** `that-confirm` sets `body` as an attribute rendered as a
   single `<p>`'s textContent, so the per-site breakdown an early sketch promised is not achievable
   without changing that component.
