@@ -139,6 +139,22 @@ has not changed and is what "transient" means here.
 **Week's result rows carry no Log control**, because logging does not happen there. Today's result
 rows keep theirs.
 
+### A result that is already pinned, settled 2026-09-10
+
+The pin form the search replaces disabled an option for a ticket already pinned and relabelled it, so
+the state was visible and the action unavailable. **The panel lost that when the form went**, and a
+review found it as behaviour rather than as two deleted tests: pressing pin on an already-pinned
+result sent a request the server rejects, and the state only appeared as an error afterwards.
+
+**The panel shows the truth instead of refusing.** A result already pinned renders the filled pin
+mark, exactly as a row in the list does, and pressing it unpins. The state is legible before the
+press rather than reported after it, and the control behaves the way the same control behaves
+everywhere else in the app.
+
+This is more than the form had — the form could only refuse. It is also the reason the panel needs to
+know which tickets are pinned: `pinnedKeysOf` already exists on the day view and was simply never
+handed to the search.
+
 ## Decision 4 — the mark for pulling a ticket into the week
 
 Pinning is a standing choice about the day view's list. Putting a ticket into a week is a one-off.
