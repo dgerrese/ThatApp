@@ -58,3 +58,53 @@ export function totalFigure(seconds: number): string {
 export function clockTime(date: Date): string {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
+
+const WEEKDAYS = [
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+] as const;
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+] as const;
+
+/**
+ * Days since the Unix epoch for a proleptic-Gregorian y/m/d — Howard Hinnant's
+ * days_from_civil. Chosen over a running calendar table because it is a closed
+ * form: no month-length table to keep in step with the leap-year rule, and no
+ * branch for the century exceptions.
+ */
+function daysFromCivil(year: number, month: number, day: number): number {
+  const shiftedYear = month <= 2 ? year - 1 : year;
+  const era = Math.floor((shiftedYear >= 0 ? shiftedYear : shiftedYear - 399) / 400);
+  const yearOfEra = shiftedYear - era * 400;
+  const monthOfYear = (month + 9) % 12; // March = 0, ..., February = 11
+  const dayOfYear = Math.floor((153 * monthOfYear + 2) / 5) + day - 1;
+  const dayOfEra =
+    yearOfEra * 365 + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100) + dayOfYear;
+
+  return era * 146097 + dayOfEra - 719468;
+}
+
+/**
+ * `"2026-09-08"` becomes `"Tuesday 8 September"` — the weekday and month
+ * spelled out in full, the day number unpadded.
+ *
+ * Never via `Date`: parsing the string into one and reading a getter back
+ * would apply whatever zone the browser happens to be in, which is the one
+ * thing this whole ticket exists to prevent. The weekday instead comes from
+ * days-from-civil arithmetic on the parsed parts, so the function touches no
+ * clock at all — it takes a string and returns a string.
+ */
+export function longDay(day: string): string {
+  const [yearPart = "", monthPart = "", dayPart = ""] = day.split("-");
+  const year = Number(yearPart);
+  const month = Number(monthPart);
+  const date = Number(dayPart);
+
+  const epochDay = daysFromCivil(year, month, date);
+  // Epoch day 0 (1970-01-01) was a Thursday, index 4 in WEEKDAYS below.
+  const weekdayIndex = (((epochDay % 7) + 7) % 7 + 4) % 7;
+
+  return `${WEEKDAYS[weekdayIndex] ?? ""} ${String(date)} ${MONTHS[month - 1] ?? ""}`;
+}

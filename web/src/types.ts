@@ -108,10 +108,24 @@ export interface Entry {
   pushState: "unpushed" | "pushed" | "dirty";
 }
 
-/** The fields a create sends. The server stamps the rest. */
+/**
+ * What GET /api/entries answers with. `today` is the date the server resolved
+ * in THAT_TIMEZONE — the same value in a ranged read or a bare one, since a
+ * dialog with no day of its own to name is why it is here at all.
+ */
+export interface EntriesResponse {
+  today: string;
+  entries: Entry[];
+}
+
+/**
+ * The fields a create sends. The server stamps the rest — `startedAt` always,
+ * from its own clock when `day` is absent. An absent `day` means today.
+ */
 export interface EntryDraft {
   instanceId: number;
   issueKey: string;
+  day?: string;
   seconds: number;
   comment: string;
 }

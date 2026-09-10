@@ -226,7 +226,7 @@ async function refreshTotals(regions: Regions, fresh?: Entry[]): Promise<void> {
   let entries = fresh;
   if (!entries) {
     try {
-      entries = await listEntries();
+      ({ entries } = await listEntries());
     } catch {
       return;
     }

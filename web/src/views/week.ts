@@ -3,7 +3,7 @@ import "../components/that-alert";
 import { ApiError, fetchWeek, getWeek } from "../api";
 import { CARD_SURFACE_CLASSES } from "../card-surface";
 import { openEntryDialog } from "../components/that-entry-dialog";
-import { announceEntriesChanged } from "../entries-changed";
+import { announceEntriesChanged, onEntriesChanged } from "../entries-changed";
 import { fetchReportNodes } from "../fetch-report";
 import { totalFigure } from "../format";
 import { iconMarkup } from "../icons";
@@ -40,6 +40,13 @@ interface Failures {
  *  Sets shared by every mount, and one edit that mutated them would poison it. */
 function noFailures(): Failures {
   return { cells: new Set(), days: new Set() };
+}
+
+/** A stable string for a `Failures` value, independent of `Set` iteration
+ *  order — what lets `show` tell two reads' failure sets apart by value
+ *  rather than by which read produced them. */
+function failuresKey(value: Failures): string {
+  return `${[...value.cells].sort().join(",")}|${[...value.days].sort().join(",")}`;
 }
 
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
@@ -179,7 +186,23 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // away drops it with the rest of this mount's state.
   let failures: Failures = noFailures();
 
-  const show = async (): Promise<WeekRollup | null> => {
+  // What the grid last actually painted, so a read that comes back
+  // byte-identical to it — rail.ts's own trailing re-read after a push that
+  // changed nothing this view didn't already know, most often — repaints
+  // nothing rather than replacing the grid with a copy of itself. Two
+  // `show()` calls this close together are otherwise a real, if harmless,
+  // source of flicker: nulled by every navigation, since a fresh mount has
+  // painted nothing yet to compare against.
+  let painted: { rollup: string; failures: string } | null = null;
+
+  // `preserveFailures` is false for every user-initiated read (the mount, a
+  // Refresh or Fetch press, a week navigation's remount) and true for the two
+  // reads Week triggers on its own behalf — the push report's own re-read and
+  // the entries-changed re-read below — so a push's failure marks survive
+  // whichever of those two paints last, rather than the first one's paint
+  // erasing them for the second. Only a read the user actually asked for
+  // consumes them.
+  const show = async (options: { preserveFailures?: boolean } = {}): Promise<WeekRollup | null> => {
     const mine = ++epoch;
 
     let rollup: WeekRollup;
@@ -195,6 +218,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
         label.textContent = "Week";
         controls.append(...weekButton({ label: "This week", path: "/week" }));
       }
+      // The grid no longer shows what `painted` describes, so the next read —
+      // a plain retry naming the same week is the ordinary case — must not
+      // compare against it: an identical signature would otherwise skip the
+      // repaint that recovers from the alert.
+      painted = null;
       grid.replaceChildren(alertFor("error", messageOf(error)));
 
       return null;
@@ -209,15 +237,24 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     // for the paint that does happen.
     if (mine !== epoch) return rollup;
 
-    const marked = failures;
-    failures = noFailures();
+    // A read the user asked for consumes the marks immediately — `marked`
+    // itself withholds them, not only the state left for the next read —
+    // so one Refresh press is enough. Reading `failures` first and clearing
+    // it after would still paint the stale marks once, on this very read.
+    const marked = options.preserveFailures ? failures : noFailures();
+    if (!options.preserveFailures) failures = noFailures();
 
     showing = rollup.start;
-    label.textContent = periodLabel(rollup);
-    controls.replaceChildren(...weekControls(rollup));
-    grid.replaceChildren(
-      rollup.rows.length === 0 ? emptyWeek() : gridCard(gridTable(rollup, marked, root)),
-    );
+
+    const signature = { rollup: JSON.stringify(rollup), failures: failuresKey(marked) };
+    if (painted === null || painted.rollup !== signature.rollup || painted.failures !== signature.failures) {
+      painted = signature;
+      label.textContent = periodLabel(rollup);
+      controls.replaceChildren(...weekControls(rollup));
+      grid.replaceChildren(
+        rollup.rows.length === 0 ? emptyWeek() : gridCard(gridTable(rollup, marked, root)),
+      );
+    }
     // There is a week on screen to read again now. Guarded on `busy` because
     // both the fetch and the refresh end by calling show() themselves, and
     // re-enabling here would hand a control back a moment before the round
@@ -231,12 +268,27 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // Registered before the first read, so a push that lands while it is still in
   // flight is still heard. The rail owns the Push; this only renders what came
   // back, and then re-reads — every marker the rollup knows about settles only
-  // when the rollup is asked again.
+  // when a user-initiated read is asked for again (see `show`'s own comment).
   const stopPushListening = onPushReported((responses, unanswered) => {
     report.replaceChildren(...pushReportNodes(responses, unanswered, { nameDays: true }));
     report.hidden = false;
     failures = failuresIn(responses);
-    void show();
+    void show({ preserveFailures: true });
+  });
+
+  // The entries dialog announces a mutation with no payload whenever it is
+  // scoped to a day other than today's (see afterMutation in
+  // that-entry-dialog.ts), which is every day Week's own cells open it for —
+  // so the payload carries nothing this grid could paint from and the only
+  // honest response is to re-read the week whole, the same as a push report.
+  // `preserveFailures` for the same reason it matters there: rail.ts fires
+  // this same announcement right after reporting a push, and that trailing
+  // read must still show the marks the push report just set rather than
+  // wiping them — including when that trailing announcement never arrives at
+  // all (rail.ts swallows a failed re-read there), in which case this handler
+  // simply runs on the next real entries change instead, still holding them.
+  const stopEntriesListening = onEntriesChanged(() => {
+    void show({ preserveFailures: true });
   });
 
   // The rail's period is global state that outlives this view, so a mount the
@@ -246,6 +298,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   registerTeardown(() => {
     mounted = false;
     stopPushListening();
+    stopEntriesListening();
   });
 
   const rollup = await show();
@@ -674,6 +727,15 @@ function ticketCell(
       issueKey: row.issueKey,
       summary: "",
       status: "",
+      // Set on every cell, today's column included: the dialog compares this
+      // against the day the server resolves as today, so a cell for today
+      // still behaves correctly on its own — a presence-only check here would
+      // single today's column out and defeat that comparison. `|| undefined`
+      // rather than the bare string: `day` is `""` only when `/api/week`
+      // broke its seven-day contract, and an empty string would still be
+      // `!== undefined` — scoping the dialog to a day that does not exist —
+      // where `undefined` degrades to the safe, existing "today" behaviour.
+      day: day || undefined,
     });
   });
 

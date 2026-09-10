@@ -197,7 +197,9 @@ async function openWeek(
   entries: StubEntry[] = [],
   path = "/week",
 ): Promise<void> {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: entries }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: THIS_WEEK, entries } }),
+  );
 
   await page.route("**/api/week**", (route) => {
     const start = new URL(route.request().url()).searchParams.get("start") ?? THIS_WEEK;
@@ -475,10 +477,14 @@ test("a day whose push never answered is named rather than counted as pushed", a
  * The failed marker is the one thing in this grid that does not come from
  * /api/week — it comes from the push response, because a re-read reports those
  * entries as unpushed again, which is true and not what the reader needs in the
- * seconds after pressing Push. It lives for exactly the paint that reports the
- * push, so the read after that one shows the rollup's own answer again.
+ * seconds after pressing Push. It survives every read Week triggers on its own
+ * behalf — the push report's own re-read here, since nothing else changed the
+ * week in between — and is consumed only by the next read the user actually
+ * asks for: one Refresh press, not two.
  */
-test("a failed cell is marked, and the read after the reporting one clears it", async ({ page }) => {
+test("a failed cell is marked, survives the push report's own re-read, and one Refresh press clears it", async ({
+  page,
+}) => {
   await openWeek(
     page,
     {
@@ -493,19 +499,13 @@ test("a failed cell is marked, and the read after the reporting one clears it", 
     ],
   );
 
-  let wednesdayAttempts = 0;
   await page.route("**/api/push**", (route) => {
     const day = new URL(route.request().url()).searchParams.get("day") ?? "";
     if (day === "2026-09-07") {
       return route.fulfill({ status: 200, json: { day, results: [pushed(1, "RIDGE-1")] } });
     }
 
-    // Unreachable the first time and reachable the second, so the retry that the
-    // report asks for is the thing that clears the marker.
-    wednesdayAttempts += 1;
-    const result = wednesdayAttempts === 1 ? unreachable(2, "RIDGE-2") : pushed(2, "RIDGE-2");
-
-    return route.fulfill({ status: 200, json: { day, results: [result] } });
+    return route.fulfill({ status: 200, json: { day, results: [unreachable(2, "RIDGE-2")] } });
   });
 
   // The trigger, not the td: the td also holds a that-tooltip sibling whose
@@ -520,7 +520,11 @@ test("a failed cell is marked, and the read after the reporting one clears it", 
   await pushEverything(page);
   await expect(wednesday).toHaveAttribute("aria-label", /did not reach Jira/);
 
-  await pushEverything(page);
+  // /api/week is unchanged from the read above — the entry never actually
+  // pushed, so its own rollup still says "unpushed" either way — which is
+  // what proves the marker's survival is Week's own doing, not the server's.
+  const refreshControl = page.getByRole("button", { name: "Refresh" });
+  await refreshControl.click();
   await expect(wednesday).not.toHaveAttribute("aria-label", /did not reach Jira/);
 });
 
@@ -890,7 +894,9 @@ test("Refresh sits between the rule and Fetch worklogs, and re-reads /api/week w
 test("refresh is disabled while a fetch is in flight, and a press on it does nothing", async ({
   page,
 }) => {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: [] } }),
+  );
 
   const weekBody = rollup(THIS_WEEK, [
     row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
@@ -942,7 +948,9 @@ test("refresh is disabled while a fetch is in flight, and a press on it does not
 test("the fetch control is disabled while a refresh is in flight, and a press on it does nothing", async ({
   page,
 }) => {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: [] } }),
+  );
 
   const weekBody = rollup(THIS_WEEK, [
     row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
@@ -999,11 +1007,21 @@ test("the fetch control is disabled while a refresh is in flight, and a press on
  * grid with that alert on any failed read (the same path a direct navigation
  * to a bad week already goes through), so this is what proves refresh's own
  * press actually reaches it rather than swallowing the failure unseen.
+ *
+ * A second Refresh press must recover the grid, even when the read it
+ * triggers comes back byte-identical to the last one that succeeded —
+ * `showing` last resolved before the failed read ever painted, so a retry
+ * naming the same week and returning the same body is the ordinary case, not
+ * an edge one. `painted` must therefore forget what was on screen the moment
+ * the alert replaces it, or an identical retry has nothing to compare against
+ * and never repaints.
  */
-test("a failed read on a refresh press surfaces the same way a failed fetch does", async ({
+test("a failed read on a refresh press surfaces the same way a failed fetch does, and a further refresh recovers it", async ({
   page,
 }) => {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: [] } }),
+  );
 
   const weekBody = rollup(THIS_WEEK, [
     row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
@@ -1020,8 +1038,11 @@ test("a failed read on a refresh press surfaces the same way a failed fetch does
 
     weekReads += 1;
     // The mount's own read succeeds, so Refresh reaches its enabled state;
-    // the read the press itself triggers is the one that fails.
-    if (weekReads > 1) {
+    // the read the first press triggers is the one that fails. Every read
+    // after that — a second Refresh press among them — answers with the same
+    // body the mount already painted, which is what proves recovery does not
+    // depend on the retry returning something new.
+    if (weekReads === 2) {
       return route.fulfill({
         status: 500,
         json: { code: "store_failed", message: "could not read the stored week" },
@@ -1045,6 +1066,11 @@ test("a failed read on a refresh press surfaces the same way a failed fetch does
   // recovery fetch.spec.ts already proves for a failed fetch.
   await expect(refreshControl).toBeEnabled();
   await expect(fetchControl).toBeEnabled();
+
+  await refreshControl.click();
+
+  await expect(page.getByText("could not read the stored week")).not.toBeVisible();
+  await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
 });
 
 /**
@@ -1461,4 +1487,278 @@ test("the previous week is a place you can go back from", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Week 37 · 7–13 Sep" })).toBeVisible();
   await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
+});
+
+/**
+ * Task 5's own assertion: a cell in a week that is not this one opens the
+ * dialog on the day it belongs to, not on whatever the server resolves as
+ * today — and once the dialog adds time, the whole grid it came from settles
+ * to match, which is only possible because Week is listening for the
+ * announcement its own dialog fires.
+ *
+ * The POST stub only bumps 2026-08-31's rollup when the request itself named
+ * that day: a cell that silently fell back to sending no day at all would
+ * leave every assertion below reading the grid's untouched, original figures
+ * instead of failing loudly.
+ */
+test("opening a past Monday's cell and adding time moves the cell, its row total, that day's total, and the week total — and the dialog names that Monday, not today", async ({
+  page,
+}) => {
+  const entries: StubEntry[] = [entry(1, "RIDGE-9", "2026-08-31", 3600, "pushed")];
+  let nextId = 2;
+
+  const rollups: Record<string, StubRollup> = {
+    [THIS_WEEK]: rollup(THIS_WEEK, []),
+    "2026-08-31": rollup("2026-08-31", [
+      row("RIDGE-9", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  };
+
+  await openWeek(page, rollups, [], "/week?start=2026-08-31");
+
+  // Overrides openWeek's own blanket /api/entries stub: this one actually
+  // answers a ranged GET from the list a POST just grew, the way the real
+  // server does, so the dialog and the grid can be proven to agree.
+  await page.route("**/api/entries**", async (route) => {
+    const request = route.request();
+
+    if (request.method() === "POST") {
+      const body = request.postDataJSON() as {
+        issueKey: string;
+        day?: string;
+        seconds: number;
+        comment: string;
+      };
+      const created = entry(nextId, body.issueKey, body.day ?? THIS_WEEK, body.seconds, "unpushed");
+      nextId += 1;
+      entries.push(created);
+
+      // pushed, not unpushed: the footer's own day total would otherwise grow
+      // a worst-wins marker and the sr-only words beside it, which is a
+      // separate claim from the one this test makes about the figures alone.
+      if (body.day === "2026-08-31") {
+        rollups["2026-08-31"] = rollup("2026-08-31", [
+          row("RIDGE-9", [{ at: 0, seconds: 3600 + body.seconds, pushState: "pushed" }]),
+        ]);
+      }
+
+      await route.fulfill({ status: 201, json: created });
+
+      return;
+    }
+
+    const url = new URL(request.url());
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    const scoped =
+      from && to ? entries.filter((candidate) => candidate.day >= from && candidate.day <= to) : entries;
+    // THIS_WEEK stands in for whatever the server resolves as today — a
+    // different string from 2026-08-31, which is the whole point: the day
+    // line below must not read as today's.
+    await route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: scoped } });
+  });
+
+  await expect(page.getByRole("heading", { name: "Week 36 · 31 Aug – 6 Sep" })).toBeVisible();
+
+  const cell = ticketRow(page, "RIDGE-9").locator("td").first().locator("button");
+  await expect(cell).toContainText("1h 00m");
+  await cell.click();
+
+  const dialog = page.locator("dialog[open]");
+  await expect(dialog).toBeVisible();
+  // Monday 31 August, per format.ts's longDay — never today's own weekday,
+  // which is what a ticket that forgot to carry its day would show instead.
+  await expect(page.locator("#that-entry-dialog-day")).toHaveText("Monday 31 August");
+
+  await dialog.getByLabel("Duration").fill("30");
+  await dialog.getByLabel("Duration").press("Enter");
+  await dialog.getByRole("button", { name: "Add entry" }).click();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect(cell).toHaveText("1h 30m");
+  await expect(ticketRow(page, "RIDGE-9").locator("td").last()).toHaveText("1h 30m");
+  // tfoot's first td is Monday's own day total — the "Total" label beside it
+  // is a <th>, so the day totals are tds from index 0.
+  await expect(page.locator("tfoot td").first()).toHaveText("1h 30m");
+  await expect(page.locator("tfoot td").last()).toHaveText("1h 30m");
+});
+
+/**
+ * `onEntriesChanged` returns its own unsubscribe, and Week is supposed to
+ * hand that to the router's teardown the way Today already does for its
+ * "online" listener. Nothing on screen would show a leaked subscription —
+ * the grid it would repaint is not there to look at — so this proves it by
+ * counting: a leaked listener re-reads /api/week after the announcement,
+ * a torn-down one does not.
+ */
+test("navigating away from Week removes its entries-changed listener, so a later change triggers no re-read", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }])]),
+  });
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
+
+  // The mount's own read has to settle before the counting route goes on
+  // below, or that first read races the route registration and can land
+  // inside the count it is trying to keep at zero.
+  await expect(ticketRow(page, "RIDGE-1")).toBeVisible();
+
+  let weekReads = 0;
+  // Registered after openWeek's own /api/week route, so this one is asked
+  // first and falls back to it — counting reads without reimplementing what
+  // they answer with, the same trick the Refresh test above uses.
+  await page.route("**/api/week**", (route) => {
+    if (!new URL(route.request().url()).pathname.endsWith("/fetch")) weekReads += 1;
+
+    return route.fallback();
+  });
+
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+
+  // The event Week's own dialog fires after a mutation elsewhere — see
+  // entries-changed.ts. Dispatched directly here since Settings mounts no
+  // dialog of its own to fire it through.
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("that-entries-changed")));
+
+  // No positive signal exists for "nothing happened" — a leaked listener's
+  // re-read would land well inside this window, the same margin
+  // today.spec.ts gives its own "online" leak test.
+  await page.waitForTimeout(500);
+
+  expect(weekReads).toBe(0);
+});
+
+/**
+ * Review finding on the first cut of this task: rail.ts's own push handler
+ * swallows a failing re-read after announcing the push report (see
+ * rail.ts:315-322), so its trailing entries-changed announcement — the one
+ * this view's own subscription exists to hear — sometimes never arrives at
+ * all. A guard that waited for exactly that announcement to clear itself
+ * would stay set, and every genuine entries-changed event after it — a cell's
+ * own dialog adding time, no less — would be swallowed right along with it:
+ * the user adds time and the grid does not move, silently.
+ *
+ * This is why the fix carries no such guard: `show`'s `preserveFailures`
+ * option lets the push's own re-read and the entries-changed re-read both
+ * paint the same marks without either one needing to know whether, or when,
+ * the other already ran.
+ */
+test("a push whose own trailing re-read fails still lets a later edit repaint the grid", async ({
+  page,
+}) => {
+  const entries: StubEntry[] = [entry(1, "RIDGE-1", THIS_WEEK, 3600, "unpushed")];
+  let nextId = 2;
+
+  const rollups: Record<string, StubRollup> = {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+    ]),
+  };
+
+  // Not openWeek(): its own /api/entries stub answers every request with the
+  // same blank list, and registering a replacement only after it — and after
+  // its page.goto() — leaves a real window where the app's own boot-time read
+  // reaches that blank stub before this one is in place, which starves Push
+  // this week of anything to push and hangs the test. Every route below goes
+  // on before the one navigation that can fire requests against them.
+  await page.route("**/api/week**", (route) => {
+    const start = new URL(route.request().url()).searchParams.get("start") ?? THIS_WEEK;
+    const body = rollups[start];
+    if (!body) {
+      return route.fulfill({
+        status: 400,
+        json: { code: "start_not_monday", message: "start must be a Monday, of the form YYYY-MM-DD" },
+      });
+    }
+
+    return route.fulfill({ status: 200, json: body });
+  });
+
+  // Flipped once the push itself has answered, so the whole-week read that
+  // fails below is only the one rail.ts fires *after* reporting the push —
+  // the rail's own boot read (which is what enables Push this week in the
+  // first place) still needs to succeed.
+  let pushAnswered = false;
+  await page.route("**/api/push**", async (route) => {
+    await route.fulfill({ status: 200, json: { day: THIS_WEEK, results: [unreachable(1, "RIDGE-1")] } });
+    pushAnswered = true;
+  });
+
+  // The whole handler this test needs — a ranged GET, an unranged GET (the
+  // rail's own boot and post-push reads), and a POST — rather than openWeek's
+  // blanket stub, for the reason given above.
+  await page.route("**/api/entries**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+
+    if (request.method() === "POST") {
+      const body = request.postDataJSON() as {
+        issueKey: string;
+        day?: string;
+        seconds: number;
+        comment: string;
+      };
+      const created = entry(nextId, body.issueKey, body.day ?? THIS_WEEK, body.seconds, "unpushed");
+      nextId += 1;
+      entries.push(created);
+
+      if (body.day === THIS_WEEK) {
+        rollups[THIS_WEEK] = rollup(THIS_WEEK, [
+          row("RIDGE-1", [{ at: 0, seconds: 3600 + body.seconds, pushState: "unpushed" }]),
+        ]);
+      }
+
+      await route.fulfill({ status: 201, json: created });
+
+      return;
+    }
+
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    if (pushAnswered && from === THIS_WEEK && to === "2026-09-13") {
+      await route.fulfill({
+        status: 500,
+        json: { code: "store_failed", message: "could not read the stored entries" },
+      });
+
+      return;
+    }
+
+    const scoped =
+      from && to ? entries.filter((candidate) => candidate.day >= from && candidate.day <= to) : entries;
+    await route.fulfill({ status: 200, json: { today: THIS_WEEK, entries: scoped } });
+  });
+
+  await page.goto("/week");
+
+  const cell = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  await expect(cell).toContainText("1h 00m");
+  // Push this week reflects the rail's own boot read of the same entries
+  // stub above; waiting for it here (rather than letting pushEverything's
+  // own click retry blindly) is what turns a starved stub into a clear
+  // assertion failure instead of a 30-second timeout.
+  await expect(page.getByRole("button", { name: "Push this week" })).toBeEnabled();
+
+  await pushEverything(page);
+  // The push's own report still names the failure — its re-read (preserved)
+  // painted it, whether or not rail.ts's own trailing read ever landed.
+  await expect(cell).toHaveAttribute("aria-label", /did not reach Jira/);
+
+  // rail.ts's trailing read just failed, silently, so no second
+  // entries-changed announcement ever arrived for this push — the exact gap
+  // a staleness bug in the guard would have left open.
+  await cell.click();
+  const dialog = page.locator("dialog[open]");
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByLabel("Duration").fill("30");
+  await dialog.getByLabel("Duration").press("Enter");
+  await dialog.getByRole("button", { name: "Add entry" }).click();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect(cell).toHaveText("1h 30m");
 });

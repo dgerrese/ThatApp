@@ -1,6 +1,7 @@
 import type {
   ApiErrorBody,
   ConnectionTest,
+  EntriesResponse,
   Entry,
   EntryDraft,
   EntryEdit,
@@ -148,12 +149,15 @@ export function searchIssues(query: string, signal: AbortSignal): Promise<IssueS
  * the browser never computes a date — which is the whole reason the day
  * boundary is the server's to decide.
  */
-export function listEntries(range?: { from: string; to: string }): Promise<Entry[]> {
+export function listEntries(range?: { from: string; to: string }): Promise<EntriesResponse> {
   const query = range ? `?from=${range.from}&to=${range.to}` : "";
 
-  return request<Entry[]>(`/api/entries${query}`);
+  return request<EntriesResponse>(`/api/entries${query}`);
 }
 
+/** An absent `day` on the draft is dropped by JSON.stringify rather than
+ *  sent as null, which is what leaves the server's own "day absent means
+ *  today" default in charge. */
 export function createEntry(draft: EntryDraft): Promise<Entry> {
   return request<Entry>("/api/entries", {
     method: "POST",

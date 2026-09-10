@@ -42,7 +42,9 @@ const NOTHING = { start: START, end: "2026-09-06", created: 0, updated: 0, keptL
  * one wins.
  */
 async function openWeek(page: Page, fetch: { body: unknown; status?: number; hold?: Promise<void> }): Promise<void> {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: START, entries: [] } }),
+  );
 
   await page.route("**/api/week**", async (route) => {
     if (!new URL(route.request().url()).pathname.endsWith("/fetch")) {
@@ -102,7 +104,7 @@ async function openWeekWithEntries(
   await page.route("**/api/entries**", (route) => {
     entriesRequests += 1;
 
-    return route.fulfill({ status: 200, json: resolved ? after : before });
+    return route.fulfill({ status: 200, json: { today: START, entries: resolved ? after : before } });
   });
 
   await page.route("**/api/week**", async (route) => {
@@ -239,7 +241,9 @@ test("the control is disabled until the week has been read", async ({ page }) =>
     release = resolve;
   });
 
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: START, entries: [] } }),
+  );
   await page.route("**/api/week**", async (route) => {
     if (new URL(route.request().url()).pathname.endsWith("/fetch")) {
       return route.fulfill({ status: 200, json: NOTHING });
@@ -262,7 +266,9 @@ test("the control is disabled until the week has been read", async ({ page }) =>
 });
 
 test("a week that could not be read leaves the control disabled", async ({ page }) => {
-  await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: START, entries: [] } }),
+  );
   await page.route("**/api/week**", (route) =>
     route.fulfill({
       status: 400,

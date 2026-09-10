@@ -232,7 +232,9 @@ test.describe("the content region owns the scroll, not the page", () => {
 
   test.beforeEach(async ({ page }) => {
     await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
-    await page.route("**/api/entries**", (route) => route.fulfill({ status: 200, json: [] }));
+    await page.route("**/api/entries**", (route) =>
+      route.fulfill({ status: 200, json: { today: "2026-09-09", entries: [] } }),
+    );
     await page.route("**/api/issues", (route) =>
       route.fulfill({
         status: 200,

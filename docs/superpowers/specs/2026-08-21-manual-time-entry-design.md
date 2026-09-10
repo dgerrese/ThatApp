@@ -85,12 +85,17 @@ written here — push state stays derived, and #7 must not introduce a flag.
 
 ## The day boundary
 
-**Resolved once, server-side, at creation.** `POST /api/entries` stamps two fields from one instant:
+**Resolved server-side, at creation.** `POST /api/entries` stamps two fields from one instant when
+the client names no day, and from that day's own local midnight, clock untouched, when it does —
+**#105** lets a Week cell pass one for a day that is not today:
 
 ```go
 now := s.now()                                   // injected, see below
 started := now
 day := now.In(s.cfg.Location).Format("2006-01-02")
+
+// day given instead — #105: the clock is not read at all
+started = localMidnight(day, s.cfg.Location)
 ```
 
 The browser never computes a date. It reads the `day` the server stamped and groups by it, which is
@@ -106,7 +111,7 @@ a timezone name at request time.
 ## The API — `internal/server/entries.go`
 
 ```
-GET    /api/entries?from=&to=     bare array, oldest first
+GET    /api/entries?from=&to=     { today, entries }, entries oldest first
 POST   /api/entries               201, the created row
 PATCH  /api/entries/{id}          200, the updated row
 DELETE /api/entries/{id}          204
@@ -122,8 +127,13 @@ Its own file; `instances.go` and `issues.go` are untouched.
   "seconds": 1800, "comment": "Refinement" }
 ```
 
-A bare array, matching `/api/instances` and `/api/pins`: entries are a CRUD resource, not a fan-out
-report. `instanceName` and `instancePosition` are joined in by the handler from the instances it
+The row itself is unchanged; the collection around it is not. **#105** wraps `GET`'s response in
+`{ today, entries }` — see
+[`2026-09-09-day-scoped-entries-dialog-design.md`](2026-09-09-day-scoped-entries-dialog-design.md)'s
+decision 3 — so a dialog scoped to a day it did not compute itself still learns what today is.
+`entries` is still the bare array matching `/api/instances` and `/api/pins`: entries are a CRUD
+resource, not a fan-out report; only the date the server resolved when answering now travels with
+them. `instanceName` and `instancePosition` are joined in by the handler from the instances it
 already loads — the rail's split draws the same coloured dots #6 introduced, and `instancePosition`
 is the same 0-based index into `store.Instances`'s `created_at` order.
 
@@ -142,12 +152,19 @@ endpoint with a range. A malformed date or `from` after `to` is 400 `invalid_req
 
 Body: `{ "instanceId": 1, "issueKey": "RIDGE-4929", "seconds": 1800, "comment": "" }`.
 
-**`day` and `startedAt` are never accepted from the client**, so a browser cannot post itself into
-another day. Rejections, in order:
+**`startedAt` is never accepted from the client.** `day` was rejected on the same page for the same
+reason: accepting either would let a browser post itself into a day its own start time contradicts.
+**#105** lifts that for `day` alone — a Week cell opened for a day that is not today needs to log
+against it — so `day` may now name any day, and the server resolves `startedAt` to that day's local
+midnight in `THAT_TIMEZONE` rather than to `now()`. `startedAt` itself still never comes from the
+client, so the contradiction the original rule ruled out is still unconstructible: whichever day a
+`POST` names, its start time is the server's to set, not the browser's. Rejections, in order:
 
 1. A malformed body, a blank `issueKey`, or a missing `instanceId` — 400 `invalid_request`.
-2. An unknown `instanceId` — 404 `instance_not_found`.
-3. `seconds` of zero or less, or over 24 hours — 400 `invalid_request`.
+2. A malformed `day` — 400 `invalid_request`, checked before the instance lookup below, so a
+   malformed `day` alongside an unknown `instanceId` answers 400.
+3. An unknown `instanceId` — 404 `instance_not_found`.
+4. `seconds` of zero or less, or over 24 hours — 400 `invalid_request`.
 
 `POST` does **not** verify the issue exists: no Jira call anywhere in this ticket. The keys come
 from rows already on screen.

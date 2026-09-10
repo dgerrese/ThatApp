@@ -111,12 +111,12 @@ func decodeEntry(t *testing.T, rec *httptest.ResponseRecorder) entryDTO {
 func decodeEntries(t *testing.T, rec *httptest.ResponseRecorder) []entryDTO {
 	t.Helper()
 
-	var dtos []entryDTO
-	if err := json.Unmarshal(rec.Body.Bytes(), &dtos); err != nil {
+	var body entriesResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decoding %s: %v", rec.Body.String(), err)
 	}
 
-	return dtos
+	return body.Entries
 }
 
 // assertRejected checks the status, the stable code and that a person was told
@@ -230,33 +230,135 @@ func TestPostEntryStampsTheDayInTheConfiguredZone(t *testing.T) {
 	}
 }
 
-// TestPostEntryIgnoresAClientSuppliedDayAndStartedAt: a browser must not be able
-// to post itself into another day. The body sends both fields, deliberately
-// wrong, and the stored row carries the server's values.
-func TestPostEntryIgnoresAClientSuppliedDayAndStartedAt(t *testing.T) {
+// TestPostEntryIgnoresAClientSuppliedStartedAt: #105 lets a create name its
+// day, but started_at stays the server's alone — a body naming both, with a
+// forged startedAt that disagrees with the named day, proves the day is
+// honoured and the forged instant is not.
+func TestPostEntryIgnoresAClientSuppliedStartedAt(t *testing.T) {
 	instant := time.Date(2026, 8, 21, 13, 0, 0, 0, time.UTC)
 	srv, db, inst := serverInZone(t, "Pacific/Auckland", instant)
 
 	rec := callEntries(t, srv, http.MethodPost, "/api/entries",
 		`{"instanceId":`+strconv.FormatInt(inst.ID, 10)+`,"issueKey":"RIDGE-4929","seconds":900,`+
-			`"day":"1999-01-01","startedAt":"1999-01-01T00:00:00Z"}`)
+			`"day":"2020-06-15","startedAt":"1999-01-01T00:00:00Z"}`)
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
-	if dto := decodeEntry(t, rec); dto.Day != "2026-08-22" {
-		t.Errorf("day = %q, want 2026-08-22; the client's day was honoured", dto.Day)
+	if dto := decodeEntry(t, rec); dto.Day != "2020-06-15" {
+		t.Errorf("day = %q, want 2020-06-15; the named day was not honoured", dto.Day)
 	}
 
 	stored := allEntries(t, db)
 	if len(stored) != 1 {
 		t.Fatalf("stored %d entries, want 1", len(stored))
 	}
-	if stored[0].Day != "2026-08-22" {
-		t.Errorf("stored day = %q, want 2026-08-22", stored[0].Day)
+	if stored[0].Day != "2020-06-15" {
+		t.Errorf("stored day = %q, want 2020-06-15", stored[0].Day)
 	}
-	if !stored[0].StartedAt.Equal(instant) {
-		t.Errorf("stored startedAt = %v, want the server's instant %v", stored[0].StartedAt, instant)
+	loc, err := time.LoadLocation("Pacific/Auckland")
+	if err != nil {
+		t.Fatalf("loading zone: %v", err)
+	}
+	wantStartedAt := time.Date(2020, 6, 15, 0, 0, 0, 0, loc)
+	if !stored[0].StartedAt.Equal(wantStartedAt) {
+		t.Errorf("stored startedAt = %v, want local midnight of the named day %v; "+
+			"the forged startedAt was honoured instead", stored[0].StartedAt, wantStartedAt)
+	}
+}
+
+// TestCreateEntryAcceptsADay is the test #105's Task 2 exists for: day absent
+// still means today from one clock read, day present stamps local midnight of
+// that day in THAT_TIMEZONE, and a date time.Parse cannot make sense of is
+// rejected before anything is stored — the same rule dayParam already applies,
+// so 2026-02-30 is a day out of range rather than 2 March.
+func TestCreateEntryAcceptsADay(t *testing.T) {
+	const zone = "Pacific/Auckland"
+	// 13:00 UTC on the 21st is already 01:00 on the 22nd in Auckland — the
+	// container's clock and the configured zone disagree, which is the whole
+	// point of asserting an instant rather than a formatted string.
+	instant := time.Date(2026, 8, 21, 13, 0, 0, 0, time.UTC)
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		t.Fatalf("loading zone %q: %v", zone, err)
+	}
+
+	for _, tc := range []struct {
+		name          string
+		day           string
+		wantCode      string
+		wantDay       string
+		wantStartedAt time.Time
+	}{
+		{
+			name:          "no day names today, stamped from the one clock read",
+			wantDay:       "2026-08-22",
+			wantStartedAt: instant,
+		},
+		{
+			name:          "a past day stamps local midnight of that day in the zone",
+			day:           "2026-01-05",
+			wantDay:       "2026-01-05",
+			wantStartedAt: time.Date(2026, 1, 5, 0, 0, 0, 0, loc),
+		},
+		{
+			name:          "a day far in the past is legal",
+			day:           "1901-03-09",
+			wantDay:       "1901-03-09",
+			wantStartedAt: time.Date(1901, 3, 9, 0, 0, 0, 0, loc),
+		},
+		{
+			name:     "a malformed day is rejected",
+			day:      "not-a-date",
+			wantCode: "invalid_request",
+		},
+		{
+			name:     "an impossible day is rejected rather than rolled forward",
+			day:      "2026-02-30",
+			wantCode: "invalid_request",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, db, inst := serverInZone(t, zone, instant)
+
+			body := `{"instanceId":` + strconv.FormatInt(inst.ID, 10) +
+				`,"issueKey":"RIDGE-4929","seconds":900`
+			if tc.day != "" {
+				body += `,"day":"` + tc.day + `"`
+			}
+			body += `}`
+
+			rec := callEntries(t, srv, http.MethodPost, "/api/entries", body)
+
+			if tc.wantCode != "" {
+				assertRejected(t, rec, http.StatusBadRequest, tc.wantCode)
+				if stored := allEntries(t, db); len(stored) != 0 {
+					t.Errorf("stored %d entries, want none; a rejected create wrote a row",
+						len(stored))
+				}
+
+				return
+			}
+
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("status = %d, want %d; body %s",
+					rec.Code, http.StatusCreated, rec.Body.String())
+			}
+			if dto := decodeEntry(t, rec); dto.Day != tc.wantDay {
+				t.Errorf("day = %q, want %q", dto.Day, tc.wantDay)
+			}
+
+			stored := allEntries(t, db)
+			if len(stored) != 1 {
+				t.Fatalf("stored %d entries, want 1", len(stored))
+			}
+			if stored[0].Day != tc.wantDay {
+				t.Errorf("stored day = %q, want %q", stored[0].Day, tc.wantDay)
+			}
+			if !stored[0].StartedAt.Equal(tc.wantStartedAt) {
+				t.Errorf("stored startedAt = %v, want %v", stored[0].StartedAt, tc.wantStartedAt)
+			}
+		})
 	}
 }
 
@@ -469,6 +571,37 @@ func TestGetEntriesDefaultsToTodayInTheConfiguredZone(t *testing.T) {
 	}
 }
 
+// TestListEntriesEnvelopeNamesTodayInTheConfiguredZone: the dialog needs a day
+// to name itself by, and Today's dialog has no day of its own to name — so
+// GET /api/entries answers with the date the server resolved, in
+// THAT_TIMEZONE, wrapping the same entries the bare array used to hold. The
+// clock sits at 13:00 UTC, already the 22nd in Auckland, so a UTC-only
+// reading of "today" would name the wrong day.
+func TestListEntriesEnvelopeNamesTodayInTheConfiguredZone(t *testing.T) {
+	srv, db, inst := serverInZone(t, "Pacific/Auckland",
+		time.Date(2026, 8, 21, 13, 0, 0, 0, time.UTC))
+	seedEntry(t, db, store.EntryInput{
+		InstanceID: inst.ID, IssueKey: "LOCAL-TODAY", Day: "2026-08-22",
+		StartedAt: time.Date(2026, 8, 21, 13, 0, 0, 0, time.UTC), Seconds: 900,
+	})
+
+	rec := callEntries(t, srv, http.MethodGet, "/api/entries", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var envelope entriesResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decoding %s: %v", rec.Body.String(), err)
+	}
+	if envelope.Today != "2026-08-22" {
+		t.Errorf("today = %q, want 2026-08-22, the date in the configured zone", envelope.Today)
+	}
+	if len(envelope.Entries) != 1 || envelope.Entries[0].IssueKey != "LOCAL-TODAY" {
+		t.Fatalf("entries = %v, want the one seeded entry", envelope.Entries)
+	}
+}
+
 func TestGetEntriesFiltersAnInclusiveRangeOldestFirst(t *testing.T) {
 	srv, db, inst := serverInZone(t, "Europe/Amsterdam",
 		time.Date(2026, 8, 21, 12, 5, 0, 0, time.UTC))
@@ -548,8 +681,9 @@ func TestGetEntriesWithNoneStoredIsAnEmptyArray(t *testing.T) {
 
 	// Asserted on the raw body: decoding cannot tell [] from null, and the rail
 	// iterates the array.
-	if strings.TrimSpace(rec.Body.String()) != "[]" {
-		t.Errorf("body = %s, want []", rec.Body.String())
+	want := `{"today":"2026-08-21","entries":[]}`
+	if strings.TrimSpace(rec.Body.String()) != want {
+		t.Errorf("body = %s, want %s", rec.Body.String(), want)
 	}
 }
 
@@ -662,6 +796,43 @@ func TestPatchEntryNeverMovesTheDayOrTheStartTime(t *testing.T) {
 	}
 	if dto.StartedAt != "2026-06-03T20:15:00+12:00" {
 		t.Errorf("startedAt = %q, want the stored instant in the configured zone", dto.StartedAt)
+	}
+
+	stored := allEntries(t, db)
+	if len(stored) != 1 {
+		t.Fatalf("stored %d entries, want 1", len(stored))
+	}
+	if stored[0].Day != "2026-06-03" {
+		t.Errorf("stored day = %q, want 2026-06-03 kept", stored[0].Day)
+	}
+	if !stored[0].StartedAt.Equal(entry.StartedAt) {
+		t.Errorf("stored startedAt = %v, want %v kept", stored[0].StartedAt, entry.StartedAt)
+	}
+}
+
+// TestPatchEntryRefusesDayAndStartedAt: #105's Task 2 gave POST a day field.
+// updateEntryRequest gained none of its own, so a PATCH body forging both is
+// silently dropped by json.Decode rather than the handler rejecting it — this
+// guards that PATCH stayed untouched now that POST can move where an entry
+// lands.
+func TestPatchEntryRefusesDayAndStartedAt(t *testing.T) {
+	srv, db, inst := serverInZone(t, "Pacific/Auckland",
+		time.Date(2026, 8, 21, 13, 0, 0, 0, time.UTC))
+	entry := seedEntryForPatch(t, db, inst)
+
+	rec := callEntries(t, srv, http.MethodPatch, "/api/entries/"+strconv.FormatInt(entry.ID, 10),
+		`{"seconds":2700,"day":"1999-01-01","startedAt":"1999-01-01T00:00:00Z"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	dto := decodeEntry(t, rec)
+	if dto.Day != "2026-06-03" {
+		t.Errorf("day = %q, want 2026-06-03; the forged day was honoured", dto.Day)
+	}
+	if dto.StartedAt != "2026-06-03T20:15:00+12:00" {
+		t.Errorf("startedAt = %q, want the stored instant; the forged startedAt was honoured",
+			dto.StartedAt)
 	}
 
 	stored := allEntries(t, db)

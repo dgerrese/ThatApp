@@ -238,10 +238,14 @@ v3 are Atlassian Document Format, not plain strings.
 The `started` field on a worklog is required by Jira, which is why `time_entries.started_at`
 exists. Timer entries record the real start. Manual entries are stamped with the moment the entry
 was created — **and are not editable**, which is the half of this paragraph #7 corrected. The
-server stamps `day` and `started_at` from one reading of its own clock and accepts neither from the
-browser, so `PATCH /api/entries/{id}` carries `seconds` and `comment` and nothing else. Letting a
-client set `started_at` would let it file work into a day its own start time contradicts, which is
-the disagreement `THAT_TIMEZONE` exists to prevent.
+server stamps `started_at` from one reading of its own clock and never accepts it from the browser,
+so `PATCH /api/entries/{id}` carries `seconds` and `comment` and nothing else. Letting a client set
+`started_at` would let it file work into a day its own start time contradicts, which is the
+disagreement `THAT_TIMEZONE` exists to prevent. **#105** lets `POST` name the `day` it means, so a
+Week cell opened for a day that is not today can log against it — but `started_at` still never
+comes from the browser, and the server still resolves it itself, local midnight in `THAT_TIMEZONE`
+for a named day. The contradiction this paragraph rules out stays ruled out; only where `day` comes
+from changed.
 
 ## Frontend
 

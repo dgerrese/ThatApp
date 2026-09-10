@@ -21,6 +21,9 @@ interface Recorder {
   deleted: number[];
   /** Every GET answered, so a test can price a mutation in round trips. */
   gets: number;
+  /** Every GET's raw query string, oldest first — what proves a day-scoped
+   *  dialog asked for `from`/`to` rather than the bare list. */
+  queries: string[];
 }
 
 const DAY = "2026-08-22";
@@ -58,29 +61,40 @@ function entry(id: number, issueKey: string, seconds: number, options?: Partial<
  */
 async function stubEntries(page: Page, seed: StubEntry[] = []): Promise<Recorder> {
   const entries = [...seed];
-  const recorder: Recorder = { posted: [], patched: [], deleted: [], gets: 0 };
+  const recorder: Recorder = { posted: [], patched: [], deleted: [], gets: 0, queries: [] };
   let nextId = 500;
   let nextHour = 10;
 
   await page.route("**/api/entries**", async (route) => {
     const request = route.request();
-    const id = Number(/\/api\/entries\/(\d+)/.exec(new URL(request.url()).pathname)?.[1] ?? 0);
+    const url = new URL(request.url());
+    const id = Number(/\/api\/entries\/(\d+)/.exec(url.pathname)?.[1] ?? 0);
 
     switch (request.method()) {
-      case "GET":
+      case "GET": {
         recorder.gets += 1;
-        await route.fulfill({ status: 200, json: entries });
+        recorder.queries.push(url.search);
+        // Both bounds default to DAY — this stub's "today" — the same rule
+        // the real server applies in THAT_TIMEZONE.
+        const from = url.searchParams.get("from") ?? DAY;
+        const to = url.searchParams.get("to") ?? DAY;
+        const scoped = entries.filter((candidate) => candidate.day >= from && candidate.day <= to);
+        await route.fulfill({ status: 200, json: { today: DAY, entries: scoped } });
 
         return;
+      }
 
       case "POST": {
         const body = request.postDataJSON() as Record<string, unknown>;
         recorder.posted.push(body);
+        // Absent day means DAY, matching the real server's "today" default.
+        const day = typeof body["day"] === "string" && body["day"] !== "" ? body["day"] : DAY;
         const created = entry(nextId, String(body["issueKey"]), Number(body["seconds"]), {
           instanceId: Number(body["instanceId"]),
           instanceName: Number(body["instanceId"]) === 2 ? "Personal" : "Ridgeline",
           instancePosition: Number(body["instanceId"]) === 2 ? 1 : 0,
-          startedAt: `${DAY}T${String(nextHour).padStart(2, "0")}:15:00+02:00`,
+          day,
+          startedAt: `${day}T${String(nextHour).padStart(2, "0")}:15:00+02:00`,
           comment: String(body["comment"] ?? ""),
         });
         nextId += 1;
@@ -181,6 +195,33 @@ function durationField(page: Page) {
 async function typeDuration(page: Page, typed: string): Promise<void> {
   await durationField(page).fill(typed);
   await durationField(page).press("Enter");
+}
+
+/**
+ * Opens the entries dialog against a day-scoped ticket, mounted directly
+ * rather than clicked open. Week is the only production caller that puts a
+ * `day` on an `EntryTicket`, and it does not exist until #105's task 5 — this
+ * exercises the same contract the dialog will read from Week, the way
+ * pins.spec.ts mounts a bare `that-ticket-row` before Today wires one up.
+ */
+async function openDialogWithDay(
+  page: Page,
+  ticket: {
+    instanceId: number;
+    instanceName: string;
+    issueKey: string;
+    day: string;
+    summary?: string;
+  },
+): Promise<void> {
+  await page.evaluate(async (ticket) => {
+    await customElements.whenDefined("that-entry-dialog");
+    const element = document.createElement("that-entry-dialog") as unknown as {
+      ticket: unknown;
+    };
+    element.ticket = { summary: "", status: "", ...ticket };
+    document.body.append(element);
+  }, ticket);
 }
 
 /** The logged entries, and only those. The empty line is a `<p>` sibling of
@@ -475,6 +516,147 @@ test("the dialog shows only the ticket it was opened from", async ({ page }) => 
   await expect(page.locator("#rail-total")).toHaveText("1h 30m");
 });
 
+const PAST_DAY = "2026-08-20";
+
+/**
+ * #105 task 3: a dialog carrying a day reads that day, not today's. Both
+ * entries below are the same ticket; only one is on the day the dialog is
+ * scoped to.
+ */
+test("a day-scoped dialog lists only that day's entries", async ({ page }) => {
+  const recorder = await openToday(page, [
+    entry(1, "WORK-412", 3600, { comment: "today's work" }),
+    entry(2, "WORK-412", 1800, {
+      day: PAST_DAY,
+      startedAt: `${PAST_DAY}T09:15:00+02:00`,
+      comment: "past work",
+    }),
+  ]);
+
+  await openDialogWithDay(page, {
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    issueKey: "WORK-412",
+    day: PAST_DAY,
+  });
+
+  await expect(dialog(page).getByText("past work")).toBeVisible();
+  await expect(dialog(page).getByText("today's work")).toHaveCount(0);
+  await expect(dialogTotal(page)).toHaveText("0h 30m");
+  // The exact contract, not just its effect: a ranged read, not the bare one.
+  // Not "the last query" — Today's own boot reads race this one and are not
+  // guaranteed to have settled first.
+  expect(recorder.queries).toContain(`?from=${PAST_DAY}&to=${PAST_DAY}`);
+});
+
+/**
+ * #105 task 3: adding from a day-scoped dialog sends that day, so the server
+ * stamps the entry's start against it rather than its own clock's today.
+ */
+test("adding from a day-scoped dialog sends that day", async ({ page }) => {
+  const recorder = await openToday(page, [entry(1, "WORK-412", 3600)]);
+
+  await openDialogWithDay(page, {
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    issueKey: "WORK-412",
+    day: PAST_DAY,
+  });
+  await typeDuration(page, "45");
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+
+  await expect.poll(() => recorder.posted.length).toBe(1);
+  expect(recorder.posted[0]).toMatchObject({
+    instanceId: 1,
+    issueKey: "WORK-412",
+    seconds: 2700,
+    comment: "",
+    day: PAST_DAY,
+  });
+});
+
+/**
+ * #105 task 3's subtle half. A dialog scoped to a day that is not today
+ * announces with no payload, so Today's own listeners re-read their own
+ * period instead of repainting from a past day's rows. A test that only
+ * checked "something happened" would pass on an announcement that leaked the
+ * past day's list straight into Today's totals — this instead pins the exact
+ * figures that leak would change.
+ */
+test("adding against a past day's dialog leaves Today's own figures unchanged", async ({
+  page,
+}) => {
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+
+  await expect(trigger(page, "WORK-412")).toHaveText("Log1:00");
+  await expect(page.locator("#rail-total")).toHaveText("1h 00m");
+
+  await openDialogWithDay(page, {
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    issueKey: "WORK-412",
+    day: PAST_DAY,
+  });
+  await typeDuration(page, "45");
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+
+  // The day-scoped dialog's own total does move — it is reading the day it
+  // was scoped to, and this add is on it.
+  await expect(dialogTotal(page)).toHaveText("0h 45m");
+
+  // Today's row and the rail must not have moved: a leaked announcement would
+  // repaint WORK-412's row at 0h 45m (the past day's own list) or the rail at
+  // the same, not leave either where today's own entry left them.
+  await expect(trigger(page, "WORK-412")).toHaveText("Log1:00");
+  await expect(page.locator("#rail-total")).toHaveText("1h 00m");
+});
+
+/**
+ * #105 task 4, Decisions 1 and 2: a scoped dialog names its own day, on the
+ * line beneath the key — full weekday and month, above the summary when one
+ * exists rather than in the identity row or the total.
+ */
+test("a day-scoped dialog names its own day, above the summary", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openToday(page);
+
+  await openDialogWithDay(page, {
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    issueKey: "WORK-412",
+    day: PAST_DAY,
+    summary: "Fix the CSV export encoding",
+  });
+
+  const dayLine = dialog(page).locator("#that-entry-dialog-day");
+  const summary = dialog(page).locator("#that-entry-dialog-summary");
+  await expect(dayLine).toHaveText("Thursday 20 August");
+  await expect(dayLine).toHaveCSS("color", INK_MUTED_LIGHT);
+
+  const precedingId = await summary.evaluate((el) => el.previousElementSibling?.id);
+  expect(precedingId).toBe("that-entry-dialog-day");
+});
+
+/**
+ * #105 task 4, Decision 4: the empty line names the day it is empty for when
+ * the dialog is scoped. The unscoped "... today." wording is covered above,
+ * by "a ticket with nothing logged says so".
+ */
+test("a day-scoped dialog with nothing logged names the day it is empty for", async ({ page }) => {
+  await openToday(page);
+
+  await openDialogWithDay(page, {
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    issueKey: "WORK-412",
+    day: PAST_DAY,
+  });
+
+  await expect(
+    dialog(page).getByText("Nothing logged against this ticket on Thursday 20 August."),
+  ).toBeVisible();
+});
+
 /**
  * The colon the user typed carries structure. Stripping it first read "1:5" as
  * the digits 15 — an hour typed, a quarter of it posted, and only the field's
@@ -593,7 +775,7 @@ test("a failed first fetch retries until the rail holds a real figure", async ({
 
       return;
     }
-    await route.fulfill({ status: 200, json: [entry(1, "WORK-412", 3600)] });
+    await route.fulfill({ status: 200, json: { today: DAY, entries: [entry(1, "WORK-412", 3600)] } });
   });
   await stubPins(page, []);
   await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [workIssue], error: null }]);
@@ -756,6 +938,19 @@ test("the header carries the dot, the instance, the key and the total, and no st
   const subtitle = dialog(page).locator("#that-entry-dialog-summary");
   await expect(subtitle).toHaveText(workIssue.summary);
   await expect(subtitle).toHaveCSS("color", INK_MUTED_LIGHT);
+});
+
+/**
+ * #105 task 4, Decision 2: every dialog names its day, not only a scoped one.
+ * Today's ticket carries no day of its own, so the header names the `today`
+ * the envelope carried instead of staying silent about its subject.
+ */
+test("the header names today's own day when the dialog carries none", async ({ page }) => {
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+
+  await trigger(page, "WORK-412").click();
+
+  await expect(dialog(page).locator("#that-entry-dialog-day")).toHaveText("Saturday 22 August");
 });
 
 /**
