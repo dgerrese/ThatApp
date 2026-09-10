@@ -414,11 +414,17 @@ export class ThatIssueSearch extends HTMLElement {
   }
 
   /**
-   * The drawn duration control: the "Log" hint revealed over a figure, the
-   * same recipe that-ticket-row's own durationCell uses — but rendered as a
-   * static variant rather than reusing that stateful implementation. A
-   * search result has no seconds of its own to track; pressing this opens
-   * the dialog, which is where a real total lives.
+   * The drawn duration control: the "Log" hint over a figure — but the
+   * prototype draws two bargains for this hint, not one. Plain `.durbtn`
+   * reserves the hint's width always and only fades its opacity, which is
+   * right in a table (that-ticket-row's own durationCell), where a width
+   * collapse would shift the column beside it on every hover. `.durbtn.reveal`
+   * claims no width until wanted, which is right in a narrow panel, where
+   * reserving it comes out of the summary — and every result row in the
+   * drawing (docs/superpowers/prototypes/2026-09-03-app-prototype.html,
+   * lines 130-135) uses `reveal`. This is that variant: `max-w-0`/`mr-0` at
+   * rest, both released on hover or focus alongside the opacity fade, not
+   * ticket-row's reserve-the-width recipe.
    */
   private durationControl(control: IssueSearchDurationControl, hit: IssueHit): HTMLElement {
     const trigger = document.createElement("button");
@@ -430,9 +436,10 @@ export class ThatIssueSearch extends HTMLElement {
 
     const hint = document.createElement("span");
     hint.className =
-      "text-primary mr-2.5 shrink-0 text-sm font-bold tracking-[0.06em] uppercase " +
-      "whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover:opacity-100 " +
-      "group-focus-visible:opacity-100";
+      "text-primary mr-0 max-w-0 shrink-0 overflow-hidden text-sm font-bold tracking-[0.06em] " +
+      "uppercase whitespace-nowrap opacity-0 transition-all duration-150 " +
+      "group-hover:mr-2.5 group-hover:max-w-[3rem] group-hover:opacity-100 " +
+      "group-focus-visible:mr-2.5 group-focus-visible:max-w-[3rem] group-focus-visible:opacity-100";
     hint.textContent = "Log";
     hint.setAttribute("aria-hidden", "true");
 

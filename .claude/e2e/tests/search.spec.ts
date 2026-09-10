@@ -180,6 +180,32 @@ test.describe("that-issue-search on Today", () => {
     await expect(trigger).toHaveText("Log0:00");
   });
 
+  // Round 2 finding: the prototype draws two bargains for the "Log" hint —
+  // reserved width, opacity-only fade (right in a table) and no width at
+  // rest (right in this 300px panel, where reserving it costs the summary).
+  // Every result row in the drawing uses the second. This is the case that
+  // would fail against the first: the hint claiming space before it is ever
+  // hovered.
+  test("the duration control's hint claims no width until hovered", async ({ page }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+    const trigger = resultRow(page, "RIDGE-5140").getByRole("button", {
+      name: "Log time against RIDGE-5140",
+      exact: true,
+    });
+    await expect(trigger).toBeVisible();
+
+    const hintWidth = () =>
+      trigger.evaluate((el) => el.querySelector("span")?.getBoundingClientRect().width ?? -1);
+
+    expect(await hintWidth()).toBeLessThanOrEqual(1);
+
+    await trigger.hover();
+    await expect.poll(hintWidth).toBeGreaterThan(10);
+  });
+
   // Review finding 4: a fixed label would read identically on every row —
   // this proves the two rows above carry two different accessible names.
   test("two rows' duration controls carry two different accessible names", async ({ page }) => {
