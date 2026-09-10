@@ -120,13 +120,21 @@ is navigated away from**. It is not pinned, not stored, and not remembered. Once
 one of its cells it is an ordinary row like any other, and it persists because it has entries — not
 because anything recorded that it was added.
 
-**Corrected 2026-09-10, after the implementer found the original wording ambiguous.** It said "a
-re-read that returns no entries for it also loses it", which can be read two ways, and one of them
-breaks the feature: if *any* background re-read dropped an unlogged addition, then the entries-changed
-subscription firing between adding a ticket and clicking one of its cells would delete the row out
-from under the user, and the footer's own promise — *click a day to log time* — would be a lie. **The
-rule is about resurrection, not about background reads:** an added row survives re-reads until the
-view is left, and a row whose entries have genuinely gone is not re-added from the added-keys set.
+**Settled 2026-09-10, in two passes, and the second is the rule.** The original wording said "a
+re-read that returns no entries for it also loses it", which reads two ways. The first correction
+ruled out only resurrection: an added row survived re-reads, but the moment an entry existed the
+rollup took over and the add was forgotten. A review then found the flow that breaks — log an hour,
+notice it was the wrong day, delete the entry, and the row you deliberately added evaporates, because
+its key was dropped as soon as the entry appeared. You would have to search it in again to log the
+right day.
+
+**So the rule is simply: an add lasts until you leave the view.** The key stays for the life of the
+mount. A row is added for it whenever the rollup does not already carry one, and deleting the last
+entry leaves the empty row behind, ready for the right day. Nothing prunes, nothing is promoted, and
+there is one sentence to remember rather than two mechanisms to reason about.
+
+Navigating away — to another view or to another week — still loses it, because the mount ends. That
+has not changed and is what "transient" means here.
 
 **Week's result rows carry no Log control**, because logging does not happen there. Today's result
 rows keep theirs.
