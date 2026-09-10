@@ -75,6 +75,32 @@ headings keep counting only what they mean.
 At narrow widths the grid collapses to one column, as the instance grid already does, so the section
 stacks under Pinned — but only when there is something to stack.
 
+### Where the off-list row's summary comes from, settled 2026-09-10
+
+Decision 2 gives the section the same table shape as the cards below, which has a Summary and a
+Status column. **An entry cannot fill them**: the entries table records time against an issue key,
+not a copy of the issue, so once the results panel is closed there is nothing left to render.
+
+Pinning solved the same problem long ago and differently — a pin row carries a `summary_cache` and a
+`status_cache`, written when the pin is created and rewritten on refresh, with the store taking them
+as inputs because resolving them needs a Jira client it has no business holding.
+
+**Entries do not follow it.** A pin is long-lived and has a refresh path precisely because it expects
+to go stale; an entry has none, so a cached title would be wrong for as long as the entry existed and
+nothing would ever correct it. The owner's answer instead:
+
+- **The summary travels with the selection.** Logging from a search result already has the summary in
+  hand, so the row is handed it directly and renders complete with no request at all. Adding a ticket
+  to this list never costs a fetch.
+- **A reload fetches.** On a fresh load the section has only keys, so it asks for each one. `GET
+  /api/issues/search?q=<KEY>` already answers this: since 2026-09-10 a key-shaped query does an exact
+  lookup as well as a summary search, and returns the key, summary, status and URL.
+- **Nothing is stored.** The entries table is unchanged, and no copy of Jira's text enters the local
+  schema.
+
+The cost is a request per distinct off-list issue on a cold load, and a row that is incomplete until
+it answers. In practice the section holds none most days and one or two when it does.
+
 ## Decision 3 — Week's search adds a row; the cells do the logging
 
 The prototype contradicted itself here. Its caption says the search is *"for putting a new ticket
