@@ -1762,3 +1762,214 @@ test("a push whose own trailing re-read fails still lets a later edit repaint th
 
   await expect(cell).toHaveText("1h 30m");
 });
+
+/**
+ * Task 6: Week's own mount of that-issue-search, and the transient row a
+ * chosen result adds to the grid — design decisions 1, 3 and 4. Both halves
+ * of the second test are required: logging into the row and it surviving
+ * navigation would also pass if rows were stored outright, and losing a
+ * never-logged one would also pass if rows were never added at all — see
+ * task-6-brief.md's own wording for this.
+ */
+
+interface StubIssueHit {
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  key: string;
+  summary: string;
+  status: string;
+  url: string;
+}
+
+function searchHit(key: string, summary: string): StubIssueHit {
+  return {
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    instancePosition: 0,
+    key,
+    summary,
+    status: "To Do",
+    url: `${siteOf(1)}/browse/${key}`,
+  };
+}
+
+function weekSearchField(page: Page) {
+  return page.getByRole("textbox", { name: "Add a ticket to this week", exact: true });
+}
+
+/** The result row for `key`, scoped from the key's own link — the only
+ *  element in a row that names its ticket, the same reasoning search.spec.ts's
+ *  own resultRow gives: every control's accessible name is fixed per
+ *  IssueSearchControl and repeats across rows. */
+function weekSearchResultRow(page: Page, key: string) {
+  return page.getByTitle(`Open ${key} in Jira`).locator("..");
+}
+
+test.describe("Week's own search", () => {
+  test("a chosen result carries the add-to-week and pin controls, and no duration control", async ({
+    page,
+  }) => {
+    await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
+    await page.route("**/api/issues/search**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: { results: [searchHit("RIDGE-9001", "Draft the onboarding checklist")], errors: [] },
+      }),
+    );
+
+    await page.goto("/week");
+    await weekSearchField(page).fill("ridge");
+
+    const resultRow = weekSearchResultRow(page, "RIDGE-9001");
+    await expect(resultRow).toBeVisible();
+    await expect(
+      resultRow.getByRole("button", { name: "Add RIDGE-9001 to this week", exact: true }),
+    ).toBeVisible();
+    await expect(resultRow.getByRole("button", { name: "Pin RIDGE-9001", exact: true })).toBeVisible();
+    // Decision 3: Week's result rows carry no duration control — logging
+    // happens in the day cells the row joins, never in the search panel.
+    await expect(resultRow.getByRole("button", { name: /Log time against/ })).toHaveCount(0);
+
+    await expect(
+      page.getByText(
+        "Searching all instances. Choosing a result adds it to this week; click a day to log time.",
+      ),
+    ).toBeVisible();
+  });
+
+  test("a row added by search survives once logged, and disappears once abandoned", async ({ page }) => {
+    const entries: StubEntry[] = [];
+    let nextId = 1;
+
+    function currentRows(): StubRow[] {
+      const days = WEEKS[THIS_WEEK]?.days ?? [];
+      const byKey = new Map<string, StubEntry[]>();
+      for (const logged of entries) {
+        const list = byKey.get(logged.issueKey) ?? [];
+        list.push(logged);
+        byKey.set(logged.issueKey, list);
+      }
+
+      return [...byKey.entries()].map(([issueKey, list]) => {
+        const first = list[0];
+
+        return row(
+          issueKey,
+          list.map((each) => ({ at: days.indexOf(each.day), seconds: each.seconds, pushState: each.pushState })),
+          first?.instanceId ?? 1,
+        );
+      });
+    }
+
+    // Every route below goes on before the one navigation that can fire
+    // requests against them — the same ordering the file's last test insists
+    // on, for the same reason.
+    await page.route("**/api/week**", (route) => {
+      const start = new URL(route.request().url()).searchParams.get("start") ?? THIS_WEEK;
+      if (start !== THIS_WEEK) {
+        return route.fulfill({
+          status: 400,
+          json: { code: "start_not_monday", message: "start must be a Monday, of the form YYYY-MM-DD" },
+        });
+      }
+
+      return route.fulfill({ status: 200, json: rollup(THIS_WEEK, currentRows()) });
+    });
+
+    await page.route("**/api/entries**", async (route) => {
+      const request = route.request();
+      if (request.method() === "POST") {
+        const body = request.postDataJSON() as {
+          instanceId: number;
+          issueKey: string;
+          day?: string;
+          seconds: number;
+          comment: string;
+        };
+        const created = entry(nextId, body.issueKey, body.day ?? THIS_WEEK, body.seconds, "unpushed");
+        nextId += 1;
+        entries.push(created);
+        await route.fulfill({ status: 201, json: created });
+
+        return;
+      }
+
+      await route.fulfill({ status: 200, json: { today: THIS_WEEK, entries } });
+    });
+
+    await page.route("**/api/issues/search**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: {
+          results: [
+            searchHit("RIDGE-9001", "Draft the onboarding checklist"),
+            searchHit("RIDGE-9002", "Refresh the runbook diagrams"),
+          ],
+          errors: [],
+        },
+      }),
+    );
+    // Today's own mount, once this test navigates there and back — nothing
+    // assigned or pinned, so it has nothing to say about either ticket.
+    await page.route("**/api/issues", (route) => route.fulfill({ status: 200, json: { instances: [] } }));
+    await page.route("**/api/pins**", (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+
+      return route.fulfill({ status: 200, json: [] });
+    });
+
+    await page.goto("/week");
+    // The week opens with nothing logged and nothing added, so the grid
+    // itself is still "Nothing logged this week." — the field beside it is
+    // what this test waits on, not a table that has no row to show yet.
+    await expect(weekSearchField(page)).toBeVisible();
+
+    // Add the first ticket. It joins the grid with nothing logged: seven
+    // empty cells and an em dash total — decision 1's own words for a row
+    // with nothing in it that week, applied to a row search just added.
+    await weekSearchField(page).fill("ridge");
+    await weekSearchResultRow(page, "RIDGE-9001")
+      .getByRole("button", { name: "Add RIDGE-9001 to this week", exact: true })
+      .click();
+    await expect(ticketRow(page, "RIDGE-9001").locator("td")).toHaveText(
+      ["—", "—", "—", "—", "—", "—", "—", "—"],
+      { useInnerText: true },
+    );
+
+    // Log an hour into Wednesday. The cell does the logging — the panel
+    // never did, and never offered to.
+    await ticketRow(page, "RIDGE-9001").locator("td").nth(2).locator("button").click();
+    const dialog = page.locator("dialog[open]");
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("Duration").fill("60");
+    await dialog.getByLabel("Duration").press("Enter");
+    await dialog.getByRole("button", { name: "Add entry" }).click();
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(ticketRow(page, "RIDGE-9001").locator("td").nth(2).locator("button")).toContainText(
+      "1h 00m",
+    );
+
+    // Add a second ticket and leave it exactly as added: nothing logged.
+    await weekSearchField(page).fill("ridge");
+    await weekSearchResultRow(page, "RIDGE-9002")
+      .getByRole("button", { name: "Add RIDGE-9002 to this week", exact: true })
+      .click();
+    await expect(ticketRow(page, "RIDGE-9002")).toBeVisible();
+
+    // Navigate away and back. RIDGE-9001 survives — the rollup now carries
+    // it for real, logged time and all. RIDGE-9002 does not: this mount's own
+    // memory of adding it died with the view, and the fresh read the new
+    // mount opens with carries no entries for it either.
+    await page.getByRole("link", { name: "Today", exact: true }).click();
+    await expect(page).toHaveURL(/\/today$/);
+    await page.getByRole("link", { name: "Week", exact: true }).click();
+    await expect(page.locator("table")).toBeVisible();
+
+    await expect(ticketRow(page, "RIDGE-9001").locator("td").nth(2).locator("button")).toContainText(
+      "1h 00m",
+    );
+    await expect(page.locator("tbody tr", { hasText: "RIDGE-9002" })).toHaveCount(0);
+  });
+});
