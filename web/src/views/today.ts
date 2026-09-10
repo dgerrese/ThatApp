@@ -59,6 +59,9 @@ interface Regions {
   layoutGrid: HTMLElement;
   pinnedSection: HTMLElement;
   pinnedList: HTMLElement;
+  /** So refreshPins can repaint an open panel's already-rendered rows after a
+   *  pin or unpin lands, with no new search — see ThatIssueSearch.repaint. */
+  search: ThatIssueSearch;
   /** "Logged today, not on your list" — entries against an issue that is
    *  neither assigned nor pinned, so it has no row anywhere else. */
   offListSection: HTMLElement;
@@ -297,6 +300,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     layoutGrid,
     pinnedSection,
     pinnedList,
+    search,
     offListSection,
     assignedSection,
     refresh,
@@ -507,6 +511,16 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
     // still has to leave the off-list section the moment the pin lands.
     renderOffListSection(regions);
   }
+
+  // Every path through this function just changed what regions.pins answers
+  // — a successful pin, an unpin, a plain Refresh discovering a change made
+  // elsewhere, or even a failed read resetting it to none. The search panel's
+  // own icon control reads pins live (issueSearchConfig's pinnedKeys getter),
+  // but nothing re-invokes it until something rebuilds the row it is drawn
+  // in. This is that rebuild — the design's "legible before the press" needs
+  // it from every path here, not only the two that dispatch PIN/UNPIN, and
+  // ThatIssueSearch.repaint is a no-op unless a result is actually on screen.
+  regions.search.repaint();
 }
 
 function renderPinnedList(regions: Regions, pins: Pin[]): void {

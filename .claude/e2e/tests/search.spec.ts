@@ -599,4 +599,67 @@ test.describe("that-issue-search on Today", () => {
     await expect.poll(() => deleteMethod).toBe("DELETE");
     await expect(pinnedCard.getByText("RIDGE-5140")).toHaveCount(0);
   });
+
+  // Follow-up to the review above, an hour later: the control unpinning had
+  // no way to say so itself — it kept reading "Unpin", filled, until the
+  // panel was searched again. The owner's decision was "legible before the
+  // press", which a stale control after the press defeats just as much as
+  // never showing pinned state at all. Covers both directions, and proves
+  // each is a local repaint (search.calls() never moves past the one fill)
+  // rather than a second network round trip standing in for one.
+  test("the panel repaints after a pin or unpin lands, with no new search", async ({ page }) => {
+    const search = await stubSearch(page, [ridge5140]);
+    const pinnedHit = {
+      id: 9,
+      instanceId: 1,
+      instanceName: "Ridgeline",
+      instancePosition: 0,
+      key: "RIDGE-5140",
+      summary: ridge5140.summary,
+      status: "To Do",
+      url: ridge5140.url,
+      error: null,
+    };
+    await stubPins(page, [pinnedHit], [], [{ ...pinnedHit, id: 10 }]);
+    await page.route("**/api/pins/9", (route) => route.fulfill({ status: 204, body: "" }));
+    let pinPosts = 0;
+    await page.route("**/api/pins", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+      pinPosts += 1;
+      await route.fulfill({ status: 201, json: { ...pinnedHit, id: 10 } });
+    });
+
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+
+    const row = resultRow(page, "RIDGE-5140");
+    const pinButton = row.getByRole("button", { name: "Pin RIDGE-5140", exact: true });
+    const unpinButton = row.getByRole("button", { name: "Unpin RIDGE-5140", exact: true });
+
+    await expect(unpinButton).toBeVisible();
+    expect(search.calls()).toBe(1);
+
+    await unpinButton.click();
+
+    // Repainted in place: the control itself flips without searchField ever
+    // being touched again, and search.calls() proves nothing asked Jira for
+    // it.
+    await expect(pinButton).toBeVisible();
+    await expect(pinButton).not.toHaveClass(/text-primary/);
+    await expect(unpinButton).toHaveCount(0);
+    expect(search.calls()).toBe(1);
+
+    await pinButton.click();
+
+    // The reverse direction, same guard: pinning repaints the same row back
+    // to "Unpin", filled, with still no second search.
+    await expect(unpinButton).toBeVisible();
+    await expect(unpinButton).toHaveClass(/text-primary/);
+    await expect(pinButton).toHaveCount(0);
+    expect(search.calls()).toBe(1);
+    expect(pinPosts).toBe(1);
+  });
 });

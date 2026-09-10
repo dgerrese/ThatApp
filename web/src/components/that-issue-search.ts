@@ -126,6 +126,17 @@ export class ThatIssueSearch extends HTMLElement {
    *  "no issues match “this”" line — read back off the input at render time
    *  would be wrong the moment a keystroke lands mid-fetch. */
   private query = "";
+  /** The last response showResults actually rendered, kept so `repaint` can
+   *  redraw the same rows with no new request — see `repaint` itself. */
+  private lastResults: IssueHit[] | undefined;
+  private lastErrors: InstanceFailure[] | undefined;
+  /** True only while the panel is showing a rendered response (not
+   *  "Searching…", not a failure, not closed) — what `repaint` gates on, so
+   *  it never overwrites a state its own stored results do not describe. */
+  private showingResults = false;
+  /** True for the span of `repaint`'s own `replaceChildren` call — see the
+   *  focusout listener in `build` and the comment on `repaint` itself. */
+  private suppressBlurClose = false;
 
   connectedCallback(): void {
     if (this.input || !this.config) return;
@@ -201,6 +212,7 @@ export class ThatIssueSearch extends HTMLElement {
     // a click on a result's own control moves focus into this element's
     // subtree, and relatedTarget still names something this contains.
     this.addEventListener("focusout", (event) => {
+      if (this.suppressBlurClose) return;
       const next = (event as FocusEvent).relatedTarget as Node | null;
       if (next && this.contains(next)) return;
       this.close();
@@ -256,18 +268,21 @@ export class ThatIssueSearch extends HTMLElement {
     window.clearTimeout(this.timer);
     this.inFlight?.abort();
     this.input?.setAttribute("aria-expanded", "false");
+    this.showingResults = false;
     if (!this.panel) return;
     this.panel.hidden = true;
     this.panel.replaceChildren();
   }
 
   private showSearching(config: IssueSearchConfig): void {
+    this.showingResults = false;
     if (!this.panel) return;
     this.panel.replaceChildren(this.notice("Searching…"), this.footerLine(config.footer));
     this.open();
   }
 
   private showFailure(config: IssueSearchConfig, error: unknown): void {
+    this.showingResults = false;
     if (!this.panel) return;
     const message = error instanceof ApiError ? error.message : "Something went wrong.";
     this.panel.replaceChildren(this.failureNotice(message), this.footerLine(config.footer));
@@ -281,6 +296,9 @@ export class ThatIssueSearch extends HTMLElement {
    * failed", the pairing task 3's brief calls out by name.
    */
   private showResults(config: IssueSearchConfig, results: IssueHit[], errors: InstanceFailure[]): void {
+    this.lastResults = results;
+    this.lastErrors = errors;
+    this.showingResults = true;
     if (!this.panel) return;
 
     const nodes: HTMLElement[] = [];
@@ -296,6 +314,35 @@ export class ThatIssueSearch extends HTMLElement {
 
     this.panel.replaceChildren(...nodes);
     this.open();
+  }
+
+  /**
+   * Redraws the panel's current rows from the results it already has — no
+   * new search. A pin or unpin changes what `pinnedKeys` (read live by
+   * Today's icon control — see issueSearchConfig) answers for a hit already
+   * on screen, but nothing re-invokes the per-hit `icon`/`tooltip`/`label`/
+   * `active` functions until something rebuilds the row, and a fresh search
+   * would be a round trip to Jira to reflect a purely local state change.
+   * This is that rebuild, using the exact response `showResults` last
+   * rendered — a no-op while the panel is closed, mid-search, or showing a
+   * failure, since there is nothing on screen a repaint would change, and
+   * the next search reads live state regardless.
+   *
+   * Rebuilding removes and recreates every row, which can remove whichever
+   * control currently has focus — exactly the one just pressed, mid pin or
+   * unpin. Removing a focused element fires a focusout the listener in
+   * `build` would otherwise read as focus leaving the component altogether,
+   * closing the panel right after this repaints it — the state it just made
+   * legible gone again a moment later. `suppressBlurClose` is this call's
+   * own DOM change, not the user's focus actually leaving, so that listener
+   * ignores it for the span of the synchronous `replaceChildren` below.
+   */
+  repaint(): void {
+    if (!this.showingResults || !this.config || this.lastResults === undefined) return;
+
+    this.suppressBlurClose = true;
+    this.showResults(this.config, this.lastResults, this.lastErrors ?? []);
+    this.suppressBlurClose = false;
   }
 
   /** Grouped by instance in first-seen order, since the search endpoint fans
