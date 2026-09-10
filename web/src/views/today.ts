@@ -41,9 +41,16 @@ import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../ty
  * module state would let a stale fetch write into a live view.
  */
 interface Regions {
+  /** The two-column region holding pinnedSection permanently in its left
+   *  half — see decision 2 of the 2026-09-10 design. offListSection is
+   *  appended into it only while it has rows. */
+  layoutGrid: HTMLElement;
   pinnedSection: HTMLElement;
   pinnedList: HTMLElement;
   pinnedForm: HTMLElement;
+  /** "Logged today, not on your list" — entries against an issue that is
+   *  neither assigned nor pinned, so it has no row anywhere else. */
+  offListSection: HTMLElement;
   assignedSection: HTMLElement;
   refresh: HTMLElement;
   results: HTMLElement;
@@ -55,6 +62,10 @@ interface Regions {
   pushReport: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
+  /** Today's entries as last read, kept (not just folded into totals) because
+   *  renderOffListSection needs to know which issues they belong to, not only
+   *  how long. */
+  entries: Entry[];
   pinsCachedAt: Date | null;
   issuesCachedAt: Date | null;
   /** Today's logged seconds per row, keyed by instance and issue. */
@@ -67,6 +78,7 @@ interface Regions {
  *  two ids cannot drift apart from the elements that carry them. */
 const PINNED_HEADING_ID = "today-pinned";
 const ASSIGNED_HEADING_ID = "today-assigned";
+const OFFLIST_HEADING_ID = "today-offlist";
 
 /** A search hit read as the ticket the entry dialog and a pin both need. No
  *  `day`, which is what leaves the server's own "day absent means today"
@@ -151,6 +163,20 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   pinnedSection.setAttribute("aria-labelledby", PINNED_HEADING_ID);
   pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID).box, pinnedList, pinnedForm);
 
+  const offListSection = document.createElement("section");
+  offListSection.setAttribute("aria-labelledby", OFFLIST_HEADING_ID);
+
+  // The prototype's .instgrid, transcribed: one column, then `1fr 1fr` once
+  // the content column itself (not the window) clears 80rem. Pinned is
+  // appended now and stays for good — it owns the left half permanently, per
+  // decision 2 of the design, so nothing here may resize it. offListSection
+  // joins only when it has rows: an empty grid cell draws nothing, which is
+  // what leaves the right half truly blank rather than an empty card
+  // "announcing nothing happened".
+  const layoutGrid = document.createElement("div");
+  layoutGrid.className = "grid grid-cols-1 gap-4 @min-[80rem]:grid-cols-2";
+  layoutGrid.append(pinnedSection);
+
   const header = pageHeading("Assigned issues", ASSIGNED_HEADING_ID).box;
   // A header control acting on the whole view, so it carries the toolbar
   // shape rather than appendIconButton's icon-and-tooltip one — Decision 12
@@ -187,13 +213,15 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   assignedSection.setAttribute("aria-labelledby", ASSIGNED_HEADING_ID);
   assignedSection.append(header, pushReport, results);
 
-  container.append(stale, pinnedSection, assignedSection);
+  container.append(stale, layoutGrid, assignedSection);
   root.append(container);
 
   const regions: Regions = {
+    layoutGrid,
     pinnedSection,
     pinnedList,
     pinnedForm,
+    offListSection,
     assignedSection,
     refresh,
     results,
@@ -201,6 +229,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     pushReport,
     pins: [],
     lastIssues: null,
+    entries: [],
     pinsCachedAt: null,
     issuesCachedAt: null,
     totals: new Map(),
@@ -297,6 +326,7 @@ async function refreshTotals(regions: Regions, fresh?: Entry[]): Promise<void> {
     if (mine !== regions.totalsEpoch) return;
   }
 
+  regions.entries = entries;
   regions.totals = new Map();
   for (const entry of entries) {
     const id = totalKey(entry.instanceId, entry.issueKey);
@@ -304,6 +334,7 @@ async function refreshTotals(regions: Regions, fresh?: Entry[]): Promise<void> {
   }
 
   paintTotals(regions);
+  renderOffListSection(regions);
 }
 
 function totalKey(instanceId: number, issueKey: string): string {
@@ -402,6 +433,11 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
   // pins that just arrived, without asking the server again.
   if (regions.lastIssues) {
     renderResponse(regions, regions.lastIssues);
+  } else {
+    // renderResponse would otherwise be the thing that repaints this, but
+    // there is no cached response yet to call it with — a newly-pinned issue
+    // still has to leave the off-list section the moment the pin lands.
+    renderOffListSection(regions);
   }
 
   // A pin form may already be open (e.g. this refresh followed a successful
@@ -467,6 +503,103 @@ function pinnedRow(pin: Pin): HTMLElement {
   if (pin.error) {
     row.setAttribute("error", pin.error.message);
   }
+
+  return row;
+}
+
+/** One issue an entry names that has no row anywhere else on Today — see
+ *  offListIssues. */
+interface OffListIssue {
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+}
+
+/**
+ * The day's entries whose issue is neither assigned nor pinned — the set
+ * decision 2 of the design puts in the right half, beside Pinned. Computed
+ * fresh from regions.entries each call rather than cached, because any of
+ * three independent reads (entries, the assigned response, pins) can be what
+ * moves an issue in or out of it.
+ *
+ * `Entry` carries no summary, status or url — the entries table logs time
+ * against an issue, not a cache of it — so a row built from this can only
+ * ever be as complete as `that-ticket-row` is with those three attributes
+ * unset. That is a real gap against the design's "same table shape as the
+ * cards below", worth the owner's attention; see the task report.
+ */
+function offListIssues(regions: Regions): OffListIssue[] {
+  const assignedKeys = new Set<string>();
+  for (const group of regions.lastIssues?.instances ?? []) {
+    for (const issue of group.issues) {
+      assignedKeys.add(totalKey(group.id, issue.key));
+    }
+  }
+  const pinnedKeys = pinnedKeysOf(regions);
+
+  const seen = new Map<string, OffListIssue>();
+  for (const entry of regions.entries) {
+    const id = totalKey(entry.instanceId, entry.issueKey);
+    if (assignedKeys.has(id) || pinnedKeys.has(id) || seen.has(id)) continue;
+
+    seen.set(id, {
+      instanceId: entry.instanceId,
+      instanceName: entry.instanceName,
+      instancePosition: entry.instancePosition,
+      issueKey: entry.issueKey,
+    });
+  }
+
+  return [...seen.values()].sort(
+    (a, b) => a.instancePosition - b.instancePosition || a.issueKey.localeCompare(b.issueKey),
+  );
+}
+
+/**
+ * Redraws "Logged today, not on your list" from regions.entries/lastIssues/
+ * pins, and attaches or detaches it from layoutGrid to match — the mechanism
+ * behind decision 2's "nothing at all" empty state. Always appended after
+ * pinnedSection, which is layoutGrid's one permanent child, so the section
+ * lands in the grid's second (right-hand) cell whenever it shows anything.
+ */
+function renderOffListSection(regions: Regions): void {
+  const issues = offListIssues(regions);
+
+  if (issues.length === 0) {
+    regions.offListSection.remove();
+
+    return;
+  }
+
+  const table = document.createElement("that-table") as ThatTable;
+  for (const issue of issues) {
+    table.body.append(offListRow(issue));
+  }
+  regions.offListSection.replaceChildren(
+    pageHeading("Logged today, not on your list", OFFLIST_HEADING_ID).box,
+    table,
+  );
+
+  if (!regions.offListSection.isConnected) {
+    regions.layoutGrid.append(regions.offListSection);
+  }
+
+  // Same reasoning as renderPinnedList's own trailing call: the rows above
+  // are built with no seconds of their own, and this is what fills them in
+  // from what is already known.
+  paintTotals(regions);
+}
+
+function offListRow(issue: OffListIssue): HTMLElement {
+  const row = document.createElement("that-ticket-row");
+  row.setAttribute("key", issue.issueKey);
+  row.setAttribute("instance-id", String(issue.instanceId));
+  row.setAttribute("instance-name", issue.instanceName);
+  // Cross-instance, like Pinned: this section can hold issues from any
+  // instance, so its key cell carries the same dot Pinned's does — see
+  // that-ticket-row's keyContent.
+  row.setAttribute("instance-position", String(issue.instancePosition));
 
   return row;
 }
@@ -728,16 +861,18 @@ function showPushReport(regions: Regions, ...nodes: Node[]): void {
 function renderResponse(regions: Regions, response: IssuesResponse): void {
   if (response.instances.length === 0) {
     // No instances means no pins either — the cascade took them with the last
-    // instance — so a Pinned section would be a control with nothing to do.
-    regions.pinnedSection.remove();
+    // instance — so the whole left/right layout would be two controls with
+    // nothing to do. Removing layoutGrid takes offListSection with it, since
+    // it is layoutGrid's child whenever it is showing anything at all.
+    regions.layoutGrid.remove();
     regions.refresh.hidden = true;
     regions.results.replaceChildren(cardHolding(noInstances()));
 
     return;
   }
 
-  if (!regions.pinnedSection.isConnected) {
-    regions.assignedSection.before(regions.pinnedSection);
+  if (!regions.layoutGrid.isConnected) {
+    regions.assignedSection.before(regions.layoutGrid);
   }
 
   regions.refresh.hidden = false;
@@ -757,6 +892,7 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
   alignKeyColumn(regions.results);
 
   paintTotals(regions);
+  renderOffListSection(regions);
 }
 
 /**

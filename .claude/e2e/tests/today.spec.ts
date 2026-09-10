@@ -661,3 +661,157 @@ test("an instance's tally counts a pinned issue's time too", async ({ page }) =>
   await expect(tally).toHaveText("1 issue · 0h 45m");
   await expect(page.locator("#rail-split")).toContainText("0h 45m");
 });
+
+// Decision 2 of the 2026-09-10 design: an entry against an issue that is
+// neither assigned nor pinned gets a row in "Logged today, not on your
+// list", in the right half of a two-column grid whose left half is Pinned.
+// These fixtures are shared across the three states the design's own table
+// lays out, plus the width and breakpoint assertions that go with them.
+async function stubPins(page: Page, pins: unknown[]): Promise<void> {
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: pins }));
+}
+
+async function stubEntries(page: Page, entries: unknown[]): Promise<void> {
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: "2026-09-09", entries } }),
+  );
+}
+
+const rosterPin = {
+  id: 501,
+  instanceId: 1,
+  instanceName: "Work",
+  instancePosition: 0,
+  key: "WORK-900",
+  summary: "Roll the on-call schedule forward",
+  status: "To Do",
+  url: "https://work.atlassian.net/browse/WORK-900",
+  error: null,
+};
+
+function offListEntry(issueKey: string): Record<string, unknown> {
+  return {
+    id: 9,
+    instanceId: 1,
+    instanceName: "Work",
+    instancePosition: 0,
+    issueKey,
+    day: "2026-09-09",
+    startedAt: "2026-09-09T09:00:00+02:00",
+    seconds: 900,
+    comment: "",
+    pushState: "unpushed",
+  };
+}
+
+// State 1 of 3: an ordinary day. Pinned holds its rows; the right half is
+// undrawn — no heading, no card, no line of text — because nothing was
+// logged outside the list.
+test("an ordinary day draws nothing beside Pinned", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, [rosterPin]);
+  await page.goto("/today");
+
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  await expect(pinned.locator("that-ticket-row")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Logged today, not on your list" }),
+  ).toHaveCount(0);
+});
+
+/**
+ * State 2 of 3, and the test that carries this task. Logging something
+ * off-list must add the section beside Pinned — but Pinned's own width must
+ * not move by a pixel, which is the whole reason decision 2 gives it a
+ * permanent left column instead of letting the grid share space between
+ * however many cards are showing. Two navigations, same pins throughout, an
+ * off-list entry added only for the second: the only thing allowed to change
+ * is the right half gaining content.
+ *
+ * Viewport matches the existing instance-grid breakpoint test: 1920px so the
+ * content column (the window minus the rail's 216px) clears the grid's own
+ * 80rem container breakpoint and the two halves actually sit side by side.
+ */
+test("logging something off-list adds a row beside Pinned, and Pinned does not resize", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, [rosterPin]);
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await page.goto("/today");
+
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  await expect(pinned.locator("that-ticket-row")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Logged today, not on your list" }),
+  ).toHaveCount(0);
+  const before = await pinned.boundingBox();
+  expect(before).not.toBeNull();
+
+  await stubEntries(page, [offListEntry("WORK-777")]);
+  await page.goto("/today");
+
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("WORK-777")).toBeVisible();
+  // Pinned's own rows are exactly what they were — the entry belongs to the
+  // other half, not a third row here.
+  await expect(pinned.locator("that-ticket-row")).toHaveCount(1);
+
+  const after = await pinned.boundingBox();
+  expect(after).not.toBeNull();
+  expect(Math.round(after!.width)).toBe(Math.round(before!.width));
+
+  await expect
+    .poll(async () => sideBySide(await pinned.boundingBox(), await offList.boundingBox()))
+    .toBe(true);
+});
+
+// State 3 of 3: nothing pinned, but something off-list. The two empty states
+// are deliberately asymmetric — Pinned still invites with "Nothing pinned.",
+// the right half still only ever says so by holding rows.
+test("nothing pinned but something off-list keeps Pinned's own invitation", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, []);
+  await stubEntries(page, [offListEntry("WORK-777")]);
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await page.goto("/today");
+
+  await expect(page.getByText("Nothing pinned.")).toBeVisible();
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("WORK-777")).toBeVisible();
+
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  await expect
+    .poll(async () => sideBySide(await pinned.boundingBox(), await offList.boundingBox()))
+    .toBe(true);
+});
+
+/**
+ * The same collapse the instance grid already has, at the same breakpoint —
+ * the section stacks under Pinned once there is something to stack, per the
+ * design's closing paragraph.
+ */
+test("Pinned and the off-list section stack on a narrow screen, and sit side by side on a wide one", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, []);
+  await stubEntries(page, [offListEntry("WORK-777")]);
+
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/today");
+
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("WORK-777")).toBeVisible();
+
+  await expect
+    .poll(async () => sideBySide(await pinned.boundingBox(), await offList.boundingBox()))
+    .toBe(false);
+
+  await page.setViewportSize({ width: 1920, height: 900 });
+
+  await expect
+    .poll(async () => sideBySide(await pinned.boundingBox(), await offList.boundingBox()))
+    .toBe(true);
+});
