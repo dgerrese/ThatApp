@@ -120,6 +120,14 @@ is navigated away from**. It is not pinned, not stored, and not remembered. Once
 one of its cells it is an ordinary row like any other, and it persists because it has entries — not
 because anything recorded that it was added.
 
+**Corrected 2026-09-10, after the implementer found the original wording ambiguous.** It said "a
+re-read that returns no entries for it also loses it", which can be read two ways, and one of them
+breaks the feature: if *any* background re-read dropped an unlogged addition, then the entries-changed
+subscription firing between adding a ticket and clicking one of its cells would delete the row out
+from under the user, and the footer's own promise — *click a day to log time* — would be a lie. **The
+rule is about resurrection, not about background reads:** an added row survives re-reads until the
+view is left, and a row whose entries have genuinely gone is not re-added from the added-keys set.
+
 **Week's result rows carry no Log control**, because logging does not happen there. Today's result
 rows keep theirs.
 
