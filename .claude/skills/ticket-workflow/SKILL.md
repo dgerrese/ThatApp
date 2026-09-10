@@ -134,6 +134,20 @@ ticket's priority unasked. Milestone and priority are also different questions �
 to be right before the app ships, `priority/high` says it should be picked up first, and a ticket can
 easily be one without the other.
 
+**Priority is read first, and `bug` breaks the tie inside a band.** Settled by the owner on
+2026-09-10, when #121 and #8 were both open, both `priority/high` and both v1. Sort by priority —
+`priority/high`, then unlabelled, then `priority/low` — and then, **among tickets sharing a priority,
+a `bug` comes before a non-bug.** A defect is in the product the owner is already using; a feature is
+not yet, so shipped work that does not work is a worse state than work that does not exist.
+
+A `bug` does **not** jump a band. A normal-priority defect does not displace a `priority/high`
+feature; priority still says which band, and the type only orders within it.
+
+So two tickets both carrying `priority/high` are **not a tie** if one of them carries `bug`. Say
+which wins and why, rather than presenting them as equals and leaving the owner to spot the
+difference. This changes what you *recommend*, not what you *label* — priority is still the owner's
+to set.
+
 **Cutting the branch is what moves a ticket to `status/in-progress`.** The trigger is the branch
 existing — not the first line of implementation code, and not a judgement about how far the work has
 got. A ticket whose branch carries only a design and a plan is in progress. Move the label in the
@@ -355,6 +369,25 @@ nobody knows how many more there are.
 `requesting-code-review` ships `code-reviewer.md`. Read the template before dispatching. Ticket 1
 was run with hand-written prompts instead — it worked, but it threw away accumulated wording for no
 benefit and made every dispatch a fresh invention.
+
+**Tick the ticket's acceptance criteria as the reviews confirm them**, and untick anything a later
+pass shows has regressed. Asked for by the owner on 2026-09-09, during #117. **The tick follows a
+review, never an implementer's claim** — that is the whole point of it, and it is why the criteria
+become live state rather than a checklist filled in at the end. Do it per task, not in one sweep
+when the branch is finished.
+
+The body round-trips through the API; verify the round trip before trusting it:
+
+```shell
+tea api "repos/{owner}/{repo}/issues/<n>" | python3 -c "import sys,json;print(json.load(sys.stdin)['body'])" > /tmp/<n>.md
+# edit /tmp/<n>.md
+tea api --method PATCH "repos/{owner}/{repo}/issues/<n>" -F body=@/tmp/<n>.md
+```
+
+**A progress update leads with the ledger** — done, running, left — and goes out **when a task
+actually moves**: dispatched, returned for review, in or out of a fix round, or complete. Not in
+every message. An unchanged ledger repeated is noise, and it trains the reader to skip the one line
+that carries the state.
 
 **The whole-branch review is not optional.** All seven of ticket 1's task reviews passed while the
 branch still contained a Critical defect — `docker compose up` served a 404 on a fresh clone —

@@ -178,8 +178,11 @@ hand.
 `bug` and `enhancement` are a second, optional axis recording whether a ticket is a defect or new
 capability. At most one, and plenty of tickets are neither.
 
-`priority/high` and `priority/low` are a third, answering what to pick up next. The scope is
-exclusive, and **normal priority carries no label at all** — an unlabelled ticket is normal, not
+`priority/high` and `priority/low` are a third, answering what to pick up next, and **priority is the
+first thing to read**. Within one priority band, **a `bug` comes before a non-bug** — shipped work
+that does not work is a worse state than work that does not exist — so two `priority/high` tickets
+are not a tie when one of them is a defect. The scope is exclusive, and **normal priority carries no
+label at all** — an unlabelled ticket is normal, not
 untriaged, so there is no `priority/normal` to add. Priority is the owner's to set; suggest, do not
 relabel. Every open issue also carries a **milestone**, `v1` or `v2`; that is a separate question
 from priority, and the milestone descriptions on Codeberg say what each one admits.
