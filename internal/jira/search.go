@@ -121,8 +121,9 @@ var issueKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*-[0-9]+$`)
 // leading wildcard is rejected by the endpoint outright, and the * belongs
 // inside the quotes. So "secur" finds "security" and "curity" finds nothing.
 //
-// Unlike SearchAssigned this does not page: it backs a type-ahead, where a
-// second page is latency spent on results nobody scrolls to.
+// Unlike SearchAssigned this does not page: limit already bounds the answer to
+// what the caller asked for, and a second page is latency spent on results
+// nobody asked to see.
 func (c *Client) SearchText(ctx context.Context, query string, limit int) ([]Issue, error) {
 	summaryTerm := fmt.Sprintf(`summary ~ "%s*"`, escapeJQL(stripTrailingWildcard(query)))
 
