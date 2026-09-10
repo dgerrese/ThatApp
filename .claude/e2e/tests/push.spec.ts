@@ -201,6 +201,58 @@ test("a day whose only stale entry is a correction still offers a push", async (
   await expect(page.getByRole("button", { name: "Push to Jira" })).toBeEnabled();
 });
 
+test("pressing Push on a corrected-only day sends the correction and the rail returns to muted", async ({
+  page,
+}) => {
+  await stubToday(page, [{ id: 1, issueKey: "RIDGE-1", pushState: "dirty" }]);
+
+  let pushAnswered = false;
+  await page.route("**/api/push**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      json: {
+        day: "2026-08-31",
+        results: [{ entryId: 1, issueKey: "RIDGE-1", instanceId: 1, status: "pushed", worklogId: "wl-1" }],
+      },
+    });
+    pushAnswered = true;
+  });
+
+  // Overrides stubToday's blanket handler once the push has answered, so the
+  // rail's own boot read — which is what makes the correction pending in the
+  // first place — still sees pushState "dirty" beforehand.
+  await page.route("**/api/entries**", async (route) => {
+    if (!pushAnswered) {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      json: {
+        today: "2026-08-31",
+        entries: [
+          {
+            id: 1, instanceId: 1, instanceName: "Site", instancePosition: 0,
+            issueKey: "RIDGE-1", day: "2026-08-31", startedAt: "2026-08-31T09:00:00Z",
+            seconds: 1800, comment: "", pushState: "pushed",
+          },
+        ],
+      },
+    });
+  });
+
+  await page.goto("/today");
+  const unpushed = page.locator("#rail-unpushed");
+  await expect(unpushed).toHaveText("1 entry to push");
+
+  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push", exact: true }).click();
+
+  await expect(unpushed).toHaveText("Nothing to push");
+  await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-rail-muted", "color"));
+});
+
 test("the count covers never-pushed and corrected entries as one number", async ({ page }) => {
   await stubToday(page, [
     { id: 1, issueKey: "RIDGE-1", pushState: "unpushed" },
@@ -209,8 +261,10 @@ test("the count covers never-pushed and corrected entries as one number", async 
   ]);
 
   await page.goto("/today");
+  const unpushed = page.locator("#rail-unpushed");
 
-  await expect(page.locator("#rail-unpushed")).toHaveText("2 entries to push");
+  await expect(unpushed).toHaveText("2 entries to push");
+  await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-pending-rail", "color"));
   await expect(page.getByRole("button", { name: "Push to Jira" })).toBeEnabled();
 });
 
