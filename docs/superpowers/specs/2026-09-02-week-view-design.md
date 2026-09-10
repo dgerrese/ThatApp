@@ -79,20 +79,25 @@ See *What this ticket grew into*.
    view *tells* the rail which period it is showing; the rail sums rows the server already stamped.
    Nothing here derives a day from the browser clock.
 
-8. **Push sends every day holding unpushed entries, one request per day, in order.** `POST
+8. **Push sends every day holding unpushed or dirty entries, one request per day, in order.** `POST
    /api/push?day=` is unchanged and stays per-day. One press issues one call per such day,
    sequentially — sequential so the merged report is attributable and deterministically ordered, and
    so a bad week does not fan several days of requests at Jira at once.
 
-   **A dirty day is not pushable, and must not offer a Push.** `handlePushDay` skips every entry
-   whose state is not `unpushed`, marking it `skipped` — re-pushing an edited entry means a `PUT` to
-   its known `worklog_id`, which is #10's whole subject and does not exist yet. So the hollow marker
-   is informational here: it tells the truth about Jira holding a stale copy, and the fix for it
-   lives in #10. Offering a control that issues a request skipping everything it touches would be
-   worse than offering nothing.
+   **A dirty day is pushable, and offers Push, as of #121.** `handlePushDay` skips only entries
+   already `pushed`; a `dirty` one now gets a `PUT` to its known `worklog_id`, updating the worklog
+   Jira already holds. The rule this replaces forbade exactly that — updating a worklog Jira already
+   had was "#10's whole subject and does not exist yet", so skipping everything a Push touched was
+   safer than offering a control that would. That was right when it was written. #10 shipped on
+   2026-09-08 and is that same capability, so it is the rule's precondition that expired, not its
+   reasoning. Nothing about the hollow marker changes: it still tells the truth about Jira holding a
+   stale copy, only Push is now the fix for it rather than a dead end.
 
-   This is also why the rail's warning counts and totals **unpushed** time only. "Has not reached
-   Jira" is false of a dirty entry — it reached Jira, and then changed.
+   This is also where the rail's warning turns out to have had two separate problems, not one. Its
+   **total** was wrong from the start: `web/src/rail.ts` has always summed every entry regardless of
+   push state, never only unpushed time. Its **count** was merely out of date, until #121 made it
+   agree — it counts **unpushed and dirty** entries, not time, via `isPending`; the rail's line reads
+   "N entries to push", never a duration.
 
 9. **The phone is deferred to #13.** A seven-column grid of `Nh Nm` figures does not fit 380px.
    Horizontal scroll was rejected because it puts the week total off-screen, and a rollup you cannot
@@ -267,8 +272,10 @@ be updated to match this spec before planning.**
 
 - **The phone and any narrow layout.** #13, per decision 9.
 - **Editing or deleting entries from the grid.** The week reviews and pushes; it does not edit.
-- **Everything in #10.** Nothing here needs it — `pushStateOf` and `EntriesForDay` both shipped with
-  #9 — and #11 does not wait on it. The visible consequence is that a dirty cell shows its marker and
-  cannot be acted on from here; #10 is what makes it pushable, and when it lands this view gains that
-  for free by the same rule (a day is pushable when a push would do something).
+- **Everything in #10.** Nothing here needed it — `pushStateOf` and `EntriesForDay` both shipped with
+  #9 — and #11 did not wait on it. The consequence held at the time: a dirty cell showed its marker
+  and could not be acted on from here, because #10 did not exist yet. **The view did not gain that
+  for free.** #10 shipped on 2026-09-08, and pushing a corrected day from here still did nothing,
+  because the rail's own filter — untouched by #10 — still admitted only never-pushed entries.
+  Closing that gap is #121; see decision 8 above.
 - **Moving Settings.** Intake #89.

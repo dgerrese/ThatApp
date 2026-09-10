@@ -303,12 +303,13 @@ test("no figure in the grid wears a timer's colon", async ({ page }) => {
 });
 
 /**
- * A dirty entry reached Jira and was then edited, and re-pushing it is #10's
- * subject rather than this ticket's. So the grid marks it and the rail offers
- * nothing — a Push that skipped everything it touched would be worse than no
- * Push at all.
+ * A dirty entry reached Jira and was then edited since — a correction, not a
+ * gap. The rail's own predicate treats that the same as an entry that never
+ * went at all (isPending in web/src/rail.ts, #121), so the grid's marker and
+ * the rail agree: the marker says why it needs going again, and Push still
+ * offers to send it.
  */
-test("a week holding only edited-since-pushed time offers no Push", async ({ page }) => {
+test("a week holding only edited-since-pushed time still offers a push", async ({ page }) => {
   await openWeek(
     page,
     {
@@ -331,8 +332,8 @@ test("a week holding only edited-since-pushed time offers no Push", async ({ pag
   // hover or a focus neither reaches on its own.
   await expect(monday).toHaveAttribute("aria-label", /edited since it was pushed/);
 
-  await expect(page.locator("#rail-unpushed")).toHaveText("Nothing to push");
-  await expect(page.locator("#rail-push")).toBeDisabled();
+  await expect(page.locator("#rail-unpushed")).toHaveText("1 entry to push");
+  await expect(page.locator("#rail-push")).toBeEnabled();
 });
 
 test("pushing from the Week view reports below the grid and names the day that failed", async ({

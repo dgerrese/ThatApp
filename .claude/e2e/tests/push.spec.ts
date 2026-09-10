@@ -135,6 +135,20 @@ test("a push where one entry fails names the entry that did not make it", async 
   await expect(page.getByText("RIDGE-1 —")).toHaveCount(0);
 });
 
+test("the confirmation does not claim a correction will be created", async ({ page }) => {
+  await stubToday(page, [
+    { id: 1, issueKey: "RIDGE-1", pushState: "unpushed" },
+    { id: 2, issueKey: "RIDGE-2", pushState: "dirty" },
+  ]);
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Push to Jira" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("2 entries totalling 1h 00m will be sent to 1 site.");
+  await expect(dialog).not.toContainText("created");
+});
+
 test("a pending queue paints the unpushed count amber and Push live", async ({ page }) => {
   await stubToday(page, [{ id: 1, issueKey: "RIDGE-1", pushState: "unpushed" }]);
 
@@ -174,6 +188,96 @@ test("a push that cannot recheck what's pending leaves the rail failed alone, no
   // and text-failed-rail on it together — whichever token's declared later in
   // styles.css happened to win the cascade. Exactly one state now, always.
   await expect.poll(() => unpushedStateClasses(page)).toEqual(["text-failed-rail"]);
+});
+
+test("a day whose only stale entry is a correction still offers a push", async ({ page }) => {
+  await stubToday(page, [{ id: 1, issueKey: "RIDGE-1", pushState: "dirty" }]);
+
+  await page.goto("/today");
+  const unpushed = page.locator("#rail-unpushed");
+
+  await expect(unpushed).toHaveText("1 entry to push");
+  await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-pending-rail", "color"));
+  await expect(page.getByRole("button", { name: "Push to Jira" })).toBeEnabled();
+});
+
+test("pressing Push on a corrected-only day sends the correction and the rail returns to muted", async ({
+  page,
+}) => {
+  await stubToday(page, [{ id: 1, issueKey: "RIDGE-1", pushState: "dirty" }]);
+
+  let pushAnswered = false;
+  await page.route("**/api/push**", async (route) => {
+    pushAnswered = true;
+    await route.fulfill({
+      status: 200,
+      json: {
+        day: "2026-08-31",
+        results: [{ entryId: 1, issueKey: "RIDGE-1", instanceId: 1, status: "pushed", worklogId: "wl-1" }],
+      },
+    });
+  });
+
+  // Overrides stubToday's blanket handler once the push has answered, so the
+  // rail's own boot read — which is what makes the correction pending in the
+  // first place — still sees pushState "dirty" beforehand.
+  await page.route("**/api/entries**", async (route) => {
+    if (!pushAnswered) {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      json: {
+        today: "2026-08-31",
+        entries: [
+          {
+            id: 1, instanceId: 1, instanceName: "Site", instancePosition: 0,
+            issueKey: "RIDGE-1", day: "2026-08-31", startedAt: "2026-08-31T09:00:00Z",
+            seconds: 1800, comment: "", pushState: "pushed",
+          },
+        ],
+      },
+    });
+  });
+
+  await page.goto("/today");
+  const unpushed = page.locator("#rail-unpushed");
+  await expect(unpushed).toHaveText("1 entry to push");
+
+  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push", exact: true }).click();
+
+  await expect(unpushed).toHaveText("Nothing to push");
+  await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-rail-muted", "color"));
+});
+
+test("the count covers never-pushed and corrected entries as one number", async ({ page }) => {
+  await stubToday(page, [
+    { id: 1, issueKey: "RIDGE-1", pushState: "unpushed" },
+    { id: 2, issueKey: "RIDGE-2", pushState: "dirty" },
+    { id: 3, issueKey: "RIDGE-3", pushState: "pushed" },
+    { id: 4, issueKey: "RIDGE-4", pushState: "pushed" },
+  ]);
+
+  await page.goto("/today");
+  const unpushed = page.locator("#rail-unpushed");
+
+  await expect(unpushed).toHaveText("2 entries to push");
+  await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-pending-rail", "color"));
+  await expect(page.getByRole("button", { name: "Push to Jira" })).toBeEnabled();
+});
+
+test("a day whose entries are all pushed offers nothing", async ({ page }) => {
+  await stubToday(page, [{ id: 1, issueKey: "RIDGE-1", pushState: "pushed" }]);
+
+  await page.goto("/today");
+  const unpushed = page.locator("#rail-unpushed");
+
+  await expect(unpushed).toHaveText("Nothing to push");
+  await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-rail-muted", "color"));
+  await expect(page.getByRole("button", { name: "Push to Jira" })).toBeDisabled();
 });
 
 test("an empty queue leaves the unpushed count muted and Push resting", async ({ page }) => {

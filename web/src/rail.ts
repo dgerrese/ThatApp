@@ -51,6 +51,11 @@ export const TODAY_PERIOD: RailPeriod = {
   pushLabel: "Push to Jira",
 };
 
+// Everything that is not pushed is pending: never sent, or sent and edited
+// since. The server's push sweeps both (internal/server/push.go), and the two
+// filters below drifted from it because each was written by hand — #121.
+const isPending = (entry: Entry): boolean => entry.pushState !== "pushed";
+
 let currentPeriod: RailPeriod = TODAY_PERIOD;
 let applyPeriod: ((period: RailPeriod) => void) | undefined;
 
@@ -134,7 +139,7 @@ export function startRail(): void {
     retryDelay = FIRST_RETRY_MS;
     total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
     drawSplit(split, sliceByInstance(entries));
-    pending = entries.filter((entry) => entry.pushState === "unpushed");
+    pending = entries.filter(isPending);
     paintUnpushed();
     syncPushButton();
   };
@@ -243,7 +248,7 @@ export function startRail(): void {
         return;
       }
 
-      const due = entries.filter((entry) => entry.pushState === "unpushed");
+      const due = entries.filter(isPending);
       if (due.length === 0) {
         // Nothing schedules a repaint on this path — refresh() runs at boot, on
         // the pre-paint retry timer and on an entries announcement, none of
@@ -270,7 +275,7 @@ export function startRail(): void {
       const confirmed = await confirmDestructive({
         heading: currentPeriod.pushHeading,
         body:
-          `${label} totalling ${totalFigure(seconds)}${across} will be created as worklogs on ` +
+          `${label} totalling ${totalFigure(seconds)}${across} will be sent to ` +
           `${String(sites)} ${sites === 1 ? "site" : "sites"}.`,
         confirmLabel: "Push",
       });
