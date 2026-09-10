@@ -119,12 +119,20 @@ function ticketFromHit(hit: IssueHit): EntryTicket {
   };
 }
 
+/** True when a search hit names the same (instance, key) pair as one of
+ *  `keys` — `pinnedKeysOf`'s own format, so a hit and a pin agree on what
+ *  counts as "the same issue" without either side reaching into the other's
+ *  shape. */
+function hitIsPinned(hit: IssueHit, keys: Set<string>): boolean {
+  return keys.has(totalKey(hit.instanceId, hit.key));
+}
+
 /**
  * What Today configures the search panel with. Its two controls dispatch the
- * same LOG_TIME and PIN events a ticket row's own controls do, straight at
- * `container` — the listeners registered on it in render() do not care which
- * of the two raised them, so logging or pinning from a result reuses that
- * wiring rather than repeating it.
+ * same LOG_TIME, PIN and UNPIN events a ticket row's own controls do,
+ * straight at `container` — the listeners registered on it in render() do not
+ * care which of the three raised them, so logging or pinning from a result
+ * reuses that wiring rather than repeating it.
  *
  * `offListInfo` is the same Map `regions` ends up holding — passed in here
  * rather than waiting for `regions` to exist, because `search.config` has to
@@ -132,10 +140,19 @@ function ticketFromHit(hit: IssueHit): EntryTicket {
  * writes straight into it: "the summary travels with the selection" from the
  * design's 2026-09-10 addendum to decision 2, so a row built from this entry
  * never has to ask for what a click already told it.
+ *
+ * `pinnedKeys` is read afresh on every call, not captured once, for the same
+ * reason: it is `regions.pins` under a different shape, and `regions` itself
+ * does not exist yet when this function first runs (see render()) — a plain
+ * value captured here would be permanently empty. Reading it live is also
+ * what settles the review finding of 2026-09-10: a result already pinned now
+ * renders the filled pin mark exactly as a row in the list does, and pressing
+ * it unpins, rather than sending a request the server can only refuse.
  */
 function issueSearchConfig(
   container: HTMLElement,
   offListInfo: Map<string, OffListInfo | null>,
+  pinnedKeys: () => Set<string>,
 ): IssueSearchConfig {
   return {
     placeholder: "Search all instances",
@@ -160,11 +177,13 @@ function issueSearchConfig(
       },
       {
         kind: "icon",
-        icon: "pin",
-        tooltip: "pin ticket",
-        label: (hit) => `Pin ${hit.key}`,
+        icon: (hit) => (hitIsPinned(hit, pinnedKeys()) ? "pin-off" : "pin"),
+        tooltip: (hit) => (hitIsPinned(hit, pinnedKeys()) ? "unpin ticket" : "pin ticket"),
+        label: (hit) => (hitIsPinned(hit, pinnedKeys()) ? `Unpin ${hit.key}` : `Pin ${hit.key}`),
+        active: (hit) => hitIsPinned(hit, pinnedKeys()),
         onPress: (hit) => {
-          container.dispatchEvent(new CustomEvent<EntryTicket>(PIN, { detail: ticketFromHit(hit) }));
+          const eventName = hitIsPinned(hit, pinnedKeys()) ? UNPIN : PIN;
+          container.dispatchEvent(new CustomEvent<EntryTicket>(eventName, { detail: ticketFromHit(hit) }));
         },
       },
     ],
@@ -173,6 +192,14 @@ function issueSearchConfig(
 
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   setRailPeriod(TODAY_PERIOD);
+
+  // Assigned below, once its own dependencies exist — but issueSearchConfig
+  // needs a way to read its pins after that point, since the search's config
+  // is built (and must be, for the element to upgrade correctly) before
+  // regions does. The closure below reads this binding, not a value copied
+  // out of it, so it sees whatever regions.pins holds by the time a press
+  // actually happens rather than the empty array that exists right now.
+  let regions: Regions;
 
   const container = document.createElement("div");
   container.className = "space-y-5";
@@ -239,7 +266,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // exists. The same Map becomes regions.offListInfo further down — sharing
   // the reference is what lets a search-logged row skip the lookup.
   const offListInfo = new Map<string, OffListInfo | null>();
-  search.config = issueSearchConfig(container, offListInfo);
+  search.config = issueSearchConfig(container, offListInfo, () => pinnedKeysOf(regions));
   searchWrap.append(search);
   header.append(searchWrap);
 
@@ -266,7 +293,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   container.append(stale, layoutGrid, assignedSection);
   root.append(container);
 
-  const regions: Regions = {
+  regions = {
     layoutGrid,
     pinnedSection,
     pinnedList,
@@ -358,8 +385,8 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
  * mount, and the fallback for an announcer whose own read failed).
  *
  * The rows are found in the DOM rather than re-rendered: a re-render would
- * throw away the pin form mid-search and the assigned cards mid-scroll to
- * change one number on each row.
+ * throw away an open search panel's results and the assigned cards
+ * mid-scroll to change one number on each row.
  *
  * A failure leaves the last known totals on screen. A row that cannot be told
  * what was logged should keep saying what it last knew rather than claim zero,

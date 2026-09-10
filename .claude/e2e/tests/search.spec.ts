@@ -286,6 +286,70 @@ test.describe("that-issue-search on Today", () => {
     expect(search.calls()).toBe(0);
   });
 
+  // Each keystroke is 20ms apart — far under the 350ms debounce — so a correct
+  // implementation fires exactly one request after the last one, not one per
+  // keystroke. Moved from the deleted pin form's own coverage: the debounce is
+  // this component's own logic (runSearch/scheduleSearch), not something that
+  // left with the form.
+  test("rapid keystrokes are coalesced into a single search", async ({ page }) => {
+    const search = await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    await searchField(page).pressSequentially("capacity", { delay: 20 });
+    await expect(page.getByText("RIDGE-5140")).toBeVisible();
+
+    expect(search.calls()).toBe(1);
+  });
+
+  // A pending debounce timer that outlives the panel closing would fire on a
+  // superseded query and repaint a panel the user has already dismissed —
+  // this is what scheduleSearch's clearTimeout (and close()'s) guards
+  // against. Escape is this component's own way to close, replacing the
+  // deleted form's Cancel button.
+  test("closing the field within the debounce window makes no request", async ({ page }) => {
+    const search = await stubSearch(page, []);
+    await page.goto("/today");
+
+    const field = searchField(page);
+    await field.fill("capacity");
+    // Well inside the 350ms debounce window: the timer it started has not fired.
+    await field.press("Escape");
+    await page.waitForTimeout(500);
+
+    expect(search.calls()).toBe(0);
+  });
+
+  // A second keystroke aborts the first request's fetch. request()'s bare
+  // catch in api.ts turns any thrown error, AbortError included, into a
+  // user-facing "Could not reach the dashboard server." — that guard is what
+  // this proves: remove it and the superseded first search paints an outage
+  // message over a second search that is still working correctly.
+  test("a keystroke that supersedes a slow search never shows a network error", async ({ page }) => {
+    let calls = 0;
+    await page.route("**/api/issues/search**", async (route) => {
+      calls += 1;
+      const firstCall = calls === 1;
+      if (firstCall) {
+        // Long enough that the second keystroke's debounce fires and aborts
+        // this request well before it would otherwise resolve.
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+      await route.fulfill({ status: 200, json: { results: [ridge5140], errors: [] } }).catch(() => {
+        // The client already cancelled the underlying network request for the
+        // aborted first call; the route has nothing left to fulfil.
+      });
+    });
+    await page.goto("/today");
+    const field = searchField(page);
+
+    await field.fill("ca");
+    await expect(page.getByText("Searching…")).toBeVisible();
+    await field.fill("capacity");
+
+    await expect(page.getByText("RIDGE-5140")).toBeVisible();
+    await expect(page.getByText("Could not reach the dashboard server.")).toHaveCount(0);
+  });
+
   test("results group under their instance name with the instance dot", async ({ page }) => {
     await stubSearch(page, [ridge5140, nw1204]);
     await page.goto("/today");
@@ -335,6 +399,26 @@ test.describe("that-issue-search on Today", () => {
     await searchField(page).fill("capacity");
 
     await expect(page.getByText("Northwind could not be searched.")).toBeVisible();
+  });
+
+  // Distinct from the mixed case above: zero results and every instance
+  // failing must not fall into showResults' "no issues match" branch, which
+  // is for a search that ran cleanly and found nothing — a reader here must
+  // see why there is nothing, not a false "no matches".
+  test("every instance failing shows an error rather than an empty list", async ({ page }) => {
+    await stubSearch(page, [], [
+      {
+        instanceId: 1,
+        instanceName: "Ridgeline",
+        error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
+      },
+    ]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+
+    await expect(page.getByText("Ridgeline could not be searched.")).toBeVisible();
+    await expect(page.getByText(/No issues match/)).toHaveCount(0);
   });
 
   test("a search that matches nothing shows an empty state distinct from the failure line", async ({
@@ -456,5 +540,63 @@ test.describe("that-issue-search on Today", () => {
 
     const pinnedCard = page.getByRole("region", { name: "Pinned" });
     await expect(pinnedCard.getByText("RIDGE-5140")).toBeVisible();
+  });
+
+  // 2026-09-10 review of #84's own Task 7: the deleted pin form disabled an
+  // option for a ticket already pinned; the panel had no equivalent, so
+  // pressing pin on an already-pinned result sent a request the server could
+  // only refuse. The panel now shows the truth instead — the filled pin mark,
+  // exactly as that-ticket-row's own control draws it for a pinned row — and
+  // pressing it unpins.
+  test("a result already pinned renders the filled pin mark, and pressing it unpins", async ({
+    page,
+  }) => {
+    await stubSearch(page, [ridge5140]);
+    await stubPins(
+      page,
+      [
+        {
+          id: 9,
+          instanceId: 1,
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          key: "RIDGE-5140",
+          summary: ridge5140.summary,
+          status: "To Do",
+          url: ridge5140.url,
+          error: null,
+        },
+      ],
+      [],
+    );
+    let deleteMethod: string | null = null;
+    await page.route("**/api/pins/9", async (route) => {
+      deleteMethod = route.request().method();
+      await route.fulfill({ status: 204, body: "" });
+    });
+
+    await page.goto("/today");
+    const pinnedCard = page.getByRole("region", { name: "Pinned" });
+    await expect(pinnedCard.getByText("RIDGE-5140")).toBeVisible();
+
+    await searchField(page).fill("capacity");
+
+    const unpinButton = resultRow(page, "RIDGE-5140").getByRole("button", {
+      name: "Unpin RIDGE-5140",
+      exact: true,
+    });
+    await expect(unpinButton).toBeVisible();
+    await expect(unpinButton).toHaveClass(/text-primary/);
+    await expect(
+      resultRow(page, "RIDGE-5140").getByRole("button", { name: "Pin RIDGE-5140", exact: true }),
+    ).toHaveCount(0);
+
+    await unpinButton.hover();
+    await expect(page.locator("that-issue-search that-tooltip")).toHaveText("unpin ticket");
+
+    await unpinButton.click();
+
+    await expect.poll(() => deleteMethod).toBe("DELETE");
+    await expect(pinnedCard.getByText("RIDGE-5140")).toHaveCount(0);
   });
 });

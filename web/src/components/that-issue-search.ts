@@ -42,15 +42,26 @@ export type IssueSearchControl = IssueSearchIconControl | IssueSearchDurationCon
 
 export interface IssueSearchIconControl {
   kind: "icon";
-  icon: IconName;
+  /** The mark this control draws for a given hit. A function, like `label`
+   *  below, rather than a fixed icon: Today's pin control answers `pin-off`
+   *  for a hit already pinned, the same pair that-ticket-row's own pin
+   *  control draws — see `active`. Every control that carries no such state
+   *  (Week's add-to-week and pin controls included — decision 1 of the
+   *  2026-09-10 design keeps Week's pin unmarked) just answers the same icon
+   *  for every hit. */
+  icon: (hit: IssueHit) => IconName;
   /** The word a hover or focus reveals beside the mark. Never the accessible
    *  name — `label` below is that — matching every other icon control's own
-   *  `that-tooltip` in the app. */
-  tooltip: string;
+   *  `that-tooltip` in the app. A function for the same reason `icon` is. */
+  tooltip: (hit: IssueHit) => string;
   /** The row's own accessible name, read against the hit it belongs to. */
   label: (hit: IssueHit) => string;
   /** Called with the hit the row is for. */
   onPress: (hit: IssueHit) => void | Promise<void>;
+  /** True when the mark should carry the row's own active paint — the
+   *  `text-primary` that-ticket-row's paintPinned gives a pinned row's own
+   *  control. Omitted by every control with no such state. */
+  active?: (hit: IssueHit) => boolean;
 }
 
 export interface IssueSearchDurationControl {
@@ -212,10 +223,9 @@ export class ThatIssueSearch extends HTMLElement {
     }, DEBOUNCE_MS);
   }
 
-  /** One controller per read, replaced on every debounce firing — the same
-   *  supersede-the-previous-read shape the pin form's own search wires up in
-   *  today.ts, owned here instead of by a host that would otherwise have to
-   *  reimplement it twice. */
+  /** One controller per read, replaced on every debounce firing — the
+   *  supersede-the-previous-read shape owned here instead of by each host,
+   *  which would otherwise have to reimplement it once per view. */
   private runSearch(config: IssueSearchConfig, query: string): void {
     this.query = query;
     this.inFlight?.abort();
@@ -400,7 +410,11 @@ export class ThatIssueSearch extends HTMLElement {
     button.className =
       "flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-sm " +
       "text-ink-muted hover:bg-hover hover:text-ink focus-visible:bg-hover focus-visible:text-ink";
-    button.innerHTML = iconMarkup(control.icon);
+    // Same technique as that-ticket-row's own paintPinned: toggled on top of
+    // the muted class above rather than chosen between two class strings,
+    // which is what already works there for the identical pin/pin-off pair.
+    button.classList.toggle("text-primary", control.active?.(hit) ?? false);
+    button.innerHTML = iconMarkup(control.icon(hit));
     button.addEventListener("click", () => {
       void control.onPress(hit);
     });
@@ -408,7 +422,7 @@ export class ThatIssueSearch extends HTMLElement {
     const tooltip = document.createElement("that-tooltip");
     tooltip.setAttribute("for", id);
     tooltip.setAttribute("anchor", "end");
-    tooltip.textContent = control.tooltip;
+    tooltip.textContent = control.tooltip(hit);
 
     return [button, tooltip];
   }

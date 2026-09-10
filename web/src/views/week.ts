@@ -131,15 +131,18 @@ function weekSearchConfig(
     controls: [
       {
         kind: "icon",
-        icon: "add-to-week",
-        tooltip: "add to this week",
+        icon: () => "add-to-week",
+        tooltip: () => "add to this week",
         label: (hit) => `Add ${hit.key} to this week`,
         onPress: onAdd,
       },
       {
         kind: "icon",
-        icon: "pin",
-        tooltip: "pin ticket",
+        // Week draws no pin mark of its own (decision 1: a pinned row and a
+        // searched one are indistinguishable) — no `active`, unlike Today's
+        // own pin control.
+        icon: () => "pin",
+        tooltip: () => "pin ticket",
         label: (hit) => `Pin ${hit.key}`,
         onPress: (hit) => {
           void createPin(hit.instanceId, hit.key).catch(onPinFailure);
