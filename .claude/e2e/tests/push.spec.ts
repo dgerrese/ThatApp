@@ -208,6 +208,7 @@ test("pressing Push on a corrected-only day sends the correction and the rail re
 
   let pushAnswered = false;
   await page.route("**/api/push**", async (route) => {
+    pushAnswered = true;
     await route.fulfill({
       status: 200,
       json: {
@@ -215,7 +216,6 @@ test("pressing Push on a corrected-only day sends the correction and the rail re
         results: [{ entryId: 1, issueKey: "RIDGE-1", instanceId: 1, status: "pushed", worklogId: "wl-1" }],
       },
     });
-    pushAnswered = true;
   });
 
   // Overrides stubToday's blanket handler once the push has answered, so the
@@ -258,6 +258,7 @@ test("the count covers never-pushed and corrected entries as one number", async 
     { id: 1, issueKey: "RIDGE-1", pushState: "unpushed" },
     { id: 2, issueKey: "RIDGE-2", pushState: "dirty" },
     { id: 3, issueKey: "RIDGE-3", pushState: "pushed" },
+    { id: 4, issueKey: "RIDGE-4", pushState: "pushed" },
   ]);
 
   await page.goto("/today");
