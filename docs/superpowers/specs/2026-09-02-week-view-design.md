@@ -93,9 +93,11 @@ See *What this ticket grew into*.
    reasoning. Nothing about the hollow marker changes: it still tells the truth about Jira holding a
    stale copy, only Push is now the fix for it rather than a dead end.
 
-   This is also where the rail's warning was described wrong rather than out of date: it counts
-   **unpushed and dirty** time — `isPending` in `web/src/rail.ts` — but its total has always summed
-   every entry regardless of push state. Only the count was ever filtered.
+   This is also where the rail's warning turns out to have had two separate problems, not one. Its
+   **total** was wrong from the start: `web/src/rail.ts` has always summed every entry regardless of
+   push state, never only unpushed time. Its **count** was merely out of date, until #121 made it
+   agree — it counts **unpushed and dirty** entries, not time, via `isPending`; the rail's line reads
+   "N entries to push", never a duration.
 
 9. **The phone is deferred to #13.** A seven-column grid of `Nh Nm` figures does not fit 380px.
    Horizontal scroll was rejected because it puts the week total off-screen, and a rollup you cannot
@@ -270,8 +272,10 @@ be updated to match this spec before planning.**
 
 - **The phone and any narrow layout.** #13, per decision 9.
 - **Editing or deleting entries from the grid.** The week reviews and pushes; it does not edit.
-- **Everything in #10.** Nothing here needs it — `pushStateOf` and `EntriesForDay` both shipped with
-  #9 — and #11 does not wait on it. The visible consequence is that a dirty cell shows its marker and
-  cannot be acted on from here; #10 is what makes it pushable, and when it lands this view gains that
-  for free by the same rule (a day is pushable when a push would do something).
+- **Everything in #10.** Nothing here needed it — `pushStateOf` and `EntriesForDay` both shipped with
+  #9 — and #11 did not wait on it. The consequence held at the time: a dirty cell showed its marker
+  and could not be acted on from here, because #10 did not exist yet. **The view did not gain that
+  for free.** #10 shipped on 2026-09-08, and pushing a corrected day from here still did nothing,
+  because the rail's own filter — untouched by #10 — still admitted only never-pushed entries.
+  Closing that gap is #121; see decision 8 above.
 - **Moving Settings.** Intake #89.

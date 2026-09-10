@@ -48,9 +48,15 @@ Every task's requirements implicitly include this section.
 | --- | --- |
 | `web/src/rail.ts` | One `isPending` predicate; both filters use it. The confirmation body stops claiming creation. |
 | `.claude/e2e/tests/push.spec.ts` | Three cases: a corrected-only day, a mixed day, an all-pushed day. |
+| `.claude/e2e/tests/week.spec.ts` | `rail.ts` is shared with Week, so Task 1 flips the existing dirty-only-week test from "offers no Push" to "still offers a push". |
+| `docs/superpowers/specs/2026-09-02-week-view-design.md` | Decision 8 corrected: a dirty day is pushable as of #121, not forbidden pending #10. Added mid-execution — Task 3. |
 
-Two tasks. Task 1 is the defect. Task 2 is a sentence that becomes false once Task 1 lands, and a
-reviewer could reasonably approve one and reject the other.
+Three tasks. Task 1 is the defect. Task 2 is a sentence that becomes false once Task 1 lands, and a
+reviewer could reasonably approve one and reject the other. **Task 3 was added mid-execution**: Task
+1's own review found the week view's design document still asserting, as design, the exact rule
+Task 1 had just disproved — a stale claim that would have led #11's implementer straight back to the
+restriction this ticket removes. Neither of the first two tasks owned that document, so fixing it
+here beat opening a follow-up ticket for two paragraphs.
 
 ---
 
@@ -233,6 +239,46 @@ Run `make verify` and `make test-e2e`. Paste both.
 ```bash
 git add web/src/rail.ts .claude/e2e/tests/push.spec.ts
 git commit -m "fix(#121): the confirmation stops promising creation for a correction"
+```
+
+---
+
+### Task 3: Correct the week view's design document to match Task 1
+
+**Added mid-execution.** Task 1's review read decision 8 in
+`docs/superpowers/specs/2026-09-02-week-view-design.md` — the design of record for #11 — and found
+it still forbidding exactly what Task 1 had just shipped: "A dirty day is not pushable, and must not
+offer a Push", justified because updating a worklog Jira already had "is #10's whole subject and
+does not exist yet". #10 shipped on 2026-09-08. Leaving the document as it stood would let #11's
+implementer read the design, find the old rule, and rebuild the restriction this ticket removes.
+
+**Covers:** no acceptance criterion of #121's — the document, not the product.
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-09-02-week-view-design.md` — decision 8
+
+**Interfaces:** none. Documentation only; there is no test cycle to run red before green.
+
+- [ ] **Step 1: Rewrite decision 8's second and third paragraphs**
+
+State the rule as it now is — a dirty day is pushable, `handlePushDay` skips only entries already
+`pushed` — and why the old rule was right when written but its precondition expired rather than its
+reasoning being wrong. Also correct the paragraph's last sentence, which claimed the rail's *total*
+was filtered to unpushed time; `web/src/rail.ts` has always summed every entry regardless of push
+state, so only the *count* was ever filtered.
+
+- [ ] **Step 2: Rewrite decision 8's opening bold sentence**
+
+The first pass corrected the two paragraphs beneath it but left the bold sentence two lines above
+still reading "Push sends every day holding unpushed entries" — the same stale claim, sitting
+directly above its own correction. Reuse "unpushed or dirty" from the paragraph it introduces rather
+than a third way of naming the same set.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add docs/superpowers/specs/2026-09-02-week-view-design.md
+git commit -m "docs(#121): a corrected day is pushable, and why it was not"
 ```
 
 ---
