@@ -1,4 +1,5 @@
 import { ApiError, searchIssues } from "../api";
+import { fieldFigure } from "../duration";
 import type { IconName } from "../icons";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
@@ -21,14 +22,54 @@ export interface IssueSearchConfig {
   controls: IssueSearchControl[];
 }
 
-export interface IssueSearchControl {
-  /** Icon name, or the word a text control shows. */
+/**
+ * One result row's control, in the one shape or the other — a discriminated
+ * union rather than an all-optional object, which under this project's strict
+ * settings would admit states the app never means: an icon with no `icon`, or
+ * one carrying both an `icon` and whatever a duration variant might have
+ * added. Neither "icon button" nor "duration control" is specific to a view:
+ * #84's own body settles that a result row carries the same duration control
+ * a real row does, and Week's later return-into-week mark is an icon control
+ * like pin, so the union covers both hosts without either leaking into this
+ * component.
+ *
+ * `label` takes the hit rather than being a fixed string: a control that
+ * reads identically on every row tells a screen reader nothing a sighted
+ * reader cannot already see from position alone, where that-ticket-row names
+ * its own ticket and (for a duration control) its own figure.
+ */
+export type IssueSearchControl = IssueSearchIconControl | IssueSearchDurationControl;
+
+export interface IssueSearchIconControl {
+  kind: "icon";
   icon: IconName;
-  /** The accessible name. A tooltip is never the accessible name. */
-  label: string;
+  /** The word a hover or focus reveals beside the mark. Never the accessible
+   *  name — `label` below is that — matching every other icon control's own
+   *  `that-tooltip` in the app. */
+  tooltip: string;
+  /** The row's own accessible name, read against the hit it belongs to. */
+  label: (hit: IssueHit) => string;
   /** Called with the hit the row is for. */
   onPress: (hit: IssueHit) => void | Promise<void>;
 }
+
+export interface IssueSearchDurationControl {
+  kind: "duration";
+  /** The row's own accessible name, read against the hit it belongs to. */
+  label: (hit: IssueHit) => string;
+  /** Called with the hit the row is for. */
+  onPress: (hit: IssueHit) => void | Promise<void>;
+}
+
+/** One id per icon control mounted, so its tooltip's `for` can resolve it on
+ *  a page holding many rows — the same reasoning that-ticket-row's own
+ *  pinTriggerSequence gives. */
+let iconControlSequence = 0;
+
+/** One id per panel mounted, so its input's `aria-controls` names it
+ *  uniquely even if more than one that-issue-search is ever on screen at
+ *  once. */
+let issueSearchSequence = 0;
 
 /** Matches that-combobox's own values: this is the second control in the app
  *  reading against the same Jira APIs, and a pause any shorter costs one
@@ -54,16 +95,18 @@ const MIN_QUERY = 2;
  * `.field`, `.results`, `.rgroup`, `.rrow`, `.rk`, `.rs` and `.rfoot`
  * (docs/superpowers/prototypes/2026-09-03-app-prototype.html, lines 334-342),
  * translated into this app's Tailwind vocabulary the way `that-ticket-row`
- * translates its own. A row's controls are not in that list: what a control
- * looks like beyond its icon and label is this component's own business, not
- * the prototype's `.durbtn`/`.iconbtn` markup, because the host decides how
- * many there are and what they do.
+ * translates its own — including its own `.durbtn`/`.iconbtn` pair now that
+ * `IssueSearchControl` can express both: which controls a row carries, and
+ * how many, is still the host's choice, but what an icon control and a
+ * duration control each look like is this component's business, the same way
+ * that-ticket-row owns its own duration cell and pin control's shapes.
  */
 export class ThatIssueSearch extends HTMLElement {
   /** Assigned before the element is appended — connectedCallback builds from
    *  it, the same contract that-entry-dialog's `ticket` uses. */
   config: IssueSearchConfig | undefined;
 
+  private readonly sequence = ++issueSearchSequence;
   private input: HTMLInputElement | undefined;
   private panel: HTMLElement | undefined;
   private timer: number | undefined;
@@ -77,6 +120,10 @@ export class ThatIssueSearch extends HTMLElement {
     if (this.input || !this.config) return;
 
     this.build(this.config);
+  }
+
+  private get panelId(): string {
+    return `that-issue-search-panel-${String(this.sequence)}`;
   }
 
   /** A pending debounce timer or an in-flight read must not outlive removal
@@ -107,6 +154,12 @@ export class ThatIssueSearch extends HTMLElement {
     // sighted user, so the placeholder doubles as the accessible name for
     // everyone else, matching what that-combobox is more explicit about.
     input.setAttribute("aria-label", config.placeholder);
+    // aria-expanded plus aria-controls, mirroring that-combobox's own pair —
+    // not the rest of its combobox/listbox pattern, which does not map onto
+    // a row of press-to-act buttons the way an option list does. This is the
+    // minimum a screen reader needs to know typing opened something.
+    input.setAttribute("aria-expanded", "false");
+    input.setAttribute("aria-controls", this.panelId);
     input.className =
       "min-w-0 flex-1 bg-transparent text-base text-ink placeholder:text-ink-muted focus:outline-none";
     input.addEventListener("input", () => {
@@ -120,6 +173,7 @@ export class ThatIssueSearch extends HTMLElement {
     this.input = input;
 
     const panel = document.createElement("div");
+    panel.id = this.panelId;
     // The drawing's `.results`: positioned against the field it spans exactly
     // (inset-x-0 against this element's own padding box), raised above the
     // page the way every other popover in the app is — border-edge and
@@ -183,12 +237,15 @@ export class ThatIssueSearch extends HTMLElement {
   }
 
   private open(): void {
-    if (this.panel) this.panel.hidden = false;
+    if (!this.panel) return;
+    this.panel.hidden = false;
+    this.input?.setAttribute("aria-expanded", "true");
   }
 
   private close(): void {
     window.clearTimeout(this.timer);
     this.inFlight?.abort();
+    this.input?.setAttribute("aria-expanded", "false");
     if (!this.panel) return;
     this.panel.hidden = true;
     this.panel.replaceChildren();
@@ -285,7 +342,13 @@ export class ThatIssueSearch extends HTMLElement {
     row.className = "hover:bg-hover flex items-center gap-2.5 rounded-sm px-[9px] py-1.5";
 
     row.append(this.keyLabel(hit), this.summaryLabel(hit));
-    row.append(...config.controls.map((control) => this.controlButton(control, hit)));
+    for (const control of config.controls) {
+      if (control.kind === "duration") {
+        row.append(this.durationControl(control, hit));
+      } else {
+        row.append(...this.iconControl(control, hit));
+      }
+    }
 
     return row;
   }
@@ -321,10 +384,19 @@ export class ThatIssueSearch extends HTMLElement {
     return summary;
   }
 
-  private controlButton(control: IssueSearchControl, hit: IssueHit): HTMLElement {
+  /** An icon control — pin, and later Week's own return-into-week mark —
+   *  carrying a `that-tooltip` the same way every other icon control in the
+   *  app does: Today's search pin sits beside the assigned list's own pin
+   *  and must not read as a different kind of control. Returns both nodes,
+   *  the same shape that-entry-dialog's own rowAction helper returns for the
+   *  identical button-plus-tooltip pairing. */
+  private iconControl(control: IssueSearchIconControl, hit: IssueHit): HTMLElement[] {
+    const id = `that-issue-search-control-${String(++iconControlSequence)}`;
+
     const button = document.createElement("button");
     button.type = "button";
-    button.setAttribute("aria-label", control.label);
+    button.id = id;
+    button.setAttribute("aria-label", control.label(hit));
     button.className =
       "flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-sm " +
       "text-ink-muted hover:bg-hover hover:text-ink focus-visible:bg-hover focus-visible:text-ink";
@@ -333,7 +405,47 @@ export class ThatIssueSearch extends HTMLElement {
       void control.onPress(hit);
     });
 
-    return button;
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", id);
+    tooltip.setAttribute("anchor", "end");
+    tooltip.textContent = control.tooltip;
+
+    return [button, tooltip];
+  }
+
+  /**
+   * The drawn duration control: the "Log" hint revealed over a figure, the
+   * same recipe that-ticket-row's own durationCell uses — but rendered as a
+   * static variant rather than reusing that stateful implementation. A
+   * search result has no seconds of its own to track; pressing this opens
+   * the dialog, which is where a real total lives.
+   */
+  private durationControl(control: IssueSearchDurationControl, hit: IssueHit): HTMLElement {
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", control.label(hit));
+    trigger.className =
+      "group hover:bg-hover -my-[9px] -mr-[13px] inline-flex shrink-0 cursor-pointer " +
+      "items-baseline rounded-sm px-[13px] py-[9px]";
+
+    const hint = document.createElement("span");
+    hint.className =
+      "text-primary mr-2.5 shrink-0 text-sm font-bold tracking-[0.06em] uppercase " +
+      "whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover:opacity-100 " +
+      "group-focus-visible:opacity-100";
+    hint.textContent = "Log";
+    hint.setAttribute("aria-hidden", "true");
+
+    const figure = document.createElement("span");
+    figure.className = "that-tnum font-mono text-base";
+    figure.textContent = fieldFigure(0);
+
+    trigger.append(hint, figure);
+    trigger.addEventListener("click", () => {
+      void control.onPress(hit);
+    });
+
+    return trigger;
   }
 
   private notice(text: string): HTMLElement {

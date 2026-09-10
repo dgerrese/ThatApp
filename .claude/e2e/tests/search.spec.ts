@@ -163,6 +163,86 @@ test.describe("that-issue-search on Today", () => {
     expect(Math.abs(panelBox!.width - fieldBox!.width)).toBeLessThanOrEqual(2);
   });
 
+  // Review finding 1: the duration control is the same one a real row draws
+  // (#84's own body), rendered here as a static variant — the "Log" hint over
+  // a fixed 0:00 figure, not a plain icon.
+  test("a result row carries the drawn duration control, not a bare icon", async ({ page }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+
+    const trigger = resultRow(page, "RIDGE-5140").getByRole("button", {
+      name: "Log time against RIDGE-5140",
+      exact: true,
+    });
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveText("Log0:00");
+  });
+
+  // Review finding 4: a fixed label would read identically on every row —
+  // this proves the two rows above carry two different accessible names.
+  test("two rows' duration controls carry two different accessible names", async ({ page }) => {
+    await stubSearch(page, [ridge5140, nw1204]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+
+    await expect(
+      page.getByRole("button", { name: "Log time against RIDGE-5140", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Log time against NW-1204", exact: true }),
+    ).toBeVisible();
+  });
+
+  // Review finding 3: the drawing's `.iconbtn` carries a `.tip` popover, and
+  // the assigned list's own pin control already does too — this result row's
+  // pin should not read as a different kind of control.
+  test("the pin control carries a tooltip reading exactly \"pin ticket\"", async ({ page }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+    await resultRow(page, "RIDGE-5140")
+      .getByRole("button", { name: "Pin RIDGE-5140", exact: true })
+      .hover();
+
+    const tooltip = page.locator("that-issue-search that-tooltip");
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toHaveText("pin ticket");
+  });
+
+  // Review finding 2: the missing screen-reader signal that typing opened a
+  // popup, and that closing it closes one.
+  test("the field's aria-expanded follows the panel open and closed", async ({ page }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    const field = searchField(page);
+    await expect(field).toHaveAttribute("aria-expanded", "false");
+
+    await field.fill("capacity");
+    await expect(page.getByText("RIDGE-5140")).toBeVisible();
+    await expect(field).toHaveAttribute("aria-expanded", "true");
+
+    await field.press("Escape");
+    await expect(field).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("the field's aria-controls names the panel it expands", async ({ page }) => {
+    await page.goto("/today");
+
+    const field = searchField(page);
+    const controls = await field.getAttribute("aria-controls");
+    expect(controls).toBeTruthy();
+
+    const panel = page.locator(`#${controls}`);
+    await expect(panel).toHaveCount(1);
+    // The panel it names is inside the same component, not a stray id match.
+    await expect(page.locator("that-issue-search").locator(`#${controls}`)).toHaveCount(1);
+  });
+
   test("typing fewer than two characters reaches no network", async ({ page }) => {
     const search = await stubSearch(page, []);
     await page.goto("/today");
@@ -282,7 +362,9 @@ test.describe("that-issue-search on Today", () => {
     await searchField(page).fill("capacity");
     await expect(page.getByText("RIDGE-5140")).toBeVisible();
 
-    await resultRow(page, "RIDGE-5140").getByRole("button", { name: "Log time" }).click();
+    await resultRow(page, "RIDGE-5140")
+      .getByRole("button", { name: "Log time against RIDGE-5140", exact: true })
+      .click();
 
     const dialog = page.locator("that-entry-dialog dialog");
     await dialog.getByLabel("Duration").fill("15");
@@ -335,7 +417,9 @@ test.describe("that-issue-search on Today", () => {
     await searchField(page).fill("capacity");
     await expect(page.getByText("RIDGE-5140")).toBeVisible();
 
-    await resultRow(page, "RIDGE-5140").getByRole("button", { name: "Pin ticket" }).click();
+    await resultRow(page, "RIDGE-5140")
+      .getByRole("button", { name: "Pin RIDGE-5140", exact: true })
+      .click();
 
     const pinnedCard = page.getByRole("region", { name: "Pinned" });
     await expect(pinnedCard.getByText("RIDGE-5140")).toBeVisible();

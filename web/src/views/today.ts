@@ -95,14 +95,11 @@ function issueSearchConfig(container: HTMLElement): IssueSearchConfig {
     footer:
       "Searching all instances by key and summary. Not limited to issues assigned to you.",
     controls: [
-      // The drawing's row carries a duration control (a "Log" hint over a
-      // 0:00 figure), which IssueSearchControl cannot draw — it is one icon
-      // and one fixed label, the shape the two hosts share. "plus" is the
-      // stand-in: not drawn for this job, and a deliberate difference from
-      // the prototype reported rather than absorbed, per this task's brief.
+      // #84's own body: "a result row carries the same duration control as a
+      // real row" — this is that control, not a stand-in for one.
       {
-        icon: "plus",
-        label: "Log time",
+        kind: "duration",
+        label: (hit) => `Log time against ${hit.key}`,
         onPress: (hit) => {
           container.dispatchEvent(
             new CustomEvent<EntryTicket>(LOG_TIME, { detail: ticketFromHit(hit) }),
@@ -110,8 +107,10 @@ function issueSearchConfig(container: HTMLElement): IssueSearchConfig {
         },
       },
       {
+        kind: "icon",
         icon: "pin",
-        label: "Pin ticket",
+        tooltip: "pin ticket",
+        label: (hit) => `Pin ${hit.key}`,
         onPress: (hit) => {
           container.dispatchEvent(new CustomEvent<EntryTicket>(PIN, { detail: ticketFromHit(hit) }));
         },
