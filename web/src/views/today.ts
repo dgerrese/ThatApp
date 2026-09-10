@@ -678,6 +678,11 @@ function undoOptimisticMark(regions: Regions, error: unknown): void {
   renderPinnedList(regions, regions.pins);
   if (regions.lastIssues) {
     renderResponse(regions, regions.lastIssues);
+  } else {
+    // Same reasoning as refreshPins' own branch: renderResponse would
+    // otherwise be what redraws this, but a pin control can be pressed
+    // before the assigned response has ever arrived.
+    renderOffListSection(regions);
   }
   regions.pinnedList.prepend(alertFor("error", messageOf(error)));
 }
