@@ -48,6 +48,16 @@ owner in the web interface after `tea pulls merge` was blocked by this machine's
 wash, elevation rule and drawn icon set; #99 fixed the `color-scheme` value the minifier was
 reversing — see the 2026-09-06 day file for both, and for why no test caught the second one.
 
+**In progress: #84**, built and **stopped one step short on the owner's instruction**. Nine tasks, six
+fix rounds, every task reviewed; the branch `issue-84-global-search` is pushed and every commit is
+signed. **No pull request** — the whole-branch review returned one Critical and four Important, and
+the owner chose to stop rather than run a fix wave. **Tomorrow starts with that fix wave**, and the
+findings are in the day file for 2026-09-10 and in full in the branch's ledger at
+`.superpowers/sdd/2026-09-10-global-search/progress.md`. The Critical is one clause of JQL that must
+come out: `key = "…"` is a Jira error rather than an empty result when a project does not exist, so a
+key-shaped search loses whole instances — and the exact lookup it duplicates already existed.
+**#139 inherits decision 1 of #84's design** and is otherwise untouched.
+
 **In progress: #105**, and it is **finished but unpushed**. All six tasks, one fix round, a
 whole-branch review and its fix wave are on `issue-105-day-scoped-dialog`; both gates are green
 (`make verify` 167 tests, `make test-e2e` 453 passed / 11 skipped) and **all sixteen acceptance
