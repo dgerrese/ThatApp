@@ -79,7 +79,7 @@ See *What this ticket grew into*.
    view *tells* the rail which period it is showing; the rail sums rows the server already stamped.
    Nothing here derives a day from the browser clock.
 
-8. **Push sends every day holding unpushed entries, one request per day, in order.** `POST
+8. **Push sends every day holding unpushed or dirty entries, one request per day, in order.** `POST
    /api/push?day=` is unchanged and stays per-day. One press issues one call per such day,
    sequentially — sequential so the merged report is attributable and deterministically ordered, and
    so a bad week does not fan several days of requests at Jira at once.
