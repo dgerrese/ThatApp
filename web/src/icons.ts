@@ -30,6 +30,7 @@ export const ICON_NAMES = [
   "edit",
   "trash",
   "add-to-week",
+  "search",
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];
@@ -76,6 +77,8 @@ const PATHS: Record<IconName, string> = {
   trash: '<path d="M4.5 6.5h15M9.5 6.5V4.2h5v2.3M6.5 6.5l1 13h9l1-13M10.5 10v6M13.5 10v6"/>',
   "add-to-week": '<path d="M4 5h16"/><path d="M4 10h16"/>' +
     '<path d="M20 14v1a2 2 0 0 1-2 2H8"/><path d="M11 14l-3 3 3 3"/>',
+  // Transcribed from the prototype's #p-search, for that-issue-search's field.
+  search: '<circle cx="11" cy="11" r="6.6"/><path d="M15.9 15.9 20.5 20.5"/>',
 };
 
 /**

@@ -2,6 +2,7 @@ import "../components/that-alert";
 import "../components/that-button";
 import "../components/that-card";
 import "../components/that-combobox";
+import "../components/that-issue-search";
 import "../components/that-table";
 import "../components/that-ticket-row";
 import { alignKeyColumn } from "../key-column";
@@ -18,6 +19,7 @@ import {
 import type { ThatCombobox } from "../components/that-combobox";
 import type { EntryTicket } from "../components/that-entry-dialog";
 import { openEntryDialog } from "../components/that-entry-dialog";
+import type { IssueSearchConfig, ThatIssueSearch } from "../components/that-issue-search";
 import type { ThatTable } from "../components/that-table";
 import { LOG_TIME, PIN, UNPIN } from "../components/that-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
@@ -66,6 +68,58 @@ interface Regions {
 const PINNED_HEADING_ID = "today-pinned";
 const ASSIGNED_HEADING_ID = "today-assigned";
 
+/** A search hit read as the ticket the entry dialog and a pin both need. No
+ *  `day`, which is what leaves the server's own "day absent means today"
+ *  default in charge — a search result has no day of its own to name, the
+ *  same reason a plain row's ticket never carries one either. */
+function ticketFromHit(hit: IssueHit): EntryTicket {
+  return {
+    instanceId: hit.instanceId,
+    instanceName: hit.instanceName,
+    issueKey: hit.key,
+    summary: hit.summary,
+    status: hit.status,
+  };
+}
+
+/**
+ * What Today configures the search panel with. Its two controls dispatch the
+ * same LOG_TIME and PIN events a ticket row's own controls do, straight at
+ * `container` — the listeners registered on it in render() do not care which
+ * of the two raised them, so logging or pinning from a result reuses that
+ * wiring rather than repeating it.
+ */
+function issueSearchConfig(container: HTMLElement): IssueSearchConfig {
+  return {
+    placeholder: "Search all instances",
+    footer:
+      "Searching all instances by key and summary. Not limited to issues assigned to you.",
+    controls: [
+      // The drawing's row carries a duration control (a "Log" hint over a
+      // 0:00 figure), which IssueSearchControl cannot draw — it is one icon
+      // and one fixed label, the shape the two hosts share. "plus" is the
+      // stand-in: not drawn for this job, and a deliberate difference from
+      // the prototype reported rather than absorbed, per this task's brief.
+      {
+        icon: "plus",
+        label: "Log time",
+        onPress: (hit) => {
+          container.dispatchEvent(
+            new CustomEvent<EntryTicket>(LOG_TIME, { detail: ticketFromHit(hit) }),
+          );
+        },
+      },
+      {
+        icon: "pin",
+        label: "Pin ticket",
+        onPress: (hit) => {
+          container.dispatchEvent(new CustomEvent<EntryTicket>(PIN, { detail: ticketFromHit(hit) }));
+        },
+      },
+    ],
+  };
+}
+
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   setRailPeriod(TODAY_PERIOD);
 
@@ -110,6 +164,17 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // is nothing to refresh yet, and with no instances configured it stays
   // hidden for good.
   refresh.hidden = true;
+
+  // ml-auto on the wrapper, not the component: the prototype's own spacer
+  // (its bare `<span class="sp">`) is Today's layout to own, not something
+  // that-issue-search should assume every host wants — Week mounts the same
+  // component with its own placement.
+  const searchWrap = document.createElement("span");
+  searchWrap.className = "ml-auto";
+  const search = document.createElement("that-issue-search") as ThatIssueSearch;
+  search.config = issueSearchConfig(container);
+  searchWrap.append(search);
+  header.append(searchWrap);
 
   const results = document.createElement("div");
   // One card across, two from the point the content column can hold two
