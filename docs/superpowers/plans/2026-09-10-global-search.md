@@ -73,10 +73,11 @@ not restructure either file — Week's split is #91 and is not this ticket's to 
 
 ## Task order, and what depends on what
 
-Eight tasks. Task 1 is server-only and independent. Task 2 is one icon. Task 3 builds the component
+Nine tasks. Task 1 is server-only and independent. Task 2 is one icon. Task 3 builds the component
 against a stub host and is what Tasks 4 and 6 mount. Task 5 is Today's layout and touches no search
 code. Task 7 can only run once Task 4 has made pinning reachable from the search. Task 8 is
-documents.
+documents. **Task 9 is unrelated to the search** — it was folded in on the owner's instruction
+on 2026-09-10, and it is deliberately last so a reviewer can see it apart from the rest.
 
 ---
 
@@ -473,6 +474,54 @@ Do not delete a line without replacing its reasoning.
 ```bash
 git add docs/superpowers
 git commit -m "docs(#84): the drawings catch up with the week's own search"
+```
+
+---
+
+### Task 9: The unpin control takes its colour on hover
+
+**Covers:** a change the owner asked for on 2026-09-10, folded into this ticket on their instruction
+rather than kept as #142.
+
+**Files:**
+- Modify: `web/src/components/that-ticket-row.ts` (`paintPinned`)
+- Modify: `docs/superpowers/prototypes/2026-09-03-app-prototype.html`
+- Test: `.claude/e2e/tests/pins.spec.ts`
+
+**What is there now.** `paintPinned` toggles `text-primary` on the trigger whenever the row is
+pinned, so a pinned row's control is coloured at rest. The prototype draws the same thing:
+`.iconbtn.on { color: var(--pri); }`.
+
+**What it becomes.** The control sits at the same ink as an unpinned row's, and takes the primary
+colour on hover — and on `focus-visible`, which shares the hover rule everywhere else in this app.
+The mark still changes shape between the two states, `pin` against `pin-off`, so pinned is still
+legible at rest.
+
+**This changes the drawing rather than correcting a drift**, so the prototype's rule moves with the
+app. The instance list already has the behaviour being asked for here — `ul.inst .iconbtn:hover
+{ color: var(--pri); }` — so the two end up saying the same thing; state it once if that reads
+better in context.
+
+- [ ] **Step 1: Write the failing assertion**
+
+In `.claude/e2e/tests/pins.spec.ts`: a pinned row's control carries the muted ink at rest and the
+primary colour on hover. Assert the computed colour both ways, the way the rail's tests do with
+`computedColor`; asserting the class alone would pass against a stylesheet that no longer paints it.
+
+- [ ] **Step 2: Run it and watch it fail**
+- [ ] **Step 3: Make the change, in the app and in the prototype**
+- [ ] **Step 4: Run both gates**
+
+**In your report, say what the two states look like side by side at rest**, with the colour gone. The
+owner has not seen it yet, and the open question is whether `pin` and `pin-off` are distinct enough
+at 18px without the colour to carry it alone. If they are not, that is a finding for the owner, not a
+reason to put the colour back.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add web/src/components/that-ticket-row.ts docs/superpowers/prototypes .claude/e2e/tests/pins.spec.ts
+git commit -m "feat(#84): the unpin control takes its colour on hover, not at rest"
 ```
 
 ---
