@@ -1,7 +1,6 @@
 import "../components/that-alert";
 import "../components/that-button";
 import "../components/that-card";
-import "../components/that-combobox";
 import "../components/that-issue-search";
 import "../components/that-table";
 import "../components/that-ticket-row";
@@ -16,7 +15,6 @@ import {
   listPins,
   searchIssues,
 } from "../api";
-import type { ThatCombobox } from "../components/that-combobox";
 import type { EntryTicket } from "../components/that-entry-dialog";
 import { openEntryDialog } from "../components/that-entry-dialog";
 import type { IssueSearchConfig, ThatIssueSearch } from "../components/that-issue-search";
@@ -61,7 +59,6 @@ interface Regions {
   layoutGrid: HTMLElement;
   pinnedSection: HTMLElement;
   pinnedList: HTMLElement;
-  pinnedForm: HTMLElement;
   /** "Logged today, not on your list" — entries against an issue that is
    *  neither assigned nor pinned, so it has no row anywhere else. */
   offListSection: HTMLElement;
@@ -199,12 +196,9 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   const pinnedList = document.createElement("div");
   pinnedList.append(cardHolding(loadingLine()));
 
-  const pinnedForm = document.createElement("div");
-  pinnedForm.className = "mt-3";
-
   const pinnedSection = document.createElement("section");
   pinnedSection.setAttribute("aria-labelledby", PINNED_HEADING_ID);
-  pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID).box, pinnedList, pinnedForm);
+  pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID).box, pinnedList);
 
   const offListSection = document.createElement("section");
   offListSection.setAttribute("aria-labelledby", OFFLIST_HEADING_ID);
@@ -276,7 +270,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     layoutGrid,
     pinnedSection,
     pinnedList,
-    pinnedForm,
     offListSection,
     assignedSection,
     refresh,
@@ -468,21 +461,10 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
     regions.pins = pins;
     regions.pinsCachedAt = cachedAt;
     renderPinnedList(regions, regions.pins);
-    // Gated: replacing pinnedForm's children here would tear down an
-    // in-progress search the moment Refresh's shared call reaches this branch
-    // — the same class of bug #29 paid to fix in Settings.
-    restorePinOpenerUnlessFormOpen(regions);
   } catch (error) {
     regions.pins = [];
     regions.pinsCachedAt = null;
     regions.pinnedList.replaceChildren(alertFor("error", messageOf(error)));
-    // Same gate as the success branch above: a failing refresh must not wipe
-    // an open form either. Unlike the success branch, a closed form stays
-    // closed rather than gaining a "Pin an issue" button — with the current
-    // pin list unknown, offering to pin is not a promise this can keep.
-    if (!formIsOpen(regions)) {
-      regions.pinnedForm.replaceChildren();
-    }
   }
 
   renderCombinedStale(regions);
@@ -498,12 +480,6 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
     // still has to leave the off-list section the moment the pin lands.
     renderOffListSection(regions);
   }
-
-  // A pin form may already be open (e.g. this refresh followed a successful
-  // pin); its combobox must learn about the newly current pins rather than
-  // keep offering one that is now a duplicate.
-  const combobox = regions.pinnedForm.querySelector("that-combobox") as ThatCombobox | null;
-  combobox?.setDisabledKeys(pinnedKeysOf(regions));
 }
 
 function renderPinnedList(regions: Regions, pins: Pin[]): void {
@@ -807,102 +783,9 @@ function undoOptimisticMark(regions: Regions, error: unknown): void {
   regions.pinnedList.prepend(alertFor("error", messageOf(error)));
 }
 
-/** True while the pin form (its combobox) is on screen — the condition both
- *  refreshPins branches must not disturb mid-typing. */
-function formIsOpen(regions: Regions): boolean {
-  return regions.pinnedForm.querySelector("that-combobox") !== null;
-}
-
-/** Called after every listPins(), including the shared Refresh's, so it must
- *  not disturb a form the user is still typing into. A deliberate close
- *  (Cancel, Escape, a completed pin) goes through renderPinOpener directly
- *  instead of this gate. */
-function restorePinOpenerUnlessFormOpen(regions: Regions): void {
-  if (formIsOpen(regions)) return;
-
-  renderPinOpener(regions);
-}
-
-function renderPinOpener(regions: Regions): void {
-  const open = button("Pin an issue", "secondary");
-  open.addEventListener("click", () => {
-    showPinForm(regions);
-  });
-  regions.pinnedForm.className = "mt-3 border-t border-edge pt-3";
-  regions.pinnedForm.replaceChildren(open);
-}
-
-function showPinForm(regions: Regions): void {
-  const combobox = document.createElement("that-combobox") as ThatCombobox;
-  combobox.setAttribute("label", "Find an issue");
-  combobox.setAttribute("placeholder", "Search by key or title");
-
-  const alertSlot = document.createElement("div");
-  const actions = document.createElement("div");
-  actions.className = "flex gap-2";
-  const cancel = button("Cancel", "secondary");
-  actions.append(cancel);
-
-  regions.pinnedForm.className = "mt-3 space-y-3 border-t border-edge pt-3";
-  regions.pinnedForm.replaceChildren(combobox, alertSlot, actions);
-
-  // Set after insertion: connectedCallback builds the input, so there is nothing
-  // to focus before it runs.
-  combobox.focusInput();
-  combobox.setDisabledKeys(pinnedKeysOf(regions));
-
-  // One controller per form, replaced on each keystroke pause. Without this a
-  // slow first search can land after a fast second one and paint over it.
-  let inFlight: AbortController | undefined;
-
-  combobox.addEventListener("that-search", (event) => {
-    const query = (event as CustomEvent<string>).detail;
-    inFlight?.abort();
-    const controller = new AbortController();
-    inFlight = controller;
-
-    void searchIssues(query, controller.signal)
-      .then((response) => {
-        combobox.setResults(response.results, response.errors);
-      })
-      .catch((error: unknown) => {
-        // An abort is this code's own doing, not a failure to report.
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        combobox.setResults([], []);
-        alertSlot.replaceChildren(alertFor("error", messageOf(error)));
-      });
-  });
-
-  combobox.addEventListener("that-select", (event) => {
-    const hit = (event as CustomEvent<IssueHit>).detail;
-    inFlight?.abort();
-    alertSlot.replaceChildren();
-    combobox.setBusy(true);
-
-    void createPin(hit.instanceId, hit.key)
-      .then(async () => {
-        renderPinOpener(regions);
-        await refreshPins(regions);
-      })
-      .catch((error: unknown) => {
-        combobox.setBusy(false);
-        alertSlot.replaceChildren(alertFor("error", messageOf(error)));
-      });
-  });
-
-  combobox.addEventListener("that-cancel", () => {
-    inFlight?.abort();
-    renderPinOpener(regions);
-  });
-
-  cancel.addEventListener("click", () => {
-    inFlight?.abort();
-    renderPinOpener(regions);
-  });
-}
-
-/** The keys the combobox must refuse, so a duplicate is visible rather than a
- *  rejection the user only meets after choosing. */
+/** The pinned (instanceId, key) pairs, keyed the same way offListIssues'
+ *  dedupe reads them — so a pinned issue's entries stop counting as off-list
+ *  the moment the pin lands. */
 function pinnedKeysOf(regions: Regions): Set<string> {
   return new Set(currentPins(regions).map((pin) => `${pin.instanceId}:${pin.key}`));
 }
@@ -1128,10 +1011,10 @@ function noInstances(): HTMLElement {
   return wrapper;
 }
 
-// button, alertFor and messageOf are deliberate duplicates of the same three
-// helpers in views/settings.ts. Extracting them into a shared module is the
-// right end state, but it means editing settings.ts, which is outside this
-// ticket's scope. Worth its own ticket.
+// alertFor and messageOf are deliberate duplicates of the same two helpers in
+// views/settings.ts. Extracting them into a shared module is the right end
+// state, but it means editing settings.ts, which is outside this ticket's
+// scope. Worth its own ticket.
 
 /** The raised surface a message sits on where a table would otherwise be. */
 function cardHolding(node: Node): HTMLElement {
@@ -1139,16 +1022,6 @@ function cardHolding(node: Node): HTMLElement {
   card.append(node);
 
   return card;
-}
-
-function button(label: string, variant: string): HTMLElement {
-  const element = document.createElement("that-button");
-  // label is the sole source of the inner button's accessible name; without it
-  // role-based queries cannot find the button at all.
-  element.setAttribute("label", label);
-  element.setAttribute("variant", variant);
-
-  return element;
 }
 
 function alertFor(tone: string, message: string): HTMLElement {
