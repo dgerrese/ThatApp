@@ -34,6 +34,20 @@ import { toolbarButton } from "../toolbar-button";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
+ * What an off-list row needs beyond what `Entry` already carries. Resolved
+ * either from the search hit that created the entry (no request) or from
+ * `GET /api/issues/search?q=<key>` on a cold load — see the design's
+ * "Where the off-list row's summary comes from" subsection under decision 2.
+ * `null` is a settled answer too: the lookup ran and found nothing, which
+ * must not read as "still loading" forever after.
+ */
+interface OffListInfo {
+  summary: string;
+  status: string;
+  url: string;
+}
+
+/**
  * The regions that outlive a fetch, plus the two caches (pins, the last issues
  * response) needed to re-render them without a new request. All of it is
  * threaded through this object rather than held at module scope: router.ts
@@ -66,6 +80,20 @@ interface Regions {
    *  renderOffListSection needs to know which issues they belong to, not only
    *  how long. */
   entries: Entry[];
+  /** Settled per distinct off-list issue — present (object or null) once
+   *  resolved, absent while unknown. Populated two ways: directly from a
+   *  search hit at the moment it is logged (no request), or from
+   *  fetchOffListInfo on a cold load. Never cleared: an issue that leaves the
+   *  section (pinned, or its entries gone) and comes back within the same
+   *  session should not pay for the lookup twice. */
+  offListInfo: Map<string, OffListInfo | null>;
+  /** Ids currently being looked up, so renderOffListSection's repeated calls
+   *  (one per pins/entries/assigned refresh) fire the request once per issue
+   *  rather than once per call. */
+  offListPending: Set<string>;
+  /** Aborts every in-flight offListInfo lookup on teardown, so a slow
+   *  response cannot repaint a view the router has already left. */
+  offListSignal: AbortSignal;
   pinsCachedAt: Date | null;
   issuesCachedAt: Date | null;
   /** Today's logged seconds per row, keyed by instance and issue. */
@@ -100,8 +128,18 @@ function ticketFromHit(hit: IssueHit): EntryTicket {
  * `container` — the listeners registered on it in render() do not care which
  * of the two raised them, so logging or pinning from a result reuses that
  * wiring rather than repeating it.
+ *
+ * `offListInfo` is the same Map `regions` ends up holding — passed in here
+ * rather than waiting for `regions` to exist, because `search.config` has to
+ * be set before the element connects (see render()). The duration control
+ * writes straight into it: "the summary travels with the selection" from the
+ * design's 2026-09-10 addendum to decision 2, so a row built from this entry
+ * never has to ask for what a click already told it.
  */
-function issueSearchConfig(container: HTMLElement): IssueSearchConfig {
+function issueSearchConfig(
+  container: HTMLElement,
+  offListInfo: Map<string, OffListInfo | null>,
+): IssueSearchConfig {
   return {
     placeholder: "Search all instances",
     footer:
@@ -113,6 +151,11 @@ function issueSearchConfig(container: HTMLElement): IssueSearchConfig {
         kind: "duration",
         label: (hit) => `Log time against ${hit.key}`,
         onPress: (hit) => {
+          offListInfo.set(totalKey(hit.instanceId, hit.key), {
+            summary: hit.summary,
+            status: hit.status,
+            url: hit.url,
+          });
           container.dispatchEvent(
             new CustomEvent<EntryTicket>(LOG_TIME, { detail: ticketFromHit(hit) }),
           );
@@ -197,9 +240,22 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   const searchWrap = document.createElement("span");
   searchWrap.className = "ml-auto";
   const search = document.createElement("that-issue-search") as ThatIssueSearch;
-  search.config = issueSearchConfig(container);
+  // Declared here rather than read off regions: that-issue-search upgrades
+  // (and reads config) the moment it connects below, which is before regions
+  // exists. The same Map becomes regions.offListInfo further down — sharing
+  // the reference is what lets a search-logged row skip the lookup.
+  const offListInfo = new Map<string, OffListInfo | null>();
+  search.config = issueSearchConfig(container, offListInfo);
   searchWrap.append(search);
   header.append(searchWrap);
+
+  // One controller for every off-list lookup this view starts, aborted on
+  // teardown so a response arriving after a navigation away cannot repaint a
+  // view the router has already left.
+  const offListAbort = new AbortController();
+  registerTeardown(() => {
+    offListAbort.abort();
+  });
 
   const results = document.createElement("div");
   // One card across, two from the point the content column can hold two
@@ -230,6 +286,9 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     pins: [],
     lastIssues: null,
     entries: [],
+    offListInfo,
+    offListPending: new Set(),
+    offListSignal: offListAbort.signal,
     pinsCachedAt: null,
     issuesCachedAt: null,
     totals: new Map(),
@@ -523,11 +582,9 @@ interface OffListIssue {
  * three independent reads (entries, the assigned response, pins) can be what
  * moves an issue in or out of it.
  *
- * `Entry` carries no summary, status or url — the entries table logs time
- * against an issue, not a cache of it — so a row built from this can only
- * ever be as complete as `that-ticket-row` is with those three attributes
- * unset. That is a real gap against the design's "same table shape as the
- * cards below", worth the owner's attention; see the task report.
+ * `Entry` itself carries no summary, status or url — the entries table logs
+ * time against an issue, not a cache of it — so those three come from
+ * regions.offListInfo instead; see renderOffListSection and fetchOffListInfo.
  */
 function offListIssues(regions: Regions): OffListIssue[] {
   const assignedKeys = new Set<string>();
@@ -562,6 +619,12 @@ function offListIssues(regions: Regions): OffListIssue[] {
  * behind decision 2's "nothing at all" empty state. Always appended after
  * pinnedSection, which is layoutGrid's one permanent child, so the section
  * lands in the grid's second (right-hand) cell whenever it shows anything.
+ *
+ * Kicks off one lookup per issue this call finds neither resolved nor already
+ * in flight, before building a single row — separated into its own pass so
+ * that two issues newly appearing in the same call both get marked pending
+ * before either's request actually starts, rather than racing each other
+ * through renderOffListSection's own later, unrelated calls.
  */
 function renderOffListSection(regions: Regions): void {
   const issues = offListIssues(regions);
@@ -572,9 +635,20 @@ function renderOffListSection(regions: Regions): void {
     return;
   }
 
+  for (const issue of issues) {
+    const id = totalKey(issue.instanceId, issue.issueKey);
+    if (regions.offListInfo.has(id) || regions.offListPending.has(id)) continue;
+
+    regions.offListPending.add(id);
+    void fetchOffListInfo(regions, issue, id);
+  }
+
   const table = document.createElement("that-table") as ThatTable;
   for (const issue of issues) {
-    table.body.append(offListRow(issue));
+    const id = totalKey(issue.instanceId, issue.issueKey);
+    table.body.append(
+      offListRow(issue, regions.offListInfo.get(id), regions.offListPending.has(id)),
+    );
   }
   regions.offListSection.replaceChildren(
     pageHeading("Logged today, not on your list", OFFLIST_HEADING_ID).box,
@@ -591,7 +665,45 @@ function renderOffListSection(regions: Regions): void {
   paintTotals(regions);
 }
 
-function offListRow(issue: OffListIssue): HTMLElement {
+/**
+ * The one request an off-list row can cost — see the design's "Where the
+ * off-list row's summary comes from" subsection. `q=<key>` is a key-shaped
+ * query, which the server already resolves as an exact lookup rather than a
+ * text search (internal/server/issue_search.go), so this asks for exactly
+ * the one issue rather than searching for it.
+ *
+ * A miss (the instance gone, the issue deleted, whatever `.find` cannot
+ * match) settles as `null` rather than being left unresolved — the point is
+ * to stop asking, not to keep retrying an issue that will never answer.
+ */
+async function fetchOffListInfo(regions: Regions, issue: OffListIssue, id: string): Promise<void> {
+  let resolved: OffListInfo | null;
+  try {
+    const { results } = await searchIssues(issue.issueKey, regions.offListSignal);
+    const hit = results.find(
+      (candidate) => candidate.instanceId === issue.instanceId && candidate.key === issue.issueKey,
+    );
+    resolved = hit ? { summary: hit.summary, status: hit.status, url: hit.url } : null;
+  } catch (error) {
+    // Teardown, not a failure to report — the view this would repaint is
+    // already gone, and regions.offListPending is about to go with it.
+    if (error instanceof DOMException && error.name === "AbortError") return;
+    resolved = null;
+  }
+
+  regions.offListInfo.set(id, resolved);
+  regions.offListPending.delete(id);
+  renderOffListSection(regions);
+}
+
+/**
+ * `info` filled in once resolved; `pending` true while the lookup that will
+ * fill it is still in flight. A pending row still names its key and still
+ * carries its controls — only Summary says "Loading…", so it never reads as
+ * an issue that simply has no summary (a settled, resolved-to-nothing row
+ * looks exactly like that instead, which is the correct terminal state).
+ */
+function offListRow(issue: OffListIssue, info: OffListInfo | null | undefined, pending: boolean): HTMLElement {
   const row = document.createElement("that-ticket-row");
   row.setAttribute("key", issue.issueKey);
   row.setAttribute("instance-id", String(issue.instanceId));
@@ -600,6 +712,14 @@ function offListRow(issue: OffListIssue): HTMLElement {
   // instance, so its key cell carries the same dot Pinned's does — see
   // that-ticket-row's keyContent.
   row.setAttribute("instance-position", String(issue.instancePosition));
+
+  if (info) {
+    row.setAttribute("summary", info.summary);
+    row.setAttribute("status", info.status);
+    row.setAttribute("url", info.url);
+  } else if (pending) {
+    row.setAttribute("summary", "Loading…");
+  }
 
   return row;
 }

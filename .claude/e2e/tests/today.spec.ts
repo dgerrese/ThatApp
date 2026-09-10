@@ -815,3 +815,148 @@ test("Pinned and the off-list section stack on a narrow screen, and sit side by 
     .poll(async () => sideBySide(await pinned.boundingBox(), await offList.boundingBox()))
     .toBe(true);
 });
+
+// Design addendum settled 2026-09-10, under decision 2: "Where the off-list
+// row's summary comes from." Entries carry no summary/status/url of their
+// own, so the section either gets them for free from the search hit that
+// created the entry, or asks GET /api/issues/search?q=<key> for them.
+async function stubEntriesRoundTrip(page: Page): Promise<{ created: () => Record<string, unknown>[] }> {
+  const created: Record<string, unknown>[] = [];
+  await page.route("**/api/entries**", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fulfill({ status: 200, json: { today: "2026-09-09", entries: created } });
+      return;
+    }
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    const entry = {
+      id: 900 + created.length,
+      instanceId: body["instanceId"],
+      instanceName: "Work",
+      instancePosition: 0,
+      issueKey: body["issueKey"],
+      day: "2026-09-09",
+      startedAt: "2026-09-09T09:15:00+02:00",
+      seconds: body["seconds"],
+      comment: body["comment"] ?? "",
+      pushState: "unpushed",
+    };
+    created.push(entry);
+    await route.fulfill({ status: 201, json: entry });
+  });
+  return { created: () => created };
+}
+
+/**
+ * "The summary travels with the selection" — logging from a search result
+ * hands the row what the click already knew, with no request of its own. A
+ * test that only checked the row's content would pass even if this fetched
+ * every time it rendered, so this counts /api/issues/search calls too, not
+ * just what ends up on screen.
+ */
+test("logging from a search result fills the off-list row with no lookup", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, []);
+  const entries = await stubEntriesRoundTrip(page);
+
+  let calls = 0;
+  await page.route("**/api/issues/search**", async (route) => {
+    calls += 1;
+    await route.fulfill({
+      status: 200,
+      json: {
+        results: [
+          {
+            instanceId: 1,
+            instanceName: "Work",
+            instancePosition: 0,
+            key: "WORK-777",
+            summary: "Roll the on-call schedule forward",
+            status: "To Do",
+            url: "https://work.atlassian.net/browse/WORK-777",
+          },
+        ],
+        errors: [],
+      },
+    });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("textbox", { name: "Search all instances" }).fill("on-call");
+  await expect(page.getByText("WORK-777")).toBeVisible();
+
+  await page.getByRole("button", { name: "Log time against WORK-777", exact: true }).click();
+
+  const dialog = page.locator("that-entry-dialog dialog");
+  await dialog.getByLabel("Duration").fill("15");
+  await dialog.getByLabel("Duration").press("Enter");
+  await dialog.getByRole("button", { name: "Add entry" }).click();
+
+  await expect.poll(() => entries.created().length).toBe(1);
+
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("Roll the on-call schedule forward")).toBeVisible();
+  await expect(offList.getByText("To Do")).toBeVisible();
+  await expect(offList.getByRole("link", { name: "WORK-777" })).toHaveAttribute(
+    "href",
+    "https://work.atlassian.net/browse/WORK-777",
+  );
+
+  // Exactly the one call the typed search itself made — logging adds none.
+  expect(calls).toBe(1);
+});
+
+/**
+ * "A reload fetches": a cold load has only the entry's key, so the section
+ * asks for it. Gated so the request stays outstanding across the several
+ * render passes a fresh mount makes (pins, totals and the assigned response
+ * each trigger one) — proving the lookup runs once per distinct issue rather
+ * than once per repaint, and that a still-loading row reads as loading
+ * rather than as an issue that simply has no summary.
+ */
+test("a cold reload looks up an off-list issue once, and shows it loading rather than blank", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, []);
+  await stubEntries(page, [offListEntry("WORK-777")]);
+
+  let calls = 0;
+  let releaseSearch: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    releaseSearch = resolve;
+  });
+  await page.route("**/api/issues/search**", async (route) => {
+    calls += 1;
+    await gate;
+    await route.fulfill({
+      status: 200,
+      json: {
+        results: [
+          {
+            instanceId: 1,
+            instanceName: "Work",
+            instancePosition: 0,
+            key: "WORK-777",
+            summary: "Roll the on-call schedule forward",
+            status: "To Do",
+            url: "https://work.atlassian.net/browse/WORK-777",
+          },
+        ],
+        errors: [],
+      },
+    });
+  });
+
+  await page.goto("/today");
+
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("WORK-777")).toBeVisible();
+  await expect(offList.getByText("Loading…")).toBeVisible();
+
+  releaseSearch?.();
+
+  await expect(offList.getByText("Roll the on-call schedule forward")).toBeVisible();
+  await expect(offList.getByText("To Do")).toBeVisible();
+  // One lookup despite several render passes racing to be first to ask.
+  expect(calls).toBe(1);
+});

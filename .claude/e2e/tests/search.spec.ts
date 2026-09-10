@@ -121,6 +121,13 @@ test.describe("that-issue-search on Today", () => {
   test.beforeEach(async ({ page }) => {
     await stubPins(page, []);
     await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    // The off-list section (#84's own decision 2 addendum) now reads today's
+    // entries on every mount and looks up any that are neither assigned nor
+    // pinned — which, against the shared dev database this e2e stack points
+    // at, could be any stray entry left over from other use. Left unstubbed,
+    // that lookup is a real /api/issues/search call this describe block's
+    // own request-count assertions never budgeted for.
+    await stubEntries(page);
   });
 
   test("the field sits in the Assigned issues header beside Refresh", async ({ page }) => {
