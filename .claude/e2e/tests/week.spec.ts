@@ -1895,6 +1895,15 @@ test.describe("Week's own search", () => {
         return;
       }
 
+      if (request.method() === "DELETE") {
+        const id = Number(request.url().split("/").pop());
+        const index = entries.findIndex((each) => each.id === id);
+        if (index >= 0) entries.splice(index, 1);
+        await route.fulfill({ status: 204, body: "" });
+
+        return;
+      }
+
       await route.fulfill({ status: 200, json: { today: THIS_WEEK, entries } });
     });
 
@@ -1951,6 +1960,38 @@ test.describe("Week's own search", () => {
       "1h 00m",
     );
 
+    // Delete that same entry, with no navigation anywhere near it. Decision
+    // 3's settled rule is "an add lasts until you leave the view" — not
+    // until its last entry is gone — so the row this search deliberately
+    // added must still be here, empty again, ready for the right day. The
+    // old, superseded rule (drop the key the moment an entry existed) would
+    // have let the rollup's own read carry this row for exactly as long as
+    // the entry lived, then lose it the instant this delete lands — this is
+    // the assertion that tells the two apart.
+    await ticketRow(page, "RIDGE-9001").locator("td").nth(2).locator("button").click();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Delete the 09:00 entry" }).click();
+    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(ticketRow(page, "RIDGE-9001").locator("td")).toHaveText(
+      ["—", "—", "—", "—", "—", "—", "—", "—"],
+      { useInnerText: true },
+    );
+
+    // Log the hour again, into the right day this time, so the row still
+    // carries real time to survive the navigation below on its own account.
+    await ticketRow(page, "RIDGE-9001").locator("td").nth(2).locator("button").click();
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("Duration").fill("60");
+    await dialog.getByLabel("Duration").press("Enter");
+    await dialog.getByRole("button", { name: "Add entry" }).click();
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(ticketRow(page, "RIDGE-9001").locator("td").nth(2).locator("button")).toContainText(
+      "1h 00m",
+    );
+
     // Add a second ticket and leave it exactly as added: nothing logged.
     await weekSearchField(page).fill("ridge");
     await weekSearchResultRow(page, "RIDGE-9002")
@@ -1971,5 +2012,81 @@ test.describe("Week's own search", () => {
       "1h 00m",
     );
     await expect(page.locator("tbody tr", { hasText: "RIDGE-9002" })).toHaveCount(0);
+  });
+
+  test("the pin control posts to /api/pins with the chosen ticket, and a failure reports below the grid", async ({
+    page,
+  }) => {
+    await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
+    await page.route("**/api/issues/search**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: {
+          results: [
+            searchHit("RIDGE-9001", "Draft the onboarding checklist"),
+            searchHit("RIDGE-9002", "Refresh the runbook diagrams"),
+          ],
+          errors: [],
+        },
+      }),
+    );
+
+    // Week's pin control calls createPin directly — a different path from
+    // Today's PIN-event dispatch — so this stub is what proves it reaches
+    // the right endpoint with the right arguments, not just that a click
+    // does something.
+    const posted: Record<string, unknown>[] = [];
+    let refuseNext = false;
+    await page.route("**/api/pins", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+
+      if (refuseNext) {
+        await route.fulfill({
+          status: 409,
+          json: { code: "pin_exists", message: "that issue is already pinned on this instance" },
+        });
+
+        return;
+      }
+
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      posted.push(body);
+      await route.fulfill({
+        status: 201,
+        json: {
+          id: 5,
+          instanceId: body["instanceId"],
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          key: body["issueKey"],
+          summary: "Draft the onboarding checklist",
+          status: "To Do",
+          url: `${siteOf(1)}/browse/${String(body["issueKey"])}`,
+          error: null,
+        },
+      });
+    });
+
+    await page.goto("/week");
+    await weekSearchField(page).fill("ridge");
+    await weekSearchResultRow(page, "RIDGE-9001")
+      .getByRole("button", { name: "Pin RIDGE-9001", exact: true })
+      .click();
+
+    await expect.poll(() => posted.length).toBe(1);
+    expect(posted[0]).toMatchObject({ instanceId: 1, issueKey: "RIDGE-9001" });
+    // Week draws no pin mark of its own (decision 1: a pinned row and a
+    // searched one are indistinguishable), so a successful pin has nothing
+    // else on screen to show for it — no alert is the whole of the proof.
+    await expect(page.locator("that-alert[tone='error']")).toHaveCount(0);
+
+    refuseNext = true;
+    await weekSearchResultRow(page, "RIDGE-9002")
+      .getByRole("button", { name: "Pin RIDGE-9002", exact: true })
+      .click();
+
+    await expect(page.locator("that-alert[tone='error']")).toContainText(
+      "that issue is already pinned on this instance",
+    );
   });
 });

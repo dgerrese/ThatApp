@@ -94,21 +94,22 @@ function compareRows(a: WeekRow, b: WeekRow): number {
 
 /**
  * The rollup's own rows, plus a synthetic one for every ticket added by
- * search that the rollup does not already carry for real. `added` is mutated
- * here, not just read: a key the rollup now backs with real entries is
- * dropped from it on the spot. Without that, an added ticket whose entries
- * were later deleted would still be in `added` on the next call and would be
- * resurrected as an empty row — exactly the "re-added on every paint" the
- * design rules out. Once dropped, the row's survival is the rollup's job.
+ * search that the rollup does not already carry for real. Pure — `added` is
+ * only read. Decision 3's second, simpler pass: an add lasts until the view
+ * is left, full stop, so nothing here ever drops a key. A ticket the rollup
+ * already carries is skipped rather than duplicated; once its last entry is
+ * deleted, the very next read finds it missing from `rows` again and this
+ * puts the (still-tracked) empty row straight back, with no promotion or
+ * pruning to have gotten wrong in between.
  */
 function mergeRows(rows: WeekRow[], added: Map<string, AddedRow>): WeekRow[] {
   const known = new Set(rows.map((row) => ticketKey(row.instanceId, row.issueKey)));
-  for (const key of added.keys()) {
-    if (known.has(key)) added.delete(key);
-  }
-  if (added.size === 0) return rows;
+  const extra = [...added.values()].filter(
+    (ticket) => !known.has(ticketKey(ticket.instanceId, ticket.issueKey)),
+  );
+  if (extra.length === 0) return rows;
 
-  return [...rows, ...[...added.values()].map(syntheticRow)].sort(compareRows);
+  return [...rows, ...extra.map(syntheticRow)].sort(compareRows);
 }
 
 /**
@@ -302,42 +303,45 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // painted nothing yet to compare against.
   let painted: { rollup: string; failures: string } | null = null;
 
-  // Decision 3's transient row. It lives here and nowhere else: not stored,
-  // not pinned, not sent anywhere — a key search added, held only for this
-  // mount. `mergeRows` reads it on every paint and drops a key the moment a
-  // real read backs it with entries, so once time is logged the row survives
-  // because the rollup carries it, not because this remembers it. A fresh
-  // mount (this view's own teardown-and-remount included, which covers
-  // moving between weeks) starts a new, empty map — the row dies with the
-  // view exactly because nothing here outlives it.
+  // Decision 3, second and settled pass: an add lasts until the view is
+  // left, full stop. The key stays here for the life of this mount — nothing
+  // ever drops one, and mergeRows puts the row back the moment the rollup no
+  // longer carries it for real, which is what covers "log an hour, notice
+  // it was the wrong day, delete the entry" without the row evaporating.
+  // Not stored, not pinned, not sent anywhere. A fresh mount — including
+  // this view's own teardown-and-remount on every navigation, confirmed in
+  // router.ts, moving between weeks included — starts a new, empty map,
+  // which is the whole of "dies with the view".
   const addedTickets = new Map<string, AddedRow>();
 
-  // What `paintWeek` last built from, kept so the add-to-week control can
+  // What paintWeek last built from, kept so the add-to-week control can
   // repaint immediately without a read of its own — choosing a result logs
   // nothing and calls no endpoint, so there is nothing for it to await.
   let lastRollup: WeekRollup | null = null;
   let lastMarked: Failures = noFailures();
 
-  /**
-   * The one place `rollup.rows` becomes what the grid actually shows — real
-   * rows merged with whatever search has added — used both by a genuine read
-   * below and directly by the add-to-week control, which has no read to
-   * trigger one from. Records what it painted the same way the inline block
-   * it replaces did, so `show` can still skip an identical repaint.
-   */
-  function paintWeek(rollup: WeekRollup, marked: Failures): void {
-    const painting: WeekRollup = { ...rollup, rows: mergeRows(rollup.rows, addedTickets) };
-    label.textContent = periodLabel(rollup);
-    controls.replaceChildren(...weekControls(rollup));
+  /** `rollup.rows` merged with whatever search has added — see `mergeRows`.
+   *  Both a genuine read and the add-to-week control need this same object,
+   *  once to compare against `painted` and once to hand `paintWeek`, so it
+   *  is built here rather than each repeating its own merge-and-stringify. */
+  function paintingFor(rollup: WeekRollup): WeekRollup {
+    return { ...rollup, rows: mergeRows(rollup.rows, addedTickets) };
+  }
+
+  /** Paints an already-merged rollup — see `paintingFor`. Used by a genuine
+   *  read below and directly by the add-to-week control, which has no read
+   *  of its own to trigger one from. */
+  function paintWeek(painting: WeekRollup, marked: Failures): void {
+    label.textContent = periodLabel(painting);
+    controls.replaceChildren(...weekControls(painting));
     grid.replaceChildren(
       painting.rows.length === 0 ? emptyWeek() : gridCard(gridTable(painting, marked, root)),
     );
-    painted = { rollup: JSON.stringify(painting), failures: failuresKey(marked) };
   }
 
   /** The add-to-week control's own onPress: holds the key, then repaints
-   *  from the last real rollup. A key already tracked, or already a real row,
-   *  is left alone rather than reset — mergeRows is what drops a stale one. */
+   *  from the last real rollup. A key already tracked is left alone —
+   *  `mergeRows` is what keeps the grid honest regardless. */
   function addTicketToWeek(hit: IssueHit): void {
     const key = ticketKey(hit.instanceId, hit.key);
     if (!addedTickets.has(key)) {
@@ -349,7 +353,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
         url: hit.url,
       });
     }
-    if (lastRollup) paintWeek(lastRollup, lastMarked);
+    if (!lastRollup) return;
+
+    const painting = paintingFor(lastRollup);
+    paintWeek(painting, lastMarked);
+    painted = { rollup: JSON.stringify(painting), failures: failuresKey(lastMarked) };
   }
 
   /** Week draws no pin mark of its own (decision 1: a pinned row and a
@@ -414,12 +422,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     lastRollup = rollup;
     lastMarked = marked;
 
-    const signature = {
-      rollup: JSON.stringify({ ...rollup, rows: mergeRows(rollup.rows, addedTickets) }),
-      failures: failuresKey(marked),
-    };
+    const painting = paintingFor(rollup);
+    const signature = { rollup: JSON.stringify(painting), failures: failuresKey(marked) };
     if (painted === null || painted.rollup !== signature.rollup || painted.failures !== signature.failures) {
-      paintWeek(rollup, marked);
+      painted = signature;
+      paintWeek(painting, marked);
     }
     // There is a week on screen to read again now. Guarded on `busy` because
     // both the fetch and the refresh end by calling show() themselves, and
