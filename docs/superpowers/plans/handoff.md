@@ -1396,6 +1396,18 @@ linted or run. The work was recoverable both times, and the successor was told t
 to check rather than as correct, which is the only safe reading. Since then every dispatch asks for
 small steps with each edit confirmed before the next, so a stall costs a file rather than a session.
 
+**The dev stack's Go server never reloads, and a stale one can be *half*-current.** `compose.yaml`
+runs the app as `go run -tags dev ./cmd/server`, which compiles once at container start; the source
+is bind-mounted, so files change underneath a process that will not read them again. The web service
+watches and rebuilds, the app service does not. On 2026-09-10 that produced a reported product bug
+that was nothing of the kind: the server answered the new entries envelope but silently dropped the
+new `day` field on create, because the first change was in the tree when it last started and the
+second was not — and Go's `encoding/json` ignores unknown fields by default. **Restart the app
+container before believing any backend measurement**, the way a hard reload precedes a frontend one.
+The cheap discriminator is a request whose validation order differs between the two builds: an
+impossible `day` with an unknown instance id answers 400 on current code and 404 on anything before
+#105. Raised as intake **#137**.
+
 ## Still open
 
 Resolved bullets were retired from this section on 2026-09-01; what they were worth keeping for is
