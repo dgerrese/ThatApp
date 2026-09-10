@@ -84,15 +84,18 @@ See *What this ticket grew into*.
    sequentially — sequential so the merged report is attributable and deterministically ordered, and
    so a bad week does not fan several days of requests at Jira at once.
 
-   **A dirty day is not pushable, and must not offer a Push.** `handlePushDay` skips every entry
-   whose state is not `unpushed`, marking it `skipped` — re-pushing an edited entry means a `PUT` to
-   its known `worklog_id`, which is #10's whole subject and does not exist yet. So the hollow marker
-   is informational here: it tells the truth about Jira holding a stale copy, and the fix for it
-   lives in #10. Offering a control that issues a request skipping everything it touches would be
-   worse than offering nothing.
+   **A dirty day is pushable, and offers Push, as of #121.** `handlePushDay` skips only entries
+   already `pushed`; a `dirty` one now gets a `PUT` to its known `worklog_id`, updating the worklog
+   Jira already holds. The rule this replaces forbade exactly that — updating a worklog Jira already
+   had was "#10's whole subject and does not exist yet", so skipping everything a Push touched was
+   safer than offering a control that would. That was right when it was written. #10 shipped on
+   2026-09-08 and is that same capability, so it is the rule's precondition that expired, not its
+   reasoning. Nothing about the hollow marker changes: it still tells the truth about Jira holding a
+   stale copy, only Push is now the fix for it rather than a dead end.
 
-   This is also why the rail's warning counts and totals **unpushed** time only. "Has not reached
-   Jira" is false of a dirty entry — it reached Jira, and then changed.
+   This is also where the rail's warning was described wrong rather than out of date: it counts
+   **unpushed and dirty** time — `isPending` in `web/src/rail.ts` — but its total has always summed
+   every entry regardless of push state. Only the count was ever filtered.
 
 9. **The phone is deferred to #13.** A seven-column grid of `Nh Nm` figures does not fit 380px.
    Horizontal scroll was rejected because it puts the week total off-screen, and a rollup you cannot
