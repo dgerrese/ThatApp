@@ -45,7 +45,8 @@ export interface IssueSearchIconControl {
   /** The mark this control draws for a given hit. A function, like `label`
    *  below, rather than a fixed icon: Today's pin control answers `pin-off`
    *  for a hit already pinned, the same pair that-ticket-row's own pin
-   *  control draws — see `active`. Every control that carries no such state
+   *  control draws — the mark alone carries that distinction, at rest, for
+   *  both controls (2026-09-10). Every control that carries no such state
    *  (Week's add-to-week and pin controls included — decision 1 of the
    *  2026-09-10 design keeps Week's pin unmarked) just answers the same icon
    *  for every hit. */
@@ -58,10 +59,6 @@ export interface IssueSearchIconControl {
   label: (hit: IssueHit) => string;
   /** Called with the hit the row is for. */
   onPress: (hit: IssueHit) => void | Promise<void>;
-  /** True when the mark should carry the row's own active paint — the
-   *  `text-primary` that-ticket-row's paintPinned gives a pinned row's own
-   *  control. Omitted by every control with no such state. */
-  active?: (hit: IssueHit) => boolean;
 }
 
 export interface IssueSearchDurationControl {
@@ -320,8 +317,8 @@ export class ThatIssueSearch extends HTMLElement {
    * Redraws the panel's current rows from the results it already has — no
    * new search. A pin or unpin changes what `pinnedKeys` (read live by
    * Today's icon control — see issueSearchConfig) answers for a hit already
-   * on screen, but nothing re-invokes the per-hit `icon`/`tooltip`/`label`/
-   * `active` functions until something rebuilds the row, and a fresh search
+   * on screen, but nothing re-invokes the per-hit `icon`/`tooltip`/`label`
+   * functions until something rebuilds the row, and a fresh search
    * would be a round trip to Jira to reflect a purely local state change.
    * This is that rebuild, using the exact response `showResults` last
    * rendered — a no-op while the panel is closed, mid-search, or showing a
@@ -454,13 +451,13 @@ export class ThatIssueSearch extends HTMLElement {
     button.type = "button";
     button.id = id;
     button.setAttribute("aria-label", control.label(hit));
+    // Same rule as that-ticket-row's own paintPinned (2026-09-10): the
+    // primary colour is a hover/focus-visible state, not a rest one — an
+    // `active` control (pinned) is told apart by its mark, `pin` against
+    // `pin-off`, not by colour at rest.
     button.className =
       "flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-sm " +
-      "text-ink-muted hover:bg-hover hover:text-ink focus-visible:bg-hover focus-visible:text-ink";
-    // Same technique as that-ticket-row's own paintPinned: toggled on top of
-    // the muted class above rather than chosen between two class strings,
-    // which is what already works there for the identical pin/pin-off pair.
-    button.classList.toggle("text-primary", control.active?.(hit) ?? false);
+      "text-ink-muted hover:bg-hover hover:text-primary focus-visible:bg-hover focus-visible:text-primary";
     button.innerHTML = iconMarkup(control.icon(hit));
     button.addEventListener("click", () => {
       void control.onPress(hit);

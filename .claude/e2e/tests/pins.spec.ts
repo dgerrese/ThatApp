@@ -1,5 +1,30 @@
 import { expect, test, type Page } from "@playwright/test";
 
+/**
+ * The colour a Tailwind utility class actually resolves to in this browser,
+ * read off a throwaway probe rather than a literal `oklch()` string here —
+ * see push.spec.ts's own copy of this helper for why: it tracks
+ * web/src/styles.css itself rather than a value that could drift from it.
+ */
+async function computedColor(
+  page: Page,
+  className: string,
+  property: "color" | "backgroundColor",
+): Promise<string> {
+  return page.evaluate(
+    ({ className, property }) => {
+      const probe = document.createElement("span");
+      probe.className = className;
+      document.body.appendChild(probe);
+      const value = getComputedStyle(probe)[property];
+      probe.remove();
+
+      return value;
+    },
+    { className, property },
+  );
+}
+
 // Pinned rows carry #7's duration cell now, and its figure comes from here.
 // Stubbed for the same reason the pin and issue routes are: the e2e stack
 // shares the dev database.
@@ -511,6 +536,39 @@ test.describe("the ticket row's own pin control", () => {
     const tooltip = page.locator("that-table that-tooltip");
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText("unpin ticket");
+  });
+
+  // 2026-09-10: the control used to carry text-primary at rest whenever the
+  // row was pinned. It now takes that colour only on hover or focus — the
+  // mark itself (pin vs pin-off) is what says "pinned" at rest — matching
+  // ul.inst's own iconbtn in the prototype. Asserted on the computed colour,
+  // not the class list: a class survives a stylesheet that stops painting it.
+  test("the pin control's colour is muted at rest and primary on hover, pinned or not", async ({
+    page,
+  }) => {
+    await mountRows(page, [ridge5301]);
+
+    const mutedColor = await computedColor(page, "text-ink-muted", "color");
+    const primaryColor = await computedColor(page, "text-primary", "color");
+
+    const unpinnedControl = page.getByRole("button", { name: "Pin RIDGE-5301", exact: true });
+    await expect(unpinnedControl).toHaveCSS("color", mutedColor);
+    await unpinnedControl.hover();
+    await expect(unpinnedControl).toHaveCSS("color", primaryColor);
+    await unpinnedControl.focus();
+    await expect(unpinnedControl).toHaveCSS("color", primaryColor);
+
+    await unpinnedControl.click();
+
+    const pinnedControl = page.getByRole("button", { name: "Unpin RIDGE-5301", exact: true });
+    // Neither the mouse nor the focus left the control across the click
+    // above — it is both still hovered and still :focus-visible, so both
+    // have to be cleared before its true resting colour can be read.
+    await page.mouse.move(0, 0);
+    await pinnedControl.evaluate((el) => (el as HTMLElement).blur());
+    await expect(pinnedControl).toHaveCSS("color", mutedColor);
+    await pinnedControl.hover();
+    await expect(pinnedControl).toHaveCSS("color", primaryColor);
   });
 
   // A trailing control's centred tooltip hangs past the card — decision 7's

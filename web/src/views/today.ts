@@ -183,7 +183,6 @@ function issueSearchConfig(
         icon: (hit) => (hitIsPinned(hit, pinnedKeys()) ? "pin-off" : "pin"),
         tooltip: (hit) => (hitIsPinned(hit, pinnedKeys()) ? "unpin ticket" : "pin ticket"),
         label: (hit) => (hitIsPinned(hit, pinnedKeys()) ? `Unpin ${hit.key}` : `Pin ${hit.key}`),
-        active: (hit) => hitIsPinned(hit, pinnedKeys()),
         onPress: (hit) => {
           const eventName = hitIsPinned(hit, pinnedKeys()) ? UNPIN : PIN;
           container.dispatchEvent(new CustomEvent<EntryTicket>(eventName, { detail: ticketFromHit(hit) }));

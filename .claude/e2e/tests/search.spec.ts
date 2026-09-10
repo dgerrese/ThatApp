@@ -1,6 +1,31 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
+ * The colour a Tailwind utility class actually resolves to in this browser,
+ * read off a throwaway probe rather than a literal `oklch()` string here —
+ * see push.spec.ts's own copy of this helper for why: it tracks
+ * web/src/styles.css itself rather than a value that could drift from it.
+ */
+async function computedColor(
+  page: Page,
+  className: string,
+  property: "color" | "backgroundColor",
+): Promise<string> {
+  return page.evaluate(
+    ({ className, property }) => {
+      const probe = document.createElement("span");
+      probe.className = className;
+      document.body.appendChild(probe);
+      const value = getComputedStyle(probe)[property];
+      probe.remove();
+
+      return value;
+    },
+    { className, property },
+  );
+}
+
+/**
  * Task 3 (that-issue-search) and Task 4 (Today's use of it) were dispatched
  * as one task — see .superpowers/sdd/2026-09-10-global-search/progress.md's
  * pre-flight ruling — because Task 3's own assertions type into a field only
@@ -585,8 +610,11 @@ test.describe("that-issue-search on Today", () => {
       name: "Unpin RIDGE-5140",
       exact: true,
     });
+    // The filled mark alone says "pinned" now (2026-09-10): the control took
+    // text-primary at rest before that date, but the colour moved to hover
+    // and focus-visible, so the proof here is the crossed-pin role name, not
+    // a class.
     await expect(unpinButton).toBeVisible();
-    await expect(unpinButton).toHaveClass(/text-primary/);
     await expect(
       resultRow(page, "RIDGE-5140").getByRole("button", { name: "Pin RIDGE-5140", exact: true }),
     ).toHaveCount(0);
@@ -598,6 +626,33 @@ test.describe("that-issue-search on Today", () => {
 
     await expect.poll(() => deleteMethod).toBe("DELETE");
     await expect(pinnedCard.getByText("RIDGE-5140")).toHaveCount(0);
+  });
+
+  // 2026-09-10, folded into #84: the panel's own icon control mirrors
+  // that-ticket-row's paintPinned deliberately, so it takes the same
+  // treatment that ticket gave the row's control — muted at rest, primary
+  // only on hover or focus, pinned or not.
+  test("the panel's icon control is muted at rest and primary on hover, pinned or not", async ({
+    page,
+  }) => {
+    await stubSearch(page, [ridge5140]);
+    await stubPins(page, []);
+
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+
+    const mutedColor = await computedColor(page, "text-ink-muted", "color");
+    const primaryColor = await computedColor(page, "text-primary", "color");
+
+    const pinButton = resultRow(page, "RIDGE-5140").getByRole("button", {
+      name: "Pin RIDGE-5140",
+      exact: true,
+    });
+    await expect(pinButton).toHaveCSS("color", mutedColor);
+    await pinButton.hover();
+    await expect(pinButton).toHaveCSS("color", primaryColor);
+    await pinButton.focus();
+    await expect(pinButton).toHaveCSS("color", primaryColor);
   });
 
   // Follow-up to the review above, an hour later: the control unpinning had
@@ -646,9 +701,9 @@ test.describe("that-issue-search on Today", () => {
 
     // Repainted in place: the control itself flips without searchField ever
     // being touched again, and search.calls() proves nothing asked Jira for
-    // it.
+    // it. The mark (role name) is the proof, not a class — see 2026-09-10's
+    // note above on where the colour moved to.
     await expect(pinButton).toBeVisible();
-    await expect(pinButton).not.toHaveClass(/text-primary/);
     await expect(unpinButton).toHaveCount(0);
     expect(search.calls()).toBe(1);
 
@@ -657,7 +712,6 @@ test.describe("that-issue-search on Today", () => {
     // The reverse direction, same guard: pinning repaints the same row back
     // to "Unpin", filled, with still no second search.
     await expect(unpinButton).toBeVisible();
-    await expect(unpinButton).toHaveClass(/text-primary/);
     await expect(pinButton).toHaveCount(0);
     expect(search.calls()).toBe(1);
     expect(pinPosts).toBe(1);

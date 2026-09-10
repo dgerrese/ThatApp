@@ -138,9 +138,9 @@ function weekSearchConfig(
       },
       {
         kind: "icon",
-        // Week draws no pin mark of its own (decision 1: a pinned row and a
-        // searched one are indistinguishable) — no `active`, unlike Today's
-        // own pin control.
+        // Week draws no pin mark of its own — decision 1: a pinned row and a
+        // searched one are indistinguishable here, unlike Today's own pin
+        // control, which answers `pin-off` for a hit already pinned.
         icon: () => "pin",
         tooltip: () => "pin ticket",
         label: (hit) => `Pin ${hit.key}`,
