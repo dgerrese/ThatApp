@@ -167,7 +167,7 @@ func TestSearchTextSendsAPrefixMatchOnSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchText: %v", err)
 	}
-	want := `summary ~ "security*" AND statusCategory != Done ORDER BY updated DESC`
+	want := `summary ~ "security*" ORDER BY updated DESC`
 	if got.JQL != want {
 		t.Errorf("jql = %q, want %q", got.JQL, want)
 	}
@@ -228,7 +228,7 @@ func TestSearchTextEscapesTheQueryIntoTheJQL(t *testing.T) {
 		{
 			name:  "quotes and backslashes are escaped",
 			query: `say "hi"`,
-			want:  `summary ~ "say \"hi\"*" AND statusCategory != Done ORDER BY updated DESC`,
+			want:  `summary ~ "say \"hi\"*" ORDER BY updated DESC`,
 		},
 		{
 			// A query already containing a wildcard must not be double-wildcarded:
@@ -236,7 +236,58 @@ func TestSearchTextEscapesTheQueryIntoTheJQL(t *testing.T) {
 			// Jira rather than a broader match.
 			name:  "a trailing wildcard the user already typed is not doubled",
 			query: `secur*`,
-			want:  `summary ~ "secur*" AND statusCategory != Done ORDER BY updated DESC`,
+			want:  `summary ~ "secur*" ORDER BY updated DESC`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got struct {
+				JQL string `json:"jql"`
+			}
+			client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Errorf("decoding the request: %v", err)
+				}
+				_, _ = w.Write([]byte(`{"issues":[]}`))
+			})
+
+			if _, err := client.SearchText(context.Background(), tt.query, 10); err != nil {
+				t.Fatalf("SearchText: %v", err)
+			}
+
+			if got.JQL != tt.want {
+				t.Errorf("jql = %q, want %q", got.JQL, tt.want)
+			}
+		})
+	}
+}
+
+func TestSearchTextAddsAKeyClauseOnlyWhenTheQueryLooksLikeAKey(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{
+			name:  "a key-shaped query searches the key and the summary",
+			query: "RIDGE-4102",
+			want:  `(key = "RIDGE-4102" OR summary ~ "RIDGE-4102*") ORDER BY updated DESC`,
+		},
+		{
+			name:  "an ordinary word searches the summary alone",
+			query: "capacity",
+			want:  `summary ~ "capacity*" ORDER BY updated DESC`,
+		},
+		{
+			name:  "a lowercase key still counts as a key",
+			query: "ridge-4102",
+			want:  `(key = "ridge-4102" OR summary ~ "ridge-4102*") ORDER BY updated DESC`,
+		},
+		{
+			name:  "a hyphenated word is not a key",
+			query: "capacity-review",
+			want:  `summary ~ "capacity-review*" ORDER BY updated DESC`,
 		},
 	}
 

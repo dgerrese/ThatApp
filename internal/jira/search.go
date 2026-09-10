@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -104,20 +105,31 @@ func stripTrailingWildcard(query string) string {
 	return strings.TrimRight(query, "*")
 }
 
-// SearchText finds issues whose summary starts a word with query, most recently
-// updated first.
+// issueKeyPattern is a Jira issue key, which `key = ` demands exactly: a
+// project code, a hyphen, and a number. Anything else in that clause is a 400
+// from Jira rather than an empty result, so a query that is not a key does not
+// get the clause at all.
+var issueKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*-[0-9]+$`)
+
+// SearchText finds issues whose key exactly matches query or whose summary
+// starts a word with it, most recently updated first, regardless of status —
+// unlike SearchAssigned, this is used to find one specific issue, including
+// finished work.
 //
-// Three properties of Jira's ~ operator shape this and cannot be worked around
-// here: it matches word prefixes rather than substrings, a leading wildcard is
-// rejected by the endpoint outright, and the * belongs inside the quotes. So
-// "secur" finds "security" and "curity" finds nothing.
+// Three properties of Jira's ~ operator shape the summary term and cannot be
+// worked around here: it matches word prefixes rather than substrings, a
+// leading wildcard is rejected by the endpoint outright, and the * belongs
+// inside the quotes. So "secur" finds "security" and "curity" finds nothing.
 //
 // Unlike SearchAssigned this does not page: it backs a type-ahead, where a
 // second page is latency spent on results nobody scrolls to.
 func (c *Client) SearchText(ctx context.Context, query string, limit int) ([]Issue, error) {
-	jql := fmt.Sprintf(
-		`summary ~ "%s*" AND statusCategory != Done ORDER BY updated DESC`,
-		escapeJQL(stripTrailingWildcard(query)))
+	summaryTerm := fmt.Sprintf(`summary ~ "%s*"`, escapeJQL(stripTrailingWildcard(query)))
+
+	jql := summaryTerm + " ORDER BY updated DESC"
+	if issueKeyPattern.MatchString(query) {
+		jql = fmt.Sprintf(`(key = "%s" OR %s) ORDER BY updated DESC`, escapeJQL(query), summaryTerm)
+	}
 
 	body := searchRequest{
 		JQL:        jql,
