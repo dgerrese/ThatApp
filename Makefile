@@ -18,7 +18,7 @@ WEB     := $(COMPOSE) run --build --rm --no-deps web
 # to rebuild.
 LINT    := $(COMPOSE) run --rm --no-deps lint
 
-.PHONY: help up down install-web build-web test-go test test-web test-e2e fmt lint-go lint-web lint tsc verify
+.PHONY: help up down install-web build-web image test-go test test-web test-e2e fmt lint-go lint-web lint tsc verify
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -37,6 +37,11 @@ install-web: ## Install frontend dependencies into the web-node-modules volume
 
 build-web: install-web ## Build the frontend into web/dist
 	$(WEB) npm run build
+
+# The release path as CI runs it on a version tag, pushing to a throwaway registry
+# inside the container instead of Codeberg.
+image: build-web ## Dry-run the release image build and push
+	$(APP) sh scripts/release-image.sh 0000.01.1 localhost:5000/thatapp
 
 test-go: ## Run the Go test suite
 	$(APP) go test ./...
