@@ -42,9 +42,11 @@ docker run -d --name thatapp --restart unless-stopped \
 
 Open <http://localhost:8080>.
 
-**Keep the `127.0.0.1:` in front of the port.** ThatApp has no login: anyone who can reach the port
-can use your Jira tokens. `127.0.0.1:8080:8080` makes it reachable from your own machine only.
-Plain `-p 8080:8080` publishes it to every network you are on.
+**Keep the `127.0.0.1:` in front of the port.** ThatApp has no login and no defence against
+cross-site requests, so anything that can reach the port can use your Jira tokens.
+`127.0.0.1:8080:8080` makes it reachable from your own machine only; plain `-p 8080:8080` publishes
+it to every network you are on. Binding to your own machine keeps other machines out, but it does
+not stop a malicious web page open in your own browser from sending requests to it.
 
 ### 3. Upgrade
 
