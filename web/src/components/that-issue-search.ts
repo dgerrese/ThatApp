@@ -128,10 +128,10 @@ const MIN_PANEL_HEIGHT_PX = 120;
  * and calls back with the hit alone.
  *
  * The shapes below — the field, the results panel, the group heading, a row,
- * its key and summary, the footer — are transcribed from the prototype's
- * `.field`, `.results`, `.rgroup`, `.rrow`, `.rk`, `.rs` and `.rfoot`
- * (docs/superpowers/prototypes/2026-09-03-app-prototype.html, lines 366-374),
- * translated into this app's Tailwind vocabulary the way `that-ticket-row`
+ * its key and summary, the footer — are transcribed from
+ * docs/superpowers/prototypes/2026-09-03-app-prototype.html's `.field`,
+ * `.results`, `.rgroup`, `.rrow`, `.rk`, `.rs` and `.rfoot`, translated into
+ * this app's Tailwind vocabulary the way `that-ticket-row`
  * translates its own — including its own `.durbtn`/`.iconbtn` pair now that
  * `IssueSearchControl` can express both: which controls a row carries, and
  * how many, is still the host's choice, but what an icon control and a
@@ -503,8 +503,14 @@ export class ThatIssueSearch extends HTMLElement {
   private restoreFocus(target: { hitKey: string; controlIndex: string } | undefined): void {
     if (!target || !this.rowsAreaEl) return;
 
-    const row = this.rowsAreaEl.querySelector<HTMLElement>(`[data-hit-key="${target.hitKey}"]`);
-    const control = row?.querySelector<HTMLElement>(`[data-control-index="${target.controlIndex}"]`);
+    // CSS.escape: neither value can carry a quote or backslash today (a
+    // Jira key, a numeric instance id, or the "key" sentinel), but building
+    // an attribute selector from either without it is what would let one
+    // that someday can break out of the quotes.
+    const hitSelector = `[data-hit-key="${CSS.escape(target.hitKey)}"]`;
+    const controlSelector = `[data-control-index="${CSS.escape(target.controlIndex)}"]`;
+    const row = this.rowsAreaEl.querySelector<HTMLElement>(hitSelector);
+    const control = row?.querySelector<HTMLElement>(controlSelector);
     control?.focus();
   }
 
@@ -577,7 +583,16 @@ export class ThatIssueSearch extends HTMLElement {
   }
 
   /** Linked when there is somewhere to go, like that-ticket-row's own key —
-   *  an instance migrated from a gateway URL carries no site to link to. */
+   *  an instance migrated from a gateway URL carries no site to link to.
+   *  The link's own `data-control-index="key"` — a sentinel distinct from
+   *  the numeric indices `resultRow` gives `config.controls` — is what lets
+   *  it join the same capture/restore `captureFocus`/`restoreFocus` give
+   *  every other focusable thing in a row: re-review of the blocker fix
+   *  found the key link was the one focusable element a row carries that
+   *  is not one of `config.controls`, so it fell through captureFocus
+   *  unrecognised and dropped focus to `<body>` on a repaint same as
+   *  before the fix — a plain `<span>` (no url) is never focusable, so it
+   *  needs no such attribute. */
   private keyLabel(hit: IssueHit): HTMLElement {
     if (hit.url === "") {
       const span = document.createElement("span");
@@ -595,6 +610,7 @@ export class ThatIssueSearch extends HTMLElement {
     link.title = `Open ${hit.key} in Jira`;
     link.className = "that-key that-tnum shrink-0 text-ink-muted";
     link.textContent = hit.key;
+    link.dataset.controlIndex = "key";
 
     return link;
   }

@@ -833,6 +833,35 @@ test.describe("that-issue-search on Today", () => {
     await expect(unpinButton).toBeVisible();
     await expect(unpinButton).toBeFocused();
   });
+
+  // Re-review of the blocker fix: captureFocus only ever recognised an
+  // element carrying data-control-index, which the row's own key link
+  // (keyLabel's <a>) never did — the one focusable thing in a row that is
+  // not one of config.controls. Live path: tab into a row, land on the key,
+  // a background Refresh elsewhere on the page calls repaint() — simulated
+  // directly here (repaint() is already today.ts's own external contract
+  // with this component) rather than wiring up a whole Refresh press just
+  // to reach the same call.
+  test("focus on the key link survives a repaint, not only a control", async ({ page }) => {
+    await stubSearch(page, [ridge5140]);
+    await stubPins(page, []);
+
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+
+    const keyLink = page.getByRole("link", { name: "RIDGE-5140", exact: true });
+    await keyLink.focus();
+    await expect(keyLink).toBeFocused();
+
+    await page.evaluate(() => {
+      const search = document.querySelector("that-issue-search") as unknown as {
+        repaint: () => void;
+      };
+      search.repaint();
+    });
+
+    await expect(keyLink).toBeFocused();
+  });
 });
 
 // Task 10, added 2026-09-16 after the plan and the fix wave: the panel grew
