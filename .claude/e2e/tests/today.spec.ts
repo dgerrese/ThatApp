@@ -992,7 +992,19 @@ test("the off-list section waits for the assigned read to settle before it rende
     await route.fulfill({ status: 200, json: { results: [], errors: [] } });
   });
 
+  // Registered before navigation, not after: entries resolves fast enough
+  // that waiting for it only after goto races the response and can miss it
+  // outright (nothing left to wait for). /api/issues stays gated above.
+  // Without this wait, both checks below pass trivially the instant the page
+  // loads — entries has not landed yet either, so of course nothing renders
+  // and nothing was searched. Waiting for the response, then a moment for
+  // today.ts's own continuation (regions.entries = entries;
+  // renderOffListSection(regions)) to run, is what makes the guard itself
+  // the thing being proven.
+  const entriesLanded = page.waitForResponse((response) => response.url().includes("/api/entries"));
   await page.goto("/today");
+  await entriesLanded;
+  await page.waitForTimeout(200);
 
   await expect(
     page.getByRole("heading", { name: "Logged today, not on your list" }),
