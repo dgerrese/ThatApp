@@ -77,9 +77,12 @@ frontend on change. The handler itself is unaware of the difference.
 
 ### Container layout
 
-A multi-stage Dockerfile: a Node stage builds the frontend with esbuild and the Tailwind CLI, a
-Go stage compiles the binary with the built assets embedded, and the final stage is `scratch` —
-roughly 15MB with no runtime dependencies. A named volume holds the SQLite database file.
+The release image is not built from the Dockerfile. `scripts/release-image.sh` cross-compiles the
+static binary — the built frontend and zoneinfo embedded — for linux/amd64 and linux/arm64, and
+crane assembles each as a single layer (the binary and the CA bundle) on an empty base, then
+pushes both under one multi-arch index. No Docker daemon is involved, which is what lets
+Codeberg's runners publish it (#122). The Dockerfile holds only the `dev` and `webdev` stages the
+Compose stack runs. A named volume holds the SQLite database file.
 
 ## Data model
 
