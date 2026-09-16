@@ -96,6 +96,15 @@ interface Regions {
   offListSignal: AbortSignal;
   pinsCachedAt: Date | null;
   issuesCachedAt: Date | null;
+  /** True once the assigned read (refreshResults) has settled at least once,
+   *  success or failure. The three mount reads (entries, pins, assigned) are
+   *  concurrent and entries is local and fast, so before this the assigned
+   *  keys renderOffListSection would judge against are not yet known — not
+   *  "none", unknown. Gates renderOffListSection so it neither renders nor
+   *  fetches on that guess. Never reset once true: refreshEverything's later
+   *  passes always have an assigned answer to compare against, even a stale
+   *  one. */
+  assignedSettled: boolean;
   /** Today's logged seconds per row, keyed by instance and issue. */
   totals: Map<string, number>;
   /** Bumped per totals refresh, so a slow read cannot overwrite a newer one. */
@@ -314,6 +323,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     offListSignal: offListAbort.signal,
     pinsCachedAt: null,
     issuesCachedAt: null,
+    assignedSettled: false,
     totals: new Map(),
     totalsEpoch: 0,
   };
@@ -641,8 +651,20 @@ function offListIssues(regions: Regions): OffListIssue[] {
  * that two issues newly appearing in the same call both get marked pending
  * before either's request actually starts, rather than racing each other
  * through renderOffListSection's own later, unrelated calls.
+ *
+ * Does nothing until regions.assignedSettled — see that field's comment. An
+ * early call (from refreshPins or refreshTotals, both concurrent with the
+ * assigned fan-out at mount) would judge every entry against an empty
+ * assignedKeys, mislabelling real assigned work "not on your list" and
+ * costing it a summary lookup, for however long the fan-out takes.
  */
 function renderOffListSection(regions: Regions): void {
+  if (!regions.assignedSettled) {
+    regions.offListSection.remove();
+
+    return;
+  }
+
   const issues = offListIssues(regions);
 
   if (issues.length === 0) {
@@ -841,11 +863,18 @@ async function refreshResults(regions: Regions): Promise<void> {
     const { value: response, cachedAt } = await listIssues();
     regions.lastIssues = response;
     regions.issuesCachedAt = cachedAt;
+    regions.assignedSettled = true;
     renderResponse(regions, response);
   } catch (error) {
+    regions.assignedSettled = true;
     regions.refresh.hidden = false;
     regions.issuesCachedAt = null;
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
+    // renderResponse is what would otherwise unblock this — see its own
+    // trailing call — but a failed read never reaches it. The off-list
+    // section still has to judge, against pinned keys alone per the ruling:
+    // logged work must never stay hidden behind a fetch that never comes back.
+    renderOffListSection(regions);
   }
 
   renderCombinedStale(regions);

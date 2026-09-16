@@ -960,3 +960,52 @@ test("a cold reload looks up an off-list issue once, and shows it loading rather
   // One lookup despite several render passes racing to be first to ask.
   expect(calls).toBe(1);
 });
+
+/**
+ * Important 2 of the #84 fix wave: the off-list section reads assignedKeys
+ * from the assigned response (regions.lastIssues), but the mount's three
+ * reads (entries, pins, assigned) are concurrent — entries is a local, fast
+ * read and assigned is a Jira fan-out, so an issue that is in fact assigned
+ * would flash into the section, and worse, cost a summary lookup for it,
+ * until the assigned read finally lands. Held here to widen that window wide
+ * enough to catch it: entries names an issue this stub will shortly report as
+ * assigned, and /api/issues stays outstanding until the test releases it.
+ */
+test("the off-list section waits for the assigned read to settle before it renders or fetches", async ({
+  page,
+}) => {
+  await stubPins(page, []);
+  await stubEntries(page, [offListEntry(workIssue.key)]);
+
+  let releaseIssues: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    releaseIssues = resolve;
+  });
+  await page.route("**/api/issues", async (route) => {
+    await gate;
+    await route.fulfill({ status: 200, json: { instances: [group(1, "Work", [workIssue])] } });
+  });
+
+  let searchCalls = 0;
+  await page.route("**/api/issues/search**", async (route) => {
+    searchCalls += 1;
+    await route.fulfill({ status: 200, json: { results: [], errors: [] } });
+  });
+
+  await page.goto("/today");
+
+  await expect(
+    page.getByRole("heading", { name: "Logged today, not on your list" }),
+  ).toHaveCount(0);
+  expect(searchCalls).toBe(0);
+
+  releaseIssues?.();
+
+  await expect(page.getByText(workIssue.summary)).toBeVisible();
+  // The issue turned out to be assigned: the section must never have shown it,
+  // before or after release, and must never have asked for its summary.
+  await expect(
+    page.getByRole("heading", { name: "Logged today, not on your list" }),
+  ).toHaveCount(0);
+  expect(searchCalls).toBe(0);
+});
