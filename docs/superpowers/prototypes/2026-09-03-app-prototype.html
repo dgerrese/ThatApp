@@ -134,11 +134,16 @@
                          transition: max-width 150ms ease, margin-right 150ms ease, opacity 150ms ease; }
   .durbtn.reveal:hover .hint, .durbtn.reveal:focus-visible .hint { max-width: 3rem; margin-right: 10px; }
   .iconbtn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-right: -8px; border-radius: var(--r-sm); color: var(--ink-muted); vertical-align: middle; }
+  .iconbtn:hover, .iconbtn:focus-visible { background: var(--hover); color: var(--ink); }
   /* 2026-09-10: the primary colour is a hover/focus-visible state, not a rest
-     one — a pinned control is told apart by its mark, #p-pin against
-     #p-pinoff, not by colour at rest. ul.inst's own iconbtn already worked
-     this way; the two rules are now one. */
-  .iconbtn:hover, .iconbtn:focus-visible { background: var(--hover); color: var(--pri); }
+     one, for the controls that carry it at all — a pinned control is told
+     apart by its mark, #p-pin against #p-pinoff, not by colour at rest.
+     ul.inst's own iconbtn already worked this way; the pin/unpin controls
+     join it here rather than diverging. Every other .iconbtn — the dialogs'
+     Close, cancel and edit among them — keeps the plain ink hover above. */
+  ul.inst .iconbtn:hover, ul.inst .iconbtn:focus-visible,
+  .iconbtn[aria-label="pin ticket"]:hover, .iconbtn[aria-label="pin ticket"]:focus-visible,
+  .iconbtn[aria-label="unpin ticket"]:hover, .iconbtn[aria-label="unpin ticket"]:focus-visible { color: var(--pri); }
   .iconbtn.danger:hover, ul.inst .iconbtn.danger:hover { color: var(--fail); }
   .tip { position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%); background: oklch(0.06 0.004 60); color: oklch(0.96 0.004 70); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; padding: 5px 9px; border-radius: var(--r-xs); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 120ms; z-index: 8; }
   .tip.end { left: auto; right: -8px; transform: none; }
