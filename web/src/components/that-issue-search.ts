@@ -85,6 +85,12 @@ let issueSearchSequence = 0;
 const DEBOUNCE_MS = 350;
 const MIN_QUERY = 2;
 
+/** The app's standard 16px gutter — Tailwind's spacing-4 step, the same one
+ *  `gap-4` draws in index.html's own content column — kept between the
+ *  panel's bottom and the window's edge so opening it never forces the page
+ *  to scroll to reach its end (task 10, 2026-09-16). */
+const WINDOW_GUTTER_PX = 16;
+
 /**
  * A lookup across every configured Jira instance, not a filter over anything
  * already on screen. It is why #84 exists: the alternative to pinning an
@@ -135,6 +141,14 @@ export class ThatIssueSearch extends HTMLElement {
    *  focusout listener in `build` and the comment on `repaint` itself. */
   private suppressBlurClose = false;
 
+  /** The field's distance from the window's bottom moves with the scrolling
+   *  region it sits in (task 10), which a resize cannot detect on its own —
+   *  but the ticket scopes re-measurement to open/repaint/resize, not to
+   *  every scroll, so this is the one further trigger it names. */
+  private readonly onResize = (): void => {
+    this.applyMaxHeight();
+  };
+
   connectedCallback(): void {
     if (this.input || !this.config) return;
 
@@ -151,6 +165,7 @@ export class ThatIssueSearch extends HTMLElement {
   disconnectedCallback(): void {
     window.clearTimeout(this.timer);
     this.inFlight?.abort();
+    window.removeEventListener("resize", this.onResize);
   }
 
   private build(config: IssueSearchConfig): void {
@@ -197,13 +212,17 @@ export class ThatIssueSearch extends HTMLElement {
     // (inset-x-0 against this element's own padding box), raised above the
     // page the way every other popover in the app is — border-edge and
     // shadow-popover, the same recipe that-combobox's own popup uses.
+    // flex flex-col: task 10's own layout — a rows area that scrolls and a
+    // footer that does not, split by applyMaxHeight's inline max-height
+    // rather than height, so a short result list still sizes to its content.
     panel.className =
       "border-edge bg-raised shadow-popover absolute inset-x-0 top-[calc(100%+5px)] z-10 " +
-      "rounded-md border p-1.5";
+      "flex flex-col rounded-md border p-1.5";
     panel.hidden = true;
     this.panel = panel;
 
     this.append(glass, input, panel);
+    window.addEventListener("resize", this.onResize);
 
     // Closing on blur is scoped to the component as a whole, not the input:
     // a click on a result's own control moves focus into this element's
@@ -259,6 +278,24 @@ export class ThatIssueSearch extends HTMLElement {
     if (!this.panel) return;
     this.panel.hidden = false;
     this.input?.setAttribute("aria-expanded", "true");
+    this.applyMaxHeight();
+  }
+
+  /**
+   * Caps the panel at the window's bottom edge, minus the standard gutter —
+   * task 10's own rule, since the field sits in a view header inside a
+   * scrolling region and its distance to the window's bottom moves with it.
+   * Measured off the panel's own rendered top (only valid once `open` has
+   * unhidden it), not the field's, so this needs no separate copy of the
+   * drawn `top-[calc(100%+5px)]` gap. A max-height, not a height: content
+   * shorter than the cap still sizes to itself, which is what keeps the
+   * panel from reserving empty space it does not need.
+   */
+  private applyMaxHeight(): void {
+    if (!this.panel || this.panel.hidden) return;
+    const top = this.panel.getBoundingClientRect().top;
+    const available = window.innerHeight - WINDOW_GUTTER_PX - top;
+    this.panel.style.maxHeight = `${String(Math.max(available, 0))}px`;
   }
 
   private close(): void {
@@ -274,7 +311,10 @@ export class ThatIssueSearch extends HTMLElement {
   private showSearching(config: IssueSearchConfig): void {
     this.showingResults = false;
     if (!this.panel) return;
-    this.panel.replaceChildren(this.notice("Searching…"), this.footerLine(config.footer));
+    this.panel.replaceChildren(
+      this.rowsArea([this.notice("Searching…")]),
+      this.fixedBottom([this.footerLine(config.footer)]),
+    );
     this.open();
   }
 
@@ -282,7 +322,10 @@ export class ThatIssueSearch extends HTMLElement {
     this.showingResults = false;
     if (!this.panel) return;
     const message = error instanceof ApiError ? error.message : "Something went wrong.";
-    this.panel.replaceChildren(this.failureNotice(message), this.footerLine(config.footer));
+    this.panel.replaceChildren(
+      this.rowsArea([this.failureNotice(message)]),
+      this.fixedBottom([this.footerLine(config.footer)]),
+    );
     this.open();
   }
 
@@ -291,6 +334,11 @@ export class ThatIssueSearch extends HTMLElement {
    * is nothing and nothing failed; the failure line when something did — kept
    * apart so a reader can never mistake "found nothing" for "asked and
    * failed", the pairing task 3's brief calls out by name.
+   *
+   * Split across two containers rather than appended flat — task 10's rule:
+   * the rows (or, lacking any, the notice standing in their place) scroll
+   * inside the panel's own cap, while the per-instance failure line and the
+   * footer stay put beneath them.
    */
   private showResults(config: IssueSearchConfig, results: IssueHit[], errors: InstanceFailure[]): void {
     this.lastResults = results;
@@ -298,19 +346,44 @@ export class ThatIssueSearch extends HTMLElement {
     this.showingResults = true;
     if (!this.panel) return;
 
-    const nodes: HTMLElement[] = [];
+    const rowNodes: HTMLElement[] = [];
     if (results.length > 0) {
-      nodes.push(...this.groupedRows(config, results));
+      rowNodes.push(...this.groupedRows(config, results));
     } else if (errors.length === 0) {
-      nodes.push(this.notice(`No issues match “${this.query}”.`));
+      rowNodes.push(this.notice(`No issues match “${this.query}”.`));
     }
-    if (errors.length > 0) {
-      nodes.push(this.instanceFailureLine(errors));
-    }
-    nodes.push(this.footerLine(config.footer));
 
-    this.panel.replaceChildren(...nodes);
+    const bottomNodes: HTMLElement[] = [];
+    if (errors.length > 0) {
+      bottomNodes.push(this.instanceFailureLine(errors));
+    }
+    bottomNodes.push(this.footerLine(config.footer));
+
+    this.panel.replaceChildren(this.rowsArea(rowNodes), this.fixedBottom(bottomNodes));
     this.open();
+  }
+
+  /** The scrolling half of the panel — task 10's rows area. `min-h-0`
+   *  overrides a flex item's default `min-height: auto`, which would
+   *  otherwise refuse to shrink below its content and defeat the cap
+   *  `applyMaxHeight` sets on the panel around it. */
+  private rowsArea(nodes: HTMLElement[]): HTMLElement {
+    const area = document.createElement("div");
+    area.className = "min-h-0 overflow-y-auto";
+    area.append(...nodes);
+
+    return area;
+  }
+
+  /** The panel's own non-scrolling floor — whatever task 10 says must stay
+   *  visible beneath the rows: the per-instance failure line when there is
+   *  one, and the footer always. */
+  private fixedBottom(nodes: HTMLElement[]): HTMLElement {
+    const bottom = document.createElement("div");
+    bottom.className = "shrink-0";
+    bottom.append(...nodes);
+
+    return bottom;
   }
 
   /**
