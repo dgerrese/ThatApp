@@ -1809,9 +1809,10 @@ function weekSearchResultRow(page: Page, key: string) {
 test.describe("Week's own search", () => {
   /**
    * Minor from the #84 fix wave: the prototype places the search field
-   * (`.sp`, `.field`, `.ctlgroup` in that order — see the prototype's Week
-   * header, lines 388-399 of docs/superpowers/prototypes/2026-09-03-app-
-   * prototype.html) after Fetch worklogs and before the week-nav group.
+   * (`.sp`, `.field`, `.ctlgroup` in that order — see
+   * docs/superpowers/prototypes/2026-09-03-app-prototype.html's Week
+   * header: the `.sp` + `.field` pair and the `.ctlgroup` that follows it)
+   * after Fetch worklogs and before the week-nav group.
    * week.ts's own header.append carries a comment naming that same order,
    * but nothing asserted it.
    */
