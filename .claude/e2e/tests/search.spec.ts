@@ -142,6 +142,26 @@ function resultRow(page: Page, key: string) {
   return page.getByTitle(`Open ${key} in Jira`).locator("..");
 }
 
+/** Enough hits under one instance to overflow any plausible viewport — task
+ *  10's own scenario for a panel that would otherwise run past the window. */
+function manyHits(count: number): StubHit[] {
+  return Array.from({ length: count }, (_, i) =>
+    hit(1, "Ridgeline", 0, `RIDGE-${5000 + i}`, `Capacity issue number ${i}`),
+  );
+}
+
+/** The panel itself — `that-issue-search`'s last direct `<div>`, the same
+ *  locator search.spec.ts's own width test already uses. */
+function panel(page: Page) {
+  return page.locator("that-issue-search").locator("> div").last();
+}
+
+/** The rows area inside the panel — its first child once task 10 splits the
+ *  panel into a scrolling rows region and a fixed footer beneath it. */
+function rowsArea(page: Page) {
+  return panel(page).locator("> div").first();
+}
+
 test.describe("that-issue-search on Today", () => {
   test.beforeEach(async ({ page }) => {
     await stubPins(page, []);
@@ -715,5 +735,173 @@ test.describe("that-issue-search on Today", () => {
     await expect(pinButton).toHaveCount(0);
     expect(search.calls()).toBe(1);
     expect(pinPosts).toBe(1);
+  });
+});
+
+// Task 10, added 2026-09-16 after the plan and the fix wave: the panel grew
+// without limit, so a wide result set pushed the real scroll region's content
+// past its own bottom and the page scrolled to reach it. The owner's rule:
+// the panel grows only until it would reach the window's bottom edge (minus
+// the app's 16px gutter — gap-4's own step), then scrolls inside itself.
+test.describe("the search panel's height stops at the window's edge", () => {
+  test.beforeEach(async ({ page }) => {
+    await stubPins(page, []);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await stubEntries(page);
+    await page.setViewportSize({ width: 1280, height: 600 });
+  });
+
+  test("a small viewport with many hits caps the panel at the gutter, scrolls the rows, and never scrolls the real region", async ({
+    page,
+  }) => {
+    await stubSearch(page, manyHits(25));
+    await page.goto("/today");
+
+    // The real scroll region: index.html's grid fixes itself to the screen
+    // from md: up and splits its own overflow between the rail and #content
+    // — this is what would have to scroll to reach the panel's end before
+    // task 10, not the document.
+    const content = page.locator("#content");
+    const before = await content.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }));
+    expect(before.scrollHeight).toBeLessThanOrEqual(before.clientHeight);
+
+    await searchField(page).fill("capacity");
+    await expect(panel(page)).toBeVisible();
+
+    const panelBox = await panel(page).boundingBox();
+    expect(panelBox).not.toBeNull();
+    // At or above window.innerHeight - 16, the standard gutter.
+    expect(panelBox!.y + panelBox!.height).toBeLessThanOrEqual(600 - 16 + 0.5);
+
+    const rows = await rowsArea(page).evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }));
+    expect(rows.scrollHeight).toBeGreaterThan(rows.clientHeight);
+
+    const after = await content.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }));
+    expect(after.scrollHeight).toBeLessThanOrEqual(after.clientHeight);
+    expect(after.scrollHeight).toBe(before.scrollHeight);
+  });
+
+  test("the last result row is reachable by scrolling the rows area, and the footer stays put", async ({
+    page,
+  }) => {
+    const hits = manyHits(25);
+    await stubSearch(page, hits);
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+    await expect(panel(page)).toBeVisible();
+
+    const footer = page.getByText(
+      "Searching all instances by key and summary. Not limited to issues assigned to you.",
+    );
+    const footerBefore = await footer.boundingBox();
+    expect(footerBefore).not.toBeNull();
+
+    const lastKey = hits[hits.length - 1]!.key;
+    const lastRow = resultRow(page, lastKey);
+    const areaBoxBefore = await rowsArea(page).boundingBox();
+    const rowBoxBefore = await lastRow.boundingBox();
+    expect(areaBoxBefore).not.toBeNull();
+    expect(rowBoxBefore).not.toBeNull();
+    // Off the bottom of the rows area before scrolling — proves it needs it.
+    expect(rowBoxBefore!.y).toBeGreaterThan(areaBoxBefore!.y + areaBoxBefore!.height);
+
+    await rowsArea(page).evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+
+    const rowBoxAfter = await lastRow.boundingBox();
+    const areaBoxAfter = await rowsArea(page).boundingBox();
+    expect(rowBoxAfter).not.toBeNull();
+    expect(areaBoxAfter).not.toBeNull();
+    expect(rowBoxAfter!.y).toBeGreaterThanOrEqual(areaBoxAfter!.y - 1);
+    expect(rowBoxAfter!.y + rowBoxAfter!.height).toBeLessThanOrEqual(
+      areaBoxAfter!.y + areaBoxAfter!.height + 1,
+    );
+
+    const footerAfter = await footer.boundingBox();
+    expect(footerAfter).not.toBeNull();
+    expect(footerAfter!.y).toBeCloseTo(footerBefore!.y, 0);
+  });
+
+  test("with few hits the panel is no taller than its content", async ({ page }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+    await expect(panel(page)).toBeVisible();
+
+    const rows = await rowsArea(page).evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }));
+    // Nothing to scroll: the one row fits, so no internal scrollbar opens.
+    expect(rows.scrollHeight).toBeLessThanOrEqual(rows.clientHeight + 1);
+
+    const panelBox = await panel(page).boundingBox();
+    expect(panelBox).not.toBeNull();
+    // Comfortably short of the ~580px the 600px viewport's gutter would
+    // allow — proof the panel sized to its own content, not to the cap.
+    expect(panelBox!.height).toBeLessThan(200);
+  });
+
+  test("the first row's tooltip stays fully visible on hover, not clipped by the rows area", async ({
+    page,
+  }) => {
+    await stubSearch(page, manyHits(25));
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+    await expect(panel(page)).toBeVisible();
+
+    const firstPin = resultRow(page, "RIDGE-5000").getByRole("button", {
+      name: "Pin RIDGE-5000",
+      exact: true,
+    });
+    await firstPin.hover();
+
+    // Every row carries its own that-tooltip; :popover-open narrows to the
+    // one hover actually opened, the same disambiguation a real reader gets
+    // for free by only ever seeing one at a time.
+    const tooltip = page.locator("that-issue-search that-tooltip:popover-open");
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toHaveText("pin ticket");
+
+    const box = await tooltip.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(600);
+  });
+
+  // Not one of task 10's four named tests, but its own ruling demands the
+  // browser's default focus-follows-scroll still works once rows sit inside
+  // an overflow container — Element.focus() scrolls its target into view by
+  // default, the same mechanism a real Tab keypress relies on.
+  test("focusing a control deep in the scrolled list scrolls the rows area to reach it", async ({
+    page,
+  }) => {
+    const hits = manyHits(25);
+    await stubSearch(page, hits);
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+    await expect(panel(page)).toBeVisible();
+
+    const lastKey = hits[hits.length - 1]!.key;
+    const lastPin = resultRow(page, lastKey).getByRole("button", {
+      name: `Pin ${lastKey}`,
+      exact: true,
+    });
+
+    await lastPin.focus();
+    await expect(lastPin).toBeFocused();
+
+    const scrollTop = await rowsArea(page).evaluate((el) => el.scrollTop);
+    expect(scrollTop).toBeGreaterThan(0);
   });
 });
