@@ -872,8 +872,10 @@ async function refreshResults(regions: Regions): Promise<void> {
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
     // renderResponse is what would otherwise unblock this — see its own
     // trailing call — but a failed read never reaches it. The off-list
-    // section still has to judge, against pinned keys alone per the ruling:
-    // logged work must never stay hidden behind a fetch that never comes back.
+    // section still has to judge — against pinned keys alone when nothing
+    // has arrived yet, otherwise against the last response, since this
+    // failure does not clear regions.lastIssues — per the ruling: logged
+    // work must never stay hidden behind a fetch that never comes back.
     renderOffListSection(regions);
   }
 
