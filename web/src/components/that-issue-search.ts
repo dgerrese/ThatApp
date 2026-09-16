@@ -91,6 +91,16 @@ const MIN_QUERY = 2;
  *  to scroll to reach its end (task 10, 2026-09-16). */
 const WINDOW_GUTTER_PX = 16;
 
+/** The cap's own floor. Review round 1's finding: `Math.max(available, 0)`
+ *  let a field hard against the window's bottom collapse the panel to
+ *  (near) 0px — and since the panel carries no `overflow` of its own, the
+ *  `shrink-0` footer would then paint outside the panel's rounded box
+ *  instead of inside it, however unlikely that field position is in
+ *  practice. Enough for the footer's own natural height (~30px) plus room
+ *  for at least a sliver of a row above it, so the panel never gets thinner
+ *  than something recognisably itself. */
+const MIN_PANEL_HEIGHT_PX = 120;
+
 /**
  * A lookup across every configured Jira instance, not a filter over anything
  * already on screen. It is why #84 exists: the alternative to pinning an
@@ -107,7 +117,7 @@ const WINDOW_GUTTER_PX = 16;
  * The shapes below — the field, the results panel, the group heading, a row,
  * its key and summary, the footer — are transcribed from the prototype's
  * `.field`, `.results`, `.rgroup`, `.rrow`, `.rk`, `.rs` and `.rfoot`
- * (docs/superpowers/prototypes/2026-09-03-app-prototype.html, lines 334-342),
+ * (docs/superpowers/prototypes/2026-09-03-app-prototype.html, lines 355-363),
  * translated into this app's Tailwind vocabulary the way `that-ticket-row`
  * translates its own — including its own `.durbtn`/`.iconbtn` pair now that
  * `IssueSearchControl` can express both: which controls a row carries, and
@@ -142,14 +152,32 @@ export class ThatIssueSearch extends HTMLElement {
   private suppressBlurClose = false;
 
   /** The field's distance from the window's bottom moves with the scrolling
-   *  region it sits in (task 10), which a resize cannot detect on its own —
-   *  but the ticket scopes re-measurement to open/repaint/resize, not to
-   *  every scroll, so this is the one further trigger it names. */
+   *  region it sits in (task 10). Registered and removed in
+   *  connectedCallback/disconnectedCallback, not build — build only ever
+   *  runs once per element, but connectedCallback can run again on a node
+   *  detached and reattached, and that reconnection would otherwise never
+   *  get its listener back. */
   private readonly onResize = (): void => {
     this.applyMaxHeight();
   };
 
+  /** The review round's own finding: a resize is not the only way the
+   *  field's distance to the window's bottom changes — scrolling the region
+   *  the field sits in does too, and the panel's own top tracks the field in
+   *  real time (it is drawn under it) while a max-height computed once at
+   *  open would not. Scroll events do not bubble, so this listens in the
+   *  capture phase on window, which still sees one dispatched on any
+   *  scrollable descendant — this component has no reason to know which
+   *  element that is. Added when the panel opens and removed when it closes,
+   *  not held for the component's whole life: `applyMaxHeight` is already a
+   *  no-op while hidden, but there is no reason to keep the app scrolling
+   *  the window at all when nothing is open to react to it. */
+  private readonly onScroll = (): void => {
+    this.applyMaxHeight();
+  };
+
   connectedCallback(): void {
+    window.addEventListener("resize", this.onResize);
     if (this.input || !this.config) return;
 
     this.build(this.config);
@@ -166,6 +194,7 @@ export class ThatIssueSearch extends HTMLElement {
     window.clearTimeout(this.timer);
     this.inFlight?.abort();
     window.removeEventListener("resize", this.onResize);
+    window.removeEventListener("scroll", this.onScroll, true);
   }
 
   private build(config: IssueSearchConfig): void {
@@ -222,7 +251,6 @@ export class ThatIssueSearch extends HTMLElement {
     this.panel = panel;
 
     this.append(glass, input, panel);
-    window.addEventListener("resize", this.onResize);
 
     // Closing on blur is scoped to the component as a whole, not the input:
     // a click on a result's own control moves focus into this element's
@@ -278,6 +306,7 @@ export class ThatIssueSearch extends HTMLElement {
     if (!this.panel) return;
     this.panel.hidden = false;
     this.input?.setAttribute("aria-expanded", "true");
+    window.addEventListener("scroll", this.onScroll, true);
     this.applyMaxHeight();
   }
 
@@ -295,7 +324,7 @@ export class ThatIssueSearch extends HTMLElement {
     if (!this.panel || this.panel.hidden) return;
     const top = this.panel.getBoundingClientRect().top;
     const available = window.innerHeight - WINDOW_GUTTER_PX - top;
-    this.panel.style.maxHeight = `${String(Math.max(available, 0))}px`;
+    this.panel.style.maxHeight = `${String(Math.max(available, MIN_PANEL_HEIGHT_PX))}px`;
   }
 
   private close(): void {
@@ -303,6 +332,7 @@ export class ThatIssueSearch extends HTMLElement {
     this.inFlight?.abort();
     this.input?.setAttribute("aria-expanded", "false");
     this.showingResults = false;
+    window.removeEventListener("scroll", this.onScroll, true);
     if (!this.panel) return;
     this.panel.hidden = true;
     this.panel.replaceChildren();
