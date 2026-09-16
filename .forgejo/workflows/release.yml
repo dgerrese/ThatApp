@@ -15,8 +15,11 @@ on:
     paths:
       - "scripts/release-image.sh"
       - ".forgejo/workflows/release.yml"
-      - "cmd/server/**"
+      - "cmd/**"
+      - "internal/**"
+      - "web/**"
       - "go.mod"
+      - "go.sum"
 
 jobs:
   image:
