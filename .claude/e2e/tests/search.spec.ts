@@ -736,6 +736,103 @@ test.describe("that-issue-search on Today", () => {
     expect(search.calls()).toBe(1);
     expect(pinPosts).toBe(1);
   });
+
+  // Whole-branch review, final pass: showResults rebuilt a brand-new rows
+  // container on every call, so repaint() (routed through it) threw a
+  // scrolled reader back to the top and dropped focus to <body> the moment
+  // any repaint fired while the panel was open and scrolled — a pin, an
+  // unpin, or a background Refresh elsewhere on the page (today.ts calls
+  // regions.search.repaint() on every path through refreshPins). 25 hits,
+  // same as the height tests, but this is the one thing they never did:
+  // scroll, then act.
+  test("pinning from a scrolled result list keeps the scroll position", async ({ page }) => {
+    const hits = manyHits(25);
+    await stubSearch(page, hits);
+    const target = hits[19]!;
+    const pinnedHit = {
+      id: 9,
+      instanceId: target.instanceId,
+      instanceName: target.instanceName,
+      instancePosition: target.instancePosition,
+      key: target.key,
+      summary: target.summary,
+      status: target.status,
+      url: target.url,
+      error: null,
+    };
+    // A second GET response, not just the POST's own: pinTicket re-fetches
+    // /api/pins after a successful post, and the row's own icon reads
+    // pinnedKeysOf(regions) — fed by that fetch, not the POST body.
+    await stubPins(page, [], [pinnedHit]);
+    await page.route("**/api/pins", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({ status: 201, json: pinnedHit });
+    });
+
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+    await expect(panel(page)).toBeVisible();
+
+    const targetRow = resultRow(page, target.key);
+    await targetRow.scrollIntoViewIfNeeded();
+    const scrollBefore = await rowsArea(page).evaluate((el) => el.scrollTop);
+    expect(scrollBefore).toBeGreaterThan(0);
+
+    await targetRow.getByRole("button", { name: `Pin ${target.key}`, exact: true }).click();
+    await expect(
+      targetRow.getByRole("button", { name: `Unpin ${target.key}`, exact: true }),
+    ).toBeVisible();
+
+    const scrollAfter = await rowsArea(page).evaluate((el) => el.scrollTop);
+    expect(scrollAfter).toBeGreaterThan(0);
+    expect(Math.abs(scrollAfter - scrollBefore)).toBeLessThanOrEqual(2);
+  });
+
+  // Same finding, the other half: replaceChildren tore out whichever
+  // control had focus — the one just pressed — and nothing put focus back
+  // anywhere, so it fell to <body>. Enter, not click(): a click's own
+  // focus-follows-activation behaviour already differs between the target
+  // browsers (see that-tooltip.ts's own note on it) and would mask whether
+  // this component's own repaint is what kept focus, rather than the click.
+  test("activating a control by keyboard keeps focus on its equivalent after the repaint", async ({
+    page,
+  }) => {
+    await stubSearch(page, [ridge5140]);
+    const pinnedHit = {
+      id: 9,
+      instanceId: 1,
+      instanceName: "Ridgeline",
+      instancePosition: 0,
+      key: "RIDGE-5140",
+      summary: ridge5140.summary,
+      status: "To Do",
+      url: ridge5140.url,
+      error: null,
+    };
+    await stubPins(page, [], [pinnedHit]);
+    await page.route("**/api/pins", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({ status: 201, json: pinnedHit });
+    });
+
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+
+    const row = resultRow(page, "RIDGE-5140");
+    const pinButton = row.getByRole("button", { name: "Pin RIDGE-5140", exact: true });
+    await pinButton.focus();
+    await pinButton.press("Enter");
+
+    const unpinButton = row.getByRole("button", { name: "Unpin RIDGE-5140", exact: true });
+    await expect(unpinButton).toBeVisible();
+    await expect(unpinButton).toBeFocused();
+  });
 });
 
 // Task 10, added 2026-09-16 after the plan and the fix wave: the panel grew

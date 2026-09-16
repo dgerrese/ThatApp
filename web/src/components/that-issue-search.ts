@@ -69,6 +69,14 @@ export interface IssueSearchDurationControl {
   onPress: (hit: IssueHit) => void | Promise<void>;
 }
 
+/** A hit's identity across a rebuild — an id sequence or a Jira key alone
+ *  cannot stand in for it, since a key repeats across instances and an id
+ *  is reassigned every repaint. What `data-hit-key` carries, and what
+ *  `repaint`'s own focus restore looks a row up by afterward. */
+function hitKey(hit: IssueHit): string {
+  return `${String(hit.instanceId)}:${hit.key}`;
+}
+
 /** One id per icon control mounted, so its tooltip's `for` can resolve it on
  *  a page holding many rows — the same reasoning that-ticket-row's own
  *  pinTriggerSequence gives. */
@@ -79,16 +87,21 @@ let iconControlSequence = 0;
  *  once. */
 let issueSearchSequence = 0;
 
-/** Matches that-combobox's own values: this is the second control in the app
- *  reading against the same Jira APIs, and a pause any shorter costs one
- *  request per instance per keystroke. */
+/** Matches the values the deleted that-combobox used (#84 removed it —
+ *  docs/superpowers/specs/2026-08-20-pinned-issues-design.md records what it
+ *  did): this is the second control in the app reading against the same
+ *  Jira APIs, and a pause any shorter costs one request per instance per
+ *  keystroke. */
 const DEBOUNCE_MS = 350;
 const MIN_QUERY = 2;
 
-/** The app's standard 16px gutter — Tailwind's spacing-4 step, the same one
- *  `gap-4` draws in index.html's own content column — kept between the
- *  panel's bottom and the window's edge so opening it never forces the page
- *  to scroll to reach its end (task 10, 2026-09-16). */
+/** The app's standard 16px gutter — Tailwind's default spacing-4 step, and
+ *  task 10's own controller ruling for this value by name. Not drawn from
+ *  index.html's content column: that wrapper's `gap-4` sits between
+ *  siblings, and `#view` is its only child, so it draws nothing there —
+ *  the column's own inset is `py-6`/`px-7` instead, a different value.
+ *  Kept between the panel's bottom and the window's edge so opening it
+ *  never forces the page to scroll to reach its end. */
 const WINDOW_GUTTER_PX = 16;
 
 /** The cap's own floor. Review round 1's finding: `Math.max(available, 0)`
@@ -133,6 +146,17 @@ export class ThatIssueSearch extends HTMLElement {
   private readonly sequence = ++issueSearchSequence;
   private input: HTMLInputElement | undefined;
   private panel: HTMLElement | undefined;
+  /** The panel's two permanent children — built once in `build`, never
+   *  replaced, only ever repopulated via `replaceChildren` on themselves.
+   *  Whole-branch review's own blocker: `showResults` used to build a fresh
+   *  rows container on every call, so `repaint()` (routed through it on
+   *  every pin, unpin and background Refresh — today.ts's refreshPins calls
+   *  it unconditionally) handed the reader a div whose `scrollTop` was
+   *  always 0, throwing a scrolled reader back to the top of a 25-hit list
+   *  for acting on row twenty. Keeping the same element and only ever
+   *  rewriting its contents is what lets `scrollTop` survive a repaint. */
+  private rowsAreaEl: HTMLElement | undefined;
+  private fixedBottomEl: HTMLElement | undefined;
   private timer: number | undefined;
   private inFlight: AbortController | undefined;
   /** The query the panel's current contents answer, for the empty state's
@@ -171,13 +195,28 @@ export class ThatIssueSearch extends HTMLElement {
    *  element that is. Added when the panel opens and removed when it closes,
    *  not held for the component's whole life: `applyMaxHeight` is already a
    *  no-op while hidden, but there is no reason to keep the app scrolling
-   *  the window at all when nothing is open to react to it. */
-  private readonly onScroll = (): void => {
+   *  the window at all when nothing is open to react to it.
+   *
+   *  Whole-branch review: scrolling rowsAreaEl itself — reading a 25-hit
+   *  list — fires this too, and the panel's own top cannot have moved from
+   *  that. The early-out below skips `applyMaxHeight`'s read/write pair for
+   *  any scroll whose target is the panel or inside it, which is the one
+   *  scroll this listener exists to react to being ruled out. */
+  private readonly onScroll = (event: Event): void => {
+    if (event.target instanceof Node && this.panel?.contains(event.target)) return;
     this.applyMaxHeight();
   };
 
   connectedCallback(): void {
     window.addEventListener("resize", this.onResize);
+    // Review round 1 fixed this for onResize by moving its registration
+    // here; onScroll's own only-while-open registration (open()) was missed
+    // — a node detached and reattached while its panel was still open (per
+    // its own now-stale `hidden` state) would never get the listener back,
+    // exactly the stale-cap bug that round existed to kill.
+    if (this.panel && !this.panel.hidden) {
+      window.addEventListener("scroll", this.onScroll, true);
+    }
     if (this.input || !this.config) return;
 
     this.build(this.config);
@@ -188,8 +227,8 @@ export class ThatIssueSearch extends HTMLElement {
   }
 
   /** A pending debounce timer or an in-flight read must not outlive removal
-   *  from the DOM — the same reasoning that-combobox's disconnectedCallback
-   *  gives for the timer half of this. */
+   *  from the DOM — a timer would otherwise fire (or a response resolve)
+   *  against an element no longer connected to anything. */
   disconnectedCallback(): void {
     window.clearTimeout(this.timer);
     this.inFlight?.abort();
@@ -215,12 +254,12 @@ export class ThatIssueSearch extends HTMLElement {
     input.placeholder = config.placeholder;
     // No visible <label> in the drawing — the icon carries that weight for a
     // sighted user, so the placeholder doubles as the accessible name for
-    // everyone else, matching what that-combobox is more explicit about.
+    // everyone else too.
     input.setAttribute("aria-label", config.placeholder);
-    // aria-expanded plus aria-controls, mirroring that-combobox's own pair —
-    // not the rest of its combobox/listbox pattern, which does not map onto
-    // a row of press-to-act buttons the way an option list does. This is the
-    // minimum a screen reader needs to know typing opened something.
+    // aria-expanded plus aria-controls — not a full combobox/listbox pattern,
+    // which does not map onto a row of press-to-act buttons the way an
+    // option list does. This is the minimum a screen reader needs to know
+    // typing opened something.
     input.setAttribute("aria-expanded", "false");
     input.setAttribute("aria-controls", this.panelId);
     input.className =
@@ -240,7 +279,7 @@ export class ThatIssueSearch extends HTMLElement {
     // The drawing's `.results`: positioned against the field it spans exactly
     // (inset-x-0 against this element's own padding box), raised above the
     // page the way every other popover in the app is — border-edge and
-    // shadow-popover, the same recipe that-combobox's own popup uses.
+    // shadow-popover, the recipe every popover in the app uses.
     // flex flex-col: task 10's own layout — a rows area that scrolls and a
     // footer that does not, split by applyMaxHeight's inline max-height
     // rather than height, so a short result list still sizes to its content.
@@ -249,6 +288,16 @@ export class ThatIssueSearch extends HTMLElement {
       "flex flex-col rounded-md border p-1.5";
     panel.hidden = true;
     this.panel = panel;
+
+    // Built once and kept for the panel's whole life — see the field comment
+    // on rowsAreaEl for why a rebuilt-per-repaint pair was the blocker.
+    const rowsAreaEl = document.createElement("div");
+    rowsAreaEl.className = "min-h-0 overflow-y-auto";
+    const fixedBottomEl = document.createElement("div");
+    fixedBottomEl.className = "shrink-0";
+    panel.append(rowsAreaEl, fixedBottomEl);
+    this.rowsAreaEl = rowsAreaEl;
+    this.fixedBottomEl = fixedBottomEl;
 
     this.append(glass, input, panel);
 
@@ -289,6 +338,11 @@ export class ThatIssueSearch extends HTMLElement {
     this.inFlight = controller;
 
     this.showSearching(config);
+    // A fresh query is the one time scrollTop resets — repaint() (pin,
+    // unpin, a background Refresh) must never touch it, which is why this
+    // sits here rather than inside showResults itself, the method the two
+    // paths share.
+    if (this.rowsAreaEl) this.rowsAreaEl.scrollTop = 0;
 
     void searchIssues(query, controller.signal)
       .then((response) => {
@@ -335,27 +389,26 @@ export class ThatIssueSearch extends HTMLElement {
     window.removeEventListener("scroll", this.onScroll, true);
     if (!this.panel) return;
     this.panel.hidden = true;
-    this.panel.replaceChildren();
+    // Emptied in place, not replaced — rowsAreaEl and fixedBottomEl are
+    // panel's own permanent children (see the field comment on rowsAreaEl).
+    this.rowsAreaEl?.replaceChildren();
+    this.fixedBottomEl?.replaceChildren();
   }
 
   private showSearching(config: IssueSearchConfig): void {
     this.showingResults = false;
-    if (!this.panel) return;
-    this.panel.replaceChildren(
-      this.rowsArea([this.notice("Searching…")]),
-      this.fixedBottom([this.footerLine(config.footer)]),
-    );
+    if (!this.panel || !this.rowsAreaEl || !this.fixedBottomEl) return;
+    this.rowsAreaEl.replaceChildren(this.notice("Searching…"));
+    this.fixedBottomEl.replaceChildren(this.footerLine(config.footer));
     this.open();
   }
 
   private showFailure(config: IssueSearchConfig, error: unknown): void {
     this.showingResults = false;
-    if (!this.panel) return;
+    if (!this.panel || !this.rowsAreaEl || !this.fixedBottomEl) return;
     const message = error instanceof ApiError ? error.message : "Something went wrong.";
-    this.panel.replaceChildren(
-      this.rowsArea([this.failureNotice(message)]),
-      this.fixedBottom([this.footerLine(config.footer)]),
-    );
+    this.rowsAreaEl.replaceChildren(this.failureNotice(message));
+    this.fixedBottomEl.replaceChildren(this.footerLine(config.footer));
     this.open();
   }
 
@@ -365,16 +418,16 @@ export class ThatIssueSearch extends HTMLElement {
    * apart so a reader can never mistake "found nothing" for "asked and
    * failed", the pairing task 3's brief calls out by name.
    *
-   * Split across two containers rather than appended flat — task 10's rule:
-   * the rows (or, lacking any, the notice standing in their place) scroll
-   * inside the panel's own cap, while the per-instance failure line and the
-   * footer stay put beneath them.
+   * Rewrites rowsAreaEl and fixedBottomEl's own contents rather than
+   * replacing the elements themselves (task 10's rows-scroll/footer-fixed
+   * split, now also what lets `scrollTop` and focus survive a repaint — see
+   * the field comment on rowsAreaEl).
    */
   private showResults(config: IssueSearchConfig, results: IssueHit[], errors: InstanceFailure[]): void {
     this.lastResults = results;
     this.lastErrors = errors;
     this.showingResults = true;
-    if (!this.panel) return;
+    if (!this.panel || !this.rowsAreaEl || !this.fixedBottomEl) return;
 
     const rowNodes: HTMLElement[] = [];
     if (results.length > 0) {
@@ -389,31 +442,9 @@ export class ThatIssueSearch extends HTMLElement {
     }
     bottomNodes.push(this.footerLine(config.footer));
 
-    this.panel.replaceChildren(this.rowsArea(rowNodes), this.fixedBottom(bottomNodes));
+    this.rowsAreaEl.replaceChildren(...rowNodes);
+    this.fixedBottomEl.replaceChildren(...bottomNodes);
     this.open();
-  }
-
-  /** The scrolling half of the panel — task 10's rows area. `min-h-0`
-   *  overrides a flex item's default `min-height: auto`, which would
-   *  otherwise refuse to shrink below its content and defeat the cap
-   *  `applyMaxHeight` sets on the panel around it. */
-  private rowsArea(nodes: HTMLElement[]): HTMLElement {
-    const area = document.createElement("div");
-    area.className = "min-h-0 overflow-y-auto";
-    area.append(...nodes);
-
-    return area;
-  }
-
-  /** The panel's own non-scrolling floor — whatever task 10 says must stay
-   *  visible beneath the rows: the per-instance failure line when there is
-   *  one, and the footer always. */
-  private fixedBottom(nodes: HTMLElement[]): HTMLElement {
-    const bottom = document.createElement("div");
-    bottom.className = "shrink-0";
-    bottom.append(...nodes);
-
-    return bottom;
   }
 
   /**
@@ -435,17 +466,46 @@ export class ThatIssueSearch extends HTMLElement {
    * closing the panel right after this repaints it — the state it just made
    * legible gone again a moment later. `suppressBlurClose` is this call's
    * own DOM change, not the user's focus actually leaving, so that listener
-   * ignores it for the span of the synchronous `replaceChildren` below.
+   * ignores it for the span of the synchronous `replaceChildren` calls
+   * inside `showResults`. Whole-branch review's own blocker: focus still
+   * has to land back *somewhere* once that removal happens, or it falls to
+   * `<body>` — `captureFocus`/`restoreFocus` are the two halves of that.
    */
   repaint(): void {
     if (!this.showingResults || !this.config || this.lastResults === undefined) return;
 
+    const toRestore = this.captureFocus();
     this.suppressBlurClose = true;
     try {
       this.showResults(this.config, this.lastResults, this.lastErrors ?? []);
+      this.restoreFocus(toRestore);
     } finally {
       this.suppressBlurClose = false;
     }
+  }
+
+  /** What a control loses when `repaint` rebuilds it out from under it: not
+   *  the element (gone either way), but which hit and which of that hit's
+   *  controls it was — a row-then-index pair `restoreFocus` can still find
+   *  afterward, since `data-hit-key` and `data-control-index` survive the
+   *  rebuild even though the elements carrying them do not. */
+  private captureFocus(): { hitKey: string; controlIndex: string } | undefined {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !this.panel?.contains(active)) return undefined;
+
+    const row = active.closest<HTMLElement>("[data-hit-key]");
+    const controlIndex = active.dataset.controlIndex;
+    if (row?.dataset.hitKey === undefined || controlIndex === undefined) return undefined;
+
+    return { hitKey: row.dataset.hitKey, controlIndex };
+  }
+
+  private restoreFocus(target: { hitKey: string; controlIndex: string } | undefined): void {
+    if (!target || !this.rowsAreaEl) return;
+
+    const row = this.rowsAreaEl.querySelector<HTMLElement>(`[data-hit-key="${target.hitKey}"]`);
+    const control = row?.querySelector<HTMLElement>(`[data-control-index="${target.controlIndex}"]`);
+    control?.focus();
   }
 
   /** Grouped by instance in first-seen order, since the search endpoint fans
@@ -496,19 +556,22 @@ export class ThatIssueSearch extends HTMLElement {
   }
 
   /** The drawing's `.rrow`: the key (`.rk`), the summary (`.rs`), then the
-   *  host's own controls, left to right. */
+   *  host's own controls, left to right. `data-hit-key` is what
+   *  `repaint`'s own focus restore uses to find this row again after a
+   *  rebuild — see the field comment on rowsAreaEl. */
   private resultRow(config: IssueSearchConfig, hit: IssueHit): HTMLElement {
     const row = document.createElement("div");
     row.className = "hover:bg-hover flex items-center gap-2.5 rounded-sm px-[9px] py-1.5";
+    row.dataset.hitKey = hitKey(hit);
 
     row.append(this.keyLabel(hit), this.summaryLabel(hit));
-    for (const control of config.controls) {
+    config.controls.forEach((control, index) => {
       if (control.kind === "duration") {
-        row.append(this.durationControl(control, hit));
+        row.append(this.durationControl(control, hit, index));
       } else {
-        row.append(...this.iconControl(control, hit));
+        row.append(...this.iconControl(control, hit, index));
       }
-    }
+    });
 
     return row;
   }
@@ -550,12 +613,13 @@ export class ThatIssueSearch extends HTMLElement {
    *  and must not read as a different kind of control. Returns both nodes,
    *  the same shape that-entry-dialog's own rowAction helper returns for the
    *  identical button-plus-tooltip pairing. */
-  private iconControl(control: IssueSearchIconControl, hit: IssueHit): HTMLElement[] {
+  private iconControl(control: IssueSearchIconControl, hit: IssueHit, index: number): HTMLElement[] {
     const id = `that-issue-search-control-${String(++iconControlSequence)}`;
 
     const button = document.createElement("button");
     button.type = "button";
     button.id = id;
+    button.dataset.controlIndex = String(index);
     button.setAttribute("aria-label", control.label(hit));
     // Same rule as that-ticket-row's own paintPinned (2026-09-10): the
     // primary colour is a hover/focus-visible state, not a rest one — an
@@ -590,9 +654,10 @@ export class ThatIssueSearch extends HTMLElement {
    * rest, both released on hover or focus alongside the opacity fade, not
    * ticket-row's reserve-the-width recipe.
    */
-  private durationControl(control: IssueSearchDurationControl, hit: IssueHit): HTMLElement {
+  private durationControl(control: IssueSearchDurationControl, hit: IssueHit, index: number): HTMLElement {
     const trigger = document.createElement("button");
     trigger.type = "button";
+    trigger.dataset.controlIndex = String(index);
     trigger.setAttribute("aria-label", control.label(hit));
     trigger.className =
       "group hover:bg-hover -my-[9px] -mr-[13px] inline-flex shrink-0 cursor-pointer " +
