@@ -852,13 +852,25 @@ test.describe("the search panel's height stops at the window's edge", () => {
     expect(panelBox!.height).toBeLessThan(200);
   });
 
-  test("the first row's tooltip stays fully visible on hover, not clipped by the rows area", async ({
+  // Review round 1: getBoundingClientRect/boundingBox() are unaffected by
+  // ancestor clipping and toBeVisible() does not check it either, so a bound
+  // check against the viewport alone (the row sits ~150px into a 600px
+  // window either way) would hold whether or not the tooltip actually
+  // escapes rowsArea's overflow-y: auto. This compares against rowsArea's
+  // own box instead: an ordinary clipped descendant could never legitimately
+  // render above that box's own top edge, so this only holds because
+  // that-tooltip is a top-layer popover, positioned in the viewport's own
+  // coordinate space rather than the rows area's.
+  test("the first row's tooltip escapes the rows area's own clipping box via the top layer", async ({
     page,
   }) => {
     await stubSearch(page, manyHits(25));
     await page.goto("/today");
     await searchField(page).fill("capacity");
     await expect(panel(page)).toBeVisible();
+
+    const areaBox = await rowsArea(page).boundingBox();
+    expect(areaBox).not.toBeNull();
 
     const firstPin = resultRow(page, "RIDGE-5000").getByRole("button", {
       name: "Pin RIDGE-5000",
@@ -875,8 +887,8 @@ test.describe("the search panel's height stops at the window's edge", () => {
 
     const box = await tooltip.boundingBox();
     expect(box).not.toBeNull();
+    expect(box!.y).toBeLessThan(areaBox!.y);
     expect(box!.y).toBeGreaterThanOrEqual(0);
-    expect(box!.y + box!.height).toBeLessThanOrEqual(600);
   });
 
   // Not one of task 10's four named tests, but its own ruling demands the
@@ -903,5 +915,84 @@ test.describe("the search panel's height stops at the window's edge", () => {
 
     const scrollTop = await rowsArea(page).evaluate((el) => el.scrollTop);
     expect(scrollTop).toBeGreaterThan(0);
+  });
+
+  // Controller ruling, review round 1: the cap only ever re-measured on
+  // open, repaint and resize — not while the scrolling region itself moves
+  // under an already-open panel. Repro: open the panel, scroll the region so
+  // the field rises high (a generous cap gets computed from that position),
+  // then scroll back so the field drops part way back down — the panel's
+  // own top follows it (drawn under it in CSS), but a max-height computed
+  // once would not, and the panel would run past the window's bottom again.
+  //
+  // Real page content bounds how high the field can rise only by exactly as
+  // much room as whatever trails it (#content can never scroll further than
+  // its own last pixel) — today's own "no issues assigned" card leaves that
+  // margin too tight to clear MIN_PANEL_HEIGHT_PX cleanly in both positions
+  // this repro needs. Two plain spacers, one on each side of the view's own
+  // content, buy a wide, predictable scroll range without depending on that
+  // fixed, easy-to-break amount of real content.
+  test("the cap re-measures while the scrolling region scrolls, not only on open, repaint or resize", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 700 });
+    await stubSearch(page, manyHits(25));
+    await page.goto("/today");
+    await page.locator("that-issue-search").waitFor();
+
+    await page.evaluate(() => {
+      const view = document.querySelector("#view");
+      if (!view) return;
+      const before = document.createElement("div");
+      before.style.height = "900px";
+      view.prepend(before);
+      const after = document.createElement("div");
+      after.style.height = "900px";
+      view.append(after);
+    });
+
+    // fill() scrolls the field into view on its own terms before typing, so
+    // the panel opens first, at whatever position that leaves — the repro
+    // only needs the two scrolls that follow, both with the panel already
+    // open, not a particular starting position.
+    await searchField(page).fill("capacity");
+    await expect(panel(page)).toBeVisible();
+
+    const content = page.locator("#content");
+    const maxScroll = await content.evaluate((el) => el.scrollHeight - el.clientHeight);
+    expect(maxScroll).toBeGreaterThan(0);
+
+    const maxHeightPx = () =>
+      panel(page).evaluate((el) => parseFloat((el as HTMLElement).style.maxHeight));
+
+    // High: the field rises well above the middle of the window, so a cap
+    // computed here is generous — most of the window's own height. Checked
+    // explicitly, not folded into the final assertion below: without this,
+    // a stale cap left over from wherever fill() happened to land the panel
+    // could coincidentally still satisfy that assertion at the lower
+    // position, since a cap that never grew is a cap that never has to
+    // shrink back either.
+    await content.evaluate((el, amount) => {
+      el.scrollTop = amount;
+    }, maxScroll * 0.9);
+    await expect.poll(maxHeightPx).toBeGreaterThan(400);
+
+    // Low: scrolled back to the middle, not all the way to 0 — the field
+    // drops, but stays comfortably clear of MIN_PANEL_HEIGHT_PX's own floor,
+    // which is a different, accepted trade-off (finding 5) this test does
+    // not mean to exercise. A cap stuck at the generous value the high
+    // position just proved would let the panel run past the window's bottom
+    // again here — the ticket's own original bug.
+    await content.evaluate((el, amount) => {
+      el.scrollTop = amount;
+    }, maxScroll * 0.5);
+
+    await expect
+      .poll(async () => {
+        const box = await panel(page).boundingBox();
+
+        return box ? box.y + box.height : null;
+      })
+      .toBeLessThanOrEqual(700 - 16 + 0.5);
   });
 });
