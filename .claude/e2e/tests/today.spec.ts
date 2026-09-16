@@ -974,8 +974,16 @@ test("a cold reload looks up an off-list issue once, and shows it loading rather
 test("the off-list section waits for the assigned read to settle before it renders or fetches", async ({
   page,
 }) => {
-  await stubPins(page, []);
-  await stubEntries(page, [offListEntry(workIssue.key)]);
+  // rosterPin is pinned (so it renders independent of the gated assigned
+  // read) and logged too, at a duration nothing else in this test produces
+  // — a DOM signal this waits on below, derived from the same /api/entries
+  // response the off-list guard itself depends on, but observable without
+  // depending on that guard's own outcome.
+  await stubPins(page, [rosterPin]);
+  await stubEntries(page, [
+    offListEntry(workIssue.key),
+    { ...offListEntry(rosterPin.key), id: 10, seconds: 300 },
+  ]);
 
   let releaseIssues: (() => void) | undefined;
   const gate = new Promise<void>((resolve) => {
@@ -992,19 +1000,17 @@ test("the off-list section waits for the assigned read to settle before it rende
     await route.fulfill({ status: 200, json: { results: [], errors: [] } });
   });
 
-  // Registered before navigation, not after: entries resolves fast enough
-  // that waiting for it only after goto races the response and can miss it
-  // outright (nothing left to wait for). /api/issues stays gated above.
-  // Without this wait, both checks below pass trivially the instant the page
-  // loads — entries has not landed yet either, so of course nothing renders
-  // and nothing was searched. Waiting for the response, then a moment for
-  // today.ts's own continuation (regions.entries = entries;
-  // renderOffListSection(regions)) to run, is what makes the guard itself
-  // the thing being proven.
-  const entriesLanded = page.waitForResponse((response) => response.url().includes("/api/entries"));
   await page.goto("/today");
-  await entriesLanded;
-  await page.waitForTimeout(200);
+
+  // Without this, both checks below pass trivially the instant the page
+  // loads — entries has not landed yet either, so of course nothing renders
+  // and nothing was searched. today.ts's refreshTotals sets regions.entries,
+  // repaints every that-ticket-row's `seconds` (paintTotals), and only then
+  // calls renderOffListSection — all synchronously, no await in between —
+  // so rosterPin's own row showing what its entry actually logged is proof
+  // that call already happened, not a guess at how long it takes to.
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  await expect(pinned.getByText("0:05")).toBeVisible();
 
   await expect(
     page.getByRole("heading", { name: "Logged today, not on your list" }),
