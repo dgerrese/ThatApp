@@ -90,8 +90,9 @@ markers were already CSS shapes rather than characters.
 - The failed marker went from 6×5 to 9×8; it was too small to read as a shape.
 - **Unchanged on purpose:** the marker shapes, worst-wins on a cell and on a day, totals never taking
   a marker, row order by instance position then key, and the **em dash** in an empty cell.
-- Week also carries the search, worded for its own job: logging against a result puts that ticket
-  into the week.
+- Week also carries the search, worded for its own job: choosing a result puts an empty row into the
+  grid — it logs no time itself. See decision 3 of
+  [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md).
 - **Week rows stay keys only.** A summary column was offered and declined on 2026-09-03.
 
 ## The entries dialog
