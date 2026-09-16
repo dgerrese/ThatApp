@@ -117,7 +117,7 @@ const MIN_PANEL_HEIGHT_PX = 120;
  * The shapes below — the field, the results panel, the group heading, a row,
  * its key and summary, the footer — are transcribed from the prototype's
  * `.field`, `.results`, `.rgroup`, `.rrow`, `.rk`, `.rs` and `.rfoot`
- * (docs/superpowers/prototypes/2026-09-03-app-prototype.html, lines 355-363),
+ * (docs/superpowers/prototypes/2026-09-03-app-prototype.html, lines 366-374),
  * translated into this app's Tailwind vocabulary the way `that-ticket-row`
  * translates its own — including its own `.durbtn`/`.iconbtn` pair now that
  * `IssueSearchControl` can express both: which controls a row carries, and
