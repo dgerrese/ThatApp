@@ -15,7 +15,12 @@ import (
 	"codeberg.org/DionGerrese/ThatApp/web"
 )
 
+// Set at release build time; see scripts/release-image.sh.
+var version = "dev"
+
 func main() {
+	log.Printf("thatapp %s", version)
+
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
 		log.Fatalf("configuration: %v", err)
