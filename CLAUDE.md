@@ -205,6 +205,22 @@ The merge is theirs in the literal sense too: **merging into `main` locally is f
 hard constraint above. Finishing a branch means pushing it and opening a pull request — those are
 the only two endings, alongside leaving the branch alone.
 
+**A locked 1Password vault never stops local work.** Commits are SSH-signed through 1Password, which
+holds no keys while the vault is locked, so `git commit` fails. That is not a blocker and not a
+question for the owner: retry the same commit unsigned with `git -c commit.gpgsign=false commit …`
+and carry on, noting the last signed commit in the session's ledger. The vault matters at exactly
+one point — **nothing unsigned reaches the remote, ever.** Before pushing, re-sign the range and
+check it:
+
+```shell
+git rebase --exec 'git commit --amend --no-edit -S' <last-signed-commit>
+git log --format='%h %G?' <last-signed-commit>..HEAD    # every line must read G
+git diff <old-tip> HEAD                                 # must be empty
+```
+
+Every subagent that may commit is told both halves: commit unsigned rather than stop, and never
+push.
+
 **Blocked is a hard stop.** The moment a blocker appears, move the ticket to `status/blocked`, say
 what blocked it, and stop. Do not lower a threshold, skip a test, reshape the scope to dodge it, or
 pick up another ticket to stay busy.
