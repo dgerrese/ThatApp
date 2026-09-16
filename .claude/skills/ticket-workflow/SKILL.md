@@ -104,6 +104,13 @@ running* or *is not in the initial design*. Two consequences that catch most mis
 A ticket whose own body says it *widens* an agreed contract rather than correcting it is the clean
 case for `enhancement` — #19 is the worked example.
 
+**No `enhancement` in a milestone whose scope is not yet determined.** The test above measures a
+ticket against a design, so it has no answer until the milestone has a scope to be measured against.
+Until the owner settles that scope, a ticket in such a milestone carries no type label — not a
+provisional one — and it is typed only once the scope exists. Which milestones those are is the
+owner's call, not something to infer from a milestone's description. Set on 2026-09-16, when v2's
+scope was still open and its seven `enhancement` labels came off.
+
 ### Priority: `priority/high` and `priority/low`
 
 A third axis, added 2026-09-08 because the board had no ordering within a milestone. It answers
