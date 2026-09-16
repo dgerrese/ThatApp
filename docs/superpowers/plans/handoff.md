@@ -50,21 +50,23 @@ reversing — see the 2026-09-06 day file for both, and for why no test caught t
 
 **#105 merged as PR #135 on 2026-09-10**, with the handoff pull request **#136** before it. **#138**
 (bugs outrank non-bugs) and **#121 as PR #140** followed the same day; #121's `status/*` label had
-to be stripped by hand at the close, the fifth time. **Remote `main` is at `e29845f`.** The
-2026-09-10 handoff is **PR #141, still open**; the 2026-09-16 entry was added to the same branch
-rather than stacked on it.
+to be stripped by hand at the close, the fifth time. The 2026-09-10 handoff merged as **PR #141**
+on 2026-09-16.
 
-**In progress: #84**, built and **stopped one step short on the owner's instruction**. Nine tasks, six
-fix rounds, every task reviewed; the branch `issue-84-global-search` is pushed and every commit is
-signed. **No pull request** — the whole-branch review returned one Critical and four Important, and
-the owner chose to stop rather than run a fix wave. **The next session starts with that fix wave**,
-and the findings are in the day file for 2026-09-10 and in full in the branch's ledger at
-`.superpowers/sdd/2026-09-10-global-search/progress.md`. The Critical is one clause of JQL that must
-come out: `key = "…"` is a Jira error rather than an empty result when a project does not exist, so a
-key-shaped search loses whole instances — and the exact lookup it duplicates already existed.
-**#139 inherits decision 1 of #84's design** and is otherwise untouched. Nothing moved between
-2026-09-10 and 2026-09-16; on the 16th the branch stood **23 commits ahead of `main` and 11
-behind**, so it is rebased onto `codeberg/main` before its pull request opens.
+**#84 merged as PR #146 on 2026-09-16**, after its fix wave. **It still carries
+`status/in-progress`** — the sixth merge to leave a status label behind; the evening's `eod` reported
+it rather than relabelling, so strip it on the owner's word. **#145** (no `enhancement` label while a
+milestone's scope is undetermined) and **#147** (a locked 1Password vault never stops a commit, only
+a push — now a `CLAUDE.md` rule) merged the same day. **Remote `main` is at `a06c134`.**
+
+**In progress: #122**, the release image — **open as PR #148**, every commit signed, both gates green
+at its head `f02d84b` (one end-to-end run failed a single test, unidentified, and the rerun passed —
+see the 2026-09-16 day file). Its CI was still running at the end of the day. After merge the owner
+creates the `RELEASE_TOKEN` secret, pushes the first `vYYYY.WW.N` tag, links the package and does the
+anonymous pull; the steps are in the PR body. **PR #149** carries the matching `CLAUDE.md` and
+`ticket-workflow` edits and merges after #148.
+
+**#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
 **#117 merged as PR #128**, all 48 criteria met, 33 signed commits, both gates green.
 Its plan was `docs/superpowers/plans/2026-09-09-prototype-drift.md`, twelve tasks under
@@ -84,9 +86,10 @@ rather than into `main`, because #86 could not go green on its own — see *Deci
 style is rebase-merge, so every one of those commits has a new SHA on `main`.
 Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
-**`worktrees-without-the-tax` is pushed with no pull request behind it.** It predates the forge move
-and still needs the rebase treatment its own bullet describes. **`issue-121-push-corrected-entries`
-and `project-design-bugs-first` exist only locally and are fully merged**, droppable on the owner's word.
+**`worktrees-without-the-tax` was deleted on 2026-09-16**, locally and on Codeberg, on the owner's
+instruction — see *Decisions taken*. **`issue-121-push-corrected-entries`, `project-design-bugs-first`,
+`issue-84-global-search`, `handoff-2026-09-10`, `project-design-unsigned-commits` and
+`type-labels-wait-for-scope` exist only locally and are fully merged**, droppable on the owner's word.
 
 **The board's own hygiene was re-audited on 2026-09-07 and is clean**: all 36 open issues carry
 exactly one `status/*` label, and none of the 50 closed ones carries any. **Merging a pull request
@@ -673,6 +676,12 @@ paper-white, and it changed three things in the language and none in the palette
 both themes. Darkening a white page by that much is a question about modality, not about depth.
 
 ## Decisions taken — do not reopen
+
+**No worktrees — branch in place, permanently.** Settled by the owner on 2026-09-16: they do not use
+worktrees and do not intend to, so the plan to make them cheap (`worktrees-without-the-tax`, which
+would have flipped the standing decision) was dropped and its branch deleted. A side worktree for a
+project-design edit while a ticket occupies the checkout is still fine; it is removed as soon as its
+branch is pushed.
 
 **A branch cut from another branch merges back into it, not into `main`.** Settled on 2026-09-02 by
 the owner, against a session that had opened #88 against `main` on the reasoning that a stacked pull
@@ -1446,9 +1455,8 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   **`retro-skill` merged as PR #85 on 2026-09-02.** Rebasing it onto `main` first needed the
   `CLAUDE.md` hunk re-placed against the handoff split and the eod paragraph, and its commands
   ported from `gh` to `tea` — the pre-move debt the original bullet warned about, and it was an
-  hour's work rather than a rewrite. **`worktrees-without-the-tax` was pushed to Codeberg on 2026-09-03** — it
-  had never been, and its only copy was local. It still has **no pull request**, still predates the
-  rename, and will need the same rebase treatment.
+  hour's work rather than a rewrite. `worktrees-without-the-tax` never got one: the owner dropped
+  the plan on 2026-09-16 and the branch was deleted.
 - **`upload-artifact` on hosted runners is still unfired, but no longer unverified in the same
   way.** The 2026-09-02 failure finally ran the step, and `actions/upload-artifact@v4` refused
   outright: it aborts on any non-github.com API with *not currently supported on GHES*, so the
@@ -1476,8 +1484,6 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
   `issue-51-frontend-unit-tests`, `issue-87-e2e-on-codeberg`, `issue-94-visual-language`,
   `issue-95-today-and-week` and `project-design-priority-axis`. The last three joined when PRs #120,
   #124 and #125 merged; they need a force delete for the reason below.
-  `worktrees-without-the-tax` is the only merged-branch exception: it is genuinely unmerged and is
-  kept deliberately (see below).
   **`git branch --merged` under-reports this, and will keep doing so.** Rebase-merge rewrites the
   SHAs, so a branch whose content is on `main` is not an ancestor of it, and on 2026-09-07 eight of
   the twenty-three were invisible to that command while `git cherry` found every one of them upstream
@@ -1486,13 +1492,6 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Decided but not built:**
 
-- **Worktrees without the Docker tax** —
-  `docs/superpowers/plans/2026-08-10-worktrees-without-the-tax.md`, on its own branch. It makes
-  worktrees cheap by pinning shared Compose volumes with a fixed `name:`; verified that `name:`
-  produces an unprefixed volume while a sibling without it stays project-scoped. **The owner has
-  chosen that one worktree per ticket becomes the default once this lands**, which flips the
-  standing "branch in place" decision in `CLAUDE.md` and the `ticket-workflow` skill. Not
-  implemented, and it has no issue.
 - **Repo hygiene, no ticket needed:** a `.dockerignore` excluding `web/dist` and `web/node_modules`,
   and `rm -rf dist` in `web/build.mjs`. Together they make the image reproducible and future byte
   measurements trustworthy. Not started.
@@ -1556,12 +1555,11 @@ skill still carries the unbraced version.
 
 **This branch:** `issue-105-day-scoped-dialog`, carrying #105's design document and plan on top of
 #117's 33 commits. The 2026-09-09 handoff went out separately on `handoff-2026-09-09`, as it should.
-**`issue-117-prototype-drift` is pushed and open as PR #128**; if it rebase-merges, #105's branch
-rebases onto the new `main` before opening its own pull request. `handoff-2026-09-08` merged as PR #125 on 2026-09-09 and can be deleted on the owner's
+`issue-117-prototype-drift` merged as PR #128 on 2026-09-09, and #105 followed it as PR #135. `handoff-2026-09-08` merged as PR #125 on 2026-09-09 and can be deleted on the owner's
 word, along with `project-design-priority-axis` from PR #124. **`issue-10-edit-after-push-and-week-fetch` merged
 as PR #120 on 2026-09-08** and is deleted on both the forge and this machine. The 2026-09-08 handoff
 edits were being written on that branch, so they were carried across to this one before it went.
-`worktrees-without-the-tax` is still pushed with no pull request behind it. **A second branch went
+**A second branch went
 out on 2026-09-08:** `project-design-priority-axis`, carrying the `CLAUDE.md` and `ticket-workflow`
 changes that document the priority axis. The owner chose that it get its own branch and pull request
 rather than ride on the handoff, so a handoff pull request still carries only the day's record.
