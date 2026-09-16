@@ -28,14 +28,24 @@ if [ -z "$valid" ]; then
 	exit 2
 fi
 
-crane() { go run github.com/google/go-containerregistry/cmd/crane@v0.22.1 "$@"; }
 fail() { echo "release-image: $*" >&2; exit 1; }
+
+# go run backgrounds a wrapper subshell, not the crane binary itself: kill $!
+# would leave the actual "registry serve" process orphaned. Installing once and
+# calling the binary directly means $! is that process.
+install_crane() {
+	bin=$(mktemp -d)
+	GOBIN="$bin" go install github.com/google/go-containerregistry/cmd/crane@v0.22.1
+	crane() { "$bin/crane" "$@"; }
+}
 
 case $repo in
 localhost:*)
+	install_crane
 	if ! crane catalog "${repo%%/*}" >/dev/null 2>&1; then
-		crane registry serve --address "${repo%%/*}" &
-		trap 'kill $! 2>/dev/null' EXIT
+		"$bin/crane" registry serve --address "${repo%%/*}" >/dev/null 2>&1 &
+		registry=$!
+		trap 'kill "$registry" 2>/dev/null' EXIT
 		tries=0
 		until crane catalog "${repo%%/*}" >/dev/null 2>&1; do
 			tries=$((tries + 1))
@@ -49,6 +59,7 @@ localhost:*)
 		echo "release-image: REGISTRY_USER and REGISTRY_TOKEN are required for $repo" >&2
 		exit 2
 	}
+	install_crane
 	printf '%s' "$REGISTRY_TOKEN" | crane auth login "${repo%%/*}" -u "$REGISTRY_USER" --password-stdin
 	;;
 esac
@@ -79,6 +90,7 @@ for arch in amd64 arm64; do
 	crane mutate "$repo:$version-$arch" -t "$repo:$version-$arch" \
 		--set-platform "linux/$arch" --entrypoint /thatapp --exposed-ports 8080
 	crane config "$repo:$version-$arch" | grep -q "\"architecture\":\"$arch\"" || fail "$arch config has the wrong architecture"
+	[ "$(crane export "$repo:$version-$arch" - | tar -tf - | sed 's:/$::' | LC_ALL=C sort)" = "$expected" ] || fail "$arch image holds more than the binary and CA bundle"
 done
 
 crane index append -m "$repo:$version-amd64" -m "$repo:$version-arm64" -t "$repo:$version"
