@@ -1,0 +1,49 @@
+name: Release
+
+# A version tag publishes the image to Codeberg's registry. A pull request that
+# touches the release path runs the same script against a throwaway registry, so
+# the first real tag is not the first time the path has run.
+#
+# The tag reaches the script through the environment, never interpolated into
+# the command: a tag name is attacker-shaped input, and the script validates it
+# before building anything.
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "scripts/release-image.sh"
+      - ".forgejo/workflows/release.yml"
+      - "cmd/server/**"
+      - "go.mod"
+
+jobs:
+  image:
+    runs-on: codeberg-medium
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v5
+
+      - uses: https://data.forgejo.org/actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: https://data.forgejo.org/actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Build frontend
+        working-directory: web
+        run: npm ci --no-audit --no-fund && npm run build
+
+      - name: Dry run
+        if: github.event_name == 'pull_request'
+        run: sh scripts/release-image.sh 0000.01.1 localhost:5000/thatapp
+
+      - name: Publish
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ github.ref_name }}
+          REGISTRY_USER: ${{ github.repository_owner }}
+          REGISTRY_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: sh scripts/release-image.sh "${TAG#v}" codeberg.org/diongerrese/thatapp
