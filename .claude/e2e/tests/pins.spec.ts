@@ -555,6 +555,10 @@ test.describe("the ticket row's own pin control", () => {
     await expect(unpinnedControl).toHaveCSS("color", mutedColor);
     await unpinnedControl.hover();
     await expect(unpinnedControl).toHaveCSS("color", primaryColor);
+    // Task 10's residual: focusing while still hovered proved nothing about
+    // :focus-visible, since :hover alone already gives primary. Moving the
+    // pointer away first is what makes this a real focus assertion.
+    await page.mouse.move(0, 0);
     await unpinnedControl.focus();
     await expect(unpinnedControl).toHaveCSS("color", primaryColor);
 
