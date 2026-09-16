@@ -55,7 +55,7 @@ the newest:
 
 ```shell
 docker pull codeberg.org/diongerrese/thatapp:latest
-docker rm -f thatapp
+docker stop thatapp && docker rm thatapp
 ```
 
 then run the command from step 2 again. Your data is in the `thatapp-data` volume and is upgraded
@@ -70,6 +70,15 @@ Everything is in the `thatapp-data` volume. Stop the app first, so the database 
 docker stop thatapp
 docker run --rm -v thatapp-data:/data -v "$PWD":/backup alpine tar czf /backup/thatapp-data.tgz -C /data .
 docker start thatapp
+```
+
+To restore, stop and remove the app, replace the volume with the backup, and start it again with
+the command from step 2:
+
+```shell
+docker stop thatapp && docker rm thatapp
+docker volume rm thatapp-data
+docker run --rm -v thatapp-data:/data -v "$PWD":/backup alpine tar xzf /backup/thatapp-data.tgz -C /data
 ```
 
 Back up `thatapp.env` too — the data is no use without its key.
