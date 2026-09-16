@@ -228,7 +228,7 @@ export class ThatTicketRow extends HTMLElement {
     // button's own hit area.
     trigger.className =
       "hover:bg-hover focus-visible:bg-hover -mr-2 flex h-[34px] w-[34px] shrink-0 cursor-pointer " +
-      "items-center justify-center rounded-sm text-ink-muted hover:text-ink focus-visible:text-ink";
+      "items-center justify-center rounded-sm text-ink-muted hover:text-primary focus-visible:text-primary";
     trigger.addEventListener("click", () => {
       this.togglePinned();
     });
@@ -248,6 +248,13 @@ export class ThatTicketRow extends HTMLElement {
    * Toggling is optimistic: the icon, the aria-label and the tooltip all
    * update the moment the control is used, because a control that waits on a
    * network round trip before showing anything reads as broken.
+   *
+   * The control no longer takes the primary colour at rest just because the
+   * row is pinned — 2026-09-10's decision, folded into this ticket rather
+   * than kept as its own. The mark alone (`pin` against `pin-off`) says
+   * "pinned" at rest; the primary colour is reserved for hover and
+   * focus-visible, set once in the trigger's own class list in
+   * appendPinControl rather than toggled here.
    */
   private paintPinned(): void {
     const trigger = this.pinTrigger;
@@ -259,7 +266,6 @@ export class ThatTicketRow extends HTMLElement {
 
     trigger.innerHTML = iconMarkup(pinned ? "pin-off" : "pin");
     trigger.setAttribute("aria-label", pinned ? `Unpin ${key}` : `Pin ${key}`);
-    trigger.classList.toggle("text-primary", pinned);
     tooltip.textContent = pinned ? "unpin ticket" : "pin ticket";
   }
 

@@ -104,20 +104,23 @@ func stripTrailingWildcard(query string) string {
 	return strings.TrimRight(query, "*")
 }
 
-// SearchText finds issues whose summary starts a word with query, most recently
-// updated first.
+// SearchText finds issues whose summary starts a word with query, most
+// recently updated first, regardless of status — unlike SearchAssigned, this
+// is used to find one specific issue, including finished work. It does not
+// match keys: `key = "..."` is a 400 from Jira, not an empty result, on an
+// instance that does not hold the project, so an exact key lookup is the
+// server's job (client.Issue), never this JQL.
 //
-// Three properties of Jira's ~ operator shape this and cannot be worked around
-// here: it matches word prefixes rather than substrings, a leading wildcard is
-// rejected by the endpoint outright, and the * belongs inside the quotes. So
-// "secur" finds "security" and "curity" finds nothing.
+// Three properties of Jira's ~ operator shape the summary term and cannot be
+// worked around here: it matches word prefixes rather than substrings, a
+// leading wildcard is rejected by the endpoint outright, and the * belongs
+// inside the quotes. So "secur" finds "security" and "curity" finds nothing.
 //
-// Unlike SearchAssigned this does not page: it backs a type-ahead, where a
-// second page is latency spent on results nobody scrolls to.
+// Unlike SearchAssigned this does not page: limit already bounds the answer to
+// what the caller asked for, and a second page is latency spent on results
+// nobody asked to see.
 func (c *Client) SearchText(ctx context.Context, query string, limit int) ([]Issue, error) {
-	jql := fmt.Sprintf(
-		`summary ~ "%s*" AND statusCategory != Done ORDER BY updated DESC`,
-		escapeJQL(stripTrailingWildcard(query)))
+	jql := fmt.Sprintf(`summary ~ "%s*" ORDER BY updated DESC`, escapeJQL(stripTrailingWildcard(query)))
 
 	body := searchRequest{
 		JQL:        jql,

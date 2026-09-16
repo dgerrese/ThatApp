@@ -2,7 +2,9 @@
 
 **Date:** 2026-09-02
 **Supersedes:** nothing
-**Superseded by:** nothing
+**Superseded by:** [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md),
+for the grid's row rule alone (decision 1) — settled for #84 and #139. Everything else in this
+document still governs.
 
 The design for [#11](https://codeberg.org/DionGerrese/ThatApp/issues/11). A grid of tickets against
 Monday–Sunday, backed by `GET /api/week?start=YYYY-MM-DD`, with push state on every cell and the
@@ -122,8 +124,19 @@ stacking in a column are tabular.
 `store.Instances`' `created_at` order — the same key `instance-hue.ts` colours from, so a row's dot
 and its position agree. The same issue key in two instances is two rows, and they sort apart.
 
-A row appears when it has at least one entry in the week. The grid is not a list of assigned or
-pinned tickets; it is what the week actually contains.
+**A row with nothing logged against it in the displayed week is an ordinary row**, as of decision 1
+of [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md)
+(#84, #139). It takes its place in the grid's existing order, carries no mark of any kind, and shows
+an em dash in each of its seven day cells and in its row total — a zero would claim the week holds
+something it does not.
+
+This replaces the rule as first written here, that a row appears only once it has an entry and the
+grid is not a list of assigned or pinned tickets. That held only while the grid had no other reason
+to show a ticket; #139 gives it one (a pinned ticket, whether or not it was worked this week) and #84
+gives it another (a ticket just pulled in by search, before anything is logged against it), and
+both need a row to sit in before either is true of it. **A row that is there because it is pinned or
+because it was just searched for is now indistinguishable from a worked one, deliberately** — the
+grid shows what you are working on this week, not why each line is present.
 
 ## Push, and reporting a push that half-failed
 

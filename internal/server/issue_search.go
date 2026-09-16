@@ -12,9 +12,10 @@ import (
 	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
-// searchLimit caps one instance's summary matches. This backs a type-ahead: a
-// longer list is scrolled past, not read.
-const searchLimit = 10
+// searchLimit caps one instance's matches, by key or summary. This backs a
+// lookup for one specific issue among many, not a type-ahead, so it affords
+// more results than a list meant to be scanned at a glance would.
+const searchLimit = 25
 
 // minSearchQuery is the floor below which no instance is reached. The browser
 // debounces to the same number; enforcing it here means a hand-made request

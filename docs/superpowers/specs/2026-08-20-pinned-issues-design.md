@@ -2,7 +2,10 @@
 
 **Date:** 2026-08-20
 **Supersedes:** nothing
-**Superseded by:** nothing
+**Superseded by:** [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md),
+for the pin form and `that-combobox` (decision 2, and *The frontend*'s `### today.ts` and
+`### that-combobox` sections) — #84 deleted both and pins now come from the global search.
+Everything else in this document still governs.
 
 The design for [#6](https://codeberg.org/DionGerrese/ThatApp/issues/6). Pins are how time gets
 logged against tickets that are not assigned to the user — shared work, standing meetings,
@@ -444,6 +447,11 @@ this one dot-versus-name distinction.
 **Deduplication** happens where the response is rendered: `today.ts` builds a `Set` of
 `` `${instanceId}:${key}` `` from the pins and filters each instance's issues through it. Because both
 fetches are independent, a failed `/api/pins` means no filtering rather than no issues.
+
+> **Removed by #84.** The form below and `that-combobox` were deleted; pinning now happens by
+> choosing a result in the global search panel — see
+> [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md).
+> Left as written for its history.
 
 **The form** is hidden behind a "Pin an issue" button. Revealed, it is a single labelled combobox —
 "Find an issue" — and a Cancel button. There is no instance picker and no separate submit: **choosing a

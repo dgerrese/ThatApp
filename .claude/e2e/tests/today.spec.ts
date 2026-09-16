@@ -661,3 +661,369 @@ test("an instance's tally counts a pinned issue's time too", async ({ page }) =>
   await expect(tally).toHaveText("1 issue · 0h 45m");
   await expect(page.locator("#rail-split")).toContainText("0h 45m");
 });
+
+// Decision 2 of the 2026-09-10 design: an entry against an issue that is
+// neither assigned nor pinned gets a row in "Logged today, not on your
+// list", in the right half of a two-column grid whose left half is Pinned.
+// These fixtures are shared across the three states the design's own table
+// lays out, plus the width and breakpoint assertions that go with them.
+async function stubPins(page: Page, pins: unknown[]): Promise<void> {
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: pins }));
+}
+
+async function stubEntries(page: Page, entries: unknown[]): Promise<void> {
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: "2026-09-09", entries } }),
+  );
+}
+
+const rosterPin = {
+  id: 501,
+  instanceId: 1,
+  instanceName: "Work",
+  instancePosition: 0,
+  key: "WORK-900",
+  summary: "Roll the on-call schedule forward",
+  status: "To Do",
+  url: "https://work.atlassian.net/browse/WORK-900",
+  error: null,
+};
+
+function offListEntry(issueKey: string): Record<string, unknown> {
+  return {
+    id: 9,
+    instanceId: 1,
+    instanceName: "Work",
+    instancePosition: 0,
+    issueKey,
+    day: "2026-09-09",
+    startedAt: "2026-09-09T09:00:00+02:00",
+    seconds: 900,
+    comment: "",
+    pushState: "unpushed",
+  };
+}
+
+// State 1 of 3: an ordinary day. Pinned holds its rows; the right half is
+// undrawn — no heading, no card, no line of text — because nothing was
+// logged outside the list.
+test("an ordinary day draws nothing beside Pinned", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, [rosterPin]);
+  await page.goto("/today");
+
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  await expect(pinned.locator("that-ticket-row")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Logged today, not on your list" }),
+  ).toHaveCount(0);
+});
+
+/**
+ * State 2 of 3, and the test that carries this task. Logging something
+ * off-list must add the section beside Pinned — but Pinned's own width must
+ * not move by a pixel, which is the whole reason decision 2 gives it a
+ * permanent left column instead of letting the grid share space between
+ * however many cards are showing. Two navigations, same pins throughout, an
+ * off-list entry added only for the second: the only thing allowed to change
+ * is the right half gaining content.
+ *
+ * Viewport matches the existing instance-grid breakpoint test: 1920px so the
+ * content column (the window minus the rail's 216px) clears the grid's own
+ * 80rem container breakpoint and the two halves actually sit side by side.
+ */
+test("logging something off-list adds a row beside Pinned, and Pinned does not resize", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, [rosterPin]);
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await page.goto("/today");
+
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  await expect(pinned.locator("that-ticket-row")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Logged today, not on your list" }),
+  ).toHaveCount(0);
+  const before = await pinned.boundingBox();
+  expect(before).not.toBeNull();
+
+  await stubEntries(page, [offListEntry("WORK-777")]);
+  await page.goto("/today");
+
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("WORK-777")).toBeVisible();
+  // Pinned's own rows are exactly what they were — the entry belongs to the
+  // other half, not a third row here.
+  await expect(pinned.locator("that-ticket-row")).toHaveCount(1);
+
+  const after = await pinned.boundingBox();
+  expect(after).not.toBeNull();
+  expect(Math.round(after!.width)).toBe(Math.round(before!.width));
+
+  await expect
+    .poll(async () => sideBySide(await pinned.boundingBox(), await offList.boundingBox()))
+    .toBe(true);
+});
+
+// State 3 of 3: nothing pinned, but something off-list. The two empty states
+// are deliberately asymmetric — Pinned still invites with "Nothing pinned.",
+// the right half still only ever says so by holding rows.
+test("nothing pinned but something off-list keeps Pinned's own invitation", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, []);
+  await stubEntries(page, [offListEntry("WORK-777")]);
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await page.goto("/today");
+
+  await expect(page.getByText("Nothing pinned.")).toBeVisible();
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("WORK-777")).toBeVisible();
+
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  await expect
+    .poll(async () => sideBySide(await pinned.boundingBox(), await offList.boundingBox()))
+    .toBe(true);
+});
+
+/**
+ * The same collapse the instance grid already has, at the same breakpoint —
+ * the section stacks under Pinned once there is something to stack, per the
+ * design's closing paragraph.
+ */
+test("Pinned and the off-list section stack on a narrow screen, and sit side by side on a wide one", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, []);
+  await stubEntries(page, [offListEntry("WORK-777")]);
+
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/today");
+
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("WORK-777")).toBeVisible();
+
+  await expect
+    .poll(async () => sideBySide(await pinned.boundingBox(), await offList.boundingBox()))
+    .toBe(false);
+
+  await page.setViewportSize({ width: 1920, height: 900 });
+
+  await expect
+    .poll(async () => sideBySide(await pinned.boundingBox(), await offList.boundingBox()))
+    .toBe(true);
+});
+
+// Design addendum settled 2026-09-10, under decision 2: "Where the off-list
+// row's summary comes from." Entries carry no summary/status/url of their
+// own, so the section either gets them for free from the search hit that
+// created the entry, or asks GET /api/issues/search?q=<key> for them.
+async function stubEntriesRoundTrip(page: Page): Promise<{ created: () => Record<string, unknown>[] }> {
+  const created: Record<string, unknown>[] = [];
+  await page.route("**/api/entries**", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fulfill({ status: 200, json: { today: "2026-09-09", entries: created } });
+      return;
+    }
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    const entry = {
+      id: 900 + created.length,
+      instanceId: body["instanceId"],
+      instanceName: "Work",
+      instancePosition: 0,
+      issueKey: body["issueKey"],
+      day: "2026-09-09",
+      startedAt: "2026-09-09T09:15:00+02:00",
+      seconds: body["seconds"],
+      comment: body["comment"] ?? "",
+      pushState: "unpushed",
+    };
+    created.push(entry);
+    await route.fulfill({ status: 201, json: entry });
+  });
+  return { created: () => created };
+}
+
+/**
+ * "The summary travels with the selection" — logging from a search result
+ * hands the row what the click already knew, with no request of its own. A
+ * test that only checked the row's content would pass even if this fetched
+ * every time it rendered, so this counts /api/issues/search calls too, not
+ * just what ends up on screen.
+ */
+test("logging from a search result fills the off-list row with no lookup", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, []);
+  const entries = await stubEntriesRoundTrip(page);
+
+  let calls = 0;
+  await page.route("**/api/issues/search**", async (route) => {
+    calls += 1;
+    await route.fulfill({
+      status: 200,
+      json: {
+        results: [
+          {
+            instanceId: 1,
+            instanceName: "Work",
+            instancePosition: 0,
+            key: "WORK-777",
+            summary: "Roll the on-call schedule forward",
+            status: "To Do",
+            url: "https://work.atlassian.net/browse/WORK-777",
+          },
+        ],
+        errors: [],
+      },
+    });
+  });
+
+  await page.goto("/today");
+  await page.getByRole("textbox", { name: "Search all instances" }).fill("on-call");
+  await expect(page.getByText("WORK-777")).toBeVisible();
+
+  await page.getByRole("button", { name: "Log time against WORK-777", exact: true }).click();
+
+  const dialog = page.locator("that-entry-dialog dialog");
+  await dialog.getByLabel("Duration").fill("15");
+  await dialog.getByLabel("Duration").press("Enter");
+  await dialog.getByRole("button", { name: "Add entry" }).click();
+
+  await expect.poll(() => entries.created().length).toBe(1);
+
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("Roll the on-call schedule forward")).toBeVisible();
+  await expect(offList.getByText("To Do")).toBeVisible();
+  await expect(offList.getByRole("link", { name: "WORK-777" })).toHaveAttribute(
+    "href",
+    "https://work.atlassian.net/browse/WORK-777",
+  );
+
+  // Exactly the one call the typed search itself made — logging adds none.
+  expect(calls).toBe(1);
+});
+
+/**
+ * "A reload fetches": a cold load has only the entry's key, so the section
+ * asks for it. Gated so the request stays outstanding across the several
+ * render passes a fresh mount makes (pins, totals and the assigned response
+ * each trigger one) — proving the lookup runs once per distinct issue rather
+ * than once per repaint, and that a still-loading row reads as loading
+ * rather than as an issue that simply has no summary.
+ */
+test("a cold reload looks up an off-list issue once, and shows it loading rather than blank", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [workIssue])]);
+  await stubPins(page, []);
+  await stubEntries(page, [offListEntry("WORK-777")]);
+
+  let calls = 0;
+  let releaseSearch: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    releaseSearch = resolve;
+  });
+  await page.route("**/api/issues/search**", async (route) => {
+    calls += 1;
+    await gate;
+    await route.fulfill({
+      status: 200,
+      json: {
+        results: [
+          {
+            instanceId: 1,
+            instanceName: "Work",
+            instancePosition: 0,
+            key: "WORK-777",
+            summary: "Roll the on-call schedule forward",
+            status: "To Do",
+            url: "https://work.atlassian.net/browse/WORK-777",
+          },
+        ],
+        errors: [],
+      },
+    });
+  });
+
+  await page.goto("/today");
+
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("WORK-777")).toBeVisible();
+  await expect(offList.getByText("Loading…")).toBeVisible();
+
+  releaseSearch?.();
+
+  await expect(offList.getByText("Roll the on-call schedule forward")).toBeVisible();
+  await expect(offList.getByText("To Do")).toBeVisible();
+  // One lookup despite several render passes racing to be first to ask.
+  expect(calls).toBe(1);
+});
+
+/**
+ * Important 2 of the #84 fix wave: the off-list section reads assignedKeys
+ * from the assigned response (regions.lastIssues), but the mount's three
+ * reads (entries, pins, assigned) are concurrent — entries is a local, fast
+ * read and assigned is a Jira fan-out, so an issue that is in fact assigned
+ * would flash into the section, and worse, cost a summary lookup for it,
+ * until the assigned read finally lands. Held here to widen that window wide
+ * enough to catch it: entries names an issue this stub will shortly report as
+ * assigned, and /api/issues stays outstanding until the test releases it.
+ */
+test("the off-list section waits for the assigned read to settle before it renders or fetches", async ({
+  page,
+}) => {
+  // rosterPin is pinned (so it renders independent of the gated assigned
+  // read) and logged too, at a duration nothing else in this test produces
+  // — a DOM signal this waits on below, derived from the same /api/entries
+  // response the off-list guard itself depends on, but observable without
+  // depending on that guard's own outcome.
+  await stubPins(page, [rosterPin]);
+  await stubEntries(page, [
+    offListEntry(workIssue.key),
+    { ...offListEntry(rosterPin.key), id: 10, seconds: 300 },
+  ]);
+
+  let releaseIssues: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    releaseIssues = resolve;
+  });
+  await page.route("**/api/issues", async (route) => {
+    await gate;
+    await route.fulfill({ status: 200, json: { instances: [group(1, "Work", [workIssue])] } });
+  });
+
+  let searchCalls = 0;
+  await page.route("**/api/issues/search**", async (route) => {
+    searchCalls += 1;
+    await route.fulfill({ status: 200, json: { results: [], errors: [] } });
+  });
+
+  await page.goto("/today");
+
+  // Without this, both checks below pass trivially the instant the page
+  // loads — entries has not landed yet either, so of course nothing renders
+  // and nothing was searched. today.ts's refreshTotals sets regions.entries,
+  // repaints every that-ticket-row's `seconds` (paintTotals), and only then
+  // calls renderOffListSection — all synchronously, no await in between —
+  // so rosterPin's own row showing what its entry actually logged is proof
+  // that call already happened, not a guess at how long it takes to.
+  const pinned = page.getByRole("region", { name: "Pinned" });
+  await expect(pinned.getByText("0:05")).toBeVisible();
+
+  await expect(
+    page.getByRole("heading", { name: "Logged today, not on your list" }),
+  ).toHaveCount(0);
+  expect(searchCalls).toBe(0);
+
+  releaseIssues?.();
+
+  await expect(page.getByText(workIssue.summary)).toBeVisible();
+  // The issue turned out to be assigned: the section must never have shown it,
+  // before or after release, and must never have asked for its summary.
+  await expect(
+    page.getByRole("heading", { name: "Logged today, not on your list" }),
+  ).toHaveCount(0);
+  expect(searchCalls).toBe(0);
+});

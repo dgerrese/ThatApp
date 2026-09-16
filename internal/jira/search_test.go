@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -167,7 +168,7 @@ func TestSearchTextSendsAPrefixMatchOnSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchText: %v", err)
 	}
-	want := `summary ~ "security*" AND statusCategory != Done ORDER BY updated DESC`
+	want := `summary ~ "security*" ORDER BY updated DESC`
 	if got.JQL != want {
 		t.Errorf("jql = %q, want %q", got.JQL, want)
 	}
@@ -228,7 +229,7 @@ func TestSearchTextEscapesTheQueryIntoTheJQL(t *testing.T) {
 		{
 			name:  "quotes and backslashes are escaped",
 			query: `say "hi"`,
-			want:  `summary ~ "say \"hi\"*" AND statusCategory != Done ORDER BY updated DESC`,
+			want:  `summary ~ "say \"hi\"*" ORDER BY updated DESC`,
 		},
 		{
 			// A query already containing a wildcard must not be double-wildcarded:
@@ -236,7 +237,7 @@ func TestSearchTextEscapesTheQueryIntoTheJQL(t *testing.T) {
 			// Jira rather than a broader match.
 			name:  "a trailing wildcard the user already typed is not doubled",
 			query: `secur*`,
-			want:  `summary ~ "secur*" AND statusCategory != Done ORDER BY updated DESC`,
+			want:  `summary ~ "secur*" ORDER BY updated DESC`,
 		},
 	}
 
@@ -256,6 +257,54 @@ func TestSearchTextEscapesTheQueryIntoTheJQL(t *testing.T) {
 				t.Fatalf("SearchText: %v", err)
 			}
 
+			if got.JQL != tt.want {
+				t.Errorf("jql = %q, want %q", got.JQL, tt.want)
+			}
+		})
+	}
+}
+
+// A key-shaped query must still go through the summary term alone: `key =
+// "..."` is a 400 from Jira, not an empty result, on an instance that does not
+// hold the project, and every instance is asked. The exact lookup for a key
+// lives in the server, through client.Issue, not here.
+func TestSearchTextSendsNoKeyClauseForAKeyShapedQuery(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{
+			name:  "a key-shaped query searches the summary alone",
+			query: "RIDGE-5140",
+			want:  `summary ~ "RIDGE-5140*" ORDER BY updated DESC`,
+		},
+		{
+			name:  "a lowercase key-shaped query searches the summary alone",
+			query: "ridge-5140",
+			want:  `summary ~ "ridge-5140*" ORDER BY updated DESC`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got struct {
+				JQL string `json:"jql"`
+			}
+			client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Errorf("decoding the request: %v", err)
+				}
+				_, _ = w.Write([]byte(`{"issues":[]}`))
+			})
+
+			if _, err := client.SearchText(context.Background(), tt.query, 10); err != nil {
+				t.Fatalf("SearchText: %v", err)
+			}
+
+			if strings.Contains(got.JQL, "key") {
+				t.Errorf("jql = %q, must not contain a key clause", got.JQL)
+			}
 			if got.JQL != tt.want {
 				t.Errorf("jql = %q, want %q", got.JQL, tt.want)
 			}

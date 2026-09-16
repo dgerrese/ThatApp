@@ -1,7 +1,7 @@
 import "../components/that-alert";
 import "../components/that-button";
 import "../components/that-card";
-import "../components/that-combobox";
+import "../components/that-issue-search";
 import "../components/that-table";
 import "../components/that-ticket-row";
 import { alignKeyColumn } from "../key-column";
@@ -15,9 +15,9 @@ import {
   listPins,
   searchIssues,
 } from "../api";
-import type { ThatCombobox } from "../components/that-combobox";
 import type { EntryTicket } from "../components/that-entry-dialog";
 import { openEntryDialog } from "../components/that-entry-dialog";
+import type { IssueSearchConfig, ThatIssueSearch } from "../components/that-issue-search";
 import type { ThatTable } from "../components/that-table";
 import { LOG_TIME, PIN, UNPIN } from "../components/that-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
@@ -32,6 +32,20 @@ import { toolbarButton } from "../toolbar-button";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
 /**
+ * What an off-list row needs beyond what `Entry` already carries. Resolved
+ * either from the search hit that created the entry (no request) or from
+ * `GET /api/issues/search?q=<key>` on a cold load — see the design's
+ * "Where the off-list row's summary comes from" subsection under decision 2.
+ * `null` is a settled answer too: the lookup ran and found nothing, which
+ * must not read as "still loading" forever after.
+ */
+interface OffListInfo {
+  summary: string;
+  status: string;
+  url: string;
+}
+
+/**
  * The regions that outlive a fetch, plus the two caches (pins, the last issues
  * response) needed to re-render them without a new request. All of it is
  * threaded through this object rather than held at module scope: router.ts
@@ -39,9 +53,18 @@ import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../ty
  * module state would let a stale fetch write into a live view.
  */
 interface Regions {
+  /** The two-column region holding pinnedSection permanently in its left
+   *  half — see decision 2 of the 2026-09-10 design. offListSection is
+   *  appended into it only while it has rows. */
+  layoutGrid: HTMLElement;
   pinnedSection: HTMLElement;
   pinnedList: HTMLElement;
-  pinnedForm: HTMLElement;
+  /** So refreshPins can repaint an open panel's already-rendered rows after a
+   *  pin or unpin lands, with no new search — see ThatIssueSearch.repaint. */
+  search: ThatIssueSearch;
+  /** "Logged today, not on your list" — entries against an issue that is
+   *  neither assigned nor pinned, so it has no row anywhere else. */
+  offListSection: HTMLElement;
   assignedSection: HTMLElement;
   refresh: HTMLElement;
   results: HTMLElement;
@@ -53,8 +76,35 @@ interface Regions {
   pushReport: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
+  /** Today's entries as last read, kept (not just folded into totals) because
+   *  renderOffListSection needs to know which issues they belong to, not only
+   *  how long. */
+  entries: Entry[];
+  /** Settled per distinct off-list issue — present (object or null) once
+   *  resolved, absent while unknown. Populated two ways: directly from a
+   *  search hit at the moment it is logged (no request), or from
+   *  fetchOffListInfo on a cold load. Never cleared: an issue that leaves the
+   *  section (pinned, or its entries gone) and comes back within the same
+   *  session should not pay for the lookup twice. */
+  offListInfo: Map<string, OffListInfo | null>;
+  /** Ids currently being looked up, so renderOffListSection's repeated calls
+   *  (one per pins/entries/assigned refresh) fire the request once per issue
+   *  rather than once per call. */
+  offListPending: Set<string>;
+  /** Aborts every in-flight offListInfo lookup on teardown, so a slow
+   *  response cannot repaint a view the router has already left. */
+  offListSignal: AbortSignal;
   pinsCachedAt: Date | null;
   issuesCachedAt: Date | null;
+  /** True once the assigned read (refreshResults) has settled at least once,
+   *  success or failure. The three mount reads (entries, pins, assigned) are
+   *  concurrent and entries is local and fast, so before this the assigned
+   *  keys renderOffListSection would judge against are not yet known — not
+   *  "none", unknown. Gates renderOffListSection so it neither renders nor
+   *  fetches on that guess. Never reset once true: refreshEverything's later
+   *  passes always have an assigned answer to compare against, even a stale
+   *  one. */
+  assignedSettled: boolean;
   /** Today's logged seconds per row, keyed by instance and issue. */
   totals: Map<string, number>;
   /** Bumped per totals refresh, so a slow read cannot overwrite a newer one. */
@@ -65,9 +115,102 @@ interface Regions {
  *  two ids cannot drift apart from the elements that carry them. */
 const PINNED_HEADING_ID = "today-pinned";
 const ASSIGNED_HEADING_ID = "today-assigned";
+const OFFLIST_HEADING_ID = "today-offlist";
+
+/** A search hit read as the ticket the entry dialog and a pin both need. No
+ *  `day`, which is what leaves the server's own "day absent means today"
+ *  default in charge — a search result has no day of its own to name, the
+ *  same reason a plain row's ticket never carries one either. */
+function ticketFromHit(hit: IssueHit): EntryTicket {
+  return {
+    instanceId: hit.instanceId,
+    instanceName: hit.instanceName,
+    issueKey: hit.key,
+    summary: hit.summary,
+    status: hit.status,
+  };
+}
+
+/** True when a search hit names the same (instance, key) pair as one of
+ *  `keys` — `pinnedKeysOf`'s own format, so a hit and a pin agree on what
+ *  counts as "the same issue" without either side reaching into the other's
+ *  shape. */
+function hitIsPinned(hit: IssueHit, keys: Set<string>): boolean {
+  return keys.has(totalKey(hit.instanceId, hit.key));
+}
+
+/**
+ * What Today configures the search panel with. Its two controls dispatch the
+ * same LOG_TIME, PIN and UNPIN events a ticket row's own controls do,
+ * straight at `container` — the listeners registered on it in render() do not
+ * care which of the three raised them, so logging or pinning from a result
+ * reuses that wiring rather than repeating it.
+ *
+ * `offListInfo` is the same Map `regions` ends up holding — passed in here
+ * rather than waiting for `regions` to exist, because `search.config` has to
+ * be set before the element connects (see render()). The duration control
+ * writes straight into it: "the summary travels with the selection" from the
+ * design's 2026-09-10 addendum to decision 2, so a row built from this entry
+ * never has to ask for what a click already told it.
+ *
+ * `pinnedKeys` is read afresh on every call, not captured once, for the same
+ * reason: it is `regions.pins` under a different shape, and `regions` itself
+ * does not exist yet when this function first runs (see render()) — a plain
+ * value captured here would be permanently empty. Reading it live is also
+ * what settles the review finding of 2026-09-10: a result already pinned now
+ * renders the filled pin mark exactly as a row in the list does, and pressing
+ * it unpins, rather than sending a request the server can only refuse.
+ */
+function issueSearchConfig(
+  container: HTMLElement,
+  offListInfo: Map<string, OffListInfo | null>,
+  pinnedKeys: () => Set<string>,
+): IssueSearchConfig {
+  return {
+    placeholder: "Search all instances",
+    footer:
+      "Searching all instances by key and summary. Not limited to issues assigned to you.",
+    controls: [
+      // #84's own body: "a result row carries the same duration control as a
+      // real row" — this is that control, not a stand-in for one.
+      {
+        kind: "duration",
+        label: (hit) => `Log time against ${hit.key}`,
+        onPress: (hit) => {
+          offListInfo.set(totalKey(hit.instanceId, hit.key), {
+            summary: hit.summary,
+            status: hit.status,
+            url: hit.url,
+          });
+          container.dispatchEvent(
+            new CustomEvent<EntryTicket>(LOG_TIME, { detail: ticketFromHit(hit) }),
+          );
+        },
+      },
+      {
+        kind: "icon",
+        icon: (hit) => (hitIsPinned(hit, pinnedKeys()) ? "pin-off" : "pin"),
+        tooltip: (hit) => (hitIsPinned(hit, pinnedKeys()) ? "unpin ticket" : "pin ticket"),
+        label: (hit) => (hitIsPinned(hit, pinnedKeys()) ? `Unpin ${hit.key}` : `Pin ${hit.key}`),
+        onPress: (hit) => {
+          const eventName = hitIsPinned(hit, pinnedKeys()) ? UNPIN : PIN;
+          container.dispatchEvent(new CustomEvent<EntryTicket>(eventName, { detail: ticketFromHit(hit) }));
+        },
+      },
+    ],
+  };
+}
 
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
   setRailPeriod(TODAY_PERIOD);
+
+  // Assigned below, once its own dependencies exist — but issueSearchConfig
+  // needs a way to read its pins after that point, since the search's config
+  // is built (and must be, for the element to upgrade correctly) before
+  // regions does. The closure below reads this binding, not a value copied
+  // out of it, so it sees whatever regions.pins holds by the time a press
+  // actually happens rather than the empty array that exists right now.
+  let regions: Regions;
 
   const container = document.createElement("div");
   container.className = "space-y-5";
@@ -91,12 +234,23 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   const pinnedList = document.createElement("div");
   pinnedList.append(cardHolding(loadingLine()));
 
-  const pinnedForm = document.createElement("div");
-  pinnedForm.className = "mt-3";
-
   const pinnedSection = document.createElement("section");
   pinnedSection.setAttribute("aria-labelledby", PINNED_HEADING_ID);
-  pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID).box, pinnedList, pinnedForm);
+  pinnedSection.append(pageHeading("Pinned", PINNED_HEADING_ID).box, pinnedList);
+
+  const offListSection = document.createElement("section");
+  offListSection.setAttribute("aria-labelledby", OFFLIST_HEADING_ID);
+
+  // The prototype's .instgrid, transcribed: one column, then `1fr 1fr` once
+  // the content column itself (not the window) clears 80rem. Pinned is
+  // appended now and stays for good — it owns the left half permanently, per
+  // decision 2 of the design, so nothing here may resize it. offListSection
+  // joins only when it has rows: an empty grid cell draws nothing, which is
+  // what leaves the right half truly blank rather than an empty card
+  // "announcing nothing happened".
+  const layoutGrid = document.createElement("div");
+  layoutGrid.className = "grid grid-cols-1 gap-4 @min-[80rem]:grid-cols-2";
+  layoutGrid.append(pinnedSection);
 
   const header = pageHeading("Assigned issues", ASSIGNED_HEADING_ID).box;
   // A header control acting on the whole view, so it carries the toolbar
@@ -111,6 +265,30 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // hidden for good.
   refresh.hidden = true;
 
+  // ml-auto on the wrapper, not the component: the prototype's own spacer
+  // (its bare `<span class="sp">`) is Today's layout to own, not something
+  // that-issue-search should assume every host wants — Week mounts the same
+  // component with its own placement.
+  const searchWrap = document.createElement("span");
+  searchWrap.className = "ml-auto";
+  const search = document.createElement("that-issue-search") as ThatIssueSearch;
+  // Declared here rather than read off regions: that-issue-search upgrades
+  // (and reads config) the moment it connects below, which is before regions
+  // exists. The same Map becomes regions.offListInfo further down — sharing
+  // the reference is what lets a search-logged row skip the lookup.
+  const offListInfo = new Map<string, OffListInfo | null>();
+  search.config = issueSearchConfig(container, offListInfo, () => pinnedKeysOf(regions));
+  searchWrap.append(search);
+  header.append(searchWrap);
+
+  // One controller for every off-list lookup this view starts, aborted on
+  // teardown so a response arriving after a navigation away cannot repaint a
+  // view the router has already left.
+  const offListAbort = new AbortController();
+  registerTeardown(() => {
+    offListAbort.abort();
+  });
+
   const results = document.createElement("div");
   // One card across, two from the point the content column can hold two
   // without taking it out of the summary. Never three: see the design's
@@ -123,13 +301,15 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   assignedSection.setAttribute("aria-labelledby", ASSIGNED_HEADING_ID);
   assignedSection.append(header, pushReport, results);
 
-  container.append(stale, pinnedSection, assignedSection);
+  container.append(stale, layoutGrid, assignedSection);
   root.append(container);
 
-  const regions: Regions = {
+  regions = {
+    layoutGrid,
     pinnedSection,
     pinnedList,
-    pinnedForm,
+    search,
+    offListSection,
     assignedSection,
     refresh,
     results,
@@ -137,8 +317,13 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     pushReport,
     pins: [],
     lastIssues: null,
+    entries: [],
+    offListInfo,
+    offListPending: new Set(),
+    offListSignal: offListAbort.signal,
     pinsCachedAt: null,
     issuesCachedAt: null,
+    assignedSettled: false,
     totals: new Map(),
     totalsEpoch: 0,
   };
@@ -213,8 +398,8 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
  * mount, and the fallback for an announcer whose own read failed).
  *
  * The rows are found in the DOM rather than re-rendered: a re-render would
- * throw away the pin form mid-search and the assigned cards mid-scroll to
- * change one number on each row.
+ * throw away an open search panel's results and the assigned cards
+ * mid-scroll to change one number on each row.
  *
  * A failure leaves the last known totals on screen. A row that cannot be told
  * what was logged should keep saying what it last knew rather than claim zero,
@@ -233,6 +418,7 @@ async function refreshTotals(regions: Regions, fresh?: Entry[]): Promise<void> {
     if (mine !== regions.totalsEpoch) return;
   }
 
+  regions.entries = entries;
   regions.totals = new Map();
   for (const entry of entries) {
     const id = totalKey(entry.instanceId, entry.issueKey);
@@ -240,6 +426,7 @@ async function refreshTotals(regions: Regions, fresh?: Entry[]): Promise<void> {
   }
 
   paintTotals(regions);
+  renderOffListSection(regions);
 }
 
 function totalKey(instanceId: number, issueKey: string): string {
@@ -314,21 +501,10 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
     regions.pins = pins;
     regions.pinsCachedAt = cachedAt;
     renderPinnedList(regions, regions.pins);
-    // Gated: replacing pinnedForm's children here would tear down an
-    // in-progress search the moment Refresh's shared call reaches this branch
-    // — the same class of bug #29 paid to fix in Settings.
-    restorePinOpenerUnlessFormOpen(regions);
   } catch (error) {
     regions.pins = [];
     regions.pinsCachedAt = null;
     regions.pinnedList.replaceChildren(alertFor("error", messageOf(error)));
-    // Same gate as the success branch above: a failing refresh must not wipe
-    // an open form either. Unlike the success branch, a closed form stays
-    // closed rather than gaining a "Pin an issue" button — with the current
-    // pin list unknown, offering to pin is not a promise this can keep.
-    if (!formIsOpen(regions)) {
-      regions.pinnedForm.replaceChildren();
-    }
   }
 
   renderCombinedStale(regions);
@@ -338,13 +514,22 @@ async function refreshPins(regions: Regions, options?: { refresh?: boolean }): P
   // pins that just arrived, without asking the server again.
   if (regions.lastIssues) {
     renderResponse(regions, regions.lastIssues);
+  } else {
+    // renderResponse would otherwise be the thing that repaints this, but
+    // there is no cached response yet to call it with — a newly-pinned issue
+    // still has to leave the off-list section the moment the pin lands.
+    renderOffListSection(regions);
   }
 
-  // A pin form may already be open (e.g. this refresh followed a successful
-  // pin); its combobox must learn about the newly current pins rather than
-  // keep offering one that is now a duplicate.
-  const combobox = regions.pinnedForm.querySelector("that-combobox") as ThatCombobox | null;
-  combobox?.setDisabledKeys(pinnedKeysOf(regions));
+  // Every path through this function just changed what regions.pins answers
+  // — a successful pin, an unpin, a plain Refresh discovering a change made
+  // elsewhere, or even a failed read resetting it to none. The search panel's
+  // own icon control reads pins live (issueSearchConfig's pinnedKeys getter),
+  // but nothing re-invokes it until something rebuilds the row it is drawn
+  // in. This is that rebuild — the design's "legible before the press" needs
+  // it from every path here, not only the two that dispatch PIN/UNPIN, and
+  // ThatIssueSearch.repaint is a no-op unless a result is actually on screen.
+  regions.search.repaint();
 }
 
 function renderPinnedList(regions: Regions, pins: Pin[]): void {
@@ -402,6 +587,176 @@ function pinnedRow(pin: Pin): HTMLElement {
   // exactly as they were cached, and this is the only thing that changes.
   if (pin.error) {
     row.setAttribute("error", pin.error.message);
+  }
+
+  return row;
+}
+
+/** One issue an entry names that has no row anywhere else on Today — see
+ *  offListIssues. */
+interface OffListIssue {
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+}
+
+/**
+ * The day's entries whose issue is neither assigned nor pinned — the set
+ * decision 2 of the design puts in the right half, beside Pinned. Computed
+ * fresh from regions.entries each call rather than cached, because any of
+ * three independent reads (entries, the assigned response, pins) can be what
+ * moves an issue in or out of it.
+ *
+ * `Entry` itself carries no summary, status or url — the entries table logs
+ * time against an issue, not a cache of it — so those three come from
+ * regions.offListInfo instead; see renderOffListSection and fetchOffListInfo.
+ */
+function offListIssues(regions: Regions): OffListIssue[] {
+  const assignedKeys = new Set<string>();
+  for (const group of regions.lastIssues?.instances ?? []) {
+    for (const issue of group.issues) {
+      assignedKeys.add(totalKey(group.id, issue.key));
+    }
+  }
+  const pinnedKeys = pinnedKeysOf(regions);
+
+  const seen = new Map<string, OffListIssue>();
+  for (const entry of regions.entries) {
+    const id = totalKey(entry.instanceId, entry.issueKey);
+    if (assignedKeys.has(id) || pinnedKeys.has(id) || seen.has(id)) continue;
+
+    seen.set(id, {
+      instanceId: entry.instanceId,
+      instanceName: entry.instanceName,
+      instancePosition: entry.instancePosition,
+      issueKey: entry.issueKey,
+    });
+  }
+
+  return [...seen.values()].sort(
+    (a, b) => a.instancePosition - b.instancePosition || a.issueKey.localeCompare(b.issueKey),
+  );
+}
+
+/**
+ * Redraws "Logged today, not on your list" from regions.entries/lastIssues/
+ * pins, and attaches or detaches it from layoutGrid to match — the mechanism
+ * behind decision 2's "nothing at all" empty state. Always appended after
+ * pinnedSection, which is layoutGrid's one permanent child, so the section
+ * lands in the grid's second (right-hand) cell whenever it shows anything.
+ *
+ * Kicks off one lookup per issue this call finds neither resolved nor already
+ * in flight, before building a single row — separated into its own pass so
+ * that two issues newly appearing in the same call both get marked pending
+ * before either's request actually starts, rather than racing each other
+ * through renderOffListSection's own later, unrelated calls.
+ *
+ * Does nothing until regions.assignedSettled — see that field's comment. An
+ * early call (from refreshPins or refreshTotals, both concurrent with the
+ * assigned fan-out at mount) would judge every entry against an empty
+ * assignedKeys, mislabelling real assigned work "not on your list" and
+ * costing it a summary lookup, for however long the fan-out takes.
+ */
+function renderOffListSection(regions: Regions): void {
+  if (!regions.assignedSettled) {
+    regions.offListSection.remove();
+
+    return;
+  }
+
+  const issues = offListIssues(regions);
+
+  if (issues.length === 0) {
+    regions.offListSection.remove();
+
+    return;
+  }
+
+  for (const issue of issues) {
+    const id = totalKey(issue.instanceId, issue.issueKey);
+    if (regions.offListInfo.has(id) || regions.offListPending.has(id)) continue;
+
+    regions.offListPending.add(id);
+    void fetchOffListInfo(regions, issue, id);
+  }
+
+  const table = document.createElement("that-table") as ThatTable;
+  for (const issue of issues) {
+    const id = totalKey(issue.instanceId, issue.issueKey);
+    table.body.append(
+      offListRow(issue, regions.offListInfo.get(id), regions.offListPending.has(id)),
+    );
+  }
+  regions.offListSection.replaceChildren(
+    pageHeading("Logged today, not on your list", OFFLIST_HEADING_ID).box,
+    table,
+  );
+
+  if (!regions.offListSection.isConnected) {
+    regions.layoutGrid.append(regions.offListSection);
+  }
+
+  // Same reasoning as renderPinnedList's own trailing call: the rows above
+  // are built with no seconds of their own, and this is what fills them in
+  // from what is already known.
+  paintTotals(regions);
+}
+
+/**
+ * The one request an off-list row can cost — see the design's "Where the
+ * off-list row's summary comes from" subsection. `q=<key>` is a key-shaped
+ * query, which the server already resolves as an exact lookup rather than a
+ * text search (internal/server/issue_search.go), so this asks for exactly
+ * the one issue rather than searching for it.
+ *
+ * A miss (the instance gone, the issue deleted, whatever `.find` cannot
+ * match) settles as `null` rather than being left unresolved — the point is
+ * to stop asking, not to keep retrying an issue that will never answer.
+ */
+async function fetchOffListInfo(regions: Regions, issue: OffListIssue, id: string): Promise<void> {
+  let resolved: OffListInfo | null;
+  try {
+    const { results } = await searchIssues(issue.issueKey, regions.offListSignal);
+    const hit = results.find(
+      (candidate) => candidate.instanceId === issue.instanceId && candidate.key === issue.issueKey,
+    );
+    resolved = hit ? { summary: hit.summary, status: hit.status, url: hit.url } : null;
+  } catch (error) {
+    // Teardown, not a failure to report — the view this would repaint is
+    // already gone, and regions.offListPending is about to go with it.
+    if (error instanceof DOMException && error.name === "AbortError") return;
+    resolved = null;
+  }
+
+  regions.offListInfo.set(id, resolved);
+  regions.offListPending.delete(id);
+  renderOffListSection(regions);
+}
+
+/**
+ * `info` filled in once resolved; `pending` true while the lookup that will
+ * fill it is still in flight. A pending row still names its key and still
+ * carries its controls — only Summary says "Loading…", so it never reads as
+ * an issue that simply has no summary (a settled, resolved-to-nothing row
+ * looks exactly like that instead, which is the correct terminal state).
+ */
+function offListRow(issue: OffListIssue, info: OffListInfo | null | undefined, pending: boolean): HTMLElement {
+  const row = document.createElement("that-ticket-row");
+  row.setAttribute("key", issue.issueKey);
+  row.setAttribute("instance-id", String(issue.instanceId));
+  row.setAttribute("instance-name", issue.instanceName);
+  // Cross-instance, like Pinned: this section can hold issues from any
+  // instance, so its key cell carries the same dot Pinned's does — see
+  // that-ticket-row's keyContent.
+  row.setAttribute("instance-position", String(issue.instancePosition));
+
+  if (info) {
+    row.setAttribute("summary", info.summary);
+    row.setAttribute("status", info.status);
+    row.setAttribute("url", info.url);
+  } else if (pending) {
+    row.setAttribute("summary", "Loading…");
   }
 
   return row;
@@ -481,106 +836,18 @@ function undoOptimisticMark(regions: Regions, error: unknown): void {
   renderPinnedList(regions, regions.pins);
   if (regions.lastIssues) {
     renderResponse(regions, regions.lastIssues);
+  } else {
+    // Same reasoning as refreshPins' own branch: renderResponse would
+    // otherwise be what redraws this, but a pin control can be pressed
+    // before the assigned response has ever arrived.
+    renderOffListSection(regions);
   }
   regions.pinnedList.prepend(alertFor("error", messageOf(error)));
 }
 
-/** True while the pin form (its combobox) is on screen — the condition both
- *  refreshPins branches must not disturb mid-typing. */
-function formIsOpen(regions: Regions): boolean {
-  return regions.pinnedForm.querySelector("that-combobox") !== null;
-}
-
-/** Called after every listPins(), including the shared Refresh's, so it must
- *  not disturb a form the user is still typing into. A deliberate close
- *  (Cancel, Escape, a completed pin) goes through renderPinOpener directly
- *  instead of this gate. */
-function restorePinOpenerUnlessFormOpen(regions: Regions): void {
-  if (formIsOpen(regions)) return;
-
-  renderPinOpener(regions);
-}
-
-function renderPinOpener(regions: Regions): void {
-  const open = button("Pin an issue", "secondary");
-  open.addEventListener("click", () => {
-    showPinForm(regions);
-  });
-  regions.pinnedForm.className = "mt-3 border-t border-edge pt-3";
-  regions.pinnedForm.replaceChildren(open);
-}
-
-function showPinForm(regions: Regions): void {
-  const combobox = document.createElement("that-combobox") as ThatCombobox;
-  combobox.setAttribute("label", "Find an issue");
-  combobox.setAttribute("placeholder", "Search by key or title");
-
-  const alertSlot = document.createElement("div");
-  const actions = document.createElement("div");
-  actions.className = "flex gap-2";
-  const cancel = button("Cancel", "secondary");
-  actions.append(cancel);
-
-  regions.pinnedForm.className = "mt-3 space-y-3 border-t border-edge pt-3";
-  regions.pinnedForm.replaceChildren(combobox, alertSlot, actions);
-
-  // Set after insertion: connectedCallback builds the input, so there is nothing
-  // to focus before it runs.
-  combobox.focusInput();
-  combobox.setDisabledKeys(pinnedKeysOf(regions));
-
-  // One controller per form, replaced on each keystroke pause. Without this a
-  // slow first search can land after a fast second one and paint over it.
-  let inFlight: AbortController | undefined;
-
-  combobox.addEventListener("that-search", (event) => {
-    const query = (event as CustomEvent<string>).detail;
-    inFlight?.abort();
-    const controller = new AbortController();
-    inFlight = controller;
-
-    void searchIssues(query, controller.signal)
-      .then((response) => {
-        combobox.setResults(response.results, response.errors);
-      })
-      .catch((error: unknown) => {
-        // An abort is this code's own doing, not a failure to report.
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        combobox.setResults([], []);
-        alertSlot.replaceChildren(alertFor("error", messageOf(error)));
-      });
-  });
-
-  combobox.addEventListener("that-select", (event) => {
-    const hit = (event as CustomEvent<IssueHit>).detail;
-    inFlight?.abort();
-    alertSlot.replaceChildren();
-    combobox.setBusy(true);
-
-    void createPin(hit.instanceId, hit.key)
-      .then(async () => {
-        renderPinOpener(regions);
-        await refreshPins(regions);
-      })
-      .catch((error: unknown) => {
-        combobox.setBusy(false);
-        alertSlot.replaceChildren(alertFor("error", messageOf(error)));
-      });
-  });
-
-  combobox.addEventListener("that-cancel", () => {
-    inFlight?.abort();
-    renderPinOpener(regions);
-  });
-
-  cancel.addEventListener("click", () => {
-    inFlight?.abort();
-    renderPinOpener(regions);
-  });
-}
-
-/** The keys the combobox must refuse, so a duplicate is visible rather than a
- *  rejection the user only meets after choosing. */
+/** The pinned (instanceId, key) pairs, keyed the same way offListIssues'
+ *  dedupe reads them — so a pinned issue's entries stop counting as off-list
+ *  the moment the pin lands. */
 function pinnedKeysOf(regions: Regions): Set<string> {
   return new Set(currentPins(regions).map((pin) => `${pin.instanceId}:${pin.key}`));
 }
@@ -596,11 +863,20 @@ async function refreshResults(regions: Regions): Promise<void> {
     const { value: response, cachedAt } = await listIssues();
     regions.lastIssues = response;
     regions.issuesCachedAt = cachedAt;
+    regions.assignedSettled = true;
     renderResponse(regions, response);
   } catch (error) {
+    regions.assignedSettled = true;
     regions.refresh.hidden = false;
     regions.issuesCachedAt = null;
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
+    // renderResponse is what would otherwise unblock this — see its own
+    // trailing call — but a failed read never reaches it. The off-list
+    // section still has to judge — against pinned keys alone when nothing
+    // has arrived yet, otherwise against the last response, since this
+    // failure does not clear regions.lastIssues — per the ruling: logged
+    // work must never stay hidden behind a fetch that never comes back.
+    renderOffListSection(regions);
   }
 
   renderCombinedStale(regions);
@@ -664,16 +940,18 @@ function showPushReport(regions: Regions, ...nodes: Node[]): void {
 function renderResponse(regions: Regions, response: IssuesResponse): void {
   if (response.instances.length === 0) {
     // No instances means no pins either — the cascade took them with the last
-    // instance — so a Pinned section would be a control with nothing to do.
-    regions.pinnedSection.remove();
+    // instance — so the whole left/right layout would be two controls with
+    // nothing to do. Removing layoutGrid takes offListSection with it, since
+    // it is layoutGrid's child whenever it is showing anything at all.
+    regions.layoutGrid.remove();
     regions.refresh.hidden = true;
     regions.results.replaceChildren(cardHolding(noInstances()));
 
     return;
   }
 
-  if (!regions.pinnedSection.isConnected) {
-    regions.assignedSection.before(regions.pinnedSection);
+  if (!regions.layoutGrid.isConnected) {
+    regions.assignedSection.before(regions.layoutGrid);
   }
 
   regions.refresh.hidden = false;
@@ -693,6 +971,7 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
   alignKeyColumn(regions.results);
 
   paintTotals(regions);
+  renderOffListSection(regions);
 }
 
 /**
@@ -803,10 +1082,10 @@ function noInstances(): HTMLElement {
   return wrapper;
 }
 
-// button, alertFor and messageOf are deliberate duplicates of the same three
-// helpers in views/settings.ts. Extracting them into a shared module is the
-// right end state, but it means editing settings.ts, which is outside this
-// ticket's scope. Worth its own ticket.
+// alertFor and messageOf are deliberate duplicates of the same two helpers in
+// views/settings.ts. Extracting them into a shared module is the right end
+// state, but it means editing settings.ts, which is outside this ticket's
+// scope. Worth its own ticket.
 
 /** The raised surface a message sits on where a table would otherwise be. */
 function cardHolding(node: Node): HTMLElement {
@@ -814,16 +1093,6 @@ function cardHolding(node: Node): HTMLElement {
   card.append(node);
 
   return card;
-}
-
-function button(label: string, variant: string): HTMLElement {
-  const element = document.createElement("that-button");
-  // label is the sole source of the inner button's accessible name; without it
-  // role-based queries cannot find the button at all.
-  element.setAttribute("label", label);
-  element.setAttribute("variant", variant);
-
-  return element;
 }
 
 function alertFor(tone: string, message: string): HTMLElement {

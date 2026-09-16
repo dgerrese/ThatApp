@@ -1,8 +1,10 @@
 import "../components/that-alert";
+import "../components/that-issue-search";
 
-import { ApiError, fetchWeek, getWeek } from "../api";
+import { ApiError, createPin, fetchWeek, getWeek } from "../api";
 import { CARD_SURFACE_CLASSES } from "../card-surface";
 import { openEntryDialog } from "../components/that-entry-dialog";
+import type { IssueSearchConfig, ThatIssueSearch } from "../components/that-issue-search";
 import { announceEntriesChanged, onEntriesChanged } from "../entries-changed";
 import { fetchReportNodes } from "../fetch-report";
 import { totalFigure } from "../format";
@@ -15,7 +17,7 @@ import { setRailPeriod } from "../rail";
 import { navigate } from "../router";
 import type { RegisterTeardown } from "../router";
 import { toolbarButton } from "../toolbar-button";
-import type { PushResponse, WeekCell, WeekDay, WeekRollup, WeekRow } from "../types";
+import type { IssueHit, PushResponse, WeekCell, WeekDay, WeekRollup, WeekRow } from "../types";
 import { weekLabel } from "../week-label";
 
 /**
@@ -47,6 +49,107 @@ function noFailures(): Failures {
  *  rather than by which read produced them. */
 function failuresKey(value: Failures): string {
   return `${[...value.cells].sort().join(",")}|${[...value.days].sort().join(",")}`;
+}
+
+/** Identifies a row the way the server's own sort and this view's merge both
+ *  do: by instance and issue key, the pair `rollup.rows` is keyed on. */
+function ticketKey(instanceId: number, issueKey: string): string {
+  return `${String(instanceId)}:${issueKey}`;
+}
+
+/** What a search result needs to draw an empty row — everything `syntheticRow`
+ *  turns into a `WeekRow`, and nothing a real one also carries: no summary or
+ *  status, the same restraint Week's own rows already keep. */
+interface AddedRow {
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+  url: string;
+}
+
+/** A row with nothing logged, built the same way an ordinary one with an
+ *  empty day would render: seven empty cells, an em dash total via
+ *  `ticketCell`/`totalCell`'s own zero handling, no `pushState` to mark. */
+function syntheticRow(added: AddedRow): WeekRow {
+  return {
+    instanceId: added.instanceId,
+    instanceName: added.instanceName,
+    instancePosition: added.instancePosition,
+    issueKey: added.issueKey,
+    url: added.url,
+    cells: Array.from({ length: 7 }, () => ({ seconds: 0, pushState: null })),
+    seconds: 0,
+  };
+}
+
+/** Instance position then issue key, matching sort.Slice in
+ *  internal/server/week.go byte for byte — a synthetic row takes the same
+ *  place a real one would if it were logged. */
+function compareRows(a: WeekRow, b: WeekRow): number {
+  if (a.instancePosition !== b.instancePosition) return a.instancePosition - b.instancePosition;
+
+  return a.issueKey < b.issueKey ? -1 : a.issueKey > b.issueKey ? 1 : 0;
+}
+
+/**
+ * The rollup's own rows, plus a synthetic one for every ticket added by
+ * search that the rollup does not already carry for real. Pure — `added` is
+ * only read. Decision 3's second, simpler pass: an add lasts until the view
+ * is left, full stop, so nothing here ever drops a key. A ticket the rollup
+ * already carries is skipped rather than duplicated; once its last entry is
+ * deleted, the very next read finds it missing from `rows` again and this
+ * puts the (still-tracked) empty row straight back, with no promotion or
+ * pruning to have gotten wrong in between.
+ */
+function mergeRows(rows: WeekRow[], added: Map<string, AddedRow>): WeekRow[] {
+  const known = new Set(rows.map((row) => ticketKey(row.instanceId, row.issueKey)));
+  const extra = [...added.values()].filter(
+    (ticket) => !known.has(ticketKey(ticket.instanceId, ticket.issueKey)),
+  );
+  if (extra.length === 0) return rows;
+
+  return [...rows, ...extra.map(syntheticRow)].sort(compareRows);
+}
+
+/**
+ * What Week configures the search panel with — decision 3's own controls.
+ * Its result rows carry no duration control: logging happens in the day
+ * cells a chosen result joins, never here, so the first control is the
+ * add-to-week mark rather than Today's Log. `onAdd` and `onPinFailure` are
+ * render()'s own closures; this function only shapes the words and the two
+ * controls, the same split issueSearchConfig keeps in today.ts.
+ */
+function weekSearchConfig(
+  onAdd: (hit: IssueHit) => void,
+  onPinFailure: (error: unknown) => void,
+): IssueSearchConfig {
+  return {
+    placeholder: "Add a ticket to this week",
+    footer:
+      "Searching all instances. Choosing a result adds it to this week; click a day to log time.",
+    controls: [
+      {
+        kind: "icon",
+        icon: () => "add-to-week",
+        tooltip: () => "add to this week",
+        label: (hit) => `Add ${hit.key} to this week`,
+        onPress: onAdd,
+      },
+      {
+        kind: "icon",
+        // Week draws no pin mark of its own — decision 1: a pinned row and a
+        // searched one are indistinguishable here, unlike Today's own pin
+        // control, which answers `pin-off` for a hit already pinned.
+        icon: () => "pin",
+        tooltip: () => "pin ticket",
+        label: (hit) => `Pin ${hit.key}`,
+        onPress: (hit) => {
+          void createPin(hit.instanceId, hit.key).catch(onPinFailure);
+        },
+      },
+    ],
+  };
 }
 
 export async function render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void> {
@@ -154,7 +257,15 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   spacer.className = "flex-1";
   spacer.setAttribute("aria-hidden", "true");
 
-  header.append(rule, refreshControl, fetchControl, spacer, controls);
+  // `addTicketToWeek` and `reportPinFailure` are declared further down but
+  // usable here already — function declarations hoist to the top of the
+  // call they are in, unlike the `const`s and `let`s around them. Placed
+  // between the spacer and the week-nav group, matching the prototype's own
+  // `.sp`, `.field`, `.ctlgroup` order for this header.
+  const search = document.createElement("that-issue-search") as ThatIssueSearch;
+  search.config = weekSearchConfig(addTicketToWeek, reportPinFailure);
+
+  header.append(rule, refreshControl, fetchControl, spacer, search, controls);
 
   const grid = document.createElement("div");
   grid.append(loadingLine());
@@ -194,6 +305,72 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // source of flicker: nulled by every navigation, since a fresh mount has
   // painted nothing yet to compare against.
   let painted: { rollup: string; failures: string } | null = null;
+
+  // Decision 3, second and settled pass: an add lasts until the view is
+  // left, full stop. The key stays here for the life of this mount — nothing
+  // ever drops one, and mergeRows puts the row back the moment the rollup no
+  // longer carries it for real, which is what covers "log an hour, notice
+  // it was the wrong day, delete the entry" without the row evaporating.
+  // Not stored, not pinned, not sent anywhere. A fresh mount — including
+  // this view's own teardown-and-remount on every navigation, confirmed in
+  // router.ts, moving between weeks included — starts a new, empty map,
+  // which is the whole of "dies with the view".
+  const addedTickets = new Map<string, AddedRow>();
+
+  // What paintWeek last built from, kept so the add-to-week control can
+  // repaint immediately without a read of its own — choosing a result logs
+  // nothing and calls no endpoint, so there is nothing for it to await.
+  let lastRollup: WeekRollup | null = null;
+  let lastMarked: Failures = noFailures();
+
+  /** `rollup.rows` merged with whatever search has added — see `mergeRows`.
+   *  Both a genuine read and the add-to-week control need this same object,
+   *  once to compare against `painted` and once to hand `paintWeek`, so it
+   *  is built here rather than each repeating its own merge-and-stringify. */
+  function paintingFor(rollup: WeekRollup): WeekRollup {
+    return { ...rollup, rows: mergeRows(rollup.rows, addedTickets) };
+  }
+
+  /** Paints an already-merged rollup — see `paintingFor`. Used by a genuine
+   *  read below and directly by the add-to-week control, which has no read
+   *  of its own to trigger one from. */
+  function paintWeek(painting: WeekRollup, marked: Failures): void {
+    label.textContent = periodLabel(painting);
+    controls.replaceChildren(...weekControls(painting));
+    grid.replaceChildren(
+      painting.rows.length === 0 ? emptyWeek() : gridCard(gridTable(painting, marked, root)),
+    );
+  }
+
+  /** The add-to-week control's own onPress: holds the key, then repaints
+   *  from the last real rollup. A key already tracked is left alone —
+   *  `mergeRows` is what keeps the grid honest regardless. */
+  function addTicketToWeek(hit: IssueHit): void {
+    const key = ticketKey(hit.instanceId, hit.key);
+    if (!addedTickets.has(key)) {
+      addedTickets.set(key, {
+        instanceId: hit.instanceId,
+        instanceName: hit.instanceName,
+        instancePosition: hit.instancePosition,
+        issueKey: hit.key,
+        url: hit.url,
+      });
+    }
+    if (!lastRollup) return;
+
+    const painting = paintingFor(lastRollup);
+    paintWeek(painting, lastMarked);
+    painted = { rollup: JSON.stringify(painting), failures: failuresKey(lastMarked) };
+  }
+
+  /** Week draws no pin mark of its own (decision 1: a pinned row and a
+   *  searched one are indistinguishable), so there is no optimistic mark to
+   *  undo here the way Today's pin control has — only a failure worth
+   *  saying, in the same spot a push or fetch failure already reports to. */
+  function reportPinFailure(error: unknown): void {
+    report.replaceChildren(alertFor("error", messageOf(error)));
+    report.hidden = false;
+  }
 
   // `preserveFailures` is false for every user-initiated read (the mount, a
   // Refresh or Fetch press, a week navigation's remount) and true for the two
@@ -245,15 +422,14 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     if (!options.preserveFailures) failures = noFailures();
 
     showing = rollup.start;
+    lastRollup = rollup;
+    lastMarked = marked;
 
-    const signature = { rollup: JSON.stringify(rollup), failures: failuresKey(marked) };
+    const painting = paintingFor(rollup);
+    const signature = { rollup: JSON.stringify(painting), failures: failuresKey(marked) };
     if (painted === null || painted.rollup !== signature.rollup || painted.failures !== signature.failures) {
       painted = signature;
-      label.textContent = periodLabel(rollup);
-      controls.replaceChildren(...weekControls(rollup));
-      grid.replaceChildren(
-        rollup.rows.length === 0 ? emptyWeek() : gridCard(gridTable(rollup, marked, root)),
-      );
+      paintWeek(painting, marked);
     }
     // There is a week on screen to read again now. Guarded on `busy` because
     // both the fetch and the refresh end by calling show() themselves, and
@@ -821,12 +997,19 @@ function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCell
  * tfoot markup carries `fig` on every cell and `tot` on none of them, so only
  * a row's own total wears `.tot`'s 18px — the week total takes the same
  * generic 10px `dayTotal` beside it does.
+ *
+ * Zero renders as an em dash, muted like `ticketCell`'s and `dayTotal`'s own
+ * empty state — decision 1's own words, "an em dash in its row total, not
+ * `0h 00m`". Every row summing to zero used to imply the row did not exist at
+ * all, which is exactly what decision 1 replaces: a transient row search adds
+ * reaches this before anything is logged into it.
  */
 function totalCell(seconds: number, foot: boolean): HTMLTableCellElement {
   const td = document.createElement("td");
   const gap = foot ? "pl-[10px] py-3" : "pl-[18px] h-[46px]";
-  td.className = `${gap} text-right align-middle font-mono font-bold`;
-  td.textContent = totalFigure(seconds);
+  const empty = seconds === 0;
+  td.className = `${gap} text-right align-middle font-mono font-bold ${empty ? "text-ink-muted" : ""}`;
+  td.textContent = empty ? "—" : totalFigure(seconds);
 
   return td;
 }
