@@ -54,6 +54,7 @@ make test-e2e    # Playwright suite — brings the app stack up itself
 make lint        # golangci-lint + eslint
 make tsc         # frontend type check
 make build-web   # build the frontend into web/dist
+make image       # dry-run the release image build against a throwaway registry
 ```
 
 Anything not covered by a `make` target runs through Compose:
@@ -92,6 +93,8 @@ web/               frontend source and the built dist/
 .claude/e2e/       Playwright rig: its image, config and tests/
 .claude/skills/    repo-local skills, starting with ticket-workflow
 docs/superpowers/  specs and plans
+scripts/           release-image.sh: assembles and pushes the release image (#122)
+README.md          how a colleague runs a release
 ```
 
 The server takes its assets as an `fs.FS`, which is what lets the build tag swap embedded assets
