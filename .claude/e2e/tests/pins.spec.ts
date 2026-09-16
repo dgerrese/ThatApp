@@ -543,7 +543,7 @@ test.describe("the ticket row's own pin control", () => {
   // mark itself (pin vs pin-off) is what says "pinned" at rest — matching
   // ul.inst's own iconbtn in the prototype. Asserted on the computed colour,
   // not the class list: a class survives a stylesheet that stops painting it.
-  test("the pin control's colour is muted at rest and primary on hover, pinned or not", async ({
+  test("the pin control's colour is muted at rest and primary on hover, pinned or not, and on focus while unpinned", async ({
     page,
   }) => {
     await mountRows(page, [ridge5301]);

@@ -1807,6 +1807,30 @@ function weekSearchResultRow(page: Page, key: string) {
 }
 
 test.describe("Week's own search", () => {
+  /**
+   * Minor from the #84 fix wave: the prototype places the search field
+   * (`.sp`, `.field`, `.ctlgroup` in that order — see the prototype's Week
+   * header, lines 367-378 of docs/superpowers/prototypes/2026-09-03-app-
+   * prototype.html) after Fetch worklogs and before the week-nav group.
+   * week.ts's own header.append carries a comment naming that same order,
+   * but nothing asserted it.
+   */
+  test("the search field sits between Fetch worklogs and the week-nav group", async ({ page }) => {
+    await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
+
+    const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
+    const search = weekSearchField(page);
+    const previous = page.getByRole("button", { name: "Previous week" });
+
+    const fetchBox = await fetchControl.boundingBox();
+    const searchBox = await search.boundingBox();
+    const previousBox = await previous.boundingBox();
+    if (!fetchBox || !searchBox || !previousBox) throw new Error("a header control had no box");
+
+    expect(searchBox.x).toBeGreaterThan(fetchBox.x + fetchBox.width);
+    expect(searchBox.x + searchBox.width).toBeLessThan(previousBox.x);
+  });
+
   test("a chosen result carries the add-to-week and pin controls, and no duration control", async ({
     page,
   }) => {

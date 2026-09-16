@@ -338,8 +338,11 @@ export class ThatIssueSearch extends HTMLElement {
     if (!this.showingResults || !this.config || this.lastResults === undefined) return;
 
     this.suppressBlurClose = true;
-    this.showResults(this.config, this.lastResults, this.lastErrors ?? []);
-    this.suppressBlurClose = false;
+    try {
+      this.showResults(this.config, this.lastResults, this.lastErrors ?? []);
+    } finally {
+      this.suppressBlurClose = false;
+    }
   }
 
   /** Grouped by instance in first-seen order, since the search endpoint fans
