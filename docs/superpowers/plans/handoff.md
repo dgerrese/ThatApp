@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-02**, against the Codeberg API rather than against local git — see
+**Verified on 2026-09-16**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -44,22 +44,28 @@ after it. The 2026-09-03 handoff merged as **PR #96** at 11:22 on 2026-09-04.
 it keeps `priority/high`. The project-design pull requests **#115** and **#118** merged before it.
 **#124 (the priority axis) and #125 (the 2026-09-08 handoff) merged on 2026-09-09**, both by the
 owner in the web interface after `tea pulls merge` was blocked by this machine's permission layer.
-**#117 merged as PR #128 on 2026-09-09**, closing it, and the handoff pull request **#129** merged after it; #117's `status/*` label had to be stripped by hand at the close, which is now the fourth time a merge has left one behind. Remote `main` is at **`0acb6be`**. #94 shipped the second edition's whole token layer, two faces, radius scale, hover
+**#117 merged as PR #128 on 2026-09-09**, closing it, and the handoff pull request **#129** merged after it; #117's `status/*` label had to be stripped by hand at the close, which is now the fourth time a merge has left one behind. #94 shipped the second edition's whole token layer, two faces, radius scale, hover
 wash, elevation rule and drawn icon set; #99 fixed the `color-scheme` value the minifier was
 reversing — see the 2026-09-06 day file for both, and for why no test caught the second one.
 
-**In progress: #105**, and it is **finished but unpushed**. All six tasks, one fix round, a
-whole-branch review and its fix wave are on `issue-105-day-scoped-dialog`; both gates are green
-(`make verify` 167 tests, `make test-e2e` 453 passed / 11 skipped) and **all sixteen acceptance
-criteria are ticked**, each following a review rather than a claim. Its design is
-`docs/superpowers/specs/2026-09-09-day-scoped-entries-dialog-design.md` and its plan
-`docs/superpowers/plans/2026-09-09-day-scoped-entries-dialog.md`.
-**Two things must happen before it is pushed, in this order.** The three commits after `a92b328` are
-**unsigned** — the owner's vault was closed overnight and they instructed the work to carry on — so
-the range is re-signed with `git rebase --exec 'git commit --amend --no-edit -S' a92b328` and checked
-two ways: every commit reporting `G`, and `git diff <old tip> HEAD` empty. Then the push needs
-`--force-with-lease`, because **the branch was rebased onto `main` once #117 merged** and the remote
-still holds the pre-rebase history.
+**#105 merged as PR #135 on 2026-09-10**, with the handoff pull request **#136** before it. **#138**
+(bugs outrank non-bugs) and **#121 as PR #140** followed the same day; #121's `status/*` label had
+to be stripped by hand at the close, the fifth time. **Remote `main` is at `e29845f`.** The
+2026-09-10 handoff is **PR #141, still open**; the 2026-09-16 entry was added to the same branch
+rather than stacked on it.
+
+**In progress: #84**, built and **stopped one step short on the owner's instruction**. Nine tasks, six
+fix rounds, every task reviewed; the branch `issue-84-global-search` is pushed and every commit is
+signed. **No pull request** — the whole-branch review returned one Critical and four Important, and
+the owner chose to stop rather than run a fix wave. **The next session starts with that fix wave**,
+and the findings are in the day file for 2026-09-10 and in full in the branch's ledger at
+`.superpowers/sdd/2026-09-10-global-search/progress.md`. The Critical is one clause of JQL that must
+come out: `key = "…"` is a Jira error rather than an empty result when a project does not exist, so a
+key-shaped search loses whole instances — and the exact lookup it duplicates already existed.
+**#139 inherits decision 1 of #84's design** and is otherwise untouched. Nothing moved between
+2026-09-10 and 2026-09-16; on the 16th the branch stood **23 commits ahead of `main` and 11
+behind**, so it is rebased onto `codeberg/main` before its pull request opens.
+
 **#117 merged as PR #128**, all 48 criteria met, 33 signed commits, both gates green.
 Its plan was `docs/superpowers/plans/2026-09-09-prototype-drift.md`, twelve tasks under
 subagent-driven development, plus a whole-branch review whose fix wave carried nine findings. Before it, #10 (edit after push, widened on 2026-09-07 to carry a
@@ -78,16 +84,15 @@ rather than into `main`, because #86 could not go green on its own — see *Deci
 style is rebase-merge, so every one of those commits has a new SHA on `main`.
 Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill followed it as PR #81,
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
-**`worktrees-without-the-tax` and `issue-105-day-scoped-dialog` are pushed with no pull request
-behind them.** The first predates the forge move and still needs the rebase treatment its own bullet
-describes. The second is finished work waiting on the two steps above — re-sign, then force-push with
-a lease — and its pull request opens straight after, saying `Closes #105`.
+**`worktrees-without-the-tax` is pushed with no pull request behind it.** It predates the forge move
+and still needs the rebase treatment its own bullet describes. **`issue-121-push-corrected-entries`
+and `project-design-bugs-first` exist only locally and are fully merged**, droppable on the owner's word.
 
 **The board's own hygiene was re-audited on 2026-09-07 and is clean**: all 36 open issues carry
 exactly one `status/*` label, and none of the 50 closed ones carries any. **Merging a pull request
 does not strip the status label** — PR #90 left `status/in-progress` on the closed #11, and PR #112
-did the same to #95 on 2026-09-07, and PR #128 to #117 on 2026-09-09. Check the label after every
-merge; it has now happened four times. **`tea issues list` returns only 30 issues unless `--limit` is given**, and says nothing about
+did the same to #95 on 2026-09-07, and PR #128 to #117 on 2026-09-09. PR #140 did it to #121 on 2026-09-10. Check the label after every
+merge; it has now happened five times. **`tea issues list` returns only 30 issues unless `--limit` is given**, and says nothing about
 the rest, so an audit without one silently reads a third of the board — the `eod` skill's own snippet
 has that bug. The type axis was corrected in the same pass;
 the `enhancement` test that decided it is in the `ticket-workflow` skill.
@@ -1036,8 +1041,11 @@ found something every time**. This is worth keeping as practice, not just as a n
 - **`MarkEntryPushed` names only `worklog_id` and `pushed_at`.** Stamping `updated_at` there would
   race its own `pushed_at` and could mark a freshly pushed entry dirty. A test asserts `updated_at`
   is unchanged, and a plausible "just reuse `UpdateEntry`" refactor would fail it.
-- **`dirty` is reported, not repaired.** #7's edit stamps `updated_at`, so an edited pushed entry is
-  reachable today. #9 reports it honestly and skips it; the `PUT` is #10's.
+- **`dirty` is repaired now, and the rail offers it.** #7's edit stamps `updated_at`, so an edited
+  pushed entry has been reachable since then. #9 reported it honestly and skipped it, and the `PUT`
+  was #10's — both shipped. **The rail did not follow for free**: its two filters still admitted only
+  never-pushed entries, so a day whose only stale entry was a correction offered nothing at all. That
+  is #121, and it is what makes the repair reachable from the interface it belongs to.
 - **The confirmation is one plain sentence.** `that-confirm` sets `body` as an attribute rendered as a
   single `<p>`'s textContent, so the per-site breakdown an early sketch promised is not achievable
   without changing that component.
@@ -1395,6 +1403,18 @@ session ending — and both left a full working tree of uncommitted edits that h
 linted or run. The work was recoverable both times, and the successor was told to treat it as a draft
 to check rather than as correct, which is the only safe reading. Since then every dispatch asks for
 small steps with each edit confirmed before the next, so a stall costs a file rather than a session.
+
+**The dev stack's Go server never reloads, and a stale one can be *half*-current.** `compose.yaml`
+runs the app as `go run -tags dev ./cmd/server`, which compiles once at container start; the source
+is bind-mounted, so files change underneath a process that will not read them again. The web service
+watches and rebuilds, the app service does not. On 2026-09-10 that produced a reported product bug
+that was nothing of the kind: the server answered the new entries envelope but silently dropped the
+new `day` field on create, because the first change was in the tree when it last started and the
+second was not — and Go's `encoding/json` ignores unknown fields by default. **Restart the app
+container before believing any backend measurement**, the way a hard reload precedes a frontend one.
+The cheap discriminator is a request whose validation order differs between the two builds: an
+impossible `day` with an unknown instance id answers 400 on current code and 404 on anything before
+#105. Raised as intake **#137**.
 
 ## Still open
 
