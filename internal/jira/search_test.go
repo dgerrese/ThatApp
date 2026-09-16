@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -263,31 +264,25 @@ func TestSearchTextEscapesTheQueryIntoTheJQL(t *testing.T) {
 	}
 }
 
-func TestSearchTextAddsAKeyClauseOnlyWhenTheQueryLooksLikeAKey(t *testing.T) {
+// A key-shaped query must still go through the summary term alone: `key =
+// "..."` is a 400 from Jira, not an empty result, on an instance that does not
+// hold the project, and every instance is asked. The exact lookup for a key
+// lives in the server, through client.Issue, not here.
+func TestSearchTextSendsNoKeyClauseForAKeyShapedQuery(t *testing.T) {
 	tests := []struct {
 		name  string
 		query string
 		want  string
 	}{
 		{
-			name:  "a key-shaped query searches the key and the summary",
-			query: "RIDGE-4102",
-			want:  `(key = "RIDGE-4102" OR summary ~ "RIDGE-4102*") ORDER BY updated DESC`,
+			name:  "a key-shaped query searches the summary alone",
+			query: "RIDGE-5140",
+			want:  `summary ~ "RIDGE-5140*" ORDER BY updated DESC`,
 		},
 		{
-			name:  "an ordinary word searches the summary alone",
-			query: "capacity",
-			want:  `summary ~ "capacity*" ORDER BY updated DESC`,
-		},
-		{
-			name:  "a lowercase key still counts as a key",
-			query: "ridge-4102",
-			want:  `(key = "ridge-4102" OR summary ~ "ridge-4102*") ORDER BY updated DESC`,
-		},
-		{
-			name:  "a hyphenated word is not a key",
-			query: "capacity-review",
-			want:  `summary ~ "capacity-review*" ORDER BY updated DESC`,
+			name:  "a lowercase key-shaped query searches the summary alone",
+			query: "ridge-5140",
+			want:  `summary ~ "ridge-5140*" ORDER BY updated DESC`,
 		},
 	}
 
@@ -307,6 +302,9 @@ func TestSearchTextAddsAKeyClauseOnlyWhenTheQueryLooksLikeAKey(t *testing.T) {
 				t.Fatalf("SearchText: %v", err)
 			}
 
+			if strings.Contains(got.JQL, "key") {
+				t.Errorf("jql = %q, must not contain a key clause", got.JQL)
+			}
 			if got.JQL != tt.want {
 				t.Errorf("jql = %q, want %q", got.JQL, tt.want)
 			}

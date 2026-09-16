@@ -204,3 +204,47 @@ func TestSearchIgnoresAKeyLookupThatMisses(t *testing.T) {
 		t.Errorf("got %d results, want the summary match still returned", len(body.Results))
 	}
 }
+
+// The stub 400s a JQL carrying a key clause, the way a real instance that does
+// not hold the project does — reproducing the bug Critical 1 fixed, where
+// SearchText's own key clause turned a cold-load off-list lookup into a
+// failure for every instance that does not hold the key. With the exact
+// lookup missing and the JQL clean, the instance must still answer with its
+// summary hits and no entry in errors.
+func TestSearchOnAKeyLookupMissStillReturnsSummaryHits(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	jiraSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/"):
+			w.WriteHeader(http.StatusNotFound)
+		case r.URL.Path == "/rest/api/3/search/jql":
+			var decoded struct {
+				JQL string `json:"jql"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&decoded); err != nil {
+				t.Errorf("decoding the request: %v", err)
+			}
+			if strings.Contains(decoded.JQL, "key") {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			_, _ = w.Write([]byte(`{"issues":[{"key":"OTHER-9","fields":{` +
+				`"summary":"Text hit","status":{"name":"To Do"}}}]}`))
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(jiraSrv.Close)
+	seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", jiraSrv.URL)
+
+	_, body := searchIssues(t, srv, "RIDGE-5140")
+
+	if len(body.Errors) != 0 {
+		t.Errorf("errors = %+v, want none; a key clause must not reach an instance lacking the project",
+			body.Errors)
+	}
+	if len(body.Results) != 1 || body.Results[0].Key != "OTHER-9" {
+		t.Errorf("results = %+v, want the instance's summary hit", body.Results)
+	}
+}

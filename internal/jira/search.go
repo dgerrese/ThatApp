@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 )
 
@@ -105,16 +104,12 @@ func stripTrailingWildcard(query string) string {
 	return strings.TrimRight(query, "*")
 }
 
-// issueKeyPattern is a Jira issue key, which `key = ` demands exactly: a
-// project code, a hyphen, and a number. Anything else in that clause is a 400
-// from Jira rather than an empty result, so a query that is not a key does not
-// get the clause at all.
-var issueKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*-[0-9]+$`)
-
-// SearchText finds issues whose key exactly matches query or whose summary
-// starts a word with it, most recently updated first, regardless of status —
-// unlike SearchAssigned, this is used to find one specific issue, including
-// finished work.
+// SearchText finds issues whose summary starts a word with query, most
+// recently updated first, regardless of status — unlike SearchAssigned, this
+// is used to find one specific issue, including finished work. It does not
+// match keys: `key = "..."` is a 400 from Jira, not an empty result, on an
+// instance that does not hold the project, so an exact key lookup is the
+// server's job (client.Issue), never this JQL.
 //
 // Three properties of Jira's ~ operator shape the summary term and cannot be
 // worked around here: it matches word prefixes rather than substrings, a
@@ -125,12 +120,7 @@ var issueKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*-[0-9]+$`)
 // what the caller asked for, and a second page is latency spent on results
 // nobody asked to see.
 func (c *Client) SearchText(ctx context.Context, query string, limit int) ([]Issue, error) {
-	summaryTerm := fmt.Sprintf(`summary ~ "%s*"`, escapeJQL(stripTrailingWildcard(query)))
-
-	jql := summaryTerm + " ORDER BY updated DESC"
-	if issueKeyPattern.MatchString(query) {
-		jql = fmt.Sprintf(`(key = "%s" OR %s) ORDER BY updated DESC`, escapeJQL(query), summaryTerm)
-	}
+	jql := fmt.Sprintf(`summary ~ "%s*" ORDER BY updated DESC`, escapeJQL(stripTrailingWildcard(query)))
 
 	body := searchRequest{
 		JQL:        jql,
