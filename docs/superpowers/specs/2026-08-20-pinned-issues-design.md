@@ -3,8 +3,9 @@
 **Date:** 2026-08-20
 **Supersedes:** nothing
 **Superseded by:** [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md),
-for the pin form and `that-combobox` (decision 2 and *The search*'s form) — #84 deleted both and
-pins now come from the global search. Everything else in this document still governs.
+for the pin form and `that-combobox` (decision 2, and *The frontend*'s `### today.ts` and
+`### that-combobox` sections) — #84 deleted both and pins now come from the global search.
+Everything else in this document still governs.
 
 The design for [#6](https://codeberg.org/DionGerrese/ThatApp/issues/6). Pins are how time gets
 logged against tickets that are not assigned to the user — shared work, standing meetings,
