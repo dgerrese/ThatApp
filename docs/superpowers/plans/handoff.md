@@ -1108,11 +1108,23 @@ directional group is one control with the words in its middle button (Week's arr
 control such as a dialog's close is chrome rather than an action on the view's data. It reaches past
 the ticket that raised it — Today's refresh gains a label, which is #117's T15.
 
-**`ssh-add -l` in a Claude session does not describe the agent git uses.** The session's
-`SSH_AUTH_SOCK` points at an empty OpenSSH agent; `~/.ssh/config` routes `codeberg.org` to
-`~/.1password/agent.sock`, which holds the keys. A `Permission denied (publickey)` here is not
-evidence that 1Password is locked — check `SSH_AUTH_SOCK=~/.1password/agent.sock ssh-add -l` or read
-`GIT_SSH_COMMAND='ssh -v'` output before saying so. Misdiagnosed once on 2026-09-09.
+**This repository's git uses a key file, and 1Password is out of the picture — since 2026-09-17.**
+The owner made `~/.ssh/id_ed25519` for this machine and registered it on Codeberg. Push, fetch and
+signing all work with no agent and with `SSH_AUTH_SOCK` unset, so **do not prefix git commands with
+`SSH_AUTH_SOCK=~/.1password/agent.sock`** — the older notes below, and anything saying to name that
+socket, describe the arrangement that replaced. Three repository-local settings carry it:
+`core.sshCommand` (`ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o IdentityAgent=none`),
+`user.signingkey` (`~/.ssh/id_ed25519.pub`) and **`gpg.ssh.program` = `ssh-keygen`**. The third is
+the one that is easy to miss: `~/.gitconfig.personal` points signing at
+`/opt/1Password/op-ssh-sign`, which knows only vault keys and refuses this one outright. The key is
+in `~/.ssh/allowed_signers` (backup at `~/.ssh/allowed_signers.bak`), and Codeberg returns
+`verified: true` for it with no separate signing-key registration — proved with a probe commit
+pushed to `refs/tmp/` and deleted. `~/.ssh/config` still routes `codeberg.org` to the 1Password
+agent for the rest of the machine; `core.sshCommand` is what overrides it here.
+
+**`ssh-add -l` in a Claude session still does not describe the agent anything else uses.** The
+session's `SSH_AUTH_SOCK` points at an empty OpenSSH agent. That mattered while git depended on the
+1Password agent, and it was misdiagnosed once on 2026-09-09.
 
 **`tea pulls merge` is blocked by auto mode's classifier on this machine.** It is a permission-layer
 block, not the workflow's rule: when the owner asks for a merge, the routes are the web interface,
