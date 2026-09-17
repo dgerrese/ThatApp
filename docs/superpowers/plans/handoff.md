@@ -96,10 +96,12 @@ Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill fol
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
 **`worktrees-without-the-tax` was deleted on 2026-09-16**, locally and on Codeberg, on the owner's
 instruction — see *Decisions taken*. **`issue-121-push-corrected-entries`, `project-design-bugs-first`,
-`issue-84-global-search`, `handoff-2026-09-10`, `project-design-unsigned-commits` and
-`type-labels-wait-for-scope` exist only locally and are fully merged**, droppable on the owner's word.
+`issue-84-global-search`, `handoff-2026-09-10`, `handoff-2026-09-16`,
+`project-design-unsigned-commits` and `type-labels-wait-for-scope` exist only locally and are fully
+merged**, droppable on the owner's word. `issue-122-release-image` and
+`project-design-release-image-docs` were deleted on 2026-09-17 on the owner's word.
 
-**The board's own hygiene was re-audited on 2026-09-07 and is clean**: all 36 open issues carry
+**The board's own hygiene was re-audited on 2026-09-17 and is clean**: all 47 open issues carry
 exactly one `status/*` label, and none of the 50 closed ones carries any. **Merging a pull request
 does not strip the status label** — PR #90 left `status/in-progress` on the closed #11, and PR #112
 did the same to #95 on 2026-09-07, and PR #128 to #117 on 2026-09-09. PR #140 did it to #121 on 2026-09-10. Check the label after every
