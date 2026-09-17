@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: https://data.forgejo.org/actions/checkout@v5
 
-      # Matches the node:26 base used by the web and webdev stages in Dockerfile.
+      # Matches the node:26 base used by the webdev stage in Dockerfile.
       - uses: https://data.forgejo.org/actions/setup-node@v4
         with:
           node-version: 26
