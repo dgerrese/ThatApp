@@ -67,6 +67,13 @@ been started**. The owner accepted the release script's architecture checks in p
 not reopen that. Releases and packages had to be switched on in the repository's settings
 first; see *Environment notes*.
 
+**#42 is `status/todo` and refined** (2026-09-17), and is the next ticket by the ordering rule —
+`priority/high` and a `bug`. Its body now holds the analysis: the only race window is
+`renderCurrent`'s `await load()`, because every view attaches to `root` synchronously before its
+first await, and the existing `navigationId` is the counter to check. The open risk is the
+regression test — chunks are hashed and Today and Week may share one, so the older import cannot be
+held by filename.
+
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
 **#117 merged as PR #128**, all 48 criteria met, 33 signed commits, both gates green.
@@ -1588,6 +1595,15 @@ Seen on 2026-09-08, mid-commit.
   Forgejo API takes a token, registered with `tea login add`. The token carries `write:issue`,
   `write:repository` and `read:user`, deliberately **not** `write:user`, so it cannot create or
   delete repositories. Do those in the web interface.
+- **The owner runs the release image on this machine**, since 2026-09-17: container `thatapp`,
+  `--restart unless-stopped`, bound to `127.0.0.1:8080`, data in the named volume `thatapp-data`.
+  **It collides with the dev stack**, which `.env` publishes on `THAT_PORT=8080`, so `make up` and
+  `make test-e2e` cannot bind while it runs. Moving the dev stack to 8081 was offered and not
+  answered. The two databases are now separate: the dev one is the bind mount at `./data`, and
+  entries made in one never appear in the other.
+- **Migrating a database into the release takes the WAL and the key.** `thatapp.db` alone is
+  almost empty — the data is in `thatapp.db-wal` — and a `THAT_SECRET_KEY` that differs from the
+  source's makes every stored Jira token undecryptable without any visible error.
 - **Releases.** Tag in Codeberg's web interface (`/releases/new`, *Create tag only*). That page 404s
   unless **Releases** is enabled under the repository's unit settings, and **Packages** was enabled
   alongside it. A tag made there is unsigned, and it does trigger `release.yml`. The push credential
