@@ -57,14 +57,14 @@ on 2026-09-16.
 `status/in-progress`** — the sixth merge to leave a status label behind; the evening's `eod` reported
 it rather than relabelling, so strip it on the owner's word. **#145** (no `enhancement` label while a
 milestone's scope is undetermined) and **#147** (a locked 1Password vault never stops a commit, only
-a push — now a `CLAUDE.md` rule) merged the same day. **Remote `main` is at `2a90db9`.**
+a push — now a `CLAUDE.md` rule) merged the same day. **Remote `main` is at `2a90db9`.** #84's leftover `status/in-progress` was stripped on 2026-09-17.
 
 **#122 merged as PR #148 on 2026-09-17**, with **PR #149** after it; its `status/*` label was stripped
 by hand at the close, the seventh time. **The first release, `v2026.38.1`, is published** at
 `codeberg.org/diongerrese/thatapp` (tag on `2a90db9`, Release run 108, 3m18s), and an anonymous
-`docker pull` of it succeeded. **One criterion on #122 stays open: the arm64 image has never been
-started** — the owner has not yet chosen between binfmt on this machine, an arm64 host, or accepting
-the script's checks. Releases and packages had to be switched on in the repository's settings
+`docker pull` of it succeeded. All ten criteria on #122 are ticked, but **the arm64 image has never
+been started**. The owner accepted the release script's architecture checks in place of a run, so do
+not reopen that. Releases and packages had to be switched on in the repository's settings
 first; see *Environment notes*.
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
