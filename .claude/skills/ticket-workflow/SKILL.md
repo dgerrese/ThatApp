@@ -302,8 +302,8 @@ is not redrafted later.
    then apply this decision unless a ticket genuinely needs the isolation. Branch name:
    `issue-<n>-<short-slug>`. **Move the ticket to `status/in-progress` in the same breath as
    creating the branch** — that is the trigger, and a branch that exists under `status/todo` is the
-   exact ambiguity the label was added to remove. *The worktree decision is due to flip* — see the
-   handoff's "Still open".
+   exact ambiguity the label was added to remove. The decision is settled: the owner dropped the
+   plan to make worktrees cheap on 2026-09-16 and does not intend to use them.
 3. **`superpowers:writing-plans`** — turns the acceptance criteria into a plan under
    `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into bite-sized tasks with exact file
    paths, complete code and verification steps. New plans and specs open with a **Date**,
