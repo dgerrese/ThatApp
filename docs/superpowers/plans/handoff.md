@@ -57,14 +57,22 @@ on 2026-09-16.
 `status/in-progress`** — the sixth merge to leave a status label behind; the evening's `eod` reported
 it rather than relabelling, so strip it on the owner's word. **#145** (no `enhancement` label while a
 milestone's scope is undetermined) and **#147** (a locked 1Password vault never stops a commit, only
-a push — now a `CLAUDE.md` rule) merged the same day. **Remote `main` is at `a06c134`.**
+a push — now a `CLAUDE.md` rule) merged the same day. **Remote `main` is at `2a90db9`.** #84's leftover `status/in-progress` was stripped on 2026-09-17.
 
-**In progress: #122**, the release image — **open as PR #148**, every commit signed, both gates green
-at its head `f02d84b` (one end-to-end run failed a single test, unidentified, and the rerun passed —
-see the 2026-09-16 day file). Its CI was still running at the end of the day. After merge the owner
-creates the `RELEASE_TOKEN` secret, pushes the first `vYYYY.WW.N` tag, links the package and does the
-anonymous pull; the steps are in the PR body. **PR #149** carries the matching `CLAUDE.md` and
-`ticket-workflow` edits and merges after #148.
+**#122 merged as PR #148 on 2026-09-17**, with **PR #149** after it; its `status/*` label was stripped
+by hand at the close, the seventh time. **The first release, `v2026.38.1`, is published** at
+`codeberg.org/diongerrese/thatapp` (tag on `2a90db9`, Release run 108, 3m18s), and an anonymous
+`docker pull` of it succeeded. All ten criteria on #122 are ticked, but **the arm64 image has never
+been started**. The owner accepted the release script's architecture checks in place of a run, so do
+not reopen that. Releases and packages had to be switched on in the repository's settings
+first; see *Environment notes*.
+
+**#42 is `status/todo` and refined** (2026-09-17), and is the next ticket by the ordering rule —
+`priority/high` and a `bug`. Its body now holds the analysis: the only race window is
+`renderCurrent`'s `await load()`, because every view attaches to `root` synchronously before its
+first await, and the existing `navigationId` is the counter to check. The open risk is the
+regression test — chunks are hashed and Today and Week may share one, so the older import cannot be
+held by filename.
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
@@ -88,10 +96,12 @@ Before them, #49 (`codeberg-api-limits`) merged on 2026-09-01, the eod skill fol
 and `handoff-2026-09-01` merged as **PR #82**. That leaves
 **`worktrees-without-the-tax` was deleted on 2026-09-16**, locally and on Codeberg, on the owner's
 instruction — see *Decisions taken*. **`issue-121-push-corrected-entries`, `project-design-bugs-first`,
-`issue-84-global-search`, `handoff-2026-09-10`, `project-design-unsigned-commits` and
-`type-labels-wait-for-scope` exist only locally and are fully merged**, droppable on the owner's word.
+`issue-84-global-search`, `handoff-2026-09-10`, `handoff-2026-09-16`,
+`project-design-unsigned-commits` and `type-labels-wait-for-scope` exist only locally and are fully
+merged**, droppable on the owner's word. `issue-122-release-image` and
+`project-design-release-image-docs` were deleted on 2026-09-17 on the owner's word.
 
-**The board's own hygiene was re-audited on 2026-09-07 and is clean**: all 36 open issues carry
+**The board's own hygiene was re-audited on 2026-09-17 and is clean**: all 47 open issues carry
 exactly one `status/*` label, and none of the 50 closed ones carries any. **Merging a pull request
 does not strip the status label** — PR #90 left `status/in-progress` on the closed #11, and PR #112
 did the same to #95 on 2026-09-07, and PR #128 to #117 on 2026-09-09. PR #140 did it to #121 on 2026-09-10. Check the label after every
@@ -1098,11 +1108,23 @@ directional group is one control with the words in its middle button (Week's arr
 control such as a dialog's close is chrome rather than an action on the view's data. It reaches past
 the ticket that raised it — Today's refresh gains a label, which is #117's T15.
 
-**`ssh-add -l` in a Claude session does not describe the agent git uses.** The session's
-`SSH_AUTH_SOCK` points at an empty OpenSSH agent; `~/.ssh/config` routes `codeberg.org` to
-`~/.1password/agent.sock`, which holds the keys. A `Permission denied (publickey)` here is not
-evidence that 1Password is locked — check `SSH_AUTH_SOCK=~/.1password/agent.sock ssh-add -l` or read
-`GIT_SSH_COMMAND='ssh -v'` output before saying so. Misdiagnosed once on 2026-09-09.
+**This repository's git uses a key file, and 1Password is out of the picture — since 2026-09-17.**
+The owner made `~/.ssh/id_ed25519` for this machine and registered it on Codeberg. Push, fetch and
+signing all work with no agent and with `SSH_AUTH_SOCK` unset, so **do not prefix git commands with
+`SSH_AUTH_SOCK=~/.1password/agent.sock`** — the older notes below, and anything saying to name that
+socket, describe the arrangement that replaced. Three repository-local settings carry it:
+`core.sshCommand` (`ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o IdentityAgent=none`),
+`user.signingkey` (`~/.ssh/id_ed25519.pub`) and **`gpg.ssh.program` = `ssh-keygen`**. The third is
+the one that is easy to miss: `~/.gitconfig.personal` points signing at
+`/opt/1Password/op-ssh-sign`, which knows only vault keys and refuses this one outright. The key is
+in `~/.ssh/allowed_signers` (backup at `~/.ssh/allowed_signers.bak`), and Codeberg returns
+`verified: true` for it with no separate signing-key registration — proved with a probe commit
+pushed to `refs/tmp/` and deleted. `~/.ssh/config` still routes `codeberg.org` to the 1Password
+agent for the rest of the machine; `core.sshCommand` is what overrides it here.
+
+**`ssh-add -l` in a Claude session still does not describe the agent anything else uses.** The
+session's `SSH_AUTH_SOCK` points at an empty OpenSSH agent. That mattered while git depended on the
+1Password agent, and it was misdiagnosed once on 2026-09-09.
 
 **`tea pulls merge` is blocked by auto mode's classifier on this machine.** It is a permission-layer
 block, not the workflow's rule: when the owner asks for a merge, the routes are the web interface,
@@ -1587,6 +1609,22 @@ Seen on 2026-09-08, mid-commit.
   Forgejo API takes a token, registered with `tea login add`. The token carries `write:issue`,
   `write:repository` and `read:user`, deliberately **not** `write:user`, so it cannot create or
   delete repositories. Do those in the web interface.
+- **The owner runs the release image on this machine**, since 2026-09-17: container `thatapp`,
+  `--restart unless-stopped`, bound to `127.0.0.1:8080`, data in the named volume `thatapp-data`.
+  **It collides with the dev stack**, which `.env` publishes on `THAT_PORT=8080`, so `make up` and
+  `make test-e2e` cannot bind while it runs. Moving the dev stack to 8081 was offered and not
+  answered. The two databases are now separate: the dev one is the bind mount at `./data`, and
+  entries made in one never appear in the other.
+- **Migrating a database into the release takes the WAL and the key.** `thatapp.db` alone is
+  almost empty — the data is in `thatapp.db-wal` — and a `THAT_SECRET_KEY` that differs from the
+  source's makes every stored Jira token undecryptable without any visible error.
+- **Releases.** Tag in Codeberg's web interface (`/releases/new`, *Create tag only*). That page 404s
+  unless **Releases** is enabled under the repository's unit settings, and **Packages** was enabled
+  alongside it. A tag made there is unsigned, and it does trigger `release.yml`. The push credential
+  is the repository secret `RELEASE_TOKEN`: a personal token with only *package: read and write*.
+  **A tag's run can queue behind the `main` merge runs** — Codeberg ran this repo's jobs roughly one
+  at a time on 2026-09-17, and run 108 waited half an hour before a three-minute job. An
+  `actions/tasks` listing does not show a run until it starts; query `actions/runs` to see it queued.
 - **`gh` is still installed** at `~/.local/bin/gh` and still authenticated, but the GitHub repository
   is archived and read-only. It is useful only for reading the old record. Nothing in the workflow
   should reach for it.
