@@ -57,14 +57,15 @@ on 2026-09-16.
 `status/in-progress`** — the sixth merge to leave a status label behind; the evening's `eod` reported
 it rather than relabelling, so strip it on the owner's word. **#145** (no `enhancement` label while a
 milestone's scope is undetermined) and **#147** (a locked 1Password vault never stops a commit, only
-a push — now a `CLAUDE.md` rule) merged the same day. **Remote `main` is at `a06c134`.**
+a push — now a `CLAUDE.md` rule) merged the same day. **Remote `main` is at `2a90db9`.**
 
-**In progress: #122**, the release image — **open as PR #148**, every commit signed, both gates green
-at its head `f02d84b` (one end-to-end run failed a single test, unidentified, and the rerun passed —
-see the 2026-09-16 day file). Its CI was still running at the end of the day. After merge the owner
-creates the `RELEASE_TOKEN` secret, pushes the first `vYYYY.WW.N` tag, links the package and does the
-anonymous pull; the steps are in the PR body. **PR #149** carries the matching `CLAUDE.md` and
-`ticket-workflow` edits and merges after #148.
+**#122 merged as PR #148 on 2026-09-17**, with **PR #149** after it; its `status/*` label was stripped
+by hand at the close, the seventh time. **The first release, `v2026.38.1`, is published** at
+`codeberg.org/diongerrese/thatapp` (tag on `2a90db9`, Release run 108, 3m18s), and an anonymous
+`docker pull` of it succeeded. **One criterion on #122 stays open: the arm64 image has never been
+started** — the owner has not yet chosen between binfmt on this machine, an arm64 host, or accepting
+the script's checks. Releases and packages had to be switched on in the repository's settings
+first; see *Environment notes*.
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
@@ -1587,6 +1588,13 @@ Seen on 2026-09-08, mid-commit.
   Forgejo API takes a token, registered with `tea login add`. The token carries `write:issue`,
   `write:repository` and `read:user`, deliberately **not** `write:user`, so it cannot create or
   delete repositories. Do those in the web interface.
+- **Releases.** Tag in Codeberg's web interface (`/releases/new`, *Create tag only*). That page 404s
+  unless **Releases** is enabled under the repository's unit settings, and **Packages** was enabled
+  alongside it. A tag made there is unsigned, and it does trigger `release.yml`. The push credential
+  is the repository secret `RELEASE_TOKEN`: a personal token with only *package: read and write*.
+  **A tag's run can queue behind the `main` merge runs** — Codeberg ran this repo's jobs roughly one
+  at a time on 2026-09-17, and run 108 waited half an hour before a three-minute job. An
+  `actions/tasks` listing does not show a run until it starts; query `actions/runs` to see it queued.
 - **`gh` is still installed** at `~/.local/bin/gh` and still authenticated, but the GitHub repository
   is archived and read-only. It is useful only for reading the old record. Nothing in the workflow
   should reach for it.
