@@ -67,19 +67,74 @@ been started**. The owner accepted the release script's architecture checks in p
 not reopen that. Releases and packages had to be switched on in the repository's settings
 first; see *Environment notes*.
 
-**#42 is in review as PR #152** (2026-09-18) and keeps `status/in-progress` until the owner merges.
-Two guards on the existing `navigationId`, and an e2e test that learns Today's hashed chunk from the
-router's own route table and holds it. RED on both engines before the fix; `make verify` and
-`make test-e2e` (515 passed) green on the head.
+**At the end of 2026-09-18, nothing had merged that day. `main` is still `c58f180`.** The owner
+had the session work the board in priority order on its own. That produced **twelve ticket pull
+requests and three `[Process]` pull requests, all open and waiting on the owner**:
 
-**The v1 board was refined on 2026-09-18, in priority order, with the owner.** Now `status/todo`:
-**#35, #83, #56, #67, #71, #79, #19, #57, #66, #102, #80, #116, #40, #39, #55, #91**. **#41 and #58
-were closed `wontfix`** on the owner's word — #41's state is unreachable, #58's component was
-deleted by #84. **Still `status/needs-refinement` and each waiting on a browser design session with
-the owner: #139, #143, #89.** Decisions taken there live in each ticket's body; two worth not
-relitigating: **#55 settles malformed ids as 404 everywhere**, and **#91 adds a DOM shim
-(happy-dom by default) as a frontend dev dependency**, reversing #51 for renderers. **#83 needs a
-design session too** (the undrawn ascending arrow) when it is picked up, and **#80** (the token box).
+| PR | Ticket | Notes |
+|---|---|---|
+| #152 | #42 render race | |
+| #153 | #35 e2e gets its own database | **merge before #8** (#8's e2e stubs the timer until then) |
+| #154 | #56 Settings list race | |
+| #155 | #67 precache from disk | **restart `web` after merging** — the running watcher holds the old `build.mjs` |
+| #156 | #71 stale banner re-check | |
+| #157 | #79 log Jira failures | |
+| #158 | #57 pins test gaps | |
+| #159 | #102 poison sentinel | |
+| #160 | #116 no "Jira" in actions/states/reports | the owner kept "push failed" |
+| #162 | #19 Jira 403/429 classes | **stacked on #157**: base is `issue-79-log-jira-failures` |
+| #163 | #40 build creates `dist/` | |
+| #168 | #167 CI skips docs-only PRs | |
+| #165 | `[Process]` stacking rule | |
+| #166 | `[Process]` PR title prefixes | |
+| #169 | `[Process]` CLAUDE.md on CI skips | **stacked on #168** |
+
+Every ticket above keeps `status/in-progress` until its PR merges, so strip the label at each merge
+(it has been left behind seven times). A stacked ticket closes only when its parent reaches `main`.
+
+**Two rules the owner set on 2026-09-18 and are in open `[Process]` PRs:** a branch cut from another
+open branch gets a PR based on that branch, not `main` (#165); every PR title starts with
+`[#<issue>]`, `[Process]` or `[Handoff]` (#166). **Follow both before they merge.** All open PRs
+were already retitled.
+
+**In progress, not yet in review:**
+- **#83 (sorting), branch `issue-83-table-sort`, pushed.** Both tasks are done and reviewed, and the
+  whole-branch review said ready to merge. Its final fix wave (`37cac8f`: observer noise, optional
+  `moveBefore` typing, fallback test, return focus) is committed and green (table.spec 32/32,
+  `make verify`, `make test-e2e` 529/0). **Next: the scoped re-review of `37cac8f`, then open the PR
+  titled `[#83] …`.** Its SDD ledger is `.superpowers/sdd/2026-09-18-table-sort/`. Rows move with
+  `moveBefore` (focus survives) and fall back to `insertBefore` where it is missing: Firefox ESR 140
+  lacks it.
+- **#8 (timer), branch `issue-8-timer`, pushed.** The design was settled with the owner in a browser
+  session, `docs/superpowers/specs/2026-09-18-timer-design.md`. The plan is
+  `docs/superpowers/plans/2026-09-18-timer.md`. **Waiting on the owner's read of the design before
+  execution.** Decisions not to reopen:
+  - a play/stop button in the action column beside the pin (option A);
+  - the rail's running line gets a stop button after the elapsed time;
+  - a run under a minute is discarded;
+  - the server closes an overnight timer at local midnight on any read;
+  - the rail's elapsed time follows the prototype's `42:18` (`M:SS`, then `H:MM:SS`).
+
+  The plan's e2e tests **stub `/api/timer*` statefully** and never reach the server, because until #35
+  merges the rig's server is the owner's dev database.
+
+**Blocked:** **#66** (the localhost forwarder) makes Chromium crash with #134 in 3 of 4 full runs,
+against 0 of 2 on `main`. **The owner chose to do #134 first.** #134 is out of intake at
+`status/needs-refinement`, and #66's branch is pushed with no PR.
+
+**Design sessions held with the owner on 2026-09-18** (browser companion, screens under
+`.superpowers/brainstorm/913714-1789732588/content/` on this machine), and their outcomes are
+written into each ticket: **#8** as above; **#83** ascending arrow = the drawn descending arrow,
+mirrored; **#80** a hairline note under the four fields, above the buttons.
+
+**Refined and still `status/todo`:** #80, #39, #55, #91. The morning's decisions stand: #55 answers
+malformed ids with 404 everywhere, and #91 adds happy-dom as a dev dependency.
+**New today at `status/needs-refinement`:** #161 (a late save resets an edit form opened after it)
+and #164 (a CSS-only edit never rebuilds the worker), both `bug`, v1. **#134** is also at
+needs-refinement now. **Still waiting on design sessions:** #139, #143, #89.
+
+**Next, in order:** #83's re-review and PR; #8 once the owner has read the design; then #80, #39,
+#55, #91 (the normal and low bands); #134 before #66.
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
