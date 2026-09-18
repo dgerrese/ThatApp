@@ -266,6 +266,53 @@ test("editing can be cancelled", async ({ page }) => {
   await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
 });
 
+// #56: the initial list read is answered after a save has already redrawn the
+// list. Whatever that stale read carries — the empty list it saw, or a
+// failure — must not replace what the save's own read put on screen.
+for (const stale of [
+  { name: "an empty list", answer: { status: 200, json: [] } },
+  {
+    name: "a failure",
+    answer: { status: 500, json: { code: "store_failed", message: "could not read the stored instances" } },
+  },
+] as const) {
+  test(`a list read answered late with ${stale.name} leaves a just-saved instance listed`, async ({ page }) => {
+    await stubInstancesApi(page, { testStatus: 200 });
+
+    let releaseFirstRead: () => void = () => {};
+    const firstReadReleased = new Promise<void>((resolve) => {
+      releaseFirstRead = resolve;
+    });
+    let firstReadAnswered: () => void = () => {};
+    const firstReadWasAnswered = new Promise<void>((resolve) => {
+      firstReadAnswered = resolve;
+    });
+    let heldOne = false;
+
+    await page.route("**/api/instances", async (route) => {
+      if (route.request().method() !== "GET" || heldOne) {
+        await route.fallback();
+        return;
+      }
+      heldOne = true;
+      await firstReadReleased;
+      await route.fulfill(stale.answer);
+      firstReadAnswered();
+    });
+
+    await page.goto("/settings");
+    await addInstance(page);
+    await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+    releaseFirstRead();
+    await firstReadWasAnswered;
+    await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+
+    await expect(page.getByText("Work", { exact: true })).toBeVisible();
+    await expect(page.getByText("could not read the stored instances")).toHaveCount(0);
+  });
+}
+
 // The row's node must survive a sibling's save, or the awaited result renders
 // into detached DOM and the user never sees it. Two rows, so this also catches
 // a sibling being dropped by reconciliation, not just detached.
