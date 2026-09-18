@@ -161,12 +161,13 @@ func TestDeletePinRejectsANonNumericID(t *testing.T) {
 	}
 }
 
-// jiraIssueServer stands in for one site's single-issue endpoint. status other
-// than 200 makes the lookup fail.
-func jiraIssueServer(t *testing.T, summary, status string, code int) *httptest.Server {
+// jiraIssueHandler stands in for one site's single-issue endpoint. A code other
+// than 200 makes the lookup fail. Both stub servers below share it, so neither
+// can stay green against a client calling the wrong Jira path.
+func jiraIssueHandler(t *testing.T, summary, status string, code int) http.HandlerFunc {
 	t.Helper()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/") {
 			t.Errorf("unexpected path %q", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -178,7 +179,13 @@ func jiraIssueServer(t *testing.T, summary, status string, code int) *httptest.S
 		}
 		_, _ = w.Write([]byte(`{"key":"SHARED-12","fields":{"summary":"` + summary +
 			`","status":{"name":"` + status + `"}}}`))
-	}))
+	}
+}
+
+func jiraIssueServer(t *testing.T, summary, status string, code int) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(jiraIssueHandler(t, summary, status, code))
 	t.Cleanup(srv.Close)
 
 	return srv
@@ -189,14 +196,10 @@ func jiraIssueServerWithDelay(
 ) *httptest.Server {
 	t.Helper()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handle := jiraIssueHandler(t, summary, status, code)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(delay)
-		if code != http.StatusOK {
-			w.WriteHeader(code)
-			return
-		}
-		_, _ = w.Write([]byte(`{"key":"SHARED-12","fields":{"summary":"` + summary +
-			`","status":{"name":"` + status + `"}}}`))
+		handle(w, r)
 	}))
 	t.Cleanup(srv.Close)
 
@@ -338,6 +341,62 @@ func TestRefreshDoesNotUnpinAMissingIssue(t *testing.T) {
 	}
 }
 
+// The refresh loop walks one instance's pins in order. A pin whose issue is
+// gone must be reported and skipped, not end the walk for the pins after it.
+func TestRefreshKeepsGoingPastAMissingIssueOnTheSameInstance(t *testing.T) {
+	srv, db, sealer := newServerWithStore(t)
+	jiraSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/rest/api/3/issue/GONE-1":
+			w.WriteHeader(http.StatusNotFound)
+		case "/rest/api/3/issue/SHARED-1":
+			_, _ = w.Write([]byte(`{"key":"SHARED-1","fields":{"summary":"Refreshed","status":{"name":"Done"}}}`))
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(jiraSrv.Close)
+	inst := seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", jiraSrv.URL)
+	// The missing one first, so a walk that stops at it never reaches the other.
+	for _, key := range []string{"GONE-1", "SHARED-1"} {
+		if _, err := db.CreatePin(context.Background(), store.PinInput{
+			InstanceID: inst.ID, IssueKey: key, SummaryCache: "cached", StatusCache: "cached",
+		}); err != nil {
+			t.Fatalf("creating the pin %q: %v", key, err)
+		}
+	}
+
+	_, body := getPins(t, srv, "?refresh=1")
+
+	byKey := map[string]pinDTO{}
+	for _, pin := range body {
+		byKey[pin.Key] = pin
+	}
+	gone, ok := byKey["GONE-1"]
+	if !ok || gone.Error == nil || gone.Error.Code != "issue_not_found" || gone.Summary != "cached" {
+		t.Errorf("GONE-1 = %+v, want kept with its cache and an issue_not_found error", gone)
+	}
+	shared, ok := byKey["SHARED-1"]
+	if !ok || shared.Error != nil || shared.Summary != "Refreshed" || shared.Status != "Done" {
+		t.Errorf("SHARED-1 = %+v, want the refreshed values and no error", shared)
+	}
+
+	stored, err := db.Pins(context.Background())
+	if err != nil {
+		t.Fatalf("reading pins: %v", err)
+	}
+	if len(stored) != 2 {
+		t.Fatalf("stored pins = %d, want both kept", len(stored))
+	}
+	for _, pin := range stored {
+		want := map[string]string{"GONE-1": "cached", "SHARED-1": "Refreshed"}[pin.IssueKey]
+		if pin.SummaryCache != want {
+			t.Errorf("stored %s summary = %q, want %q", pin.IssueKey, pin.SummaryCache, want)
+		}
+	}
+}
+
 // Two pins on one instance must resolve one client between them, not one each:
 // a second concurrent forInstance call on the same row races the first-use
 // api_base_url repair. A row with no api_base_url forces that repair to run,
@@ -445,6 +504,48 @@ func TestPostPinRejectsAKeyThatDoesNotExist(t *testing.T) {
 	}
 	if body.Code == "account_not_found" {
 		t.Error("a missing issue was reported as a missing account")
+	}
+}
+
+// Only a 404 is special-cased on the pin path; every other Jira failure must
+// reach the shared mapping, the same one the refresh path uses.
+func TestPostPinReportsOtherJiraFailuresThroughTheSharedMapping(t *testing.T) {
+	cases := []struct {
+		name       string
+		jiraStatus int
+		wantStatus int
+		wantCode   string
+	}{
+		{"rejected credentials", http.StatusUnauthorized, http.StatusUnauthorized, "credentials_rejected"},
+		{"a failing site", http.StatusInternalServerError, http.StatusBadGateway, "instance_unreachable"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, db, sealer := newServerWithStore(t)
+			jiraSrv := jiraIssueServer(t, "", "", tc.jiraStatus)
+			inst := seedInstance(t, db, sealer, "Work", "https://work.atlassian.net", jiraSrv.URL)
+
+			rec := postPin(t, srv, `{"instanceId":`+strconv.FormatInt(inst.ID, 10)+`,"issueKey":"SHARED-12"}`)
+
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body %s", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			var body errorBody
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decoding %s: %v", rec.Body.String(), err)
+			}
+			if body.Code != tc.wantCode {
+				t.Errorf("code = %q, want %q", body.Code, tc.wantCode)
+			}
+			pins, err := db.Pins(context.Background())
+			if err != nil {
+				t.Fatalf("reading pins: %v", err)
+			}
+			if len(pins) != 0 {
+				t.Errorf("stored %d pins after a failed lookup, want none", len(pins))
+			}
+		})
 	}
 }
 
