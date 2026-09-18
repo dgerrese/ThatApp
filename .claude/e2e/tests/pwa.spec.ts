@@ -401,7 +401,7 @@ test("a rebuild's app.js is what the next load takes, not the cached one", async
 });
 
 // A token no bundle contains by accident. The first version of this test used
-// "lie", which "client", "policy" and "applied" all contain — #102.
+// "lie", which "client", "believe" and "applied" all contain — #102.
 const POISON = "THATAPP-POISON-SENTINEL-7f3a";
 
 test("a runtime response whose content type contradicts its path is served but never cached", async ({
