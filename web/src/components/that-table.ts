@@ -10,11 +10,14 @@ import {
   type SortableRow,
 } from "../table-sort";
 
-// Not yet in TypeScript's lib.dom.d.ts. Declared to the one signature this
-// file calls — see reorder()'s own comment for why moveBefore is used at all.
+// Not yet in TypeScript's lib.dom.d.ts. Declared optional, since not every
+// engine has it (see supportsMoveBefore below) — a required signature here
+// would claim every ParentNode carries it, which is exactly the assumption
+// that broke on Firefox ESR. Declared to the one signature this file calls —
+// see reorder()'s own comment for why moveBefore is used at all.
 declare global {
   interface ParentNode {
-    moveBefore(node: Node, child: Node | null): void;
+    moveBefore?(node: Node, child: Node | null): void;
   }
 }
 
@@ -127,8 +130,10 @@ export class ThatTable extends HTMLElement {
     this.sortState = this.readStoredState();
     this.applyState();
 
-    this.observer = new MutationObserver(() => {
-      this.sortBody();
+    this.observer = new MutationObserver((records) => {
+      if (records.some((record) => this.isOwnRowChange(record))) {
+        this.sortBody();
+      }
     });
     this.observe();
   }
@@ -145,6 +150,25 @@ export class ThatTable extends HTMLElement {
       subtree: true,
       attributeFilter: OBSERVED_ROW_ATTRIBUTES,
     });
+  }
+
+  /**
+   * `subtree: true` is what lets a row's own attribute change reach this
+   * observer without Today wiring anything per row — but it also reaches
+   * every change *inside* a row: `that-ticket-row`'s own re-renders, and
+   * soon #8's per-second timer ticking the Today cell's text. None of those
+   * are a row arriving, leaving or changing what it sorts by, so a mutation
+   * only counts here when it is a row being added or removed directly under
+   * `body` (`childList` with `target === body`), or one of the four
+   * sort-relevant attributes changing directly on a row (`attributes` with
+   * `target.parentElement === body`) — never a change on some element a row
+   * merely contains.
+   */
+  private isOwnRowChange(record: MutationRecord): boolean {
+    if (record.type === "childList") return record.target === this.body;
+    if (record.type === "attributes") return record.target.parentElement === this.body;
+
+    return false;
   }
 
   /** Paints every header for the current state, then re-sorts and persists —
@@ -251,7 +275,10 @@ export class ThatTable extends HTMLElement {
       if (current === row) continue;
 
       if (this.supportsMoveBefore) {
-        this.body.moveBefore(row, current ?? null);
+        // Narrowed at the call site, not just by the boolean above: the
+        // declaration is optional now, so TypeScript still sees `undefined`
+        // as a possibility here without this.
+        this.body.moveBefore?.(row, current ?? null);
       } else {
         this.body.insertBefore(row, current ?? null);
       }

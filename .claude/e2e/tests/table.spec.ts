@@ -599,13 +599,26 @@ test("logging time against a row re-sorts a table sorted by Today", async ({ pag
 
   // RIDGE-100 is last at 0:01 (60s); two more hours puts it ahead of
   // RIDGE-9's 1:00 (3600s) without touching any other row's total.
-  await logTrigger(page, "RIDGE-100").click();
+  const trigger = logTrigger(page, "RIDGE-100");
+  await trigger.click();
   await typeDuration(page, "200");
   await entryDialog(page).getByRole("button", { name: "Add entry" }).click();
 
   await expect
     .poll(() => rowKeys(table))
     .toEqual(["RIDGE-100", "RIDGE-9", "RIDGE-3", "RIDGE-20"]);
+
+  // "Add entry" leaves the dialog open (so another entry can follow) — same
+  // as entries.spec.ts's own tests, Escape is what closes it. The native
+  // <dialog> then returns focus to whatever opened it — this row's own
+  // trigger. That return target only survives if the row that moved
+  // (RIDGE-100 jumped from last to first, via moveBefore) is the same
+  // element, not a rebuilt one: pins down return focus surviving the
+  // re-sort this same action just caused, the moveBefore path this time
+  // rather than the header-click path the earlier focus test covers.
+  await page.keyboard.press("Escape");
+  await expect(entryDialog(page)).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });
 
 test("with localStorage throwing, the page loads in Jira's order and sorting still works in-page", async ({
@@ -668,6 +681,14 @@ test("re-sorting moves a row without stealing focus from its own controls", asyn
  * prototype in both Firefox and Chromium, checked directly; Node's checked
  * too, in case that ever changes) so this runs against the same absence a
  * real ESR browser would present, not a simulation of one.
+ *
+ * Fix round 2: the two header clicks alone only prove that further clicks
+ * keep working — a click always calls applyState() directly and would
+ * "work" even with an observer left permanently disconnected. The log-time
+ * step at the end is what actually exercises the observer: it re-sorts from
+ * an attribute mutation, not a click, so it only passes if try/finally in
+ * sortBody() really did reconnect the observer after the fallback reorder
+ * the two clicks above already triggered.
  */
 test("sorting still works when the engine has no moveBefore", async ({ page }) => {
   await page.addInitScript(() => {
@@ -693,4 +714,58 @@ test("sorting still works when the engine has no moveBefore", async ({ page }) =
   await table.locator("th.c-key button").click();
   await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-100", "RIDGE-20", "RIDGE-9", "RIDGE-3"]);
   await expect(table.locator("th.c-key")).toHaveAttribute("aria-sort", "descending");
+
+  // Now the observer-driven path, still under the fallback: sort by Today,
+  // then log time against the last row and let the resulting attribute
+  // change (not a click) drive the reorder.
+  await table.locator("th.c-today button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-9", "RIDGE-3", "RIDGE-20", "RIDGE-100"]);
+
+  await logTrigger(page, "RIDGE-100").click();
+  await typeDuration(page, "200");
+  await entryDialog(page).getByRole("button", { name: "Add entry" }).click();
+
+  await expect
+    .poll(() => rowKeys(table))
+    .toEqual(["RIDGE-100", "RIDGE-9", "RIDGE-3", "RIDGE-20"]);
+});
+
+/**
+ * Item 1 of the review's final wave: `subtree: true` on the body's own
+ * observer is what lets a row's `seconds` change reach it without Today
+ * wiring anything per row — but it also reaches every change *inside* a
+ * row, including that-ticket-row's own re-render for an attribute this
+ * table does not sort by (`url`, here — soon #8's per-second timer tick in
+ * the Today cell too). `isOwnRowChange` is what keeps that from queuing a
+ * sort pass: only a row arriving/leaving directly under `body`, or one of
+ * the four sort-relevant attributes changing directly on a row, counts.
+ * Exercises the excluded case directly (a row rebuilding itself without a
+ * sort-relevant attribute changing) and confirms the sort survives it
+ * untouched, then that the observer is still alive by triggering a real
+ * resort right after.
+ */
+test("a row's own re-render for an attribute this table does not sort by leaves an existing sort untouched", async ({
+  page,
+}) => {
+  await gotoSortableToday(page);
+  const table = instanceTable(page);
+
+  await table.locator("th.c-key button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-3", "RIDGE-9", "RIDGE-20", "RIDGE-100"]);
+
+  await table.evaluate(() => {
+    const row = document.querySelector('that-ticket-row[key="RIDGE-9"]');
+    // `url` is observed by that-ticket-row (it falls through to a full
+    // render()) but not by that-table (OBSERVED_ROW_ATTRIBUTES omits it) —
+    // the row rebuilds itself with nothing this table sorts by having
+    // changed.
+    row?.setAttribute("url", "https://ridgeline.atlassian.net/browse/RIDGE-9-moved");
+  });
+
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-3", "RIDGE-9", "RIDGE-20", "RIDGE-100"]);
+  await expect(table.locator("th.c-key")).toHaveAttribute("aria-sort", "ascending");
+
+  // Alive, not merely quiet: a real resort still works right after.
+  await table.locator("th.c-key button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-100", "RIDGE-20", "RIDGE-9", "RIDGE-3"]);
 });
