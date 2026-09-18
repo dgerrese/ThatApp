@@ -389,10 +389,15 @@ func TestRefreshKeepsGoingPastAMissingIssueOnTheSameInstance(t *testing.T) {
 	if len(stored) != 2 {
 		t.Fatalf("stored pins = %d, want both kept", len(stored))
 	}
+	wantCache := map[string]struct{ summary, status string }{
+		"GONE-1":   {"cached", "cached"},
+		"SHARED-1": {"Refreshed", "Done"},
+	}
 	for _, pin := range stored {
-		want := map[string]string{"GONE-1": "cached", "SHARED-1": "Refreshed"}[pin.IssueKey]
-		if pin.SummaryCache != want {
-			t.Errorf("stored %s summary = %q, want %q", pin.IssueKey, pin.SummaryCache, want)
+		want := wantCache[pin.IssueKey]
+		if pin.SummaryCache != want.summary || pin.StatusCache != want.status {
+			t.Errorf("stored %s summary/status = %q/%q, want %q/%q",
+				pin.IssueKey, pin.SummaryCache, pin.StatusCache, want.summary, want.status)
 		}
 	}
 }
