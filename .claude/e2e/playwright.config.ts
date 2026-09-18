@@ -2,11 +2,13 @@ import { defineConfig, devices } from "@playwright/test";
 
 // The rig runs inside Compose and reaches the app over the service network, so
 // it behaves identically here and in CI and does not depend on THAT_PORT. This
-// uses the that-e2e alias for the app-e2e service (#35), same reasoning as the
-// `app` service's own alias: "app" is a real gTLD on Chromium and Firefox's
-// built-in HSTS preload list, so a browser silently upgrades a bare
-// http://app to https and breaks navigation to the plain-HTTP dev server. See
-// the `app-e2e` service's network alias in docker-compose.yml.
+// uses the that-e2e alias for the app-e2e service (#35), kept for symmetry
+// with the `app` service's own that-app alias rather than for the same
+// reason: "app" is a real gTLD on Chromium and Firefox's built-in HSTS
+// preload list, so a browser silently upgrades a bare http://app to https and
+// breaks navigation to the plain-HTTP dev server — a collision "app-e2e"
+// itself was never exposed to. See the `app-e2e` service's network alias in
+// docker-compose.yml.
 const baseURL = process.env.THAT_BASE_URL ?? "http://that-e2e:8080";
 
 // The service worker (#12) only registers in a secure context, and plain

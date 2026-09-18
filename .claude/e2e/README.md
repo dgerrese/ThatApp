@@ -12,19 +12,22 @@ make test-e2e   # starts its own disposable app-e2e, waits for it, runs the suit
 
 The `playwright` service declares `depends_on: app-e2e: condition: service_healthy`,
 and `compose run` honours that, so `make test-e2e` brings `app-e2e` up and
-waits for `/api/health`. The recipe removes any leftover `app-e2e` container
-before the run — so an interrupted previous run cannot leave a stale database
-behind — and again afterwards, so a finished run leaves nothing running.
+waits for `/api/health`. `app-e2e` itself depends on `web`, so a run started
+with nothing up also starts `web` as a side effect. The recipe removes any
+leftover `app-e2e` container before the run — so an interrupted previous run
+cannot leave a stale database behind — and again afterwards: a finished run
+leaves no `app-e2e` behind, though `web` stays up if this run was the one that
+started it.
 `make down` also runs with the `e2e` profile (`--profile e2e down -v`), so it
 too would remove a leftover `app-e2e` — but `make test-e2e`'s own teardown
 already makes that moot, and `make down` also stops and removes `app` and
 `web`, the owner's dev stack, so nothing about clearing `app-e2e` alone
 justifies reaching for it.
 
-`.env` must exist and carry a valid `THAT_SECRET_KEY` first (`cp .env.example .env`).
-The server refuses to boot without one, so the healthcheck never passes and the
-suite fails with an opaque `dependency failed to start: container ... is
-unhealthy` rather than anything about configuration.
+Driving `docker compose` directly rather than through `make` needs
+`THAT_UID`/`THAT_GID` set (the Makefile exports both from `id -u`/`id -g`;
+see `.env.example`) — `app-e2e`'s `user:` directive reads them the same way
+`app`'s does.
 
 `make test-e2e` runs `npm ci` before `npx playwright test`. The `playwright`
 service bind-mounts `.claude/e2e` with a named volume over `node_modules`,
@@ -54,12 +57,15 @@ dependency inside the fast loop. `make test-e2e` is a separate, deliberate step.
 ## Why the base URL says `that-e2e`, not `app-e2e`
 
 `THAT_BASE_URL` points at `http://that-e2e:8080`, a network alias for the
-`app-e2e` service, rather than at the service name directly — the same
-pattern as `app`'s own `that-app` alias. `app` collides with the `.app` gTLD
-on Chromium and Firefox's HSTS preload list, so a bare `http://app` gets
+`app-e2e` service, rather than at the service name directly — kept for
+symmetry with `app`'s own `that-app` alias, so every host name this rig
+touches is `that-*`. Unlike `app`, `app-e2e` does not itself collide with
+anything: the gTLD problem is specific to the bare label `app`, which is a
+real gTLD on Chromium and Firefox's HSTS preload list, so `http://app` gets
 silently rewritten to `https://` before the request leaves the browser and
-every test dies on SSL against a plain-HTTP dev server. See the comment on the
-`app` service in `docker-compose.yml` for the full explanation.
+every test dies on SSL against a plain-HTTP dev server — `app-e2e` was never
+at risk of that. See the comment on the `app` service in `docker-compose.yml`
+for the full explanation of that original problem.
 
 The rig runs against `app-e2e`, not `app`. `app-e2e` (#35) is a disposable
 server with its own empty, in-container database, built fresh and torn down

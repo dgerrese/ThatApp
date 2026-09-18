@@ -84,7 +84,9 @@ services:
     depends_on:
       web:
         condition: service_healthy
-    # Same gTLD reasoning as `app`'s that-app alias.
+    # Kept for symmetry with `app`'s that-app alias, not the same gTLD
+    # collision: "app-e2e" is not itself on the .app HSTS preload list, only
+    # the bare "app" label is. See that alias's own comment above.
     networks:
       default:
         aliases:
