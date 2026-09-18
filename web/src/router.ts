@@ -17,6 +17,12 @@ export type Teardown = () => void;
  */
 export type RegisterTeardown = (teardown: Teardown) => void;
 
+/**
+ * A view must attach its container to `root` synchronously, before its first
+ * `await`. The router only guards the gap before `render` is called; once it
+ * is, anything a view writes after an await lands in its own container, which
+ * is already detached if a newer view has replaced it.
+ */
 interface View {
   render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void>;
 }
@@ -132,8 +138,10 @@ async function renderCurrent(): Promise<void> {
   }
 
   const view = await load();
+  if (thisNavigation !== navigationId) return;
   root.replaceChildren();
   await view.render(root, registerTeardown);
+  if (thisNavigation !== navigationId) return;
   resetContentScroll();
 }
 
