@@ -67,10 +67,12 @@ docker compose --profile e2e run --build --rm playwright sh -c 'npm ci --no-audi
 
 `make verify` and `make test-e2e` together are the source of truth for whether a change is green.
 CI runs the same checks on different triggers: `verify` needs no running stack and runs on every
-pull request; the end-to-end suite builds the frontend and waits on the app's health endpoint, so
-it runs in its own workflow, gated to pull requests that touch the frontend or the rig itself —
-that gate is the `paths:` list in `.forgejo/workflows/e2e.yml`, which must name every file the rig
-depends on. Never claim work is done without pasting their output.
+pull request that changes more than documentation (`docs/**`, any `*.md`, `.claude/skills/**`); the
+end-to-end suite builds the frontend and waits on the app's health endpoint, so it runs in its own
+workflow, gated to pull requests that touch the frontend or the rig itself — that gate is the
+`paths:` list in `.forgejo/workflows/e2e.yml`, which must name every file the rig depends on and
+ends by excluding Markdown. A docs-only pull request therefore runs no CI at all (#167). Never
+claim work is done without pasting their output.
 
 **CI does not use Compose, and the two can drift.** `make verify` drives each tool through a
 container; `.forgejo/workflows/verify.yml` invokes the same tools directly, and splits them across
