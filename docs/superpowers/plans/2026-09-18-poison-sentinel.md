@@ -38,7 +38,7 @@ add:
 
 ```ts
 // A token no bundle contains by accident. The first version of this test used
-// "lie", which "client", "policy" and "applied" all contain — #102.
+// "lie", which "client", "believe" and "applied" all contain — #102.
 const POISON = "THATAPP-POISON-SENTINEL-7f3a";
 ```
 
