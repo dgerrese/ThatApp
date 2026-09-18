@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 )
@@ -73,10 +74,11 @@ func TestStatusCodesMapToSentinelErrors(t *testing.T) {
 		want   error
 	}{
 		{"unauthorized", http.StatusUnauthorized, jira.ErrUnauthorized},
-		{"forbidden", http.StatusForbidden, jira.ErrUnauthorized},
+		{"forbidden", http.StatusForbidden, jira.ErrForbidden},
 		{"not found", http.StatusNotFound, jira.ErrNotFound},
 		{"server error", http.StatusInternalServerError, jira.ErrUnreachable},
 		{"bad gateway", http.StatusBadGateway, jira.ErrUnreachable},
+		{"rate limited", http.StatusTooManyRequests, jira.ErrRateLimited},
 	}
 
 	for _, tt := range tests {
@@ -102,6 +104,47 @@ func TestUnreachableHostIsNotAServerError(t *testing.T) {
 
 	if _, err := client.SearchAssigned(context.Background()); !errors.Is(err, jira.ErrUnreachable) {
 		t.Errorf("error = %v, want it to wrap ErrUnreachable", err)
+	}
+}
+
+func TestRateLimitCarriesTheRetryAfterWait(t *testing.T) {
+	now := time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name       string
+		retryAfter string
+		want       time.Duration
+	}{
+		{"seconds", "30", 30 * time.Second},
+		{"an HTTP date", now.Add(2 * time.Minute).Format(http.TimeFormat), 2 * time.Minute},
+		{"a date already past", now.Add(-time.Minute).Format(http.TimeFormat), 0},
+		{"no header", "", 0},
+		{"garbage", "soon", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restore := jira.SetClockForTest(func() time.Time { return now })
+			t.Cleanup(restore)
+			client := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+				if tt.retryAfter != "" {
+					w.Header().Set("Retry-After", tt.retryAfter)
+				}
+				w.WriteHeader(http.StatusTooManyRequests)
+			})
+
+			_, err := client.SearchAssigned(context.Background())
+
+			var limited *jira.RateLimitError
+			if !errors.As(err, &limited) {
+				t.Fatalf("error = %v, want a *jira.RateLimitError", err)
+			}
+			if limited.Wait != tt.want {
+				t.Errorf("Wait = %v, want %v", limited.Wait, tt.want)
+			}
+			if !errors.Is(err, jira.ErrRateLimited) {
+				t.Errorf("error = %v, want it to wrap ErrRateLimited", err)
+			}
+		})
 	}
 }
 
