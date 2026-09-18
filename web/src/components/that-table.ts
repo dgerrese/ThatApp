@@ -87,6 +87,11 @@ export class ThatTable extends HTMLElement {
   private nextOrder = 0;
   private sortState: SortState | null = null;
   private observer: MutationObserver | undefined;
+  // Firefox's current ESR (140) predates moveBefore (Firefox 144, Chrome 133),
+  // and the owner's channel is not guaranteed to be past it — see reorder()'s
+  // own comment for what the fallback costs. Checked once, not per call: the
+  // answer cannot change over the table's lifetime.
+  private readonly supportsMoveBefore = typeof Element.prototype.moveBefore === "function";
 
   constructor() {
     super();
@@ -211,28 +216,44 @@ export class ThatTable extends HTMLElement {
 
     if (sorted.some((row, index) => row !== rows[index])) {
       this.observer?.disconnect();
-      this.reorder(sorted);
-      this.observe();
+      // finally, not just a trailing call: reorder() can throw (a storage or
+      // DOM surprise this table has not anticipated), and an observer left
+      // disconnected after that would make the table stop re-sorting for the
+      // rest of its life while its header keeps claiming a sort that never
+      // happened.
+      try {
+        this.reorder(sorted);
+      } finally {
+        this.observe();
+      }
     }
   }
 
   /**
-   * Moves each row to its sorted position with `moveBefore` rather than
-   * `append`. `append` (like `insertBefore`) removes and reinserts a node
-   * already in the tree, which for a custom element fires disconnectedCallback
-   * and then connectedCallback — and that-ticket-row's connectedCallback calls
-   * render() unconditionally, rebuilding every cell and dropping whatever the
-   * user had focused. `moveBefore` moves the node in place instead, so long as
-   * the element opts in with a `connectedMoveCallback` — that-ticket-row's own
-   * is a no-op, which is what keeps this safe. Verified against Firefox and
-   * Chromium directly: both support moveBefore and both skip the
-   * disconnect/reconnect once that callback is present.
+   * Moves each row to its sorted position with `moveBefore` where the engine
+   * has it, `insertBefore` otherwise. `append`/`insertBefore` on a node
+   * already in the tree removes and reinserts it, which for a custom element
+   * fires disconnectedCallback and then connectedCallback — and
+   * that-ticket-row's connectedCallback calls render() unconditionally,
+   * rebuilding every cell and dropping whatever the user had focused.
+   * `moveBefore` moves the node in place instead, so long as the element
+   * opts in with a `connectedMoveCallback` — that-ticket-row's own is a
+   * no-op, which is what keeps this safe where it's available. Verified
+   * directly in Firefox and Chromium: both support moveBefore and both skip
+   * the disconnect/reconnect once that callback is present. Where it isn't
+   * available (Firefox ESR before 144), the fallback accepts the rebuild and
+   * the focus loss it carries — a sort that works but occasionally drops
+   * focus is still better than one that silently stops working.
    */
   private reorder(sorted: Element[]): void {
     for (const [index, row] of sorted.entries()) {
       const current = this.body.children[index];
-      if (current !== row) {
+      if (current === row) continue;
+
+      if (this.supportsMoveBefore) {
         this.body.moveBefore(row, current ?? null);
+      } else {
+        this.body.insertBefore(row, current ?? null);
       }
     }
   }

@@ -660,3 +660,37 @@ test("re-sorting moves a row without stealing focus from its own controls", asyn
   await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-100", "RIDGE-20", "RIDGE-9", "RIDGE-3"]);
   await expect(trigger).toBeFocused();
 });
+
+/**
+ * Fix round 1: `moveBefore` shipped in Firefox 144 and Chrome 133, but the
+ * owner's Firefox channel is not guaranteed to be past ESR 140, which lacks
+ * it. Deletes it from wherever the engine actually defines it (Element's
+ * prototype in both Firefox and Chromium, checked directly; Node's checked
+ * too, in case that ever changes) so this runs against the same absence a
+ * real ESR browser would present, not a simulation of one.
+ */
+test("sorting still works when the engine has no moveBefore", async ({ page }) => {
+  await page.addInitScript(() => {
+    for (const proto of [Element.prototype, Node.prototype]) {
+      if (Object.prototype.hasOwnProperty.call(proto, "moveBefore")) {
+        delete (proto as unknown as Record<string, unknown>)["moveBefore"];
+      }
+    }
+  });
+
+  await gotoSortableToday(page);
+  const table = instanceTable(page);
+  await expect(table.locator("tbody > *")).toHaveCount(4);
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-20", "RIDGE-3", "RIDGE-100", "RIDGE-9"]);
+
+  await table.locator("th.c-key button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-3", "RIDGE-9", "RIDGE-20", "RIDGE-100"]);
+  await expect(table.locator("th.c-key")).toHaveAttribute("aria-sort", "ascending");
+
+  // The table must keep working afterwards too — the whole point of the
+  // try/finally around reorder() is that one throwing move must not leave
+  // the observer disconnected and the table stuck sorting nothing further.
+  await table.locator("th.c-key button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-100", "RIDGE-20", "RIDGE-9", "RIDGE-3"]);
+  await expect(table.locator("th.c-key")).toHaveAttribute("aria-sort", "descending");
+});
