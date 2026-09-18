@@ -771,7 +771,11 @@ test("the stale warning stays when coming back finds the server still gone, and 
   await expect(stale.warning).toBeVisible();
   const before = stale.issueReads();
 
-  // Both events in one task, as a real return to the window delivers them.
+  // Dispatched together, as a real return to the window delivers both — but
+  // not in one task: the two fire as separate, back-to-back tasks. What
+  // coalesces them into one refresh is handleReturn's own guard, via
+  // refreshEverything disabling Refresh synchronously before the second
+  // event's handler can run.
   await page.evaluate(() => {
     document.dispatchEvent(new Event("visibilitychange"));
     window.dispatchEvent(new Event("focus"));
