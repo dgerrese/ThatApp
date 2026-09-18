@@ -133,6 +133,34 @@ test("no configured instances offers Settings instead of a Refresh button", asyn
   await expect(page.getByRole("button", { name: "Refresh" })).toBeHidden();
 });
 
+// #71's guard: the re-check on return only fires while the stale banner
+// shows. With no instances configured there is no banner and no Refresh
+// control at all, so the empty state is the settled signal a read would
+// otherwise disturb.
+test("coming back to a Today that is not stale fetches nothing", async ({ page }) => {
+  let issueReads = 0;
+  await page.route("**/api/issues", (route) => {
+    issueReads += 1;
+    return route.fulfill({ status: 200, json: { instances: [] } });
+  });
+  await stubPins(page, []);
+  await stubEntries(page, []);
+
+  await page.goto("/today");
+  await expect(page.getByText("No Jira instances yet.")).toBeVisible();
+  const before = issueReads;
+
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+  });
+  // A real server round trip: anything the events started would have sent its
+  // request before this one comes back.
+  await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+
+  expect(issueReads).toBe(before);
+});
+
 /**
  * #117's Decision 12: a header control acting on the whole view carries
  * words, not merely a tooltip on a bare glyph. Refresh used to render with an
