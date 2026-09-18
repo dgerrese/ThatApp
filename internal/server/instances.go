@@ -383,16 +383,18 @@ func instanceErrorFor(err error) (status int, code, message string) {
 }
 
 // waitPhrase renders a Retry-After wait for a person: seconds under a minute,
-// whole minutes (rounded up) from there.
+// whole minutes (rounded up) from there. It rounds once, to whole seconds,
+// and branches on that — rounding minutes separately would turn a 59.4s wait
+// into "60 seconds" instead of "1 minute".
 func waitPhrase(wait time.Duration) string {
-	if wait < time.Minute {
-		seconds := int(math.Ceil(wait.Seconds()))
+	seconds := int(math.Ceil(wait.Seconds()))
+	if seconds < 60 {
 		if seconds == 1 {
 			return "1 second"
 		}
 		return fmt.Sprintf("%d seconds", seconds)
 	}
-	minutes := int(math.Ceil(wait.Minutes()))
+	minutes := (seconds + 59) / 60
 	if minutes == 1 {
 		return "1 minute"
 	}

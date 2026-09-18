@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
 	"codeberg.org/DionGerrese/ThatApp/internal/jira"
@@ -518,7 +519,7 @@ func TestConnectionTestReportsAccountNotFoundAsBadGateway(t *testing.T) {
 	}
 }
 
-// A status writeInstanceError does not recognize (429 here) falls to the
+// A status writeInstanceError does not recognize (418 here) falls to the
 // default branch, which must not leak the underlying error's text — that text
 // carries the request path and the Jira response body.
 func TestConnectionTestHidesTheUnderlyingErrorOnAnUnmappedStatus(t *testing.T) {
@@ -693,6 +694,27 @@ func TestInstanceErrorForTellsTheUserWhatToDo(t *testing.T) {
 			}
 			if message != tc.wantMessage {
 				t.Errorf("message = %q, want %q", message, tc.wantMessage)
+			}
+		})
+	}
+}
+
+func TestWaitPhrase(t *testing.T) {
+	cases := []struct {
+		wait time.Duration
+		want string
+	}{
+		{1 * time.Second, "1 second"},
+		{time.Duration(59.4 * float64(time.Second)), "1 minute"},
+		{60 * time.Second, "1 minute"},
+		{61 * time.Second, "2 minutes"},
+		{90 * time.Second, "2 minutes"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.want+"/"+tc.wait.String(), func(t *testing.T) {
+			if got := waitPhrase(tc.wait); got != tc.want {
+				t.Errorf("waitPhrase(%v) = %q, want %q", tc.wait, got, tc.want)
 			}
 		})
 	}

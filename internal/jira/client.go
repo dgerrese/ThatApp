@@ -139,9 +139,15 @@ func statusError(method, path string, resp *http.Response) error {
 }
 
 // retryAfter reads a Retry-After value, which RFC 9110 allows as whole seconds
-// or an HTTP date. Anything unusable, and any date already past, is zero.
+// or an HTTP date. Anything unusable, and any date already past, is zero. A
+// seconds value is capped at a day, so a huge one cannot overflow the
+// time.Duration multiplication below.
 func retryAfter(value string, at time.Time) time.Duration {
 	if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+		const maxSeconds = 24 * 60 * 60
+		if seconds > maxSeconds {
+			seconds = maxSeconds
+		}
 		return time.Duration(seconds) * time.Second
 	}
 	if when, err := http.ParseTime(value); err == nil && when.After(at) {

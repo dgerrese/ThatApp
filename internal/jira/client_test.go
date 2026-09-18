@@ -119,6 +119,7 @@ func TestRateLimitCarriesTheRetryAfterWait(t *testing.T) {
 		{"a date already past", now.Add(-time.Minute).Format(http.TimeFormat), 0},
 		{"no header", "", 0},
 		{"garbage", "soon", 0},
+		{"a huge seconds value caps at a day", "99999999999", 24 * time.Hour},
 	}
 
 	for _, tt := range tests {
