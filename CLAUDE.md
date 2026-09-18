@@ -35,7 +35,8 @@ These come from the project owner. They are not preferences and not open to rein
   non-goal**, not an unaddressed gap: do not raise them as missing coverage, and do not add WebKit
   to the e2e matrix. This also means the phone in ticket 13 is an Android device.
 - **One issue, one branch, one pull request.** Project-design changes are the one exception — see
-  *Workflow*.
+  *Workflow*. A branch cut from another open branch gets a pull request based on that branch, not
+  `main`. The `ticket-workflow` skill covers stacking.
 - **Never merge a branch into `main` locally.** Every branch reaches `main` through a pull request
   the owner merges, and nothing else. This is absolute: it holds for a green branch, an approved
   one, a one-line fix, a documentation typo, and a branch the owner said they were happy with. Do
