@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 interface StubIssue {
   key: string;
@@ -355,4 +355,308 @@ test("the table card's own padding is 20px inline and 14px block", async ({ page
 
   expect(padding.top).toBe(14);
   expect(padding.left).toBe(20);
+});
+
+/**
+ * #83's own tests: a `that-table` sorts itself and remembers it per table.
+ *
+ * One instance of four issues whose key, summary, status and logged time
+ * each put the rows in a different order — see the comment on
+ * `sortableIssues` for the four orders this fixture proves — plus two pinned
+ * issues so the Pinned table has an order of its own to leave alone.
+ */
+interface StubEntry {
+  id: number;
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+  day: string;
+  startedAt: string;
+  seconds: number;
+  comment: string;
+  pushState: "unpushed" | "pushed" | "dirty";
+}
+
+const SORT_DAY = "2026-09-09";
+
+function stubEntry(id: number, issueKey: string, seconds: number): StubEntry {
+  return {
+    id,
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    instancePosition: 0,
+    issueKey,
+    day: SORT_DAY,
+    startedAt: `${SORT_DAY}T09:00:00+02:00`,
+    seconds,
+    comment: "",
+    pushState: "unpushed",
+  };
+}
+
+/**
+ * Answers GET from a mutable list and appends whatever a POST sends. Needed
+ * (rather than the beforeEach's fixed, empty stub) only by the test that logs
+ * more time mid-test and expects a live re-sort, not a reload — the other
+ * sort tests would be just as well served by the plain stub.
+ */
+async function stubSortableEntries(page: Page, seed: StubEntry[]): Promise<void> {
+  const entries = [...seed];
+  let nextId = 900;
+
+  await page.route("**/api/entries**", async (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const created = stubEntry(nextId, String(body["issueKey"]), Number(body["seconds"]));
+      nextId += 1;
+      entries.push(created);
+      await route.fulfill({ status: 201, json: created });
+
+      return;
+    }
+
+    await route.fulfill({ status: 200, json: { today: SORT_DAY, entries } });
+  });
+}
+
+async function stubSortablePins(page: Page): Promise<void> {
+  await page.route("**/api/pins**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          id: 501,
+          instanceId: 1,
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          key: "RIDGE-50",
+          summary: "Pinned Bravo",
+          status: "To Do",
+          url: "https://ridgeline.atlassian.net/browse/RIDGE-50",
+          error: null,
+        },
+        {
+          id: 502,
+          instanceId: 1,
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          key: "RIDGE-60",
+          summary: "Pinned Alpha",
+          status: "Blocked",
+          url: "https://ridgeline.atlassian.net/browse/RIDGE-60",
+          error: null,
+        },
+      ],
+    }),
+  );
+}
+
+/**
+ * Jira's own order (arrival order) is `RIDGE-20, RIDGE-3, RIDGE-100,
+ * RIDGE-9` — none of Key (numeric: 3, 9, 20, 100), Summary (Alpha, Mango,
+ * Yankee, Zebra), Status (Blocked, In Progress, In Review, To Do) or Today
+ * (1800s, 3600s, 60s, 300s) agree with it or with each other, so every sort
+ * this suite exercises lands the four rows in a distinct, checkable order.
+ */
+const sortableIssues: StubIssue[] = [
+  {
+    key: "RIDGE-20",
+    summary: "Zebra work item",
+    status: "To Do",
+    url: "https://ridgeline.atlassian.net/browse/RIDGE-20",
+  },
+  {
+    key: "RIDGE-3",
+    summary: "Alpha work item",
+    status: "Blocked",
+    url: "https://ridgeline.atlassian.net/browse/RIDGE-3",
+  },
+  {
+    key: "RIDGE-100",
+    summary: "Mango work item",
+    status: "In Progress",
+    url: "https://ridgeline.atlassian.net/browse/RIDGE-100",
+  },
+  {
+    key: "RIDGE-9",
+    summary: "Yankee work item",
+    status: "In Review",
+    url: "https://ridgeline.atlassian.net/browse/RIDGE-9",
+  },
+];
+
+const sortableEntries: StubEntry[] = [
+  stubEntry(1, "RIDGE-20", 300),
+  stubEntry(2, "RIDGE-3", 1800),
+  stubEntry(3, "RIDGE-100", 60),
+  stubEntry(4, "RIDGE-9", 3600),
+];
+
+async function gotoSortableToday(page: Page): Promise<void> {
+  await stubIssues(page, [group(1, "Ridgeline", sortableIssues)]);
+  await stubSortablePins(page);
+  await stubSortableEntries(page, sortableEntries);
+  await page.goto("/today");
+}
+
+/** `sort-id` (Task 2 step 4) is what makes each card's table addressable and
+ *  what its remembered state is keyed by, so tests locate a table by it
+ *  rather than by position. */
+function instanceTable(page: Page): Locator {
+  return page.locator('that-table[sort-id="instance-1"]');
+}
+
+function pinnedTable(page: Page): Locator {
+  return page.locator('that-table[sort-id="pinned"]');
+}
+
+async function rowKeys(table: Locator): Promise<string[]> {
+  return table
+    .locator("tbody > *")
+    .evaluateAll((rows) => rows.map((row) => row.getAttribute("key") ?? ""));
+}
+
+function logTrigger(page: Page, key: string): Locator {
+  return page.getByRole("button", { name: new RegExp(`Log time against ${key}`) });
+}
+
+function entryDialog(page: Page): Locator {
+  return page.locator("that-entry-dialog dialog");
+}
+
+async function typeDuration(page: Page, typed: string): Promise<void> {
+  const field = entryDialog(page).getByLabel("Duration");
+  await field.fill(typed);
+  await field.press("Enter");
+}
+
+test("clicking Key cycles ascending, descending, then Jira's own order", async ({ page }) => {
+  await gotoSortableToday(page);
+  const table = instanceTable(page);
+  await expect(table.locator("tbody > *")).toHaveCount(4);
+
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-20", "RIDGE-3", "RIDGE-100", "RIDGE-9"]);
+
+  const keyHeader = table.locator("th.c-key");
+  await keyHeader.locator("button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-3", "RIDGE-9", "RIDGE-20", "RIDGE-100"]);
+  await expect(keyHeader).toHaveAttribute("aria-sort", "ascending");
+
+  await keyHeader.locator("button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-100", "RIDGE-20", "RIDGE-9", "RIDGE-3"]);
+  await expect(keyHeader).toHaveAttribute("aria-sort", "descending");
+
+  await keyHeader.locator("button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-20", "RIDGE-3", "RIDGE-100", "RIDGE-9"]);
+  await expect(keyHeader).toHaveAttribute("aria-sort", "none");
+});
+
+test("clicking Today on the instance card puts the most time first, and leaves Pinned's own order alone", async ({
+  page,
+}) => {
+  await gotoSortableToday(page);
+  const table = instanceTable(page);
+  const pinned = pinnedTable(page);
+  await expect(table.locator("tbody > *")).toHaveCount(4);
+  await expect(pinned.locator("tbody > *")).toHaveCount(2);
+
+  const pinnedBefore = await rowKeys(pinned);
+  expect(pinnedBefore).toEqual(["RIDGE-50", "RIDGE-60"]);
+
+  await table.locator("th.c-today button").click();
+
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-9", "RIDGE-3", "RIDGE-20", "RIDGE-100"]);
+  await expect(table.locator("th.c-today")).toHaveAttribute("aria-sort", "descending");
+  expect(await rowKeys(pinned)).toEqual(pinnedBefore);
+});
+
+test("a sorted table survives a reload, same order and same header state", async ({ page }) => {
+  await gotoSortableToday(page);
+  const table = instanceTable(page);
+
+  await table.locator("th.c-status button").click();
+  await expect
+    .poll(() => rowKeys(table))
+    .toEqual(["RIDGE-3", "RIDGE-100", "RIDGE-9", "RIDGE-20"]);
+  await expect(table.locator("th.c-status")).toHaveAttribute("aria-sort", "ascending");
+
+  await page.goto("/today");
+  const reloaded = instanceTable(page);
+  await expect(reloaded.locator("tbody > *")).toHaveCount(4);
+  await expect
+    .poll(() => rowKeys(reloaded))
+    .toEqual(["RIDGE-3", "RIDGE-100", "RIDGE-9", "RIDGE-20"]);
+  await expect(reloaded.locator("th.c-status")).toHaveAttribute("aria-sort", "ascending");
+});
+
+test("logging time against a row re-sorts a table sorted by Today", async ({ page }) => {
+  await gotoSortableToday(page);
+  const table = instanceTable(page);
+
+  await table.locator("th.c-today button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-9", "RIDGE-3", "RIDGE-20", "RIDGE-100"]);
+
+  // RIDGE-100 is last at 0:01 (60s); two more hours puts it ahead of
+  // RIDGE-9's 1:00 (3600s) without touching any other row's total.
+  await logTrigger(page, "RIDGE-100").click();
+  await typeDuration(page, "200");
+  await entryDialog(page).getByRole("button", { name: "Add entry" }).click();
+
+  await expect
+    .poll(() => rowKeys(table))
+    .toEqual(["RIDGE-100", "RIDGE-9", "RIDGE-3", "RIDGE-20"]);
+});
+
+test("with localStorage throwing, the page loads in Jira's order and sorting still works in-page", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => {
+      throw new Error("storage disabled");
+    };
+    Storage.prototype.setItem = () => {
+      throw new Error("storage disabled");
+    };
+  });
+
+  await gotoSortableToday(page);
+  const table = instanceTable(page);
+  await expect(table.locator("tbody > *")).toHaveCount(4);
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-20", "RIDGE-3", "RIDGE-100", "RIDGE-9"]);
+
+  await table.locator("th.c-key button").click();
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-3", "RIDGE-9", "RIDGE-20", "RIDGE-100"]);
+  await expect(table.locator("th.c-key")).toHaveAttribute("aria-sort", "ascending");
+});
+
+/**
+ * A row moved during a re-sort is the same element, not a rebuilt one — the
+ * brief's own requirement. `append`/`insertBefore` on an already-connected
+ * custom element fires disconnectedCallback then connectedCallback, and
+ * that-ticket-row's connectedCallback rebuilds every cell unconditionally,
+ * which would drop this focus regardless of the element staying in the DOM.
+ * `that-table` moves rows with `moveBefore` instead, and that-ticket-row
+ * opts out of the rebuild with its own `connectedMoveCallback` no-op.
+ *
+ * The header is clicked via `dispatchEvent`, not a real `.click()` — same
+ * reasoning as today.spec.ts's "Refresh leaves an open dialog … alone": a
+ * genuine pointer click would move focus to the header button itself, which
+ * would pass this test even with the rebuild bug this guards against.
+ */
+test("re-sorting moves a row without stealing focus from its own controls", async ({ page }) => {
+  await gotoSortableToday(page);
+  const table = instanceTable(page);
+
+  const trigger = logTrigger(page, "RIDGE-100");
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+
+  await table.locator("th.c-key button").dispatchEvent("click");
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-3", "RIDGE-9", "RIDGE-20", "RIDGE-100"]);
+  await expect(trigger).toBeFocused();
+
+  await table.locator("th.c-key button").dispatchEvent("click");
+  await expect.poll(() => rowKeys(table)).toEqual(["RIDGE-100", "RIDGE-20", "RIDGE-9", "RIDGE-3"]);
+  await expect(trigger).toBeFocused();
 });

@@ -54,6 +54,12 @@ test("pin and pin-off are transcribed from the prototype's #p-pin and #p-pinoff"
   );
 });
 
+test("ascending and descending are transcribed from the prototype's #p-desc and its mirror", () => {
+  // Pasted verbatim from docs/superpowers/prototypes/2026-09-03-app-prototype.html's #p-desc and #p-asc.
+  assert.match(iconMarkup("descending"), /<path d="M12 4\.5V19M6\.4 13\.4 12 19l5\.6-5\.6"\/>/);
+  assert.match(iconMarkup("ascending"), /<path d="M12 19\.5V5M6\.4 10\.6 12 5l5\.6 5\.6"\/>/);
+});
+
 test("the three sort marks are three different shapes", () => {
   const shapes = new Set(["sortable", "ascending", "descending"].map((n) => iconMarkup(n as IconName)));
   assert.equal(shapes.size, 3, "a sort state told apart by colour alone is the defect this avoids");
