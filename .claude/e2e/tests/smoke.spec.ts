@@ -191,7 +191,7 @@ test.describe("the rail's geometry", () => {
   test("Push's label follows the period after navigating, not only at boot", async ({ page }) => {
     await gotoEmptyToday(page);
 
-    const push = page.getByRole("button", { name: "Push to Jira" });
+    const push = page.getByRole("button", { name: "Push worklogs" });
     await expect(push).toBeVisible();
 
     await page.getByRole("link", { name: "Week", exact: true }).click();

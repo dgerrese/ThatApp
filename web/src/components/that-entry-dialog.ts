@@ -76,7 +76,7 @@ interface PushMarkStyle {
 }
 
 /**
- * "Not pushed to Jira" is where an unrecognised state lands, and the direction
+ * "Not pushed" is where an unrecognised state lands, and the direction
  * matters: pushState crosses the network and is only typed at compile time, so
  * a state this build does not know (a cached shell against a newer server, a
  * response that lost the field) has to resolve to something. Telling someone
@@ -84,14 +84,14 @@ interface PushMarkStyle {
  * indistinguishable from a true one.
  */
 const UNPUSHED: PushMarkStyle = {
-  words: "not pushed to Jira",
+  words: "not pushed",
   tone: "text-pending",
   shape: "size-[7px] rounded-full bg-current",
 };
 
 /**
  * What each push state looks like and what it is called. The words are Week's
- * word for word, because a state that is "not pushed to Jira" in the grid and
+ * word for word, because a state that is "not pushed" in the grid and
  * something else in the dialog is two states to a reader — and so are the two
  * silhouettes, disc for unpushed and hollow ring for dirty, so no pair of them
  * is told apart by hue alone.
@@ -108,7 +108,7 @@ const PUSH_STATES: Record<string, PushMarkStyle> = {
     shape: "size-[7px] rounded-full border-[1.5px] border-current",
   },
   pushed: {
-    words: "pushed to Jira",
+    words: "pushed",
     tone: "text-running",
     icon: "success",
   },

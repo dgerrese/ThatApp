@@ -47,8 +47,8 @@ export interface RailPeriod {
 export const TODAY_PERIOD: RailPeriod = {
   label: "Today",
   viewPath: "/today",
-  pushHeading: "Push today's time to Jira?",
-  pushLabel: "Push to Jira",
+  pushHeading: "Push today's time?",
+  pushLabel: "Push worklogs",
 };
 
 // Everything that is not pushed is pending: never sent, or sent and edited
@@ -244,7 +244,7 @@ export function startRail(): void {
         // nothing beyond it on any period wider than a day.
         ({ entries } = await listEntries(currentPeriod.range));
       } catch {
-        showPushError("Could not check what's pending — press Push to Jira to retry.");
+        showPushError("Could not check what's pending — press Push worklogs to retry.");
         return;
       }
 
@@ -311,7 +311,7 @@ export function startRail(): void {
         }
       }
       if (responses.length === 0) {
-        showPushError("Push failed — press Push to Jira to retry.");
+        showPushError("Push failed — press Push worklogs to retry.");
         return;
       }
 
