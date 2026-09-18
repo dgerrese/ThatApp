@@ -14,9 +14,12 @@ The `playwright` service declares `depends_on: app-e2e: condition: service_healt
 and `compose run` honours that, so `make test-e2e` brings `app-e2e` up and
 waits for `/api/health`. The recipe removes any leftover `app-e2e` container
 before the run — so an interrupted previous run cannot leave a stale database
-behind — and again afterwards, so a finished run leaves nothing running. That
-is unrelated to `make up`/`make down`, which manage the dev stack (`app`,
-`web`) and never touch `app-e2e`.
+behind — and again afterwards, so a finished run leaves nothing running.
+`make down` also runs with the `e2e` profile (`--profile e2e down -v`), so it
+too would remove a leftover `app-e2e` — but `make test-e2e`'s own teardown
+already makes that moot, and `make down` also stops and removes `app` and
+`web`, the owner's dev stack, so nothing about clearing `app-e2e` alone
+justifies reaching for it.
 
 `.env` must exist and carry a valid `THAT_SECRET_KEY` first (`cp .env.example .env`).
 The server refuses to boot without one, so the healthcheck never passes and the
