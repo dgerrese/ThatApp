@@ -27,6 +27,25 @@ test("an unknown route still serves the app shell", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "ThatApp" })).toBeVisible();
 });
 
+// Structural guard for #35: the rig's server starts every run with an empty
+// database. Unstubbed on purpose — against the dev database, which holds the
+// owner's real instances, this fails.
+//
+// The literal path is resolved against THAT_BASE_URL directly rather than the
+// `request` fixture's own default baseURL: the chromium project (see
+// playwright.config.ts) overrides that to `localhostURL` for the browser's
+// benefit, but this fixture issues its request from Node, which never sees
+// Chromium's --host-resolver-rules mapping and so cannot reach a bare
+// "localhost" inside the container — the same split tooltip.spec.ts's own
+// comment on THAT_BASE_URL documents for its route.fetch() call.
+test("the e2e server starts with no instances", async ({ request }) => {
+  const base = process.env["THAT_BASE_URL"] ?? "http://that-e2e:8080";
+  const response = await request.get(`${base}/api/instances`);
+
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toEqual([]);
+});
+
 // Every stub in every spec but pwa.spec.ts rests on this. A request a service
 // worker claims never reaches page.route, and sw.ts claims GET /api/issues and
 // GET /api/pins (#12 task 5) — so a worker registering here would send those two

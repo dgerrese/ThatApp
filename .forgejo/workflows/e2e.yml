@@ -2,7 +2,7 @@ name: E2E
 
 # The Playwright suite, without Compose.
 #
-# Locally the rig reaches the app over the Compose network at http://that-app:8080.
+# Locally the rig reaches the app over the Compose network at http://that-e2e:8080.
 # Here there is no such network, so it runs everything on one machine and points
 # the rig at localhost through THAT_BASE_URL — the override playwright.config.ts
 # already reads. No test and no config change is needed for that.

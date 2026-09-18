@@ -58,8 +58,10 @@ test-web: install-web ## Run the frontend unit tests
 # --build, because `run` reuses a cached image: without it a bump to
 # @playwright/test installs new packages into the node_modules volume while the
 # image still carries the browsers the old version pinned.
-test-e2e: ## Run the Playwright suite (starts the app stack itself)
-	$(COMPOSE) --profile e2e run --build --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test'
+test-e2e: ## Run the Playwright suite (starts its own disposable app, see #35)
+	$(COMPOSE) --profile e2e rm --stop --force app-e2e
+	$(COMPOSE) --profile e2e run --build --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test'; \
+		status=$$?; $(COMPOSE) --profile e2e rm --stop --force app-e2e; exit $$status
 
 fmt: install-web ## Format Go and frontend sources
 	$(LINT) golangci-lint fmt
