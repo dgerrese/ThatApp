@@ -400,6 +400,10 @@ test("a rebuild's app.js is what the next load takes, not the cached one", async
   ).toBe(true);
 });
 
+// A token no bundle contains by accident. The first version of this test used
+// "lie", which "client", "policy" and "applied" all contain — #102.
+const POISON = "THATAPP-POISON-SENTINEL-7f3a";
+
 test("a runtime response whose content type contradicts its path is served but never cached", async ({
   page,
   context,
@@ -421,7 +425,11 @@ test("a runtime response whose content type contradicts its path is served but n
     if (!route.request().serviceWorker()) {
       return route.continue();
     }
-    return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>lie</title>" });
+    return route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: `<!doctype html><title>${POISON}</title>`,
+    });
   });
 
   // A direct fetch, not a reload: the lying response is still served as-is
@@ -429,15 +437,15 @@ test("a runtime response whose content type contradicts its path is served but n
   // would break a page that loaded it as a script — the assertion below
   // only needs the response body, not a working page.
   const served = await page.evaluate(async () => (await fetch("/app.js")).text());
-  expect(served).toContain("lie");
+  expect(served).toContain(POISON);
 
-  const cacheKeptTheGoodCopy = await page.evaluate(async () => {
+  const cacheKeptTheGoodCopy = await page.evaluate(async (poison) => {
     const shellName = (await caches.keys()).find((name) => name.startsWith("that-shell-"));
     if (!shellName) return false;
     const cached = await (await caches.open(shellName)).match("/app.js");
     if (!cached) return false;
-    return !(await cached.text()).includes("lie");
-  });
+    return !(await cached.text()).includes(poison);
+  }, POISON);
   expect(cacheKeptTheGoodCopy).toBe(true);
 });
 
