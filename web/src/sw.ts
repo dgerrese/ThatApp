@@ -2,9 +2,9 @@ export {};
 
 declare const self: ServiceWorkerGlobalScope;
 
-// Stamped in by esbuild's `define` from the app build's metafile — see
-// build.mjs. Also exposed on self so a build's id and file list are
-// inspectable from the worker's own DevTools console.
+// Stamped in by esbuild's `define` from what dist/app.js reaches on disk —
+// see buildWorker in build.mjs (#67). Also exposed on self so a build's id
+// and file list are inspectable from the worker's own DevTools console.
 declare const __WD_PRECACHE__: string[];
 declare const __WD_BUILD_ID__: string;
 Object.assign(self, { __WD_PRECACHE__, __WD_BUILD_ID__ });
