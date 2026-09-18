@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
@@ -546,5 +548,67 @@ func TestConnectionTestRejectsAMissingID(t *testing.T) {
 
 	if rec := testConnection(t, srv, 404); rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+// #79: what Jira said is only useful if something records it. Every mapped
+// failure — classified or not — is logged once with the request, the status
+// and Jira's own body, and never with the credentials that made the request.
+func TestInstanceErrorForLogsWhatJiraSaid(t *testing.T) {
+	cases := []struct {
+		name     string
+		status   int
+		body     string
+		wantCode string
+	}{
+		{"a 401", http.StatusUnauthorized, `{"code":401,"message":"Unauthorized; scope does not match"}`, "credentials_rejected"},
+		{"a 403", http.StatusForbidden, `{"errorMessages":["You do not have permission"]}`, "credentials_rejected"},
+		{"a 404", http.StatusNotFound, `{"errorMessages":["Issue does not exist"]}`, "account_not_found"},
+		{"a 5xx", http.StatusBadGateway, `upstream exploded`, "instance_unreachable"},
+		{"an unmapped status", http.StatusTeapot, `short and stout`, "unexpected"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			jiraSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(jiraSrv.Close)
+
+			client, err := jira.New(jiraSrv.URL, "me@example.com", "s3cret-token")
+			if err != nil {
+				t.Fatalf("building the client: %v", err)
+			}
+			_, jiraErr := client.Myself(context.Background())
+			if jiraErr == nil {
+				t.Fatal("Myself() succeeded against a failing server")
+			}
+
+			var logged bytes.Buffer
+			previous := log.Writer()
+			log.SetOutput(&logged)
+			t.Cleanup(func() { log.SetOutput(previous) })
+
+			_, code, _ := instanceErrorFor(jiraErr)
+
+			if code != tc.wantCode {
+				t.Errorf("code = %q, want %q (the response contract must not move)", code, tc.wantCode)
+			}
+			line := logged.String()
+			if n := strings.Count(line, "\n"); n != 1 {
+				t.Errorf("logged %d lines, want exactly 1: %q", n, line)
+			}
+			for _, want := range []string{"/rest/api/3/myself", strconv.Itoa(tc.status), tc.body} {
+				if !strings.Contains(line, want) {
+					t.Errorf("log line %q does not contain %q", line, want)
+				}
+			}
+			for _, secret := range []string{"me@example.com", "s3cret-token"} {
+				if strings.Contains(line, secret) {
+					t.Errorf("log line %q leaks %q", line, secret)
+				}
+			}
+		})
 	}
 }

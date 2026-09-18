@@ -338,20 +338,25 @@ func (s *Server) handleTestInstance(w http.ResponseWriter, r *http.Request) {
 func instanceErrorFor(err error) (status int, code, message string) {
 	switch {
 	case errors.Is(err, atlassian.ErrTenantUnreadable):
-		return http.StatusBadGateway, "tenant_unreadable",
+		status, code, message = http.StatusBadGateway, "tenant_unreadable",
 			"could not read the site's tenant info; check the site URL and that the site is reachable"
 	case errors.Is(err, jira.ErrUnauthorized):
-		return http.StatusUnauthorized, "credentials_rejected",
+		status, code, message = http.StatusUnauthorized, "credentials_rejected",
 			"Jira rejected the email and API token"
 	case errors.Is(err, jira.ErrNotFound):
-		return http.StatusBadGateway, "account_not_found",
+		status, code, message = http.StatusBadGateway, "account_not_found",
 			"the site answered but this account has no access to it; check the site URL and account email"
 	case errors.Is(err, jira.ErrUnreachable):
-		return http.StatusBadGateway, "instance_unreachable", "the Jira site could not be reached"
+		status, code, message = http.StatusBadGateway, "instance_unreachable", "the Jira site could not be reached"
 	default:
-		log.Printf("unexpected instance error: %v", err)
-		return http.StatusInternalServerError, "unexpected", "an unexpected error occurred"
+		status, code, message = http.StatusInternalServerError, "unexpected", "an unexpected error occurred"
 	}
+
+	// Jira's own words live only in err (#79); the response deliberately
+	// carries a fixed message, so this line is the one place they survive.
+	log.Printf("instance error, answered %s: %v", code, err)
+
+	return status, code, message
 }
 
 func writeInstanceError(w http.ResponseWriter, err error) {

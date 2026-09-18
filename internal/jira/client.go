@@ -119,12 +119,12 @@ func statusError(method, path string, resp *http.Response) error {
 
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized, resp.StatusCode == http.StatusForbidden:
-		return fmt.Errorf("%s %s: %w: %s", method, path, ErrUnauthorized, detail)
+		return fmt.Errorf("%s %s -> %d: %w: %s", method, path, resp.StatusCode, ErrUnauthorized, detail)
 	case resp.StatusCode == http.StatusNotFound:
-		return fmt.Errorf("%s %s: %w: %s", method, path, ErrNotFound, detail)
+		return fmt.Errorf("%s %s -> %d: %w: %s", method, path, resp.StatusCode, ErrNotFound, detail)
 	case resp.StatusCode >= 500:
-		return fmt.Errorf("%s %s: %w: %s", method, path, ErrUnreachable, detail)
+		return fmt.Errorf("%s %s -> %d: %w: %s", method, path, resp.StatusCode, ErrUnreachable, detail)
 	default:
-		return fmt.Errorf("%s %s: unexpected status %d: %s", method, path, resp.StatusCode, detail)
+		return fmt.Errorf("%s %s -> %d: unexpected status: %s", method, path, resp.StatusCode, detail)
 	}
 }
