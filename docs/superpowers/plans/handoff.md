@@ -67,12 +67,19 @@ been started**. The owner accepted the release script's architecture checks in p
 not reopen that. Releases and packages had to be switched on in the repository's settings
 first; see *Environment notes*.
 
-**#42 is `status/todo` and refined** (2026-09-17), and is the next ticket by the ordering rule —
-`priority/high` and a `bug`. Its body now holds the analysis: the only race window is
-`renderCurrent`'s `await load()`, because every view attaches to `root` synchronously before its
-first await, and the existing `navigationId` is the counter to check. The open risk is the
-regression test — chunks are hashed and Today and Week may share one, so the older import cannot be
-held by filename.
+**#42 is in review as PR #152** (2026-09-18) and keeps `status/in-progress` until the owner merges.
+Two guards on the existing `navigationId`, and an e2e test that learns Today's hashed chunk from the
+router's own route table and holds it. RED on both engines before the fix; `make verify` and
+`make test-e2e` (515 passed) green on the head.
+
+**The v1 board was refined on 2026-09-18, in priority order, with the owner.** Now `status/todo`:
+**#35, #83, #56, #67, #71, #79, #19, #57, #66, #102, #80, #116, #40, #39, #55, #91**. **#41 and #58
+were closed `wontfix`** on the owner's word — #41's state is unreachable, #58's component was
+deleted by #84. **Still `status/needs-refinement` and each waiting on a browser design session with
+the owner: #139, #143, #89.** Decisions taken there live in each ticket's body; two worth not
+relitigating: **#55 settles malformed ids as 404 everywhere**, and **#91 adds a DOM shim
+(happy-dom by default) as a frontend dev dependency**, reversing #51 for renderers. **#83 needs a
+design session too** (the undrawn ascending arrow) when it is picked up, and **#80** (the token box).
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
@@ -140,8 +147,9 @@ run. Three implementers hit it in one evening; one confirmed it pre-existing aga
 baseline. It is worth a ticket because a crash that lands somewhere new each time teaches everyone to
 re-run first and read second, which is how a real regression gets waved through.
 
-**The board was triaged the same day.** `priority/high`: **#8, #10, #35, #42, #105, #117, #121**.
-`priority/low`: **#39, #40, #55, #83, #89, #91, #97, #108, #119**. The other twenty-six are normal.
+**The board was triaged the same day.** `priority/high`: **#8, #10, #35, #42, #105, #117, #121**,
+and **#83** from 2026-09-18, raised by the owner out of low. `priority/low`: **#39, #40, #55, #89,
+#91, #97, #108, #119**. The other twenty-six are normal.
 **#79, #80 and #102 are normal but were named as work to pick up** — the owner promoted them without
 raising their priority, so an unlabelled ticket here really does not mean untouched.
 
