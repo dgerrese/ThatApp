@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -343,7 +345,18 @@ func instanceErrorFor(err error) (status int, code, message string) {
 			"could not read the site's tenant info; check the site URL and that the site is reachable"
 	case errors.Is(err, jira.ErrUnauthorized):
 		status, code, message = http.StatusUnauthorized, "credentials_rejected",
-			"Jira rejected the email and API token"
+			"Jira did not accept the API token for this request; check the token and its scopes"
+	case errors.Is(err, jira.ErrForbidden):
+		status, code, message = http.StatusForbidden, "permission_denied",
+			"your Jira account lacks permission for this"
+	case errors.Is(err, jira.ErrRateLimited):
+		var limited *jira.RateLimitError
+		wait := "shortly"
+		if errors.As(err, &limited) && limited.Wait > 0 {
+			wait = "in " + waitPhrase(limited.Wait)
+		}
+		status, code, message = http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again "+wait
 	case errors.Is(err, jira.ErrNotFound):
 		status, code, message = http.StatusBadGateway, "account_not_found",
 			"the site answered but this account has no access to it; check the site URL and account email"
@@ -367,6 +380,23 @@ func instanceErrorFor(err error) (status int, code, message string) {
 	}
 
 	return status, code, message
+}
+
+// waitPhrase renders a Retry-After wait for a person: seconds under a minute,
+// whole minutes (rounded up) from there.
+func waitPhrase(wait time.Duration) string {
+	if wait < time.Minute {
+		seconds := int(math.Ceil(wait.Seconds()))
+		if seconds == 1 {
+			return "1 second"
+		}
+		return fmt.Sprintf("%d seconds", seconds)
+	}
+	minutes := int(math.Ceil(wait.Minutes()))
+	if minutes == 1 {
+		return "1 minute"
+	}
+	return fmt.Sprintf("%d minutes", minutes)
 }
 
 func writeInstanceError(w http.ResponseWriter, err error) {
