@@ -698,6 +698,10 @@ async function openTodayStale(
   await page.reload();
   await waitForControllingWorker(page);
 
+  // The list itself must survive under the banner — the cached fallback, not
+  // an empty screen, is what "stale" means.
+  await expect(page.getByText("Ship it")).toBeVisible();
+
   return {
     setServer: (state) => {
       serverIs = state;
