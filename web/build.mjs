@@ -2,6 +2,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, watch as watchPath } from "node:fs";
 import { createHash } from "node:crypto";
 import * as esbuild from "esbuild";
+import { reachableFiles } from "./tools/reachable-files.mjs";
 
 const watch = process.argv.includes("--watch");
 
@@ -13,9 +14,10 @@ const tailwindArgs = [
 ];
 
 // Each copy* returns the dist/ paths it wrote: buildWorker() unions them with
-// esbuild's own metafile outputs, because a precache list or a build id built
-// from the metafile alone would never see these files — see the request-class
-// table in docs/superpowers/specs/2026-08-24-pwa-shell-design.md.
+// what it finds by walking dist/app.js's own import graph, because a precache
+// list or a build id built from that graph alone would never see these files
+// — see the request-class table in
+// docs/superpowers/specs/2026-08-24-pwa-shell-design.md.
 const copyShell = () => {
   copyFileSync("index.html", "dist/index.html");
   return ["dist/index.html"];
@@ -66,9 +68,6 @@ const jsOptions = {
   minify: true,
   sourcemap: watch,
   target: ["es2022"],
-  // Read after the build to derive the worker's precache list and build id —
-  // see buildWorker().
-  metafile: true,
 };
 
 const workerOptions = {
@@ -85,18 +84,30 @@ const workerOptions = {
 // Chunk filenames carry esbuild's own content hash, so the precache list and
 // the build id that names its caches (#12 tasks 3-4) are derived from what
 // actually shipped rather than hand-written, which would rot the first time a
-// view is added. metafile.outputs covers esbuild's own emissions (app.js, the
-// chunks); assetPaths covers everything copied or written outside esbuild
-// (the shell, app.css, fonts, icons, the manifest) — the request-class table
-// in docs/superpowers/specs/2026-08-24-pwa-shell-design.md needs both cached.
-// Source maps are excluded: a dev aid, not an asset the worker should own
-// offline. Sorted before hashing so the id depends only on content, not on
-// filesystem or metafile enumeration order.
-const buildWorker = async (metafile, assetPaths) => {
-  const outputs = [
-    ...Object.keys(metafile.outputs).filter((file) => !file.endsWith(".map")),
-    ...assetPaths,
-  ].sort();
+// view is added. reachableFiles walks dist/app.js's own import graph on disk
+// rather than trusting a captured esbuild metafile: in watch mode, a
+// sw.ts-only rebuild had no fresh metafile of its own and reused a stale one
+// captured by the last app rebuild, so an out-of-watcher `make build-web`
+// could leave the worker precaching chunks the current dist/app.js does not
+// import (#67). assetPaths covers everything copied or written outside
+// esbuild (the shell, app.css, fonts, icons, the manifest) — the request-class
+// table in docs/superpowers/specs/2026-08-24-pwa-shell-design.md needs both
+// cached. Sorted before hashing so the id depends only on content, not on
+// filesystem enumeration order.
+const buildWorker = async (assetPaths) => {
+  const { files, missing } = reachableFiles("app.js", (file) => {
+    try {
+      return readFileSync(`dist/${file}`, "utf8");
+    } catch {
+      return undefined;
+    }
+  });
+  if (missing.length > 0) {
+    const detail = missing.map(({ file, from }) => `${file} (imported by ${from})`).join(", ");
+    throw new Error(`precache: dist/app.js reaches files that are not on disk: ${detail}`);
+  }
+
+  const outputs = [...files.map((file) => `dist/${file}`), ...assetPaths].sort();
   const hash = createHash("sha256");
   for (const file of outputs) {
     hash.update(readFileSync(file));
@@ -127,18 +138,16 @@ if (watch) {
 
   // esbuild's own watcher rebuilds the app on every source edit; without this
   // hook the worker was only ever built once, at startup, and dist/sw.js
-  // would name superseded chunk hashes from the first dev edit onward.
-  // lastMetafile is captured here and reused below by the sw.ts-only watch,
-  // which has no app rebuild of its own to hand buildWorker a fresh one.
-  let lastMetafile;
+  // would name superseded chunk hashes from the first dev edit onward. Errors
+  // are logged rather than thrown so a bad edit doesn't kill the watcher.
   const rebuildWorkerPlugin = {
     name: "rebuild-worker",
     setup(build) {
-      build.onEnd((result) => {
-        if (!result.metafile) return undefined;
-        lastMetafile = result.metafile;
-        return buildWorker(result.metafile, assetPaths);
-      });
+      build.onEnd(() =>
+        buildWorker(assetPaths).catch((err) => {
+          console.error(err.message);
+        }),
+      );
     },
   };
   const ctx = await esbuild.context({ ...jsOptions, plugins: [rebuildWorkerPlugin] });
@@ -170,8 +179,7 @@ if (watch) {
     if (filename !== "sw.ts") return;
     clearTimeout(pendingWorker);
     pendingWorker = setTimeout(() => {
-      if (!lastMetafile) return;
-      buildWorker(lastMetafile, assetPaths).catch((err) => {
+      buildWorker(assetPaths).catch((err) => {
         console.error(`rebuilding sw.ts failed: ${err.message}`);
       });
     }, 50);
@@ -187,6 +195,6 @@ if (watch) {
   console.log("watching for changes");
 } else {
   execFileSync("npx", tailwindArgs, { stdio: "inherit" });
-  const { metafile } = await esbuild.build(jsOptions);
-  await buildWorker(metafile, assetPaths);
+  await esbuild.build(jsOptions);
+  await buildWorker(assetPaths);
 }
