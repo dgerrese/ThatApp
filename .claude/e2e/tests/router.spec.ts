@@ -55,13 +55,13 @@ test("a view whose import resolves after a later navigation never replaces it", 
   // Same workaround tooltip.spec.ts uses, for the same reason.
   const base = process.env["THAT_BASE_URL"] ?? "http://that-app:8080";
   await page.route("**/chunk-*.js", async (route) => {
-    const file = new URL(route.request().url()).pathname.slice(1);
+    const requested = new URL(route.request().url());
+    const file = requested.pathname.slice(1);
     if (file === todayChunk) {
       todayRequested();
       await todayReleased;
     }
 
-    const requested = new URL(route.request().url());
     const response = await fetch(`${base}${requested.pathname}${requested.search}`);
     const body = await response.text();
     todayChunk ??= ROUTE_TABLE_TODAY.exec(body)?.[1];

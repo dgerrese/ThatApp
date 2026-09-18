@@ -19,9 +19,10 @@ export type RegisterTeardown = (teardown: Teardown) => void;
 
 /**
  * A view must attach its container to `root` synchronously, before its first
- * `await`. The router only guards the gap before `render` is called; once it
- * is, anything a view writes after an await lands in its own container, which
- * is already detached if a newer view has replaced it.
+ * `await` — the router guards the gaps around `render`, but not inside it.
+ * State a view writes after an await that reaches beyond its own container
+ * (the rail, a document-wide query) must first check that this view is still
+ * the one mounted, the way week.ts's own `mounted` flag does.
  */
 interface View {
   render(root: HTMLElement, registerTeardown: RegisterTeardown): Promise<void>;
@@ -79,11 +80,12 @@ export function startRouter(root: HTMLElement): void {
 }
 
 /**
- * Resolves once the view for `path` is mounted. The promise matters to a caller
- * that navigates in order to be heard there: mounting awaits a dynamic import(),
- * and an announcement fired during that gap reaches a view whose listeners do
- * not exist yet. Callers with nothing to say afterwards can ignore it — see the
- * link handler above.
+ * Resolves once the view for `path` is mounted — or, if a later navigation
+ * overtook this one first, once that navigation has finished, with nothing
+ * mounted here. The promise matters to a caller that navigates in order to be
+ * heard there: mounting awaits a dynamic import(), and an announcement fired
+ * during that gap reaches a view whose listeners do not exist yet. Callers
+ * with nothing to say afterwards can ignore it — see the link handler above.
  */
 export function navigate(path: string): Promise<void> {
   // `path` may carry a query string — a week is an address, not just a view —
