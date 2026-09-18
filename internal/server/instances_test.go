@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -566,6 +567,7 @@ func TestInstanceErrorForLogsWhatJiraSaid(t *testing.T) {
 		{"a 404", http.StatusNotFound, `{"errorMessages":["Issue does not exist"]}`, "account_not_found"},
 		{"a 5xx", http.StatusBadGateway, `upstream exploded`, "instance_unreachable"},
 		{"an unmapped status", http.StatusTeapot, `short and stout`, "unexpected"},
+		{"a multi-line body", http.StatusBadGateway, "<html>\r\n<body>502 Bad Gateway</body>\n</html>", "instance_unreachable"},
 	}
 
 	for _, tc := range cases {
@@ -599,7 +601,14 @@ func TestInstanceErrorForLogsWhatJiraSaid(t *testing.T) {
 			if n := strings.Count(line, "\n"); n != 1 {
 				t.Errorf("logged %d lines, want exactly 1: %q", n, line)
 			}
-			for _, want := range []string{"/rest/api/3/myself", strconv.Itoa(tc.status), tc.body} {
+			// A body carrying its own newlines (e.g. a proxy's HTML error page)
+			// is flattened in the log line, so it no longer appears verbatim;
+			// every other row's body has no newline and must still appear as-is.
+			wants := []string{"/rest/api/3/myself", strconv.Itoa(tc.status)}
+			if !strings.Contains(tc.body, "\n") {
+				wants = append(wants, tc.body)
+			}
+			for _, want := range wants {
 				if !strings.Contains(line, want) {
 					t.Errorf("log line %q does not contain %q", line, want)
 				}
@@ -610,5 +619,44 @@ func TestInstanceErrorForLogsWhatJiraSaid(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The issue search cancels its in-flight fetch on every debounced keystroke
+// (that-issue-search.ts), and leaving Today/Week mid-fan-out does the same:
+// neither is Jira failing, so instanceErrorFor must not log either.
+func TestInstanceErrorForDoesNotLogACancelledRequest(t *testing.T) {
+	jiraSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"accountId":"5b10a2","displayName":"Dion","active":true}`))
+	}))
+	t.Cleanup(jiraSrv.Close)
+
+	client, err := jira.New(jiraSrv.URL, "me@example.com", "s3cret-token")
+	if err != nil {
+		t.Fatalf("building the client: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, jiraErr := client.Myself(ctx)
+	if jiraErr == nil {
+		t.Fatal("Myself() succeeded against an already-cancelled context")
+	}
+	if !errors.Is(jiraErr, context.Canceled) {
+		t.Fatalf("Myself() error %v does not wrap context.Canceled", jiraErr)
+	}
+
+	var logged bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&logged)
+	t.Cleanup(func() { log.SetOutput(previous) })
+
+	_, code, _ := instanceErrorFor(jiraErr)
+
+	if code != "instance_unreachable" {
+		t.Errorf("code = %q, want instance_unreachable (a cancelled request classifies the same as today)", code)
+	}
+	if logged.Len() != 0 {
+		t.Errorf("logged %q; a cancelled request must not be logged", logged.String())
 	}
 }

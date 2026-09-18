@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -352,9 +353,18 @@ func instanceErrorFor(err error) (status int, code, message string) {
 		status, code, message = http.StatusInternalServerError, "unexpected", "an unexpected error occurred"
 	}
 
-	// Jira's own words live only in err (#79); the response deliberately
-	// carries a fixed message, so this line is the one place they survive.
-	log.Printf("instance error, answered %s: %v", code, err)
+	// A cancelled request is the browser leaving, not Jira failing: the issue
+	// search cancels its in-flight fetch on every debounced keystroke, and
+	// leaving Today/Week mid-fan-out does the same. context.DeadlineExceeded
+	// is still logged — that is a real timeout.
+	if !errors.Is(err, context.Canceled) {
+		// Jira's own words live only in err (#79); the response deliberately
+		// carries a fixed message, so this line is the one place they survive.
+		// A body carrying its own newlines (a proxy's HTML error page, say)
+		// would otherwise spread this one failure across several log lines.
+		text := strings.ReplaceAll(strings.ReplaceAll(err.Error(), "\r\n", " "), "\n", " ")
+		log.Printf("instance error, answered %s: %s", code, text)
+	}
 
 	return status, code, message
 }
