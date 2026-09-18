@@ -92,6 +92,47 @@ test("a key without a number sorts by its text", () => {
   );
 });
 
+test("an empty or blank tail is not a number, so the key falls back to text", () => {
+  // Arrival order is reversed relative to the wanted text order, so a bug that
+  // treats "" or "  " as the number 0 (Number("") and Number("  ") are both 0)
+  // would tie on {project, number} and fall back to *this* arrival order — the
+  // opposite of the text comparison the brief requires.
+  const data = rows([{ key: "Z-0" }, { key: "Z-" }]);
+  const state: SortState = { column: "key", direction: "ascending" };
+
+  const sorted = [...data].sort((a, b) => compareRows(a, b, state));
+
+  assert.deepEqual(
+    sorted.map((row) => row.key),
+    ["Z-", "Z-0"],
+  );
+});
+
+test("a blank tail (not just empty) also falls back to text", () => {
+  // Arrival order again runs opposite the wanted text order (see the test above).
+  const data = rows([{ key: "Z-0" }, { key: "Z-  " }]);
+  const state: SortState = { column: "key", direction: "ascending" };
+
+  const sorted = [...data].sort((a, b) => compareRows(a, b, state));
+
+  assert.deepEqual(
+    sorted.map((row) => row.key),
+    ["Z-  ", "Z-0"],
+  );
+});
+
+test("a project name carrying its own dash still splits on the last one", () => {
+  const data = rows([{ key: "A-B-100" }, { key: "A-B-12" }]);
+  const state: SortState = { column: "key", direction: "ascending" };
+
+  const sorted = [...data].sort((a, b) => compareRows(a, b, state));
+
+  assert.deepEqual(
+    sorted.map((row) => row.key),
+    ["A-B-12", "A-B-100"],
+  );
+});
+
 test("summary sorts case-insensitively", () => {
   const data = rows([{ summary: "banana" }, { summary: "Apple" }, { summary: "cherry" }]);
   const state: SortState = { column: "summary", direction: "ascending" };

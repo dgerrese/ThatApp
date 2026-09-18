@@ -36,13 +36,13 @@ export function nextSortState(current: SortState | null, clicked: SortColumn): S
   return null;
 }
 
-/** A key's project and issue number, split on the last `-`; null when that tail isn't a number. */
+/** A key's project and issue number, split on the last `-`; null when that tail isn't digits-only. */
 function parseKey(key: string): { project: string; number: number } | null {
   const dash = key.lastIndexOf("-");
   if (dash === -1) return null;
-  const number = Number(key.slice(dash + 1));
-  if (!Number.isFinite(number)) return null;
-  return { project: key.slice(0, dash), number };
+  const tail = key.slice(dash + 1);
+  if (!/^\d+$/.test(tail)) return null;
+  return { project: key.slice(0, dash), number: Number(tail) };
 }
 
 function compareKey(a: string, b: string): number {
