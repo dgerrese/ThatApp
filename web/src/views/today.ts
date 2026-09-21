@@ -331,18 +331,33 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     void refreshEverything(regions);
   });
 
-  // navigator.onLine is not trustworthy (a captive portal reports "online"),
-  // but the "online" event firing is still the right moment to try again —
-  // the fetch itself, not the event, decides whether the stale banner clears.
+  // "online" fires when the *network* comes back. A server that restarts while
+  // the network never dropped fires nothing, so coming back to the app — the
+  // tab turning visible, the window regaining focus — re-checks too (#71).
+  // Only while stale: every refresh fans out to Jira, and an ordinary tab
+  // switch must not cost that. navigator.onLine is not trustworthy either (a
+  // captive portal reports "online"); in every case the fetch, not the event,
+  // decides whether the stale banner clears.
   const handleOnline = (): void => {
     void refreshEverything(regions);
   };
+  // Refresh stays disabled for exactly as long as refreshEverything runs, so
+  // focus and visibilitychange arriving together start one refresh, not two.
+  const handleReturn = (): void => {
+    if (regions.stale.hidden || document.visibilityState !== "visible") return;
+    if (regions.refresh.hasAttribute("disabled")) return;
+    void refreshEverything(regions);
+  };
   window.addEventListener("online", handleOnline);
+  document.addEventListener("visibilitychange", handleReturn);
+  window.addEventListener("focus", handleReturn);
   // Registered now, not after the fan-out below resolves: the router can
   // only unwire a listener it already knows about, and a navigation away
   // while refreshResults is still in flight must find this here.
   registerTeardown(() => {
     window.removeEventListener("online", handleOnline);
+    document.removeEventListener("visibilitychange", handleReturn);
+    window.removeEventListener("focus", handleReturn);
   });
 
   // Caught here rather than in the row, which knows its ticket but not where a

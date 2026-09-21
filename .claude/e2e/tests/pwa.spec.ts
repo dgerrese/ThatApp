@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page, type Route } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page, type Route } from "@playwright/test";
 
 // This is the one suite whose subject is the worker, so it undoes the rig's
 // default block — see the comment on `serviceWorkers` in playwright.config.ts
@@ -642,20 +642,18 @@ test("the assigned issues come back from cache, stamped, once the server is unre
   expect(offline.stamp).toMatch(ISO_UTC);
 });
 
-// Task 7's own coverage: the same server-unreachable/cache-fallback mechanism
-// the two tests above prove at the fetch level, now proven at the view level
-// — the warning names a time and clears on "online" with no reload. Chromium
-// -only for the same reason: only there can the worker's own /api/issues
-// fetch be made to fail.
-test("the assigned-issues warning names a time while the server is unreachable, and clears on 'online' without a reload", async ({
-  page,
-  context,
-  browserName,
-}) => {
-  test.skip(browserName !== "chromium", "a Firefox worker's own fetch cannot be made to fail in this rig — see above");
-
+// Shared by every test below that needs Today already showing the stale
+// banner: goes live, then unreachable, and hands back a server switch plus a
+// count of every request that reached the route (aborted or fulfilled) —
+// what the "one read" test needs to prove a return costs exactly one fetch.
+async function openTodayStale(
+  page: Page,
+  context: BrowserContext,
+): Promise<{ setServer: (state: "healthy" | "gone") => void; issueReads: () => number; warning: Locator }> {
   let serverIs: "healthy" | "gone" = "healthy";
+  let reads = 0;
   await context.route("**/api/issues", async (route) => {
+    reads += 1;
     if (serverIs === "gone") {
       await route.abort("failed");
       return;
@@ -700,13 +698,38 @@ test("the assigned-issues warning names a time while the server is unreachable, 
   await page.reload();
   await waitForControllingWorker(page);
 
+  // The list itself must survive under the banner — the cached fallback, not
+  // an empty screen, is what "stale" means.
   await expect(page.getByText("Ship it")).toBeVisible();
-  await expect(warning).toBeVisible();
+
+  return {
+    setServer: (state) => {
+      serverIs = state;
+    },
+    issueReads: () => reads,
+    warning,
+  };
+}
+
+// Task 7's own coverage: the same server-unreachable/cache-fallback mechanism
+// the two tests above prove at the fetch level, now proven at the view level
+// — the warning names a time and clears on "online" with no reload. Chromium
+// -only for the same reason: only there can the worker's own /api/issues
+// fetch be made to fail.
+test("the assigned-issues warning names a time while the server is unreachable, and clears on 'online' without a reload", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "a Firefox worker's own fetch cannot be made to fail in this rig — see above");
+
+  const stale = await openTodayStale(page, context);
+  await expect(stale.warning).toBeVisible();
 
   // The server recovering, plus the same event the browser itself fires: this
   // is what proves the view's own "online" listener re-runs the refresh,
   // rather than a manual reload standing in for it.
-  serverIs = "healthy";
+  stale.setServer("healthy");
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
 
   // Both assertions, not just the warning: refreshResults' catch branch also
@@ -714,8 +737,54 @@ test("the assigned-issues warning names a time while the server is unreachable, 
   // "hidden" alone cannot tell a real recovery from a fetch that threw and
   // wiped the list along with it. The list surviving is what pins this to the
   // success path specifically.
-  await expect(warning).toBeHidden();
+  await expect(stale.warning).toBeHidden();
   await expect(page.getByText("Ship it")).toBeVisible();
+});
+
+// #71: "online" only fires when the network itself recovers, so a server that
+// restarts while the network stayed up needs a second trigger — coming back
+// to the tab.
+for (const [trigger, dispatch] of [
+  ["the tab becoming visible", () => document.dispatchEvent(new Event("visibilitychange"))],
+  ["the window regaining focus", () => window.dispatchEvent(new Event("focus"))],
+] as const) {
+  test(`the stale warning clears on ${trigger} once the server answers again`, async ({ page, context, browserName }) => {
+    test.skip(browserName !== "chromium", "a Firefox worker's own fetch cannot be made to fail in this rig — see above");
+    const stale = await openTodayStale(page, context);
+    await expect(stale.warning).toBeVisible();
+
+    stale.setServer("healthy");
+    await page.evaluate(dispatch);
+
+    await expect(stale.warning).toBeHidden();
+    await expect(page.getByText("Ship it")).toBeVisible();
+  });
+}
+
+test("the stale warning stays when coming back finds the server still gone, and one return costs one read", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "a Firefox worker's own fetch cannot be made to fail in this rig — see above");
+  const stale = await openTodayStale(page, context);
+  await expect(stale.warning).toBeVisible();
+  const before = stale.issueReads();
+
+  // Dispatched together, as a real return to the window delivers both — but
+  // not in one task: the two fire as separate, back-to-back tasks. What
+  // coalesces them into one refresh is handleReturn's own guard, via
+  // refreshEverything disabling Refresh synchronously before the second
+  // event's handler can run.
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+  });
+
+  await expect.poll(() => stale.issueReads()).toBe(before + 1);
+  await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
+  expect(stale.issueReads()).toBe(before + 1);
+  await expect(stale.warning).toBeVisible();
 });
 
 test("an /api/ read outside the two Jira lists is never answered from cache", async ({ page, context }) => {
