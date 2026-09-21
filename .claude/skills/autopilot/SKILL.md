@@ -47,6 +47,13 @@ reviewer subagent runs, the controller works only on *that* ticket or on the run
 reading the next ticket's body, the ledger, the handoff. It does not start a second ticket to fill
 the wait.
 
+**A ticket whose work needs another ticket's unmerged branch is stacked, not parked.** Cut its
+branch from that branch and base its pull request there — `ticket-workflow` has the mechanics. The
+run neither skips such a ticket nor waits for the parent to merge, because waiting means waiting for
+the owner, which is the one thing a run cannot do. A run leaves stacks behind by construction: it
+ships faster than the owner merges, so by the fifth ticket the branch that a sixth needs is very
+often still open.
+
 The run ends when the milestone has no `status/todo` left, or when the owner ends it.
 
 ## When the owner is not there
@@ -86,7 +93,9 @@ owner may be reading.
 
 ## The closing report
 
-- **Shipped:** each ticket with its pull request number.
+- **Shipped:** each ticket with its pull request number, and for a stacked one, the pull request it
+  is based on — the owner is about to merge these in some order, and only the run knows which order
+  is forced.
 - **Blocked:** each ticket with the one-line reason.
 - **Parked:** every question, with which ticket it belongs to.
 - **Left:** what remains in the milestone and why the run could not take it.
