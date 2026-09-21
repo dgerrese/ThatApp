@@ -122,6 +122,8 @@ const buildWorker = async (assetPaths) => {
   });
 };
 
+// dist/ may not exist yet — see #40.
+mkdirSync("dist", { recursive: true });
 const assetPaths = [...copyShell(), ...copyFonts(), ...copyIcons(), ...copyManifest(), "dist/app.css"];
 
 if (watch) {
