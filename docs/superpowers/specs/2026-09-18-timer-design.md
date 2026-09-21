@@ -18,6 +18,13 @@ the owner settled on 2026-09-18, and how the parts fit.
    round caps and joins).
 3. **Running row:** the stop button, the key and the Today figure wear `--color-running`. The Today
    figure ticks up live: the day's logged seconds plus the running elapsed.
+
+   **Hover and focus take the primary colour, as every other row control does** — settled with the
+   owner on 2026-09-21, after the build raised a state these decisions had not covered. The stop is a
+   control first and a status second, so it follows the pin's `hover:text-primary
+   focus-visible:text-primary` rather than holding the running tone through hover. The key and the
+   Today figure are not controls and keep `--color-running` throughout, so the row still reads as
+   running while the pointer is on the button.
 4. **Rail:** the running line (`dot · KEY · elapsed`) replaces "No timer running" while a timer runs,
    and **a stop button follows the elapsed time**, always visible, in `--color-running-rail` with the
    rail's hover wash, so a timer can be stopped from any view.
