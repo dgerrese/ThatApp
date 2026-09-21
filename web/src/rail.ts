@@ -1,10 +1,12 @@
 import { listEntries, pushDay } from "./api";
 import { announceEntriesChanged, onEntriesChanged } from "./entries-changed";
-import { totalFigure } from "./format";
+import { elapsedFigure, totalFigure } from "./format";
+import { iconMarkup } from "./icons";
 import { instanceHue } from "./instance-hue";
 import { announcePushReported } from "./push-reported";
 import { navigate } from "./router";
-import type { Entry, PushResponse } from "./types";
+import { currentTimer, elapsedSeconds, onTimerChanged, readTimer, stopTimer } from "./timer-state";
+import type { Entry, PushResponse, RunningTimer } from "./types";
 
 /**
  * The rail's live regions: the day's total, the split of it across instances,
@@ -82,7 +84,8 @@ export function startRail(): void {
   const unpushed = document.querySelector<HTMLElement>("#rail-unpushed");
   const push = document.querySelector<HTMLButtonElement>("#rail-push");
   const period = document.querySelector<HTMLElement>("#rail-period");
-  if (!total || !split || !unpushed || !push || !period) return;
+  const timer = document.querySelector<HTMLElement>("#rail-timer");
+  if (!total || !split || !unpushed || !push || !period || !timer) return;
 
   // Supersession, the same job searchIssues' AbortController does: a slow read
   // must not land after a newer one — or after an announcement that carried
@@ -211,6 +214,58 @@ export function startRail(): void {
     painted = false;
     void refresh();
   };
+
+  // Which ticket (as "instanceId:issueKey") the rail's timer region last
+  // rebuilt for, or null while resting — and the elapsed span from that
+  // build. A tick fires the same onTimerChanged event a start, a stop or a
+  // switch does, and the common case by far is a tick: rebuilding the whole
+  // line every second would also drop keyboard focus off the stop button the
+  // moment someone tabs to it, the same failure that-ticket-row's own
+  // paintSeconds/paintDuration avoid for the same reason. So only a genuine
+  // change in what is running rebuilds; a tick on the same ticket just
+  // updates the one span that moved.
+  let renderedTimerKey: string | null = null;
+  let elapsedEl: HTMLElement | undefined;
+
+  const handleStopTimer = (): void => {
+    void stopTimer();
+  };
+
+  /**
+   * The running line, or the resting "No timer running" — decision 4 of the
+   * timer design. Reachable from every view, unlike the row's own control,
+   * which #8 draws only on Today.
+   */
+  const paintTimer = (): void => {
+    const running = currentTimer();
+    const key = running ? `${String(running.instanceId)}:${running.issueKey}` : null;
+
+    if (key === renderedTimerKey && elapsedEl) {
+      elapsedEl.textContent = elapsedFigure(elapsedSeconds());
+
+      return;
+    }
+    renderedTimerKey = key;
+
+    if (!running) {
+      elapsedEl = undefined;
+      timer.replaceChildren(...restingTimerLine());
+
+      return;
+    }
+
+    const built = runningTimerLine(running, handleStopTimer);
+    elapsedEl = built.elapsed;
+    timer.replaceChildren(...built.nodes);
+  };
+
+  // No unsubscribe, for the same reason onEntriesChanged's above has none:
+  // the shell outlives every view. readTimer() is the one boot read
+  // timer-state.ts itself never makes on its own — see its own comment for
+  // why that is the rail's job.
+  onTimerChanged(paintTimer);
+  paintTimer();
+  void readTimer();
 
   /**
    * Confirms, pushes, then hands the result to whoever is listening for it —
@@ -438,4 +493,46 @@ function figures(slices: Slice[]): HTMLElement {
   }
 
   return list;
+}
+
+/** #rail-timer's resting state — index.html's own hardcoded markup, rebuilt
+ *  here so paintTimer has one shape to return to. */
+function restingTimerLine(): Node[] {
+  const dot = document.createElement("span");
+  dot.className = "bg-rail-active size-[7px] shrink-0 rounded-full";
+
+  const label = document.createElement("span");
+  label.className = "text-rail-muted text-base";
+  label.textContent = "No timer running";
+
+  return [dot, label];
+}
+
+/** dot · KEY · elapsed · stop — decision 4 of the timer design, reachable
+ *  from every view so a timer can be stopped without returning to Today. */
+function runningTimerLine(
+  running: RunningTimer,
+  onStop: () => void,
+): { nodes: Node[]; elapsed: HTMLElement } {
+  const dot = document.createElement("span");
+  dot.className = "bg-running-rail size-[7px] shrink-0 rounded-full";
+
+  const key = document.createElement("span");
+  key.className = "text-rail-ink text-base min-w-0 flex-1 truncate";
+  key.textContent = running.issueKey;
+
+  const elapsed = document.createElement("span");
+  elapsed.className = "that-tnum text-running-rail shrink-0 font-mono text-base";
+  elapsed.textContent = elapsedFigure(elapsedSeconds());
+
+  const stop = document.createElement("button");
+  stop.type = "button";
+  stop.className =
+    "text-running-rail hover:bg-hover-rail flex h-[26px] w-[26px] shrink-0 cursor-pointer " +
+    "items-center justify-center rounded-sm";
+  stop.innerHTML = iconMarkup("stop", 16);
+  stop.setAttribute("aria-label", "stop timer");
+  stop.addEventListener("click", onStop);
+
+  return { nodes: [dot, key, elapsed, stop], elapsed };
 }

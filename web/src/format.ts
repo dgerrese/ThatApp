@@ -45,6 +45,25 @@ export function totalFigure(seconds: number): string {
 }
 
 /**
+ * The rail's running line and the row's ticking Today figure: `M:SS` under an
+ * hour, `H:MM:SS` from an hour on — the prototype's drawn `42:18`. Neither
+ * `timerFigure`'s `HH:MM` snapshot nor `totalFigure`'s `Nh Nm` sum is this —
+ * a colon that ticks needs seconds, and this is the one shape that shows them.
+ */
+export function elapsedFigure(seconds: number): string {
+  const safe = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+  const hours = Math.floor(safe / SECONDS_PER_HOUR);
+  const minutes = Math.floor((safe % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE);
+  const secs = safe % SECONDS_PER_MINUTE;
+
+  if (hours > 0) {
+    return `${String(hours)}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+
+  return `${String(minutes)}:${String(secs).padStart(2, "0")}`;
+}
+
+/**
  * A moment on the clock, local to the browser, as `HH:MM` — `14:32`. For
  * "showing what was here at", not for a duration, so it takes a `Date`
  * rather than seconds and carries no negative-time guard.

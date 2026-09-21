@@ -11,6 +11,8 @@ import type {
   IssuesResponse,
   Pin,
   PushResponse,
+  StopTimerResponse,
+  TimerStateResponse,
   WeekFetchResponse,
   WeekRollup,
 } from "./types";
@@ -191,6 +193,21 @@ export function pushDay(day?: string): Promise<PushResponse> {
   const query = day === undefined ? "" : `?day=${encodeURIComponent(day)}`;
 
   return request<PushResponse>(`/api/push${query}`, { method: "POST" });
+}
+
+export function getTimer(): Promise<TimerStateResponse> {
+  return request<TimerStateResponse>("/api/timer");
+}
+
+export function startTimer(instanceId: number, issueKey: string): Promise<TimerStateResponse> {
+  return request<TimerStateResponse>("/api/timer/start", {
+    method: "POST",
+    body: JSON.stringify({ instanceId, issueKey }),
+  });
+}
+
+export function stopTimer(): Promise<StopTimerResponse> {
+  return request<StopTimerResponse>("/api/timer/stop", { method: "POST" });
 }
 
 /** Pulls a week's worklogs in. `start` is the Monday the week begins on, and

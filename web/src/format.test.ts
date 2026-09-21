@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { clockTime, longDay, timerFigure, totalFigure } from "./format.ts";
+import { clockTime, elapsedFigure, longDay, timerFigure, totalFigure } from "./format.ts";
 
 test("a timer is always HH:MM", async (t) => {
   const cases: [number, string][] = [
@@ -51,6 +51,33 @@ test("a total never carries a colon", async (t) => {
     await t.test(`${seconds} seconds`, () => {
       const got = totalFigure(seconds);
       assert.ok(!got.includes(":"), `${got} grew a colon`);
+    });
+  }
+});
+
+/**
+ * The rail's own ticking shape, per the timer design: M:SS under an hour,
+ * H:MM:SS from an hour on. Neither timerFigure (HH:MM, no seconds) nor
+ * totalFigure (Nh Nm) is this — see the prototype's drawn 42:18.
+ */
+test("elapsed is M:SS under an hour, H:MM:SS from an hour on", async (t) => {
+  const cases: [number, string][] = [
+    [0, "0:00"],
+    [5, "0:05"],
+    [59, "0:59"],
+    [60, "1:00"],
+    [2538, "42:18"],
+    [3599, "59:59"],
+    [3600, "1:00:00"],
+    [3661, "1:01:01"],
+    [36000, "10:00:00"],
+    [-1, "0:00"],
+  ];
+
+  for (const [seconds, want] of cases) {
+    await t.test(`${seconds} seconds is ${want}`, () => {
+      const got = elapsedFigure(seconds);
+      assert.equal(got, want);
     });
   }
 });

@@ -1,6 +1,7 @@
 import { fieldFigure } from "../duration";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
+import { elapsedSeconds, isRunningTicket, onTimerChanged } from "../timer-state";
 // A type-only import is erased at compile time (verbatimModuleSyntax makes
 // that a guarantee), so describing the request with the dialog's own shape
 // costs no bundle bytes and cannot drift from what openEntryDialog expects.
@@ -56,13 +57,26 @@ export class ThatTicketRow extends HTMLElement {
   private mounted = false;
   private trigger: HTMLButtonElement | undefined;
   private figure: HTMLElement | undefined;
+  private keyEl: HTMLElement | undefined;
   private pinTrigger: HTMLButtonElement | undefined;
   private pinTooltip: HTMLElement | undefined;
   private readonly pinTriggerId = `that-pin-${++pinTriggerSequence}`;
+  private stopTimerListening: (() => void) | undefined;
 
   connectedCallback(): void {
     this.mounted = true;
     this.render();
+    // Outlives no navigation of its own: the row is rebuilt or removed with
+    // its card, and disconnectedCallback below is what stops this from
+    // outliving that.
+    this.stopTimerListening = onTimerChanged(() => {
+      this.paintDuration();
+    });
+  }
+
+  disconnectedCallback(): void {
+    this.stopTimerListening?.();
+    this.stopTimerListening = undefined;
   }
 
   // #83's `that-table` re-sorts its body with `moveBefore`, which moves this
@@ -82,7 +96,7 @@ export class ThatTicketRow extends HTMLElement {
     if (!this.mounted || oldValue === newValue) return;
 
     if (name === "seconds") {
-      this.paintSeconds();
+      this.paintDuration();
 
       return;
     }
@@ -119,9 +133,35 @@ export class ThatTicketRow extends HTMLElement {
 
     const actCell = document.createElement("td");
     actCell.className = "c-act";
-    this.appendPinControl(actCell);
+    // #8 gave this cell a second control, so it is one flex row now rather
+    // than two bare children: a light-DOM custom element (that-timer, default
+    // display: inline) sitting beside a block-level button forces the browser
+    // to split the cell into anonymous blocks around them — the block-in-inline
+    // case — which blew the row's height out past 34px. A single flex
+    // wrapper sidesteps that entirely: every child becomes a flex item
+    // regardless of its own declared display.
+    const actRow = document.createElement("div");
+    actRow.className = "flex items-center";
+    this.appendTimerControl(actRow);
+    this.appendPinControl(actRow);
+    actCell.append(actRow);
 
     this.replaceChildren(keyCell, sumCell, statusCell, todayCell, actCell);
+    this.paintDuration();
+  }
+
+  /** #8's play/stop button, before the pin per decision 1 of the timer
+   *  design. A self-contained WebComponent, not an event dispatched to the
+   *  view: unlike LOG_TIME/PIN/UNPIN, starting or stopping a timer needs no
+   *  view-owned state, so it talks to timer-state.ts directly. */
+  private appendTimerControl(cell: HTMLElement): void {
+    const timer = document.createElement("that-timer");
+    timer.setAttribute("instance-id", this.getAttribute("instance-id") ?? "0");
+    timer.setAttribute("key", this.getAttribute("key") ?? "");
+    // The gap the pin's own -mr-2 doesn't supply on this side — two square
+    // buttons placed edge to edge with nothing between them otherwise.
+    timer.className = "mr-1";
+    cell.append(timer);
   }
 
   /**
@@ -140,7 +180,10 @@ export class ThatTicketRow extends HTMLElement {
    * can start and stop.
    */
   private durationCell(): HTMLElement {
-    const figure = this.loggedFigure();
+    // paintDuration(), called at the end of render(), repaints this the
+    // moment trigger/figure exist — this is only what a first paint shows for
+    // the instant before that.
+    const figure = fieldFigure(this.durationSeconds());
     const key = this.getAttribute("key") ?? "";
 
     const trigger = document.createElement("button");
@@ -194,24 +237,43 @@ export class ThatTicketRow extends HTMLElement {
     return trigger;
   }
 
-  /** Today's logged time as the cell wears it, read off the attribute. */
-  private loggedFigure(): string {
-    const seconds = Number(this.getAttribute("seconds") ?? "0");
-
-    return fieldFigure(Number.isFinite(seconds) ? seconds : 0);
+  /** Whether the running timer, if any, is against this row's own ticket. */
+  private mine(): boolean {
+    return isRunningTicket(
+      Number(this.getAttribute("instance-id") ?? "0"),
+      this.getAttribute("key") ?? "",
+    );
   }
 
-  /** The in-place half of the `seconds` repaint: the figure and the name that speaks it. */
-  private paintSeconds(): void {
+  /** Today's logged seconds, read off the attribute — plus the running
+   *  timer's own elapsed time while it is this row's. */
+  private durationSeconds(): number {
+    const seconds = Number(this.getAttribute("seconds") ?? "0");
+    const logged = Number.isFinite(seconds) ? seconds : 0;
+
+    return this.mine() ? logged + elapsedSeconds() : logged;
+  }
+
+  /**
+   * The Today figure and the key, repainted together: decision 3 of the
+   * timer design ties both to the same running state, so one method owns
+   * both rather than risking them fall out of step. Runs on every `seconds`
+   * change (a fresh total) and on every timer tick or switch (a fresh
+   * elapsed, or a fresh answer to "is this mine").
+   */
+  private paintDuration(): void {
     const trigger = this.trigger;
     const figure = this.figure;
     if (!trigger || !figure) return;
 
-    const logged = this.loggedFigure();
-    figure.textContent = logged;
+    const running = this.mine();
+    const shown = fieldFigure(this.durationSeconds());
+    figure.textContent = shown;
+    figure.classList.toggle("text-running", running);
+    this.keyEl?.classList.toggle("text-running", running);
     trigger.setAttribute(
       "aria-label",
-      `Log time against ${this.getAttribute("key") ?? ""}, ${logged} today`,
+      `Log time against ${this.getAttribute("key") ?? ""}, ${shown} today`,
     );
   }
 
@@ -364,6 +426,7 @@ export class ThatTicketRow extends HTMLElement {
    */
   private keyContent(url: string): HTMLElement {
     const label = this.keyLabel(url);
+    this.keyEl = label;
     // A whole number, or no dot at all. Both empties have to be caught by hand
     // before Number() sees them: it reads null *and* "" as 0, which would paint
     // the first instance's hue on a row that never claimed one. Anything else
