@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -338,20 +341,64 @@ func (s *Server) handleTestInstance(w http.ResponseWriter, r *http.Request) {
 func instanceErrorFor(err error) (status int, code, message string) {
 	switch {
 	case errors.Is(err, atlassian.ErrTenantUnreadable):
-		return http.StatusBadGateway, "tenant_unreadable",
+		status, code, message = http.StatusBadGateway, "tenant_unreadable",
 			"could not read the site's tenant info; check the site URL and that the site is reachable"
 	case errors.Is(err, jira.ErrUnauthorized):
-		return http.StatusUnauthorized, "credentials_rejected",
-			"Jira rejected the email and API token"
+		status, code, message = http.StatusUnauthorized, "credentials_rejected",
+			"Jira did not accept the API token for this request; check the token and its scopes"
+	case errors.Is(err, jira.ErrForbidden):
+		status, code, message = http.StatusForbidden, "permission_denied",
+			"your Jira account lacks permission for this"
+	case errors.Is(err, jira.ErrRateLimited):
+		var limited *jira.RateLimitError
+		wait := "shortly"
+		if errors.As(err, &limited) && limited.Wait > 0 {
+			wait = "in " + waitPhrase(limited.Wait)
+		}
+		status, code, message = http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again "+wait
 	case errors.Is(err, jira.ErrNotFound):
-		return http.StatusBadGateway, "account_not_found",
+		status, code, message = http.StatusBadGateway, "account_not_found",
 			"the site answered but this account has no access to it; check the site URL and account email"
 	case errors.Is(err, jira.ErrUnreachable):
-		return http.StatusBadGateway, "instance_unreachable", "the Jira site could not be reached"
+		status, code, message = http.StatusBadGateway, "instance_unreachable", "the Jira site could not be reached"
 	default:
-		log.Printf("unexpected instance error: %v", err)
-		return http.StatusInternalServerError, "unexpected", "an unexpected error occurred"
+		status, code, message = http.StatusInternalServerError, "unexpected", "an unexpected error occurred"
 	}
+
+	// A cancelled request is the browser leaving, not Jira failing: the issue
+	// search cancels its in-flight fetch on every debounced keystroke, and
+	// leaving Today/Week mid-fan-out does the same. context.DeadlineExceeded
+	// is still logged — that is a real timeout.
+	if !errors.Is(err, context.Canceled) {
+		// Jira's own words live only in err (#79); the response deliberately
+		// carries a fixed message, so this line is the one place they survive.
+		// A body carrying its own newlines (a proxy's HTML error page, say)
+		// would otherwise spread this one failure across several log lines.
+		text := strings.ReplaceAll(strings.ReplaceAll(err.Error(), "\r\n", " "), "\n", " ")
+		log.Printf("instance error, answered %s: %s", code, text)
+	}
+
+	return status, code, message
+}
+
+// waitPhrase renders a Retry-After wait for a person: seconds under a minute,
+// whole minutes (rounded up) from there. It rounds once, to whole seconds,
+// and branches on that — rounding minutes separately would turn a 59.4s wait
+// into "60 seconds" instead of "1 minute".
+func waitPhrase(wait time.Duration) string {
+	seconds := int(math.Ceil(wait.Seconds()))
+	if seconds < 60 {
+		if seconds == 1 {
+			return "1 second"
+		}
+		return fmt.Sprintf("%d seconds", seconds)
+	}
+	minutes := (seconds + 59) / 60
+	if minutes == 1 {
+		return "1 minute"
+	}
+	return fmt.Sprintf("%d minutes", minutes)
 }
 
 func writeInstanceError(w http.ResponseWriter, err error) {

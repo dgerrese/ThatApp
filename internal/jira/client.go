@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -16,6 +17,9 @@ import (
 // requestTimeout bounds a single Jira call. The assigned-issues fan-out waits on
 // every instance, so one unresponsive site must not hold the whole request open.
 const requestTimeout = 30 * time.Second
+
+// now is overridden by tests to pin the clock Retry-After dates are measured against.
+var now = time.Now
 
 // Client talks to one Jira Cloud site.
 type Client struct {
@@ -118,13 +122,36 @@ func statusError(method, path string, resp *http.Response) error {
 	detail, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 
 	switch {
-	case resp.StatusCode == http.StatusUnauthorized, resp.StatusCode == http.StatusForbidden:
-		return fmt.Errorf("%s %s: %w: %s", method, path, ErrUnauthorized, detail)
+	case resp.StatusCode == http.StatusUnauthorized:
+		return fmt.Errorf("%s %s -> %d: %w: %s", method, path, resp.StatusCode, ErrUnauthorized, detail)
+	case resp.StatusCode == http.StatusForbidden:
+		return fmt.Errorf("%s %s -> %d: %w: %s", method, path, resp.StatusCode, ErrForbidden, detail)
+	case resp.StatusCode == http.StatusTooManyRequests:
+		limited := &RateLimitError{Wait: retryAfter(resp.Header.Get("Retry-After"), now())}
+		return fmt.Errorf("%s %s -> %d: %w: %s", method, path, resp.StatusCode, limited, detail)
 	case resp.StatusCode == http.StatusNotFound:
-		return fmt.Errorf("%s %s: %w: %s", method, path, ErrNotFound, detail)
+		return fmt.Errorf("%s %s -> %d: %w: %s", method, path, resp.StatusCode, ErrNotFound, detail)
 	case resp.StatusCode >= 500:
-		return fmt.Errorf("%s %s: %w: %s", method, path, ErrUnreachable, detail)
+		return fmt.Errorf("%s %s -> %d: %w: %s", method, path, resp.StatusCode, ErrUnreachable, detail)
 	default:
-		return fmt.Errorf("%s %s: unexpected status %d: %s", method, path, resp.StatusCode, detail)
+		return fmt.Errorf("%s %s -> %d: unexpected status: %s", method, path, resp.StatusCode, detail)
 	}
+}
+
+// retryAfter reads a Retry-After value, which RFC 9110 allows as whole seconds
+// or an HTTP date. Anything unusable, and any date already past, is zero. A
+// seconds value is capped at a day, so a huge one cannot overflow the
+// time.Duration multiplication below.
+func retryAfter(value string, at time.Time) time.Duration {
+	if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+		const maxSeconds = 24 * 60 * 60
+		if seconds > maxSeconds {
+			seconds = maxSeconds
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	if when, err := http.ParseTime(value); err == nil && when.After(at) {
+		return when.Sub(at)
+	}
+	return 0
 }

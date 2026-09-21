@@ -50,7 +50,7 @@ async function stubInstancesApi(
     }
     await route.fulfill({
       status: options.testStatus,
-      json: { code: "credentials_rejected", message: "Jira rejected the email and API token" },
+      json: { code: "credentials_rejected", message: "Jira did not accept the API token for this request; check the token and its scopes" },
     });
   });
 
@@ -149,7 +149,7 @@ test("a rejected connection test reports the failure", async ({ page }) => {
 
   await page.getByRole("button", { name: "Test" }).click();
 
-  await expect(page.getByText("Jira rejected the email and API token")).toBeVisible();
+  await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
   await expect(page.getByText("Connected as")).toBeHidden();
 });
 
@@ -402,13 +402,13 @@ test("saving over a failed connection test clears the stale result", async ({ pa
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Test" }).click();
-  await expect(page.getByText("Jira rejected the email and API token")).toBeVisible();
+  await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
 
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("API token (leave blank to keep the stored one)").fill("corrected-secret");
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await expect(page.getByText("Jira rejected the email and API token")).toBeHidden();
+  await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeHidden();
 });
 
 // Before this branch, entering edit mode destroyed the list, so no Remove

@@ -4,13 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
@@ -515,12 +519,12 @@ func TestConnectionTestReportsAccountNotFoundAsBadGateway(t *testing.T) {
 	}
 }
 
-// A status writeInstanceError does not recognize (429 here) falls to the
+// A status writeInstanceError does not recognize (418 here) falls to the
 // default branch, which must not leak the underlying error's text — that text
 // carries the request path and the Jira response body.
 func TestConnectionTestHidesTheUnderlyingErrorOnAnUnmappedStatus(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
-	site := jiraSiteServer(t, http.StatusTooManyRequests)
+	site := jiraSiteServer(t, http.StatusTeapot)
 	pointAtSite(srv, site)
 	inst := seedInstanceAtSite(t, db, sealer, site)
 
@@ -546,5 +550,211 @@ func TestConnectionTestRejectsAMissingID(t *testing.T) {
 
 	if rec := testConnection(t, srv, 404); rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+// #79: what Jira said is only useful if something records it. Every mapped
+// failure — classified or not — is logged once with the request, the status
+// and Jira's own body, and never with the credentials that made the request.
+func TestInstanceErrorForLogsWhatJiraSaid(t *testing.T) {
+	cases := []struct {
+		name     string
+		status   int
+		body     string
+		wantCode string
+	}{
+		{"a 401", http.StatusUnauthorized, `{"code":401,"message":"Unauthorized; scope does not match"}`, "credentials_rejected"},
+		{"a 403", http.StatusForbidden, `{"errorMessages":["You do not have permission"]}`, "permission_denied"},
+		{"a 404", http.StatusNotFound, `{"errorMessages":["Issue does not exist"]}`, "account_not_found"},
+		{"a 429", http.StatusTooManyRequests, `{"message":"slow down"}`, "rate_limited"},
+		{"a 5xx", http.StatusBadGateway, `upstream exploded`, "instance_unreachable"},
+		{"an unmapped status", http.StatusTeapot, `short and stout`, "unexpected"},
+		{"a multi-line body", http.StatusBadGateway, "<html>\r\n<body>502 Bad Gateway</body>\n</html>", "instance_unreachable"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			jiraSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(jiraSrv.Close)
+
+			client, err := jira.New(jiraSrv.URL, "me@example.com", "s3cret-token")
+			if err != nil {
+				t.Fatalf("building the client: %v", err)
+			}
+			_, jiraErr := client.Myself(context.Background())
+			if jiraErr == nil {
+				t.Fatal("Myself() succeeded against a failing server")
+			}
+
+			var logged bytes.Buffer
+			previous := log.Writer()
+			log.SetOutput(&logged)
+			t.Cleanup(func() { log.SetOutput(previous) })
+
+			_, code, _ := instanceErrorFor(jiraErr)
+
+			if code != tc.wantCode {
+				t.Errorf("code = %q, want %q (the response contract must not move)", code, tc.wantCode)
+			}
+			line := logged.String()
+			if n := strings.Count(line, "\n"); n != 1 {
+				t.Errorf("logged %d lines, want exactly 1: %q", n, line)
+			}
+			// A body carrying its own newlines (e.g. a proxy's HTML error page)
+			// is flattened in the log line, so it no longer appears verbatim;
+			// every other row's body has no newline and must still appear as-is.
+			wants := []string{"/rest/api/3/myself", strconv.Itoa(tc.status)}
+			if !strings.Contains(tc.body, "\n") {
+				wants = append(wants, tc.body)
+			}
+			for _, want := range wants {
+				if !strings.Contains(line, want) {
+					t.Errorf("log line %q does not contain %q", line, want)
+				}
+			}
+			for _, secret := range []string{"me@example.com", "s3cret-token"} {
+				if strings.Contains(line, secret) {
+					t.Errorf("log line %q leaks %q", line, secret)
+				}
+			}
+		})
+	}
+}
+
+func TestInstanceErrorForTellsTheUserWhatToDo(t *testing.T) {
+	cases := []struct {
+		name        string
+		status      int
+		retryAfter  string
+		wantStatus  int
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			"a 401", http.StatusUnauthorized, "",
+			http.StatusUnauthorized, "credentials_rejected",
+			"Jira did not accept the API token for this request; check the token and its scopes",
+		},
+		{
+			"a 403", http.StatusForbidden, "",
+			http.StatusForbidden, "permission_denied",
+			"your Jira account lacks permission for this",
+		},
+		{
+			"a 429 with a one-second wait", http.StatusTooManyRequests, "1",
+			http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again in 1 second",
+		},
+		{
+			"a 429 with a 30-second wait", http.StatusTooManyRequests, "30",
+			http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again in 30 seconds",
+		},
+		{
+			"a 429 with a 90-second wait rounds up to minutes", http.StatusTooManyRequests, "90",
+			http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again in 2 minutes",
+		},
+		{
+			"a 429 with no usable wait", http.StatusTooManyRequests, "",
+			http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again shortly",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			jiraSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tc.retryAfter != "" {
+					w.Header().Set("Retry-After", tc.retryAfter)
+				}
+				w.WriteHeader(tc.status)
+			}))
+			t.Cleanup(jiraSrv.Close)
+
+			client, err := jira.New(jiraSrv.URL, "me@example.com", "s3cret-token")
+			if err != nil {
+				t.Fatalf("building the client: %v", err)
+			}
+			_, jiraErr := client.Myself(context.Background())
+			if jiraErr == nil {
+				t.Fatal("Myself() succeeded against a failing server")
+			}
+
+			status, code, message := instanceErrorFor(jiraErr)
+
+			if status != tc.wantStatus {
+				t.Errorf("status = %d, want %d", status, tc.wantStatus)
+			}
+			if code != tc.wantCode {
+				t.Errorf("code = %q, want %q", code, tc.wantCode)
+			}
+			if message != tc.wantMessage {
+				t.Errorf("message = %q, want %q", message, tc.wantMessage)
+			}
+		})
+	}
+}
+
+func TestWaitPhrase(t *testing.T) {
+	cases := []struct {
+		wait time.Duration
+		want string
+	}{
+		{1 * time.Second, "1 second"},
+		{time.Duration(59.4 * float64(time.Second)), "1 minute"},
+		{60 * time.Second, "1 minute"},
+		{61 * time.Second, "2 minutes"},
+		{90 * time.Second, "2 minutes"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.want+"/"+tc.wait.String(), func(t *testing.T) {
+			if got := waitPhrase(tc.wait); got != tc.want {
+				t.Errorf("waitPhrase(%v) = %q, want %q", tc.wait, got, tc.want)
+			}
+		})
+	}
+}
+
+// The issue search cancels its in-flight fetch on every debounced keystroke
+// (that-issue-search.ts), and leaving Today/Week mid-fan-out does the same:
+// neither is Jira failing, so instanceErrorFor must not log either.
+func TestInstanceErrorForDoesNotLogACancelledRequest(t *testing.T) {
+	jiraSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"accountId":"5b10a2","displayName":"Dion","active":true}`))
+	}))
+	t.Cleanup(jiraSrv.Close)
+
+	client, err := jira.New(jiraSrv.URL, "me@example.com", "s3cret-token")
+	if err != nil {
+		t.Fatalf("building the client: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, jiraErr := client.Myself(ctx)
+	if jiraErr == nil {
+		t.Fatal("Myself() succeeded against an already-cancelled context")
+	}
+	if !errors.Is(jiraErr, context.Canceled) {
+		t.Fatalf("Myself() error %v does not wrap context.Canceled", jiraErr)
+	}
+
+	var logged bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&logged)
+	t.Cleanup(func() { log.SetOutput(previous) })
+
+	_, code, _ := instanceErrorFor(jiraErr)
+
+	if code != "instance_unreachable" {
+		t.Errorf("code = %q, want instance_unreachable (a cancelled request classifies the same as today)", code)
+	}
+	if logged.Len() != 0 {
+		t.Errorf("logged %q; a cancelled request must not be logged", logged.String())
 	}
 }
