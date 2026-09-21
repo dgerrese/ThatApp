@@ -67,12 +67,74 @@ been started**. The owner accepted the release script's architecture checks in p
 not reopen that. Releases and packages had to be switched on in the repository's settings
 first; see *Environment notes*.
 
-**#42 is `status/todo` and refined** (2026-09-17), and is the next ticket by the ordering rule —
-`priority/high` and a `bug`. Its body now holds the analysis: the only race window is
-`renderCurrent`'s `await load()`, because every view attaches to `root` synchronously before its
-first await, and the existing `navigationId` is the counter to check. The open risk is the
-regression test — chunks are hashed and Today and Week may share one, so the older import cannot be
-held by filename.
+**At the end of 2026-09-18, nothing had merged that day. `main` is still `c58f180`.** The owner
+had the session work the board in priority order on its own. That produced **twelve ticket pull
+requests and three `[Process]` pull requests, all open and waiting on the owner**:
+
+| PR | Ticket | Notes |
+|---|---|---|
+| #152 | #42 render race | |
+| #153 | #35 e2e gets its own database | **merge before #8** (#8's e2e stubs the timer until then) |
+| #154 | #56 Settings list race | |
+| #155 | #67 precache from disk | **restart `web` after merging** — the running watcher holds the old `build.mjs` |
+| #156 | #71 stale banner re-check | |
+| #157 | #79 log Jira failures | |
+| #158 | #57 pins test gaps | |
+| #159 | #102 poison sentinel | |
+| #160 | #116 no "Jira" in actions/states/reports | the owner kept "push failed" |
+| #162 | #19 Jira 403/429 classes | **stacked on #157**: base is `issue-79-log-jira-failures` |
+| #163 | #40 build creates `dist/` | |
+| #168 | #167 CI skips docs-only PRs | |
+| #165 | `[Process]` stacking rule | |
+| #166 | `[Process]` PR title prefixes | |
+| #169 | `[Process]` CLAUDE.md on CI skips | **stacked on #168** |
+
+Every ticket above keeps `status/in-progress` until its PR merges, so strip the label at each merge
+(it has been left behind seven times). A stacked ticket closes only when its parent reaches `main`.
+
+**Two rules the owner set on 2026-09-18 and are in open `[Process]` PRs:** a branch cut from another
+open branch gets a PR based on that branch, not `main` (#165); every PR title starts with
+`[#<issue>]`, `[Process]` or `[Handoff]` (#166). **Follow both before they merge.** All open PRs
+were already retitled.
+
+**In progress, not yet in review:**
+- **#83 (sorting), branch `issue-83-table-sort`, pushed.** Both tasks are done and reviewed, and the
+  whole-branch review said ready to merge. Its final fix wave (`37cac8f`: observer noise, optional
+  `moveBefore` typing, fallback test, return focus) is committed and green (table.spec 32/32,
+  `make verify`, `make test-e2e` 529/0). **Next: the scoped re-review of `37cac8f`, then open the PR
+  titled `[#83] …`.** Its SDD ledger is `.superpowers/sdd/2026-09-18-table-sort/`. Rows move with
+  `moveBefore` (focus survives) and fall back to `insertBefore` where it is missing: Firefox ESR 140
+  lacks it.
+- **#8 (timer), branch `issue-8-timer`, pushed.** The design was settled with the owner in a browser
+  session, `docs/superpowers/specs/2026-09-18-timer-design.md`. The plan is
+  `docs/superpowers/plans/2026-09-18-timer.md`. **Waiting on the owner's read of the design before
+  execution.** Decisions not to reopen:
+  - a play/stop button in the action column beside the pin (option A);
+  - the rail's running line gets a stop button after the elapsed time;
+  - a run under a minute is discarded;
+  - the server closes an overnight timer at local midnight on any read;
+  - the rail's elapsed time follows the prototype's `42:18` (`M:SS`, then `H:MM:SS`).
+
+  The plan's e2e tests **stub `/api/timer*` statefully** and never reach the server, because until #35
+  merges the rig's server is the owner's dev database.
+
+**Blocked:** **#66** (the localhost forwarder) makes Chromium crash with #134 in 3 of 4 full runs,
+against 0 of 2 on `main`. **The owner chose to do #134 first.** #134 is out of intake at
+`status/needs-refinement`, and #66's branch is pushed with no PR.
+
+**Design sessions held with the owner on 2026-09-18** (browser companion, screens under
+`.superpowers/brainstorm/913714-1789732588/content/` on this machine), and their outcomes are
+written into each ticket: **#8** as above; **#83** ascending arrow = the drawn descending arrow,
+mirrored; **#80** a hairline note under the four fields, above the buttons.
+
+**Refined and still `status/todo`:** #80, #39, #55, #91. The morning's decisions stand: #55 answers
+malformed ids with 404 everywhere, and #91 adds happy-dom as a dev dependency.
+**New today at `status/needs-refinement`:** #161 (a late save resets an edit form opened after it)
+and #164 (a CSS-only edit never rebuilds the worker), both `bug`, v1. **#134** is also at
+needs-refinement now. **Still waiting on design sessions:** #139, #143, #89.
+
+**Next, in order:** #83's re-review and PR; #8 once the owner has read the design; then #80, #39,
+#55, #91 (the normal and low bands); #134 before #66.
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
@@ -140,8 +202,9 @@ run. Three implementers hit it in one evening; one confirmed it pre-existing aga
 baseline. It is worth a ticket because a crash that lands somewhere new each time teaches everyone to
 re-run first and read second, which is how a real regression gets waved through.
 
-**The board was triaged the same day.** `priority/high`: **#8, #10, #35, #42, #105, #117, #121**.
-`priority/low`: **#39, #40, #55, #83, #89, #91, #97, #108, #119**. The other twenty-six are normal.
+**The board was triaged the same day.** `priority/high`: **#8, #10, #35, #42, #105, #117, #121**,
+and **#83** from 2026-09-18, raised by the owner out of low. `priority/low`: **#39, #40, #55, #89,
+#91, #97, #108, #119**. The other twenty-six are normal.
 **#79, #80 and #102 are normal but were named as work to pick up** — the owner promoted them without
 raising their priority, so an unlabelled ticket here really does not mean untouched.
 
