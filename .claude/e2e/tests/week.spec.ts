@@ -2117,4 +2117,136 @@ test.describe("Week's own search", () => {
       "that issue is already pinned on this instance",
     );
   });
+
+  /**
+   * Task 2 of #139: decision 2's first half. The pin control must not wait on
+   * a read to put the row up — `addedTickets` is what `onAdd` already gives
+   * the add-to-week control, and the pin control now shares it rather than
+   * inventing a second path (see the plan's own wording for why).
+   */
+  test("pinning a result shows its row at once, with no navigation or refresh", async ({ page }) => {
+    await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
+    await page.route("**/api/issues/search**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: { results: [searchHit("RIDGE-9001", "Draft the onboarding checklist")], errors: [] },
+      }),
+    );
+    await page.route("**/api/pins", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 201,
+        json: {
+          id: 5,
+          instanceId: body["instanceId"],
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          key: body["issueKey"],
+          summary: "Draft the onboarding checklist",
+          status: "To Do",
+          url: `${siteOf(1)}/browse/${String(body["issueKey"])}`,
+          error: null,
+        },
+      });
+    });
+
+    await page.goto("/week");
+    // Nothing logged and nothing pinned yet — the grid says so, which is
+    // what proves the row below did not already exist.
+    await expect(page.getByText("Nothing logged this week.")).toBeVisible();
+
+    await weekSearchField(page).fill("ridge");
+    await weekSearchResultRow(page, "RIDGE-9001")
+      .getByRole("button", { name: "Pin RIDGE-9001", exact: true })
+      .click();
+
+    // No wait for the POST to settle and no re-read of /api/week — the row's
+    // seven empty cells and em-dash total appear from the click alone.
+    await expect(ticketRow(page, "RIDGE-9001").locator("td")).toHaveText(
+      ["—", "—", "—", "—", "—", "—", "—", "—"],
+      { useInnerText: true },
+    );
+  });
+
+  /**
+   * Task 2 of #139: decision 2's second half. Week's own panel carries no
+   * unpin control (decision 1 — the pin control always answers `pin`, never
+   * `pin-off`), so the unpin here stands in for one happening elsewhere
+   * (Today's own pin toggle, say) while this view stays open. The row must
+   * survive a Refresh that no longer has any server-side reason to carry it —
+   * `addedTickets` never drops a key on its own — and vanish only once the
+   * view is actually left, the same "dies with the mount" rule the
+   * add-to-week control already has.
+   */
+  test("an unpin leaves the pinned row on screen until the view is left", async ({ page }) => {
+    await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
+    await page.route("**/api/issues/search**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: { results: [searchHit("RIDGE-9001", "Draft the onboarding checklist")], errors: [] },
+      }),
+    );
+    await page.route("**/api/pins**", async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+
+      if (request.method() === "DELETE" && path === "/api/pins/5") {
+        return route.fulfill({ status: 204, body: "" });
+      }
+
+      if (request.method() === "POST" && path === "/api/pins") {
+        return route.fulfill({
+          status: 201,
+          json: {
+            id: 5,
+            instanceId: 1,
+            instanceName: "Ridgeline",
+            instancePosition: 0,
+            key: "RIDGE-9001",
+            summary: "Draft the onboarding checklist",
+            status: "To Do",
+            url: `${siteOf(1)}/browse/RIDGE-9001`,
+            error: null,
+          },
+        });
+      }
+
+      // Today's own mount, once this test navigates there and back — nothing
+      // assigned or pinned, so its GET has nothing to say about RIDGE-9001.
+      if (request.method() === "GET" && path === "/api/pins") {
+        return route.fulfill({ status: 200, json: [] });
+      }
+
+      return route.fallback();
+    });
+    await page.route("**/api/issues", (route) => route.fulfill({ status: 200, json: { instances: [] } }));
+
+    await page.goto("/week");
+    await weekSearchField(page).fill("ridge");
+    await weekSearchResultRow(page, "RIDGE-9001")
+      .getByRole("button", { name: "Pin RIDGE-9001", exact: true })
+      .click();
+    await expect(ticketRow(page, "RIDGE-9001")).toBeVisible();
+
+    // Unpin, as if from elsewhere — this view never re-reads pins on its own
+    // (no subscription — decision 2 is satisfied by addedTickets alone).
+    await page.evaluate(() => fetch("/api/pins/5", { method: "DELETE" }));
+
+    // A Refresh re-reads /api/week, whose stub never carried this row for
+    // real. The row surviving it is the proof that addedTickets, not the
+    // pin's continued existence, is what keeps it up.
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect(ticketRow(page, "RIDGE-9001")).toBeVisible();
+
+    // Leaving the view is the only thing that takes it away. The stubbed
+    // rollup never carried this row for real, so the fresh mount's own read
+    // finds nothing logged at all.
+    await page.getByRole("link", { name: "Today", exact: true }).click();
+    await expect(page).toHaveURL(/\/today$/);
+    await page.getByRole("link", { name: "Week", exact: true }).click();
+    await expect(page.getByText("Nothing logged this week.")).toBeVisible();
+    await expect(page.locator("tbody tr", { hasText: "RIDGE-9001" })).toHaveCount(0);
+  });
 });
