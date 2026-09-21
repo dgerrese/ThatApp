@@ -14,6 +14,9 @@ interface Regions {
   errorSlot: HTMLElement;
   listCard: HTMLElement;
   formCard: HTMLElement;
+  // Numbers every list read this render starts, so refresh() can tell the
+  // answer it is holding from one a later read has already superseded (#56).
+  latestListRead: number;
 }
 
 export async function render(root: HTMLElement): Promise<void> {
@@ -23,6 +26,7 @@ export async function render(root: HTMLElement): Promise<void> {
     errorSlot: document.createElement("div"),
     listCard: document.createElement("div"),
     formCard: document.createElement("div"),
+    latestListRead: 0,
   };
   regions.formCard.className = "mt-6";
 
@@ -43,15 +47,18 @@ export async function render(root: HTMLElement): Promise<void> {
 // still writes into its own detached elements when it resolves late, never
 // into whatever is now on screen.
 async function refresh(regions: Regions): Promise<void> {
+  const thisRead = ++regions.latestListRead;
   let instances: Instance[];
   try {
     instances = await listInstances();
   } catch (error) {
+    if (thisRead !== regions.latestListRead) return;
     regions.errorSlot.replaceChildren(alertFor("error", messageOf(error)));
 
     return;
   }
 
+  if (thisRead !== regions.latestListRead) return;
   regions.errorSlot.replaceChildren();
   reconcileList(regions, instances);
 }
