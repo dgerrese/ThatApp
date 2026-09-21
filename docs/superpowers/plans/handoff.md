@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-16**, against the Codeberg API rather than against local git — see
+**Verified on 2026-09-21**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -53,11 +53,10 @@ reversing — see the 2026-09-06 day file for both, and for why no test caught t
 to be stripped by hand at the close, the fifth time. The 2026-09-10 handoff merged as **PR #141**
 on 2026-09-16.
 
-**#84 merged as PR #146 on 2026-09-16**, after its fix wave. **It still carries
-`status/in-progress`** — the sixth merge to leave a status label behind; the evening's `eod` reported
-it rather than relabelling, so strip it on the owner's word. **#145** (no `enhancement` label while a
+**#84 merged as PR #146 on 2026-09-16**, after its fix wave, leaving `status/in-progress` behind for
+the sixth time; that label was stripped on 2026-09-17. **#145** (no `enhancement` label while a
 milestone's scope is undetermined) and **#147** (a locked 1Password vault never stops a commit, only
-a push — now a `CLAUDE.md` rule) merged the same day. **Remote `main` is at `2a90db9`.** #84's leftover `status/in-progress` was stripped on 2026-09-17.
+a push — now a `CLAUDE.md` rule) merged the same day.
 
 **#122 merged as PR #148 on 2026-09-17**, with **PR #149** after it; its `status/*` label was stripped
 by hand at the close, the seventh time. **The first release, `v2026.38.1`, is published** at
@@ -67,9 +66,17 @@ been started**. The owner accepted the release script's architecture checks in p
 not reopen that. Releases and packages had to be switched on in the repository's settings
 first; see *Environment notes*.
 
-**At the end of 2026-09-18, nothing had merged that day. `main` is still `c58f180`.** The owner
-had the session work the board in priority order on its own. That produced **twelve ticket pull
-requests and three `[Process]` pull requests, all open and waiting on the owner**:
+**On 2026-09-18 the owner had the session work the board in priority order on its own**, which
+produced twelve ticket pull requests and three `[Process]` ones. Nothing merged that day.
+
+**On 2026-09-21 the owner merged everything that was not a ticket. `main` is at `b623295`.** That
+was **#170** (the 2026-09-18 handoff), **#165** (stacking), **#166** (PR title prefixes), **#169**
+(`CLAUDE.md` on CI skips, stacked on #168), **#168** (#167, CI skips docs-only PRs), **#172** (work
+starts on the owner's word), and **#171** (the `autopilot` skill). #167's `status/in-progress` was
+left on at the close and stripped by hand — the eighth time.
+
+**Eleven ticket pull requests are still open, every one green and mergeable, all waiting on the
+owner:**
 
 | PR | Ticket | Notes |
 |---|---|---|
@@ -84,18 +91,10 @@ requests and three `[Process]` pull requests, all open and waiting on the owner*
 | #160 | #116 no "Jira" in actions/states/reports | the owner kept "push failed" |
 | #162 | #19 Jira 403/429 classes | **stacked on #157**: base is `issue-79-log-jira-failures` |
 | #163 | #40 build creates `dist/` | |
-| #168 | #167 CI skips docs-only PRs | |
-| #165 | `[Process]` stacking rule | |
-| #166 | `[Process]` PR title prefixes | |
-| #169 | `[Process]` CLAUDE.md on CI skips | **stacked on #168** |
 
 Every ticket above keeps `status/in-progress` until its PR merges, so strip the label at each merge
-(it has been left behind seven times). A stacked ticket closes only when its parent reaches `main`.
-
-**Two rules the owner set on 2026-09-18 and are in open `[Process]` PRs:** a branch cut from another
-open branch gets a PR based on that branch, not `main` (#165); every PR title starts with
-`[#<issue>]`, `[Process]` or `[Handoff]` (#166). **Follow both before they merge.** All open PRs
-were already retitled.
+(it has been left behind eight times). A stacked ticket closes only when its parent reaches `main`.
+**#162 retargets to `main` if #157 merges first.**
 
 **In progress, not yet in review:**
 - **#83 (sorting), branch `issue-83-table-sort`, pushed.** Both tasks are done and reviewed, and the
@@ -129,8 +128,8 @@ mirrored; **#80** a hairline note under the four fields, above the buttons.
 
 **Refined and still `status/todo`:** #80, #39, #55, #91. The morning's decisions stand: #55 answers
 malformed ids with 404 everywhere, and #91 adds happy-dom as a dev dependency.
-**New today at `status/needs-refinement`:** #161 (a late save resets an edit form opened after it)
-and #164 (a CSS-only edit never rebuilds the worker), both `bug`, v1. **#134** is also at
+**Raised on 2026-09-18 at `status/needs-refinement`:** #161 (a late save resets an edit form opened
+after it) and #164 (a CSS-only edit never rebuilds the worker), both `bug`, v1. **#134** is also at
 needs-refinement now. **Still waiting on design sessions:** #139, #143, #89.
 
 **Next, in order:** #83's re-review and PR; #8 once the owner has read the design; then #80, #39,
