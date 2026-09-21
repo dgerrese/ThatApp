@@ -376,6 +376,36 @@ that as a finding, not as a detail.
 silently, not left for someone to notice later. The ticket is allowed to change the design — it is
 not allowed to change it in secret, because the next ticket reads the drawing and not the diff.
 
+**And the pull request shows it.** A ticket that changes the interface **attaches screenshots of what
+it built**, so the owner sees the change rather than reading a description of it. Asked for on
+2026-09-21.
+
+```shell
+.claude/tools/pr-attach.sh <pr-number> shots/*.png     # prints the markdown to paste
+```
+
+They are **attachments, not repository files.** Forgejo serves them from its own store, so a
+screenshot never enters a repository whose own budget is measured in kilobytes, and it dies with the
+pull request rather than outliving it. `tea` cannot do this — `tea api` sends JSON only and an
+attachment needs a multipart POST — which is why the script exists.
+
+Three things that cost time the first time, on #8:
+
+- **Write the files somewhere the host can see.** A Playwright spec writing to `/tmp` writes to the
+  *container's* `/tmp`, which vanishes with it — and the previous run's files are still sitting on
+  the host, so the capture looks like it worked. `.claude/e2e` is the only host-visible mount; write
+  to `/e2e/test-results/shots/` and copy them out.
+- **Capture at rest.** A screenshot taken straight after a click catches the control hovered or
+  focused, which on #8 meant the stop button photographed primary-pink instead of its running green.
+  Park the pointer and blur before shooting, or the picture shows a state the design never described.
+- **Name each file for what it shows** — the script uses the file name as alt text, and a pull
+  request full of `screenshot-1.png` helps nobody.
+
+Delete the capture spec afterwards and commit neither it nor the images.
+
+**This does not replace the written comparison above.** A screenshot shows what was built; it does
+not say what it was checked against. A reviewer still needs that sentence.
+
 **Why this is a rule and not an instinct.** On 2026-09-08, reading Week's header for an unrelated
 reason turned up two things the prototype draws that the app never built: the card around the week
 grid, and a refresh control. Neither was caught by a test, a review, or a gate — #95 shipped the

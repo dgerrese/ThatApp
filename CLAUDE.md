@@ -254,7 +254,9 @@ what the design would probably have wanted.
 done** — by whoever builds it, and again by whoever reviews it. The report says what was compared
 and what was found; "looks right" is not a comparison. A difference the ticket forces is reported
 to the owner so the design is updated, never absorbed silently, because the next ticket reads the
-drawing rather than the diff.
+drawing rather than the diff. **A ticket that changes the interface also attaches screenshots of what
+it built to its pull request** — `.claude/tools/pr-attach.sh` uploads them, as Forgejo attachments
+rather than repository files.
 
 The `ticket-workflow` skill holds both tests, how the session runs, and why #117 exists.
 
