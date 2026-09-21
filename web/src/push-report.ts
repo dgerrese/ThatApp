@@ -40,7 +40,7 @@ export function pushReportNodes(
     return [
       alertFor(
         "success",
-        `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"} to Jira.`,
+        `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"}.`,
       ),
     ];
   }
@@ -53,8 +53,8 @@ export function pushReportNodes(
     nodes.push(
       alertFor(
         "warning",
-        `${String(retryable.length)} of ${String(all.length)} entries did not ` +
-          "reach Jira. Press Push to Jira again to retry them.",
+        `${String(retryable.length)} of ${String(all.length)} entries ` +
+          "could not be pushed. Press Push worklogs again to retry them.",
       ),
       failureList(
         retryable.map(
@@ -72,7 +72,7 @@ export function pushReportNodes(
         "warning",
         `${String(unanswered.length)} ${unanswered.length === 1 ? "day" : "days"} did not ` +
           `answer, so what happened to ${unanswered.length === 1 ? "its" : "their"} time is ` +
-          "not known here. Press Push to Jira again.",
+          "not known here. Press Push worklogs again.",
       ),
       failureList(unanswered),
     );
@@ -82,9 +82,9 @@ export function pushReportNodes(
     nodes.push(
       alertFor(
         "error",
-        `${String(stranded.length)} ${stranded.length === 1 ? "entry" : "entries"} reached Jira ` +
-          "but could not be recorded here. Check the issue in Jira before pushing again — " +
-          "pushing now would log the time twice.",
+        `${String(stranded.length)} ${stranded.length === 1 ? "entry" : "entries"} ` +
+          `${stranded.length === 1 ? "was" : "were"} pushed but could not be recorded here. ` +
+          "Check the issue before pushing again — pushing now would log the time twice.",
       ),
       failureList(stranded.map((line) => label(line.day, line.result, options))),
     );

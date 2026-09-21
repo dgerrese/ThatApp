@@ -492,7 +492,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     label: periodLabel(rollup),
     viewPath: "/week",
     range: { from: rollup.start, to: rollup.end },
-    pushHeading: "Push this week's time to Jira?",
+    pushHeading: "Push this week's time?",
     pushLabel: "Push this week",
   });
 }
@@ -801,7 +801,7 @@ const MARKER_BASE = "mr-1.5 inline-block align-[1px]";
  * see it has instead of a legend the grid does not have room for.
  */
 const MARKERS: Record<string, { className: string; words: string }> = {
-  unpushed: { className: "size-1.5 rounded-full bg-pending", words: "not pushed to Jira" },
+  unpushed: { className: "size-1.5 rounded-full bg-pending", words: "not pushed" },
   dirty: {
     className: "size-1.5 rounded-full border-[1.5px] border-dirty",
     words: "edited since it was pushed",
@@ -809,7 +809,7 @@ const MARKERS: Record<string, { className: string; words: string }> = {
   failed: {
     // 9×8 — grown from 6×5, which read as a smudge rather than a triangle.
     className: "size-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-failed",
-    words: "did not reach Jira",
+    words: "push failed",
   },
 };
 
@@ -830,7 +830,7 @@ function markerFor(
 /** Every state's own words, `pushed` included: it draws no marker, but a
  *  cell's popover still has to name it. */
 function pushWords(pushState: PushState, failed: boolean): string {
-  return markerFor(pushState, failed)?.words ?? "pushed to Jira";
+  return markerFor(pushState, failed)?.words ?? "pushed";
 }
 
 let weekCellSequence = 0;

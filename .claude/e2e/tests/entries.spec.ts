@@ -1053,11 +1053,11 @@ test("each entry carries a push-state mark naming its state", async ({ page }) =
 
   await expect(entryRows(page).nth(0).getByRole("img")).toHaveAttribute(
     "aria-label",
-    "not pushed to Jira",
+    "not pushed",
   );
   await expect(entryRows(page).nth(1).getByRole("img")).toHaveAttribute(
     "aria-label",
-    "pushed to Jira",
+    "pushed",
   );
 
   // Scoped to this row and to the first of its three tooltips: Today and Week
@@ -1067,7 +1067,7 @@ test("each entry carries a push-state mark naming its state", async ({ page }) =
   await expect(popover).toBeHidden();
   await entryRows(page).nth(0).getByRole("img").hover();
   await expect(popover).toBeVisible();
-  await expect(popover).toHaveText("not pushed to Jira");
+  await expect(popover).toHaveText("not pushed");
 });
 
 /**

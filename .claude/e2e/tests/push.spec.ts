@@ -121,16 +121,16 @@ test("a push where one entry fails names the entry that did not make it", async 
   );
 
   await page.goto("/today");
-  // The rail owns the only "Push to Jira" button — see web/src/rail.ts — so an
+  // The rail owns the only "Push worklogs" button — see web/src/rail.ts — so an
   // unscoped role query is unambiguous.
-  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push worklogs" }).click();
 
   // The confirmation names what is about to be sent.
   await expect(page.getByText(/2 entries totalling/)).toBeVisible();
   await page.getByRole("button", { name: "Push", exact: true }).click();
 
   // The failure is named per entry, not summarised away.
-  await expect(page.getByText(/1 of 2 entries did not reach Jira/)).toBeVisible();
+  await expect(page.getByText(/1 of 2 entries could not be pushed/)).toBeVisible();
   await expect(page.getByText(/RIDGE-2 — the Jira site could not be reached/)).toBeVisible();
   await expect(page.getByText("RIDGE-1 —")).toHaveCount(0);
 });
@@ -142,7 +142,7 @@ test("the confirmation does not claim a correction will be created", async ({ pa
   ]);
 
   await page.goto("/today");
-  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push worklogs" }).click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("2 entries totalling 1h 00m will be sent to 1 site.");
@@ -154,7 +154,7 @@ test("a pending queue paints the unpushed count amber and Push live", async ({ p
 
   await page.goto("/today");
   const unpushed = page.locator("#rail-unpushed");
-  const push = page.getByRole("button", { name: "Push to Jira" });
+  const push = page.getByRole("button", { name: "Push worklogs" });
 
   await expect(unpushed).toHaveText(/entry to push/);
   await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-pending-rail", "color"));
@@ -180,9 +180,9 @@ test("a push that cannot recheck what's pending leaves the rail failed alone, no
   await page.route("**/api/entries**", (route) =>
     route.fulfill({ status: 500, json: { error: { code: "internal", message: "boom" } } }),
   );
-  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push worklogs" }).click();
 
-  await expect(unpushed).toHaveText("Could not check what's pending — press Push to Jira to retry.");
+  await expect(unpushed).toHaveText("Could not check what's pending — press Push worklogs to retry.");
   // Both writers used to only remove their own idea of what might be on the
   // element, so a failure while the queue was non-empty left text-pending-rail
   // and text-failed-rail on it together — whichever token's declared later in
@@ -198,7 +198,7 @@ test("a day whose only stale entry is a correction still offers a push", async (
 
   await expect(unpushed).toHaveText("1 entry to push");
   await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-pending-rail", "color"));
-  await expect(page.getByRole("button", { name: "Push to Jira" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Push worklogs" })).toBeEnabled();
 });
 
 test("pressing Push on a corrected-only day sends the correction and the rail returns to muted", async ({
@@ -246,7 +246,7 @@ test("pressing Push on a corrected-only day sends the correction and the rail re
   const unpushed = page.locator("#rail-unpushed");
   await expect(unpushed).toHaveText("1 entry to push");
 
-  await page.getByRole("button", { name: "Push to Jira" }).click();
+  await page.getByRole("button", { name: "Push worklogs" }).click();
   await page.getByRole("button", { name: "Push", exact: true }).click();
 
   await expect(unpushed).toHaveText("Nothing to push");
@@ -266,7 +266,7 @@ test("the count covers never-pushed and corrected entries as one number", async 
 
   await expect(unpushed).toHaveText("2 entries to push");
   await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-pending-rail", "color"));
-  await expect(page.getByRole("button", { name: "Push to Jira" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Push worklogs" })).toBeEnabled();
 });
 
 test("a day whose entries are all pushed offers nothing", async ({ page }) => {
@@ -277,7 +277,7 @@ test("a day whose entries are all pushed offers nothing", async ({ page }) => {
 
   await expect(unpushed).toHaveText("Nothing to push");
   await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-rail-muted", "color"));
-  await expect(page.getByRole("button", { name: "Push to Jira" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Push worklogs" })).toBeDisabled();
 });
 
 test("an empty queue leaves the unpushed count muted and Push resting", async ({ page }) => {
@@ -285,7 +285,7 @@ test("an empty queue leaves the unpushed count muted and Push resting", async ({
 
   await page.goto("/today");
   const unpushed = page.locator("#rail-unpushed");
-  const push = page.getByRole("button", { name: "Push to Jira" });
+  const push = page.getByRole("button", { name: "Push worklogs" });
 
   await expect(unpushed).toHaveText("Nothing to push");
   await expect(unpushed).toHaveCSS("color", await computedColor(page, "text-rail-muted", "color"));

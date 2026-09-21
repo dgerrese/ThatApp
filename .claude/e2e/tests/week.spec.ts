@@ -418,7 +418,7 @@ test("an entry Jira took but the store lost says not to push again", async ({ pa
 
   const alert = page.locator("that-alert[tone='error']");
   await expect(alert).toContainText(
-    "1 entry reached Jira but could not be recorded here. Check the issue in Jira before " +
+    "1 entry was pushed but could not be recorded here. Check the issue before " +
       "pushing again — pushing now would log the time twice.",
   );
   await expect(page.getByText("2026-09-07 · RIDGE-1")).toBeVisible();
@@ -468,7 +468,7 @@ test("a day whose push never answered is named rather than counted as pushed", a
 
   await expect(page.locator("that-alert[tone='warning']")).toContainText(
     "1 day did not answer, so what happened to its time is not known here. " +
-      "Press Push to Jira again.",
+      "Press Push worklogs again.",
   );
   await expect(page.getByText("2026-09-08", { exact: true })).toBeVisible();
   await expect(page.getByText(/Pushed \d+ entr/)).toHaveCount(0);
@@ -516,17 +516,17 @@ test("a failed cell is marked, survives the push report's own re-read, and one R
   // reader who cannot see the marker — the popover needs a hover or a focus
   // neither reaches on its own.
   const wednesday = ticketRow(page, "RIDGE-2").locator("td").nth(2).locator("button");
-  await expect(wednesday).toHaveAttribute("aria-label", /not pushed to Jira/);
+  await expect(wednesday).toHaveAttribute("aria-label", /not pushed/);
 
   await pushEverything(page);
-  await expect(wednesday).toHaveAttribute("aria-label", /did not reach Jira/);
+  await expect(wednesday).toHaveAttribute("aria-label", /push failed/);
 
   // /api/week is unchanged from the read above — the entry never actually
   // pushed, so its own rollup still says "unpushed" either way — which is
   // what proves the marker's survival is Week's own doing, not the server's.
   const refreshControl = page.getByRole("button", { name: "Refresh" });
   await refreshControl.click();
-  await expect(wednesday).not.toHaveAttribute("aria-label", /did not reach Jira/);
+  await expect(wednesday).not.toHaveAttribute("aria-label", /push failed/);
 });
 
 /**
@@ -708,8 +708,8 @@ test("a cell's popover names its value, its push state, and whether clicking add
     ]),
   });
 
-  await expect(tooltipIn(page, "RIDGE-1", 0)).toHaveText("1h 00m · pushed to Jira · click to edit");
-  await expect(tooltipIn(page, "RIDGE-1", 1)).toHaveText("0h 45m · not pushed to Jira · click to edit");
+  await expect(tooltipIn(page, "RIDGE-1", 0)).toHaveText("1h 00m · pushed · click to edit");
+  await expect(tooltipIn(page, "RIDGE-1", 1)).toHaveText("0h 45m · not pushed · click to edit");
   await expect(tooltipIn(page, "RIDGE-1", 2)).toHaveText(
     "0h 30m · edited since it was pushed · click to edit",
   );
@@ -719,7 +719,9 @@ test("a cell's popover names its value, its push state, and whether clicking add
   // independently, so a reader who never sees the popover still hears this.
   const filled = ticketRow(page, "RIDGE-1").locator("td").nth(0).locator("button");
   await expect(filled).toHaveAttribute("aria-label", /RIDGE-1/);
-  await expect(filled).toHaveAttribute("aria-label", /pushed to Jira/);
+  // Anchored on both sides: aria-label is comma-joined, and a bare /pushed/
+  // would also match the "not pushed" state's own aria-label.
+  await expect(filled).toHaveAttribute("aria-label", /, pushed,/);
   const empty = ticketRow(page, "RIDGE-1").locator("td").nth(3).locator("button");
   await expect(empty).toHaveAttribute("aria-label", /no time logged/);
 });
@@ -1103,11 +1105,11 @@ test("the grid settles once the push has gone through", async ({ page }) => {
   // wrong marker still pass a raw-text match against the td. The words for a
   // reader who cannot see the marker live in the aria-label instead.
   const monday = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
-  await expect(monday).toHaveAttribute("aria-label", /not pushed to Jira/);
+  await expect(monday).toHaveAttribute("aria-label", /not pushed/);
 
   await pushEverything(page);
 
-  await expect(page.getByText("Pushed 1 entry to Jira.")).toBeVisible();
+  await expect(page.getByText("Pushed 1 entry.")).toBeVisible();
   await expect(monday).toHaveText("1h 00m");
 });
 
@@ -1746,7 +1748,7 @@ test("a push whose own trailing re-read fails still lets a later edit repaint th
   await pushEverything(page);
   // The push's own report still names the failure — its re-read (preserved)
   // painted it, whether or not rail.ts's own trailing read ever landed.
-  await expect(cell).toHaveAttribute("aria-label", /did not reach Jira/);
+  await expect(cell).toHaveAttribute("aria-label", /push failed/);
 
   // rail.ts's trailing read just failed, silently, so no second
   // entries-changed announcement ever arrived for this push — the exact gap
