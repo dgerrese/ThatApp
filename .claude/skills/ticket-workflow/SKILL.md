@@ -164,6 +164,19 @@ same breath as `git checkout -b`, so `status/todo` can be read as "untouched" wi
 move any more — the open pull request is the review state. After that the ticket is the owner's
 until they say what happens next.
 
+**Every pull request title starts with a prefix saying what kind it is:**
+
+| Kind | Prefix | Example |
+|---|---|---|
+| A ticket's work | `[#<issue>]` | `[#83] Today's tables sort on every column` |
+| A project-design change (no issue) | `[Process]` | `[Process] A branch built on another open branch is stacked` |
+| The day's handoff | `[Handoff]` | `[Handoff] Record 2026-09-18` (see the `eod` skill) |
+
+The prefix is the first thing read in the open pull request list, and it sorts that list by what
+each PR is before anyone opens one. The ticket number goes in the prefix even though the body says
+`Closes #<n>`, because the list shows titles, not bodies. A pull request opened without a prefix is
+renamed as soon as it is noticed. Set by the owner on 2026-09-18.
+
 ### Transitions you may never make yourself
 
 - **Intake → Needs refinement.** The owner approves an intake ticket. Create it, then stop and ask.
