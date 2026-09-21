@@ -18,6 +18,11 @@ export class ThatTimer extends HTMLElement {
 
   private trigger: HTMLButtonElement | undefined;
   private stopListening: (() => void) | undefined;
+  // What paint() last drew, so the once-a-second tick — which fires the same
+  // onTimerChanged event a start, stop or switch does — does not rewrite the
+  // trigger's innerHTML (an SVG re-parse) every second for a control whose
+  // own mine() never moves on a tick. undefined forces the first paint().
+  private renderedMine: boolean | undefined;
 
   connectedCallback(): void {
     this.render();
@@ -64,6 +69,9 @@ export class ThatTimer extends HTMLElement {
     if (!trigger) return;
 
     const running = this.mine();
+    if (running === this.renderedMine) return;
+    this.renderedMine = running;
+
     trigger.innerHTML = iconMarkup(running ? "stop" : "play");
     trigger.setAttribute("aria-label", running ? "stop timer" : "start timer");
     trigger.classList.toggle("text-running", running);
@@ -81,8 +89,12 @@ export class ThatTimer extends HTMLElement {
         );
       }
     } catch {
-      // Nothing to undo: the button paints from isRunningTicket() alone, and
-      // a failed call never touched it in the first place.
+      // Swallowed rather than surfaced: this button paints from
+      // isRunningTicket() alone, never optimistically, so a failed call left
+      // no state here to revert — the control just stays exactly as it was
+      // and a retry is another click away. Whether a failure deserves its own
+      // on-screen message is a design question the timer design does not
+      // answer, so this does not invent one.
     }
   }
 }

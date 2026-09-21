@@ -226,9 +226,44 @@ export function startRail(): void {
   // updates the one span that moved.
   let renderedTimerKey: string | null = null;
   let elapsedEl: HTMLElement | undefined;
+  let timerRetryTimer: number | undefined;
+  let timerRetryDelay = FIRST_RETRY_MS;
+
+  /**
+   * readTimer()'s own retry, the same shape refresh()'s pre-paint retry
+   * above uses: doubling backoff, reset on success. Without it a boot read
+   * that fails once — the likely cause being the same "container still
+   * coming up" refresh() already guards against — leaves the rail
+   * permanently claiming nothing is running while a timer actually is, with
+   * nothing to ever correct it; unlike refresh()'s entries, nothing else
+   * re-reads the timer on a schedule.
+   */
+  const refreshTimer = async (): Promise<void> => {
+    if (timerRetryTimer !== undefined) {
+      clearTimeout(timerRetryTimer);
+      timerRetryTimer = undefined;
+    }
+
+    try {
+      await readTimer();
+      timerRetryDelay = FIRST_RETRY_MS;
+    } catch {
+      timerRetryTimer = window.setTimeout(() => {
+        timerRetryTimer = undefined;
+        void refreshTimer();
+      }, timerRetryDelay);
+      timerRetryDelay = Math.min(timerRetryDelay * 2, MAX_RETRY_MS);
+    }
+  };
 
   const handleStopTimer = (): void => {
-    void stopTimer();
+    void stopTimer().catch(() => {
+      // Swallowed for the same reason that-timer.ts's own catch is: the
+      // region paints from currentTimer() alone, a failed call changed
+      // nothing, and the button that was just pressed is still right there
+      // to press again. Left uncaught, this would surface as an unhandled
+      // promise rejection instead of a quiet, retryable no-op.
+    });
   };
 
   /**
@@ -260,12 +295,12 @@ export function startRail(): void {
   };
 
   // No unsubscribe, for the same reason onEntriesChanged's above has none:
-  // the shell outlives every view. readTimer() is the one boot read
-  // timer-state.ts itself never makes on its own — see its own comment for
-  // why that is the rail's job.
+  // the shell outlives every view. readTimer() (via refreshTimer(), for its
+  // retry) is the one boot read timer-state.ts itself never makes on its
+  // own — see its own comment for why that is the rail's job.
   onTimerChanged(paintTimer);
   paintTimer();
-  void readTimer();
+  void refreshTimer();
 
   /**
    * Confirms, pushes, then hands the result to whoever is listening for it —

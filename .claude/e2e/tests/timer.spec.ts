@@ -207,3 +207,36 @@ test("a stop within a minute reports nothing was logged", async ({ page }) => {
 
   await expect(page.getByText("Under a minute — nothing logged.")).toBeVisible();
 });
+
+/**
+ * Mirrors entries.spec.ts's "a failed first fetch retries until the rail
+ * holds a real figure": readTimer()'s own boot read is the only thing that
+ * ever tells the rail what is running, and unlike the entries total nothing
+ * else re-reads it on a schedule — so a read that fails once must keep
+ * retrying rather than leave the rail claiming nothing is running forever.
+ * Overrides this file's own beforeEach GET stub, which never fails.
+ */
+test("a failed boot read of the timer retries until the rail shows what's actually running", async ({
+  page,
+}) => {
+  let failures = 0;
+  const startedAt = new Date(Date.now() - 90_000).toISOString();
+
+  await page.route("**/api/timer", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    if (failures < 2) {
+      failures += 1;
+      await route.abort();
+
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      json: { running: { instanceId: 1, issueKey: "WORK-1", startedAt }, stopped: null },
+    });
+  });
+
+  await page.goto("/today");
+
+  await expect(railTimer(page)).toContainText("WORK-1", { timeout: 10_000 });
+});
