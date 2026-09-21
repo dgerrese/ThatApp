@@ -118,8 +118,20 @@ Every ticket above keeps `status/in-progress` until its PR merges, so strip the 
   merges the rig's server is the owner's dev database.
 
 **Blocked:** **#66** (the localhost forwarder) makes Chromium crash with #134 in 3 of 4 full runs,
-against 0 of 2 on `main`. **The owner chose to do #134 first.** #134 is out of intake at
-`status/needs-refinement`, and #66's branch is pushed with no PR.
+against 0 of 2 on `main`. **The owner chose to do #134 first**, and reaffirmed that on 2026-09-21.
+#66's branch is pushed with no PR, and it **rebases onto #35** whichever lands first — both touch
+`playwright.config.ts`, `.claude/e2e/README.md`, `tooltip.spec.ts` and `e2e.yml`, and #35 renames the
+upstream alias `that-app` → `that-e2e`.
+
+**#134 is refined and at `status/todo` (2026-09-21).** It is a **Playwright version bug, measured**:
+1.62.1 crashed 5 times in 20 full runs, 1.63.0 zero times in 30, with a ten-run control on 1.62.1
+taken after the clean sample to exclude drift. All five crashes were byte-identical —
+`SEGV_MAPERR 0x1b0` in the *browser* process inside `browser.newContext`, same stack frames, only the
+victim test differing. **The fix is a one-line bump of `@playwright/test` to 1.63.0** plus its
+lockfile; the suite passes unchanged (513/11/0), no API migration. Two dead ends not to revisit:
+shared memory is already handled twice (`ipc: host` and `--disable-dev-shm-usage`), and "never seen
+in CI" is not evidence — CI's `retries: 1` retries a crashed test and goes green. The local worker
+count (10 vs CI's 4) was **never tested** and is the next hypothesis only if the bump fails.
 
 **Design sessions held with the owner on 2026-09-18** (browser companion, screens under
 `.superpowers/brainstorm/913714-1789732588/content/` on this machine), and their outcomes are
@@ -132,8 +144,8 @@ malformed ids with 404 everywhere, and #91 adds happy-dom as a dev dependency.
 after it) and #164 (a CSS-only edit never rebuilds the worker), both `bug`, v1. **#134** is also at
 needs-refinement now. **Still waiting on design sessions:** #139, #143, #89.
 
-**Next, in order:** #83's re-review and PR; #8 once the owner has read the design; then #80, #39,
-#55, #91 (the normal and low bands); #134 before #66.
+**Next, in order:** #83's re-review and PR; #8 once the owner has read the design; **#134** (refined,
+a one-line version bump), which unblocks #66; then #80, #39, #55, #91 (the normal and low bands).
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
