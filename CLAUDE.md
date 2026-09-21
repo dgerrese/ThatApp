@@ -94,7 +94,7 @@ web/               frontend source and the built dist/
   src/components/  that-* WebComponents
   src/views/       lazily imported views
 .claude/e2e/       Playwright rig: its image, config and tests/
-.claude/skills/    repo-local skills, starting with ticket-workflow
+.claude/skills/    repo-local skills: ticket-workflow, autopilot, eod, retro
 docs/superpowers/  specs and plans
 scripts/           release-image.sh: assembles and pushes the release image (#122)
 README.md          how a colleague runs a release
@@ -236,7 +236,8 @@ push.
 
 **Blocked is a hard stop.** The moment a blocker appears, move the ticket to `status/blocked`, say
 what blocked it, and stop. Do not lower a threshold, skip a test, reshape the scope to dodge it, or
-pick up another ticket to stay busy.
+pick up another ticket to stay busy. The one exception is an autonomous run, where there is nobody
+to stop for — see the `autopilot` skill below.
 
 Work inside "Ready" runs through the superpowers skills: brainstorm → branch in place → plan →
 subagent execution under TDD → code review → finish the branch and open the pull request. There is
@@ -261,6 +262,13 @@ The `ticket-workflow` skill holds both tests, how the session runs, and why #117
 appears. It holds the label mechanics, the `tea` commands, what each status requires and the loop in
 full — including the standing decision on worktrees and why the whole-branch review is not
 optional.
+
+**Invoke the `autopilot` skill when the owner hands the board over and leaves** — "work the board",
+"carry on without me", "keep going while I'm out". It wraps `ticket-workflow` without altering it,
+and settles the three things that skill leaves to someone in the room: tickets are taken from the
+active milestone in priority order, a blocker parks its own ticket rather than stopping the run, and
+a question is either a blocker or a recorded default. The run is the owner's to start; never assume
+one. Outside a run, **blocked stays the hard stop described above.**
 
 `docs/superpowers/plans/handoff.md` is where a session resumes from: current state, decisions not to
 reopen, and what is still open. It carries **no dated entries** — the day-by-day narrative lives in
