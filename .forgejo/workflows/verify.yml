@@ -20,8 +20,16 @@ name: Verify
 # against the instance's DEFAULT_ACTIONS_URL, which an administrator can change;
 # naming the host makes these workflows independent of that setting.
 
+# A pull request that changes only documentation skips this gate (#167): specs, plans, the
+# handoff, the prototype, Markdown anywhere and the repo's own skills. Nothing built or tested reads
+# them. A PR is skipped only when every changed file matches, so any code alongside still runs the
+# full gate, and pushes to main always run.
 on:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".claude/skills/**"
   push:
     branches: [main]
 

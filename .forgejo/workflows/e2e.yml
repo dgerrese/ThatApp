@@ -23,6 +23,8 @@ name: E2E
 # The two lists are duplicated rather than shared through a YAML anchor:
 # GitHub Actions rejects anchors outright, and relying on Forgejo's parser
 # accepting them would make this file silently unportable. Keep them in step.
+# The pull-request list ends by excluding Markdown (#167): a README-only change under .claude/e2e/
+# matches the rig's paths but changes nothing the rig runs. Pushes to main keep the full list.
 on:
   pull_request:
     paths:
@@ -33,6 +35,7 @@ on:
       - "Makefile"
       - ".env.example"
       - ".forgejo/workflows/e2e.yml"
+      - "!**/*.md"
   push:
     branches: [main]
     paths:
