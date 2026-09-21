@@ -63,7 +63,7 @@ async function mountTrigger(
 test("a that-tooltip that never upgrades stays invisible, not printed into the page", async ({
   page,
 }) => {
-  const base = process.env["THAT_BASE_URL"] ?? "http://that-app:8080";
+  const base = process.env["THAT_BASE_URL"] ?? "http://that-e2e:8080";
 
   // One issue is enough to render a ticket row, and its pin control is what
   // carries the real that-tooltip this test needs — that-ticket-row.ts is

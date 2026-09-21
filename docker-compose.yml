@@ -58,6 +58,46 @@ services:
       # go run compiles before it listens; a cold start is slow.
       start_period: 60s
 
+  # The server the Playwright rig runs against (#35). Not `app`: that one is the
+  # dev stack, whose database holds real Jira instances and whose container
+  # `compose run` would reuse whenever `make up` is running. This one keeps its
+  # database inside the container, under a throwaway key, and `make test-e2e`
+  # removes it before and after every run — so each run starts empty.
+  app-e2e:
+    profiles: [e2e]
+    build:
+      context: .
+      target: dev
+    user: "${THAT_UID:?unset - run through make, or add THAT_UID/THAT_GID to .env (see .env.example)}:${THAT_GID:?unset - see .env.example}"
+    volumes:
+      - .:/src
+      - go-mod-cache:/cache/go-mod
+      - go-build-cache:/cache/go-build
+    environment:
+      THAT_ADDR: ":8080"
+      THAT_DB_PATH: /tmp/e2e.db
+      # 32 zero bytes. Seals nothing worth protecting: the database it guards
+      # dies with the container.
+      THAT_SECRET_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+      THAT_TIMEZONE: "Europe/Amsterdam"
+    command: go run -tags dev ./cmd/server
+    depends_on:
+      web:
+        condition: service_healthy
+    # Kept for symmetry with `app`'s that-app alias, not the same gTLD
+    # collision: "app-e2e" is not itself on the .app HSTS preload list, only
+    # the bare "app" label is. See that alias's own comment above.
+    networks:
+      default:
+        aliases:
+          - that-e2e
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 60s
+
   web:
     build:
       context: .
@@ -109,13 +149,13 @@ services:
       - playwright-node-modules:/e2e/node_modules
       - playwright-npm-cache:/root/.npm
     environment:
-      THAT_BASE_URL: "http://that-app:8080"
+      THAT_BASE_URL: "http://that-e2e:8080"
       # playwright.config.ts branches on CI for forbidOnly, retries and the
       # reporter. `compose run` forwards nothing from the host environment, so
       # without this the container never sees the CI runner's CI=true.
       CI: "${CI:-}"
     depends_on:
-      app:
+      app-e2e:
         condition: service_healthy
 
 volumes:
