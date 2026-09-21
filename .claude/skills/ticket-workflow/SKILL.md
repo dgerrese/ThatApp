@@ -371,6 +371,22 @@ nobody knows how many more there are.
 **One issue, one branch, one pull request.** The pull request body references the issue with
 `Closes #<n>`, and the open pull request is what puts the ticket into review.
 
+**A branch that builds on another open branch is stacked, and so is its pull request.** When a ticket
+has to be cut from another ticket's unmerged branch, usually because both rewrite the same code, its
+pull request takes **that branch as its base, not `main`**, so its diff shows only its own commits.
+The body opens with `Stacked on #<parent PR>` and says what merging does. The owner merges the child
+into the parent branch, and the parent's pull request then carries both to `main`. If the parent
+merges first, retarget the child to `main`:
+
+```shell
+tea api --method PATCH "repos/{owner}/{repo}/pulls/<n>" -d '{"base":"main"}'
+```
+
+`Closes #<n>` fires only when the work reaches `main`, so a stacked ticket closes when its parent's
+pull request merges, and its `status/*` label comes off then. Asked for by the owner on 2026-09-18,
+after PR #162 (#19) was opened against `main` while built on #157's branch, and its diff carried
+#79's commits too.
+
 **Use the skills' own prompt templates.** `subagent-driven-development` ships
 `implementer-prompt.md`, `task-reviewer-prompt.md` and `re-review-prompt.md`;
 `requesting-code-review` ships `code-reviewer.md`. Read the template before dispatching. Ticket 1
