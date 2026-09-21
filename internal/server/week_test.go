@@ -73,6 +73,17 @@ func TestWorstPushState(t *testing.T) {
 	}
 }
 
+func seedPin(t *testing.T, db *store.Store, instanceID int64, issueKey string) *store.Pin {
+	t.Helper()
+
+	pin, err := db.CreatePin(context.Background(), store.PinInput{InstanceID: instanceID, IssueKey: issueKey})
+	if err != nil {
+		t.Fatalf("pinning %q: %v", issueKey, err)
+	}
+
+	return pin
+}
+
 func callWeek(t *testing.T, srv *Server, target string) *httptest.ResponseRecorder {
 	t.Helper()
 
@@ -322,6 +333,189 @@ func TestWeekResolvesTheStartInTheConfiguredZone(t *testing.T) {
 	}
 	if got.End != "2026-09-20" {
 		t.Fatalf("got end %q, want 2026-09-20", got.End)
+	}
+}
+
+// TestWeekPinnedRowInCurrentWeek covers a pinned ticket with nothing logged
+// against it: it gets a row of seven zero cells in the week containing today,
+// and none in a neighbouring week — a pin is not a promise about every week,
+// only the one that is still open.
+func TestWeekPinnedRowInCurrentWeek(t *testing.T) {
+	// Wednesday the 9th, Europe/Amsterdam: the current week's Monday is the 7th.
+	instant := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
+
+	srv, db, inst := serverInZone(t, "Europe/Amsterdam", instant)
+	seedPin(t, db, inst.ID, "PIN-1")
+
+	got := decodeWeek(t, callWeek(t, srv, "/api/week?start=2026-09-07"))
+
+	if len(got.Rows) != 1 {
+		t.Fatalf("got %d rows, want 1 — a pinned ticket with no entries still gets a row", len(got.Rows))
+	}
+	row := got.Rows[0]
+	if row.IssueKey != "PIN-1" {
+		t.Fatalf("got issue key %q, want PIN-1", row.IssueKey)
+	}
+	if len(row.Cells) != 7 {
+		t.Fatalf("got %d cells, want 7", len(row.Cells))
+	}
+	for i, cell := range row.Cells {
+		if cell.Seconds != 0 || cell.PushState != nil {
+			t.Fatalf("cell %d: got seconds %d pushState %v, want 0 and nil", i, cell.Seconds, cell.PushState)
+		}
+	}
+	if row.Seconds != 0 {
+		t.Fatalf("row total: got %d, want 0", row.Seconds)
+	}
+}
+
+// TestWeekPinnedRowOnlyInCurrentWeek covers the other side of the same rule: a
+// pin with nothing logged draws no row in a week that is not the current one,
+// past or future.
+func TestWeekPinnedRowOnlyInCurrentWeek(t *testing.T) {
+	cases := []struct {
+		name  string
+		start string
+	}{
+		{"past week", "2026-08-31"},
+		{"future week", "2026-09-14"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Wednesday the 9th, Europe/Amsterdam: the current week's Monday is
+			// the 7th, so both cases below are genuinely not it.
+			srv, db, inst := serverInZone(t, "Europe/Amsterdam",
+				time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC))
+			seedPin(t, db, inst.ID, "PIN-1")
+
+			got := decodeWeek(t, callWeek(t, srv, "/api/week?start="+tc.start))
+
+			if len(got.Rows) != 0 {
+				t.Fatalf("got %d rows, want 0 — a pin outside the current week draws no row",
+					len(got.Rows))
+			}
+		})
+	}
+}
+
+// TestWeekPinnedTicketAlsoWorkedYieldsOneRow covers the merge: a ticket that is
+// both pinned and has real entries this week must not appear twice, once from
+// each source, and must carry its real figures rather than the empty block.
+func TestWeekPinnedTicketAlsoWorkedYieldsOneRow(t *testing.T) {
+	srv, db, inst := serverInZone(t, "Europe/Amsterdam",
+		time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC))
+	seedPin(t, db, inst.ID, "PIN-1")
+	seedEntry(t, db, store.EntryInput{
+		InstanceID: inst.ID, IssueKey: "PIN-1", Day: "2026-09-08",
+		StartedAt: time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC), Seconds: 1200,
+	})
+
+	got := decodeWeek(t, callWeek(t, srv, "/api/week?start=2026-09-07"))
+
+	if len(got.Rows) != 1 {
+		t.Fatalf("got %d rows, want exactly 1 — a pinned, worked ticket is one row, not two",
+			len(got.Rows))
+	}
+	if got.Rows[0].Seconds != 1200 {
+		t.Fatalf("row total: got %d, want 1200 — the real figures, not the empty pin block",
+			got.Rows[0].Seconds)
+	}
+	if got.Rows[0].Cells[1].Seconds != 1200 {
+		t.Fatalf("Tuesday cell: got %d, want 1200", got.Rows[0].Cells[1].Seconds)
+	}
+}
+
+// TestWeekPinnedAndLoggedRowsSortTogether covers a pinned empty ticket sitting
+// alongside a worked one: both get rows, in the grid's ordinary instance-then-key
+// order, with no mark of which is which.
+func TestWeekPinnedAndLoggedRowsSortTogether(t *testing.T) {
+	srv, db, first := serverInZone(t, "Europe/Amsterdam",
+		time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC))
+	sealer, err := crypto.NewSealer(make([]byte, crypto.KeySize))
+	if err != nil {
+		t.Fatalf("building sealer: %v", err)
+	}
+	second := seedInstance(t, db, sealer, "Other", "https://other.atlassian.net", "https://api.other")
+
+	seedEntry(t, db, store.EntryInput{
+		InstanceID: first.ID, IssueKey: "WORK-1", Day: "2026-09-07",
+		StartedAt: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), Seconds: 600,
+	})
+	seedPin(t, db, second.ID, "OTHER-1")
+
+	got := decodeWeek(t, callWeek(t, srv, "/api/week?start=2026-09-07"))
+
+	if len(got.Rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(got.Rows))
+	}
+	if got.Rows[0].IssueKey != "WORK-1" || got.Rows[1].IssueKey != "OTHER-1" {
+		t.Fatalf("got rows %q, %q; want WORK-1, OTHER-1 — instance position order",
+			got.Rows[0].IssueKey, got.Rows[1].IssueKey)
+	}
+	if got.Rows[1].Seconds != 0 {
+		t.Fatalf("pinned row total: got %d, want 0", got.Rows[1].Seconds)
+	}
+}
+
+// TestWeekPinnedEmptyRowDoesNotMoveTotals covers decision 3 of the plan: an
+// empty pinned row is arithmetic, not a choice — it must not nudge a day total,
+// the week total, or any pushState, because it carries no entries to sum.
+func TestWeekPinnedEmptyRowDoesNotMoveTotals(t *testing.T) {
+	srv, db, inst := serverInZone(t, "Europe/Amsterdam",
+		time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC))
+	seedEntry(t, db, store.EntryInput{
+		InstanceID: inst.ID, IssueKey: "WORK-1", Day: "2026-09-07",
+		StartedAt: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), Seconds: 600,
+	})
+	seedPin(t, db, inst.ID, "PIN-1")
+
+	got := decodeWeek(t, callWeek(t, srv, "/api/week?start=2026-09-07"))
+
+	if got.Seconds != 600 {
+		t.Fatalf("week total: got %d, want 600 — an empty pinned row adds nothing", got.Seconds)
+	}
+	if got.Days[0].Seconds != 600 || got.Days[0].PushState == nil || *got.Days[0].PushState != "unpushed" {
+		t.Fatalf("Monday: got seconds %d pushState %v, want 600 and unpushed",
+			got.Days[0].Seconds, got.Days[0].PushState)
+	}
+	for i, day := range got.Days {
+		if i == 0 {
+			continue
+		}
+		if day.Seconds != 0 || day.PushState != nil {
+			t.Fatalf("day %d: got seconds %d pushState %v, want 0 and nil", i, day.Seconds, day.PushState)
+		}
+	}
+}
+
+// TestWeekPinnedRowUsesTheConfiguredZoneNotUTC is the day-boundary case
+// CLAUDE.md names as a risk area, applied to the new "is this the current
+// week" check handleWeek makes before fetching pins. Kiritimati sits fourteen
+// hours ahead of UTC, so at this instant the UTC calendar date and the local
+// one disagree by a whole week's worth of Monday: a version that dropped
+// `.In(s.cfg.Location)` — whether by comparing against a bare `s.now()` or by
+// swapping in `time.Now()` — would resolve the wrong current week, and this
+// test would fail either mistake.
+func TestWeekPinnedRowUsesTheConfiguredZoneNotUTC(t *testing.T) {
+	// 20:00 UTC on Sunday the 13th is already 10:00 Monday the 14th in
+	// Kiritimati (UTC+14), so the local current week begins the 14th, not the
+	// week beginning the 7th that the UTC calendar date would give.
+	srv, db, inst := serverInZone(t, "Pacific/Kiritimati",
+		time.Date(2026, 9, 13, 20, 0, 0, 0, time.UTC))
+	seedPin(t, db, inst.ID, "PIN-1")
+
+	local := decodeWeek(t, callWeek(t, srv, "/api/week?start=2026-09-14"))
+	if len(local.Rows) != 1 {
+		t.Fatalf("local current week (2026-09-14): got %d rows, want 1 — the pinned row belongs here",
+			len(local.Rows))
+	}
+
+	utc := decodeWeek(t, callWeek(t, srv, "/api/week?start=2026-09-07"))
+	if len(utc.Rows) != 0 {
+		t.Fatalf("the UTC-dated week (2026-09-07): got %d rows, want 0 — "+
+			"it is not current once the day boundary is resolved in Pacific/Kiritimati",
+			len(utc.Rows))
 	}
 }
 
