@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
 	"codeberg.org/DionGerrese/ThatApp/internal/jira"
@@ -518,12 +519,12 @@ func TestConnectionTestReportsAccountNotFoundAsBadGateway(t *testing.T) {
 	}
 }
 
-// A status writeInstanceError does not recognize (429 here) falls to the
+// A status writeInstanceError does not recognize (418 here) falls to the
 // default branch, which must not leak the underlying error's text — that text
 // carries the request path and the Jira response body.
 func TestConnectionTestHidesTheUnderlyingErrorOnAnUnmappedStatus(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
-	site := jiraSiteServer(t, http.StatusTooManyRequests)
+	site := jiraSiteServer(t, http.StatusTeapot)
 	pointAtSite(srv, site)
 	inst := seedInstanceAtSite(t, db, sealer, site)
 
@@ -563,8 +564,9 @@ func TestInstanceErrorForLogsWhatJiraSaid(t *testing.T) {
 		wantCode string
 	}{
 		{"a 401", http.StatusUnauthorized, `{"code":401,"message":"Unauthorized; scope does not match"}`, "credentials_rejected"},
-		{"a 403", http.StatusForbidden, `{"errorMessages":["You do not have permission"]}`, "credentials_rejected"},
+		{"a 403", http.StatusForbidden, `{"errorMessages":["You do not have permission"]}`, "permission_denied"},
 		{"a 404", http.StatusNotFound, `{"errorMessages":["Issue does not exist"]}`, "account_not_found"},
+		{"a 429", http.StatusTooManyRequests, `{"message":"slow down"}`, "rate_limited"},
 		{"a 5xx", http.StatusBadGateway, `upstream exploded`, "instance_unreachable"},
 		{"an unmapped status", http.StatusTeapot, `short and stout`, "unexpected"},
 		{"a multi-line body", http.StatusBadGateway, "<html>\r\n<body>502 Bad Gateway</body>\n</html>", "instance_unreachable"},
@@ -617,6 +619,102 @@ func TestInstanceErrorForLogsWhatJiraSaid(t *testing.T) {
 				if strings.Contains(line, secret) {
 					t.Errorf("log line %q leaks %q", line, secret)
 				}
+			}
+		})
+	}
+}
+
+func TestInstanceErrorForTellsTheUserWhatToDo(t *testing.T) {
+	cases := []struct {
+		name        string
+		status      int
+		retryAfter  string
+		wantStatus  int
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			"a 401", http.StatusUnauthorized, "",
+			http.StatusUnauthorized, "credentials_rejected",
+			"Jira did not accept the API token for this request; check the token and its scopes",
+		},
+		{
+			"a 403", http.StatusForbidden, "",
+			http.StatusForbidden, "permission_denied",
+			"your Jira account lacks permission for this",
+		},
+		{
+			"a 429 with a one-second wait", http.StatusTooManyRequests, "1",
+			http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again in 1 second",
+		},
+		{
+			"a 429 with a 30-second wait", http.StatusTooManyRequests, "30",
+			http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again in 30 seconds",
+		},
+		{
+			"a 429 with a 90-second wait rounds up to minutes", http.StatusTooManyRequests, "90",
+			http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again in 2 minutes",
+		},
+		{
+			"a 429 with no usable wait", http.StatusTooManyRequests, "",
+			http.StatusServiceUnavailable, "rate_limited",
+			"Jira is rate-limiting requests; try again shortly",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			jiraSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tc.retryAfter != "" {
+					w.Header().Set("Retry-After", tc.retryAfter)
+				}
+				w.WriteHeader(tc.status)
+			}))
+			t.Cleanup(jiraSrv.Close)
+
+			client, err := jira.New(jiraSrv.URL, "me@example.com", "s3cret-token")
+			if err != nil {
+				t.Fatalf("building the client: %v", err)
+			}
+			_, jiraErr := client.Myself(context.Background())
+			if jiraErr == nil {
+				t.Fatal("Myself() succeeded against a failing server")
+			}
+
+			status, code, message := instanceErrorFor(jiraErr)
+
+			if status != tc.wantStatus {
+				t.Errorf("status = %d, want %d", status, tc.wantStatus)
+			}
+			if code != tc.wantCode {
+				t.Errorf("code = %q, want %q", code, tc.wantCode)
+			}
+			if message != tc.wantMessage {
+				t.Errorf("message = %q, want %q", message, tc.wantMessage)
+			}
+		})
+	}
+}
+
+func TestWaitPhrase(t *testing.T) {
+	cases := []struct {
+		wait time.Duration
+		want string
+	}{
+		{1 * time.Second, "1 second"},
+		{time.Duration(59.4 * float64(time.Second)), "1 minute"},
+		{60 * time.Second, "1 minute"},
+		{61 * time.Second, "2 minutes"},
+		{90 * time.Second, "2 minutes"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.want+"/"+tc.wait.String(), func(t *testing.T) {
+			if got := waitPhrase(tc.wait); got != tc.want {
+				t.Errorf("waitPhrase(%v) = %q, want %q", tc.wait, got, tc.want)
 			}
 		})
 	}

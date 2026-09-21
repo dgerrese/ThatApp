@@ -88,13 +88,13 @@ test("one instance failing still shows the other's issues", async ({ page }) => 
       id: 2,
       name: "Personal",
       issues: [],
-      error: { code: "credentials_rejected", message: "Jira rejected the email and API token" },
+      error: { code: "credentials_rejected", message: "Jira did not accept the API token for this request; check the token and its scopes" },
     },
   ]);
   await page.goto("/today");
 
   await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
-  await expect(page.getByText("Jira rejected the email and API token")).toBeVisible();
+  await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
 });
 
 test("an issue key links to Jira, and a row with no site URL does not", async ({ page }) => {
