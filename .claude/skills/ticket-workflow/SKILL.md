@@ -287,7 +287,9 @@ questions with the owner. Finish by rewriting the issue body to hold the problem
 explicit acceptance criteria, and anything deliberately out of scope. Refinement is over when
 nothing about the ticket is still fuzzy — not when you have run out of patience with it.
 
-**Ready.** Work may begin, and nobody has begun it. See the loop below.
+**Ready.** Work may begin, and nobody has begun it. **"May begin" is not "begin":** a ticket at
+`status/todo` waits for the owner to say start it. Naming it as next is the whole job until then,
+and an offer to start that went unanswered is not an answer. See the loop below.
 
 **In progress.** The branch exists. Everything from cutting it to opening the pull request happens
 under this label — design, plan and implementation alike. A ticket sitting here with no commits for

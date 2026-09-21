@@ -203,6 +203,13 @@ Those start at `status/intake` and stop there. **A ticket the owner asks for arr
 approved**, because the asking is the approval: create it at `status/needs-refinement` and skip
 intake altogether.
 
+**Work on a ticket starts on the owner's word and nothing else.** Not the handoff naming what comes
+next, not a lull in the conversation with the board in view, and not an offer to start that drew no
+reply — **silence is not a go-ahead**. An offer left unanswered while the conversation moved on is
+dead: ask again, never resume it. Say what is next and stop there. What this governs is *starting*;
+once the go-ahead is given the work runs to its end without further prompting, and a finished green
+branch is pushed and opened as a pull request rather than offered as a choice.
+
 Two moves are the owner's alone: **approving an intake** and **declining one** (closing it as not
 planned). So is **the merge**, which is what finishes a ticket — a green `make verify`, a passing CI
 run and an approving review are not that signal; the owner saying so is. Never approve your own.
