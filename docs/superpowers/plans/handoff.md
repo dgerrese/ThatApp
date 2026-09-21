@@ -138,11 +138,15 @@ count (10 vs CI's 4) was **never tested** and is the next hypothesis only if the
 written into each ticket: **#8** as above; **#83** ascending arrow = the drawn descending arrow,
 mirrored; **#80** a hairline note under the four fields, above the buttons.
 
-**Refined and still `status/todo`:** #80, #39, #55, #91. The morning's decisions stand: #55 answers
+**Refined and still `status/todo`:** #80, #39, #55, #91, and since 2026-09-21 **#134**, **#139** and
+**#89**. The morning's decisions stand: #55 answers
 malformed ids with 404 everywhere, and #91 adds happy-dom as a dev dependency.
 **Raised on 2026-09-18 at `status/needs-refinement`:** #161 (a late save resets an edit form opened
 after it) and #164 (a CSS-only edit never rebuilds the worker), both `bug`, v1. **#134** is also at
-needs-refinement now. **Still waiting on design sessions:** #139, #143, #89.
+needs-refinement now. **Still waiting on a design session: #143 only.** #139 and #89 turned out not to need one —
+their sessions had already happened (2026-09-10 and 2026-09-03) and only non-visual questions
+remained. Check a ticket's own design document before booking a session; two of the three were
+already drawn.
 
 **Next, in order:** #83's re-review and PR; #8 once the owner has read the design; **#134** (refined,
 a one-line version bump), which unblocks #66; then #80, #39, #55, #91 (the normal and low bands).
