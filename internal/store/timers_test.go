@@ -398,3 +398,142 @@ func TestStartedJustBeforeMidnightLeavesOnly30Seconds(t *testing.T) {
 		t.Errorf("timers has %d rows, want 0", rows)
 	}
 }
+
+// TestDiscardBoundaryIsExactlySixtySeconds pins the discard rule at the exact
+// second it turns on: a run of 59s discards, one of 60s logs, one of 61s logs.
+// The 59s and 1500s cases elsewhere in this file are both too far from the
+// line to prove where it actually falls — a `seconds < MinTimerSeconds`
+// mutated to `<=` would discard a 60s run and every other case in this file
+// would still pass.
+func TestDiscardBoundaryIsExactlySixtySeconds(t *testing.T) {
+	cases := map[string]struct {
+		duration    time.Duration
+		wantEntry   bool
+		wantSeconds int
+	}{
+		"59s discards": {duration: 59 * time.Second, wantEntry: false},
+		"60s logs":     {duration: 60 * time.Second, wantEntry: true, wantSeconds: 60},
+		"61s logs":     {duration: 61 * time.Second, wantEntry: true, wantSeconds: 61},
+	}
+
+	for name, tc := range cases {
+		t.Run(name+" via stop", func(t *testing.T) {
+			s := openTestStore(t)
+			inst := createTestInstance(t, s)
+			loc := mustLoadLocation(t, "Europe/Amsterdam")
+			start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+			stop := start.Add(tc.duration)
+
+			if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+				t.Fatalf("starting: %v", err)
+			}
+
+			entry, wasRunning, err := s.StopTimer(context.Background(), stop, loc)
+			if err != nil {
+				t.Fatalf("StopTimer() returned error: %v", err)
+			}
+			if !wasRunning {
+				t.Fatal("wasRunning = false, want true")
+			}
+			if tc.wantEntry {
+				if entry == nil {
+					t.Fatal("entry = nil, want the entry this run earned")
+				}
+				if entry.Seconds != tc.wantSeconds {
+					t.Errorf("entry.Seconds = %d, want %d", entry.Seconds, tc.wantSeconds)
+				}
+			} else if entry != nil {
+				t.Errorf("entry = %+v, want nil", entry)
+			}
+		})
+
+		t.Run(name+" via switch", func(t *testing.T) {
+			s := openTestStore(t)
+			inst := createTestInstance(t, s)
+			loc := mustLoadLocation(t, "Europe/Amsterdam")
+			start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+			switchAt := start.Add(tc.duration)
+
+			if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+				t.Fatalf("starting A: %v", err)
+			}
+
+			_, stopped, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-2", switchAt, loc)
+			if err != nil {
+				t.Fatalf("starting B: %v", err)
+			}
+			if tc.wantEntry {
+				if stopped == nil {
+					t.Fatal("stopped = nil, want A's entry")
+				}
+				if stopped.Seconds != tc.wantSeconds {
+					t.Errorf("stopped.Seconds = %d, want %d", stopped.Seconds, tc.wantSeconds)
+				}
+			} else if stopped != nil {
+				t.Errorf("stopped = %+v, want nil", stopped)
+			}
+		})
+	}
+}
+
+// TestClosingATimerAcrossADSTTransitionMeasuresRealElapsedTime is the other
+// half of the day boundary: a local day is not always 24 hours. Both fixtures
+// start a timer at 00:30 local on the transition day and read it well into the
+// following local day, so closeTimer caps the run at the local midnight that
+// follows — and the seconds it records must reflect the real wall-clock gap
+// between those two instants, not a nominal 24h day. Both start and the cap are
+// built with time.Date(..., loc), which resolves through Go's IANA tzdata and
+// is DST-aware; a refactor to start.Add(24*time.Hour) would silently drop that
+// and is exactly what the mutation below checks for.
+func TestClosingATimerAcrossADSTTransitionMeasuresRealElapsedTime(t *testing.T) {
+	loc := mustLoadLocation(t, "Europe/Amsterdam")
+
+	cases := map[string]struct {
+		start       time.Time
+		read        time.Time
+		wantSeconds int
+	}{
+		// 2026-03-29: clocks spring forward at 02:00 CET -> 03:00 CEST, so this
+		// local day has only 23 real hours. Nominal 00:30 -> 24:00 is 23h30m; the
+		// missing hour brings the true elapsed time to 22h30m.
+		"spring forward: the local day loses an hour": {
+			start:       time.Date(2026, 3, 29, 0, 30, 0, 0, loc),
+			read:        time.Date(2026, 3, 30, 9, 0, 0, 0, loc),
+			wantSeconds: 22*60*60 + 30*60,
+		},
+		// 2026-10-25: clocks fall back at 03:00 CEST -> 02:00 CET, so this local
+		// day has 25 real hours. Nominal 00:30 -> 24:00 is 23h30m; the extra hour
+		// brings the true elapsed time to 24h30m.
+		"fall back: the local day gains an hour": {
+			start:       time.Date(2026, 10, 25, 0, 30, 0, 0, loc),
+			read:        time.Date(2026, 10, 26, 9, 0, 0, 0, loc),
+			wantSeconds: 24*60*60 + 30*60,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := openTestStore(t)
+			inst := createTestInstance(t, s)
+
+			if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", tc.start, loc); err != nil {
+				t.Fatalf("starting: %v", err)
+			}
+
+			running, closed, err := s.RunningTimer(context.Background(), tc.read, loc)
+			if err != nil {
+				t.Fatalf("RunningTimer() returned error: %v", err)
+			}
+			if running != nil {
+				t.Errorf("running = %+v, want nil", running)
+			}
+			if closed == nil {
+				t.Fatal("closed = nil, want the capped entry")
+			}
+			if closed.Seconds != tc.wantSeconds {
+				t.Errorf("closed.Seconds = %d, want %d — the cap must measure real elapsed "+
+					"time, not a nominal 24h day", closed.Seconds, tc.wantSeconds)
+			}
+		})
+	}
+}
