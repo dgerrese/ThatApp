@@ -108,9 +108,12 @@ Served from the root, so its scope is `/` without a `Service-Worker-Allowed` hea
 ### What it precaches
 
 The build generates the precache list, because chunk filenames carry content hashes and a
-hand-written list would rot silently the first time a view is added. `build.mjs` reads esbuild's
-metafile after the build, and stamps two things into `sw.js`: the list of emitted files, and a
-build id derived from their contents. The build id names the cache.
+hand-written list would rot silently the first time a view is added. `build.mjs` walks `dist/app.js`'s
+own relative-import graph on disk after the build, and stamps two things into `sw.js`: that file
+list plus the copied assets, and a build id derived from their contents. The build id names the
+cache. (#67: this used to read esbuild's metafile instead; a metafile captured by an earlier build
+could disagree with what was actually on disk by the time the worker was built, so the list is now
+read from disk directly.)
 
 **The install step verifies what it receives.** `handleAsset` falls back to `index.html` for any
 path it cannot find, so a request for a chunk that is missing returns HTML with a 200. Precaching
