@@ -6,15 +6,8 @@ import "../components/that-table";
 import "../components/that-ticket-row";
 import { alignKeyColumn } from "../key-column";
 
-import {
-  ApiError,
-  createPin,
-  deletePin,
-  listEntries,
-  listIssues,
-  listPins,
-  searchIssues,
-} from "../api";
+import { alertFor, messageOf } from "../alert";
+import { createPin, deletePin, listEntries, listIssues, listPins, searchIssues } from "../api";
 import type { EntryTicket } from "../components/that-entry-dialog";
 import { openEntryDialog } from "../components/that-entry-dialog";
 import type { IssueSearchConfig, ThatIssueSearch } from "../components/that-issue-search";
@@ -1108,21 +1101,4 @@ function cardHolding(node: Node): HTMLElement {
   card.append(node);
 
   return card;
-}
-
-function alertFor(tone: string, message: string): HTMLElement {
-  const alert = document.createElement("that-alert");
-  alert.setAttribute("tone", tone);
-  alert.setAttribute("message", message);
-
-  return alert;
-}
-
-/** The server's message when there is one; ApiError carries it already. */
-function messageOf(error: unknown): string {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
-
-  return "Something went wrong.";
 }

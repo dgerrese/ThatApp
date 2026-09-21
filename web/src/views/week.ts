@@ -1,7 +1,8 @@
 import "../components/that-alert";
 import "../components/that-issue-search";
 
-import { ApiError, createPin, fetchWeek, getWeek } from "../api";
+import { alertFor, messageOf } from "../alert";
+import { createPin, fetchWeek, getWeek } from "../api";
 import { CARD_SURFACE_CLASSES } from "../card-surface";
 import { openEntryDialog } from "../components/that-entry-dialog";
 import type { IssueSearchConfig, ThatIssueSearch } from "../components/that-issue-search";
@@ -1074,21 +1075,4 @@ function loadingLine(): HTMLElement {
   line.textContent = "Loading…";
 
   return line;
-}
-
-function alertFor(tone: string, message: string): HTMLElement {
-  const alert = document.createElement("that-alert");
-  alert.setAttribute("tone", tone);
-  alert.setAttribute("message", message);
-
-  return alert;
-}
-
-/** The server's message when there is one; ApiError carries it already. */
-function messageOf(error: unknown): string {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
-
-  return "Something went wrong.";
 }

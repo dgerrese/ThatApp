@@ -1,3 +1,4 @@
+import { alertFor } from "./alert";
 import type { PushResponse, PushResult } from "./types";
 
 /**
@@ -113,12 +114,4 @@ function failureList(lines: string[]): HTMLElement {
   }
 
   return list;
-}
-
-function alertFor(tone: string, message: string): HTMLElement {
-  const alert = document.createElement("that-alert");
-  alert.setAttribute("tone", tone);
-  alert.setAttribute("message", message);
-
-  return alert;
 }
