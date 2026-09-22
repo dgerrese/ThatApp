@@ -113,9 +113,11 @@ split across two jobs for this same cap, so this is that pattern applied to the 
 |---|---|---|
 | #187 — `main` plus the split | 4:13 | 5:47 |
 | #179 — the timer, stacked on it | 5:06 | **7:19** |
+| `main` at `09e033e`, both merged | 4:14 | 5:28 |
 
-**Firefox is the slower half**, and 7:19 on the busiest job leaves 2:41 of margin against the cap —
-against 36 seconds before. The split is uneven on purpose: it buys headroom, not balance. **If
+**Firefox is the slower half**, and the worst job measured is 7:19, which leaves 2:41 of margin
+against the cap — against 36 seconds before. **`main` with the timer runs 5:28**, so the spread
+between runs is real and the margin is not tight. The split is uneven on purpose: it buys headroom, not balance. **If
 headroom is ever short again the next lever is caching the browsers**, not a finer split.
 
 **Knock-on when #187 merges: the commit status splits into two contexts**, `E2E / e2e (firefox)` and
