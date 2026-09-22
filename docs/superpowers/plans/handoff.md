@@ -88,16 +88,18 @@ the next retro.**
 **`main` now carries Playwright 1.63.0** (#134), so the e2e gate no longer produces a 25% false-red
 rate. That matters for **#66**, which is `status/blocked` behind exactly that crash — see *Blocked*.
 
-**Five pull requests are open and waiting on the owner**, all verified to merge cleanly onto
-`47961c9` on 2026-09-21:
+**#180 and #181 merged on 2026-09-22**, so the screenshot rule and `.claude/tools/pr-attach.sh` are
+on `main` and the 2026-09-21 handoff is recorded. `main` is at `9c52bc6`.
+
+**Four pull requests are open and waiting on the owner.** Every one that changes the interface now
+carries screenshots — #179 already did, and #175 and #178 were given theirs on 2026-09-22:
 
 | PR | Ticket | Notes |
 |---|---|---|
-| #175 | #139 a pinned ticket has a row in the current week | |
-| #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why |
-| #178 | #83 Today's tables sort on every column | rebased onto current `main` |
+| #175 | #139 a pinned ticket has a row in the current week | **screenshots added 2026-09-22**: the pinned row in the current week, and its absence in the week before |
+| #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why. **No screenshots, deliberately** — it changes no behaviour |
+| #178 | #83 Today's tables sort on every column | rebased onto current `main`. **screenshots added 2026-09-22**: at rest, sorted by Key ascending, sorted by Today |
 | #179 | #8 the timer | **carries screenshots**, the first PR to do so |
-| #180 | `[Process]` a ticket that changes the interface shows it | no issue; project design |
 
 **Nothing is in progress without a pull request.** #83 and #8, which sat here for days, both
 shipped on 2026-09-21 — see the table above. Their design decisions are recorded on the tickets and
