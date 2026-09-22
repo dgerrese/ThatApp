@@ -88,9 +88,10 @@ the next retro.**
 **`main` now carries Playwright 1.63.0** (#134), so the e2e gate no longer produces a 25% false-red
 rate. That matters for **#66**, which is `status/blocked` behind exactly that crash — see *Blocked*.
 
-**Five pull requests merged on 2026-09-22** — #180 and #181 first, then #175 (#139), #178 (#83) and
-#182. So the screenshot rule, `.claude/tools/pr-attach.sh` and the "read `THAT_PORT`" rule are on
-`main`, and **`main` is at `a4750c2`**.
+**Seven pull requests merged on 2026-09-22** — #180 and #181 first, then #175 (#139), #178 (#83),
+#182, and in the evening **#187 (#186)** and **#179 (#8)**. So the screenshot rule,
+`.claude/tools/pr-attach.sh`, the "read `THAT_PORT`" rule, the e2e split **and the timer** are all on
+`main`, which is at **`09e033e`**.
 
 **The E2E job has no headroom against Codeberg's ten-minute cap. Read this before diagnosing any
 red e2e run.** `codeberg-medium` kills a job at ten minutes and records the kill as `cancelled`,
@@ -123,15 +124,25 @@ headroom is ever short again the next lever is caching the browsers**, not a fin
 **`workers: 4` in `playwright.config.ts` was deliberately left alone.** Its comment ties the number
 to `codeberg-medium`'s four vCPUs, which the split does not change.
 
-**Four pull requests are open and waiting on the owner.** Every one that changes the interface
-carries screenshots:
+**Two pull requests are open, and one of them is a phantom.**
 
 | PR | Ticket | Notes |
 |---|---|---|
 | #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why. **No screenshots, deliberately** — it changes no behaviour |
-| #179 | #8 the timer | **carries screenshots**, the first PR to do so — and they caught the green key. **Stacked on #187 and based on that branch**, so its diff is only the timer's 24 files. Retarget it to `main` once #187 merges |
-| #187 | #186 one e2e job per browser | the ten-minute cap, above. `make verify` and `make test-e2e` both green locally (546 passed, 14 skipped) |
+| #179 | #8 the timer | **already merged — the forge record is wrong.** See below |
 
+**PR #179 reads `open` on Codeberg although its merge is on `main`.** Verified in git, not inferred:
+`09e033e` on `main` is the merge commit, `codeberg/main..codeberg/issue-8-timer` is empty, and
+`git diff` between the two is empty. #8 is closed. The record and the repository disagree, and the
+repository is right.
+
+**The likely cause is the stack.** #179 was based on `issue-186-e2e-split`. Merging #187 deleted
+that branch, Forgejo retargeted #179 to `main` automatically, and the record did not survive the
+retarget plus the merge. **Worth watching the next time a stacked pull request is merged** — if it
+happens again it is a rule, not an accident, and the stacking guidance should warn about it.
+
+**Closing #179 is the owner's** — a close is never the session's to make. The branch
+`issue-8-timer` is fully merged and droppable on the owner's word.
 
 **Worklog rounding is settled and is #185**, raised and refined on the owner's word on
 2026-09-22. `status/todo`, v1, `enhancement`, 15 acceptance criteria. It **depends on #8** and
@@ -164,8 +175,8 @@ seconds stay legal, because the midnight close still writes them.
 manual duration control and named #8's timer as the thing that would produce off-grid runs;
 decision 3 says the same from the other side. **#185 amends both.**
 
-**#185 still needs a design session before planning.** The dialog is a new control that nothing
-draws — not the visual language, not the prototype, not #8's design document.
+**#185 is unblocked: #8 merged on 2026-09-22.** It still needs a design session before planning —
+the dialog is a new control that nothing draws — not the visual language, not the prototype, not #8's design document.
 
 **What #185 does not need building:** `time_entries.comment` is in the schema from the first
 migration, `store.UpdateEntry` already writes it, and `internal/jira/worklog.go` already sends a
@@ -241,7 +252,8 @@ count (10 vs CI's 4) was **never tested** and is the next hypothesis only if the
 written into each ticket: **#8** as above; **#83** ascending arrow = the drawn descending arrow,
 mirrored; **#80** a hairline note under the four fields, above the buttons.
 
-**Refined and still `status/todo`: #80, #55, #89, #91, and #185 — which waits on #8.** #134, #139, #39, #83 and #8 all shipped on
+**Refined and still `status/todo`: #80, #55, #89, #91 and #185.** **#185 is no longer waiting** —
+#8 merged on 2026-09-22, so its dependency is satisfied and it can start on the owner's word. #134, #139, #39, #83 and #8 all shipped on
 2026-09-21.
 
 **#80 was blocked and is not any more.** Its note needed "a muted info mark" and none existed
@@ -259,8 +271,9 @@ their sessions had already happened (2026-09-10 and 2026-09-03) and only non-vis
 remained. Check a ticket's own design document before booking a session; two of the three were
 already drawn.
 
-**Next, in order:** the owner's five open pull requests; then **#66 re-measured** against the new
-`main`; then **#80** (unblocked, its design fresh), **#55**, **#91**, **#89**.
+**Next, in order:** **#177**, the one real open pull request; then **#66 re-measured** against the
+new `main`; then **#80** (its design fresh), **#185** (unblocked, but a design session comes first),
+**#55**, **#91**, **#89**. Every one of them waits on the owner's word.
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
