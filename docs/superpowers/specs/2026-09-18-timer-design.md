@@ -16,15 +16,22 @@ the owner settled on 2026-09-18, and how the parts fit.
    (Pinned, Off-list and each instance card). Week gets none.
 2. **Marks:** play is a rounded triangle and stop a rounded square, in the house icon stroke (1.9,
    round caps and joins).
-3. **Running row:** the stop button, the key and the Today figure wear `--color-running`. The Today
-   figure ticks up live: the day's logged seconds plus the running elapsed.
+3. **Running row:** the stop button and the Today figure wear `--color-running`. The Today figure
+   ticks up live: the day's logged seconds plus the running elapsed.
+
+   **The key stays `--color-ink-muted`, corrected on 2026-09-22.** This session and the 2026-09-18
+   one both had the key in the running tone, and it shipped that way into PR #179. The visual design
+   language says the running tone is "the live timer and its stop control, and nothing else", and a
+   key is neither. The owner read the built screenshots, said the green key was wrong, compared both
+   states in the running app, and chose the muted key over changing the language. The stale clause
+   that had granted it — in the first edition's row-key rule — was struck in the same change.
 
    **Hover and focus take the primary colour, as every other row control does** — settled with the
    owner on 2026-09-21, after the build raised a state these decisions had not covered. The stop is a
    control first and a status second, so it follows the pin's `hover:text-primary
-   focus-visible:text-primary` rather than holding the running tone through hover. The key and the
-   Today figure are not controls and keep `--color-running` throughout, so the row still reads as
-   running while the pointer is on the button.
+   focus-visible:text-primary` rather than holding the running tone through hover. The Today figure
+   is not a control and keeps `--color-running` throughout, so the row still reads as running while
+   the pointer is on the button.
 4. **Rail:** the running line (`dot · KEY · elapsed`) replaces "No timer running" while a timer runs,
    and **a stop button follows the elapsed time**, always visible, in `--color-running-rail` with the
    rail's hover wash, so a timer can be stopped from any view.

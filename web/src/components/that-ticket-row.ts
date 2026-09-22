@@ -57,7 +57,6 @@ export class ThatTicketRow extends HTMLElement {
   private mounted = false;
   private trigger: HTMLButtonElement | undefined;
   private figure: HTMLElement | undefined;
-  private keyEl: HTMLElement | undefined;
   private pinTrigger: HTMLButtonElement | undefined;
   private pinTooltip: HTMLElement | undefined;
   private readonly pinTriggerId = `that-pin-${++pinTriggerSequence}`;
@@ -255,11 +254,13 @@ export class ThatTicketRow extends HTMLElement {
   }
 
   /**
-   * The Today figure and the key, repainted together: decision 3 of the
-   * timer design ties both to the same running state, so one method owns
-   * both rather than risking them fall out of step. Runs on every `seconds`
-   * change (a fresh total) and on every timer tick or switch (a fresh
-   * elapsed, or a fresh answer to "is this mine").
+   * The Today figure, repainted on every `seconds` change (a fresh total) and
+   * on every timer tick or switch (a fresh elapsed, or a fresh answer to "is
+   * this mine").
+   *
+   * The key is deliberately not painted here. The visual language reserves the
+   * running tone for the live timer and its stop control, and a key is neither
+   * — so a running row's key stays ink-muted like every other.
    */
   private paintDuration(): void {
     const trigger = this.trigger;
@@ -270,7 +271,6 @@ export class ThatTicketRow extends HTMLElement {
     const shown = fieldFigure(this.durationSeconds());
     figure.textContent = shown;
     figure.classList.toggle("text-running", running);
-    this.keyEl?.classList.toggle("text-running", running);
     trigger.setAttribute(
       "aria-label",
       `Log time against ${this.getAttribute("key") ?? ""}, ${shown} today`,
@@ -390,9 +390,9 @@ export class ThatTicketRow extends HTMLElement {
    * current page instead of doing nothing.
    *
    * Linked or not, the key is ink-muted: on a row, colour means state, and a
-   * key wearing the primary would compete with the running and failed tones
-   * that #8 and #9 put on exactly this element. The link declares itself by
-   * darkening to full ink on hover instead.
+   * key wearing the primary would compete with the failed tone that #9 puts on
+   * exactly this element. The link declares itself by darkening to full ink on
+   * hover instead.
    */
   private keyLabel(url: string): HTMLElement {
     const key = this.getAttribute("key") ?? "";
@@ -426,7 +426,6 @@ export class ThatTicketRow extends HTMLElement {
    */
   private keyContent(url: string): HTMLElement {
     const label = this.keyLabel(url);
-    this.keyEl = label;
     // A whole number, or no dot at all. Both empties have to be caught by hand
     // before Number() sees them: it reads null *and* "" as 0, which would paint
     // the first instance's hue on a row that never claimed one. Anything else

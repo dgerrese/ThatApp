@@ -278,10 +278,15 @@ Per list rather than per card or per app, because two instances with differently
 are two lists: padding the short one to suit the long one spends width the summary needs.
 
 **A row key never wears the primary.** It is `--color-ink-muted` whether it links or not, and takes
-a colour only when it carries state — the running tone on a ticket whose timer is going, the failed
-tone on one Jira refused. A key permanently in magenta would compete with exactly those signals on
+a colour only when it carries state — the failed tone on one Jira refused. A key permanently in magenta would compete with exactly those signals on
 exactly that element, and the primary is identity rather than state. A linked key declares itself by
 darkening to `--color-ink` on hover instead of by colour.
+
+**This rule used to name the running tone as a second example, and it contradicted the role table
+above**, which reserves the running tone for "the live timer and its stop control, and nothing
+else". #8 built the key green on the strength of this paragraph; the owner chose the role table and
+the clause was struck on 2026-09-22. A running row says so through its Today figure and its stop
+control, not through its key.
 
 The summary is the only part that may shrink, and it must be allowed to: a flex item's floor is its
 min-content width, so without `min-width: 0` the truncation never engages and the status is pushed

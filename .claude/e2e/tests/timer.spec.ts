@@ -120,7 +120,7 @@ test.beforeEach(async ({ page }) => {
   await stubTimer(page);
 });
 
-test("starting a timer on a row turns its control to stop, tints the key and the Today figure, and the rail shows the running line", async ({
+test("starting a timer on a row turns its control to stop, tints the Today figure, leaves the key muted, and the rail shows the running line", async ({
   page,
 }) => {
   await page.goto("/today");
@@ -129,8 +129,12 @@ test("starting a timer on a row turns its control to stop, tints the key and the
   await row.getByRole("button", { name: "start timer" }).click();
 
   await expect(row.getByRole("button", { name: "stop timer" })).toBeVisible();
-  await expect(row.locator(".that-key")).toHaveClass(/text-running\b/);
   await expect(row.locator("td.c-today .that-tnum")).toHaveClass(/text-running\b/);
+  // The key stays ink-muted while its own timer runs. The visual language
+  // reserves the running tone for the live timer and its stop control, and a
+  // key is neither — see the row-key rule in the first edition, which this
+  // asserts against the one row that would otherwise wear it.
+  await expect(row.locator(".that-key")).not.toHaveClass(/text-running\b/);
 
   await expect(railTimer(page)).toContainText("WORK-1");
   await expect(railTimer(page)).not.toContainText("No timer running");
@@ -165,7 +169,7 @@ test("starting another row's timer stops the first and runs the second", async (
   await second.getByRole("button", { name: "start timer" }).click();
 
   await expect(first.getByRole("button", { name: "start timer" })).toBeVisible();
-  await expect(first.locator(".that-key")).not.toHaveClass(/text-running\b/);
+  await expect(first.locator("td.c-today .that-tnum")).not.toHaveClass(/text-running\b/);
   await expect(second.getByRole("button", { name: "stop timer" })).toBeVisible();
   await expect(railTimer(page)).toContainText("WORK-2");
 });
