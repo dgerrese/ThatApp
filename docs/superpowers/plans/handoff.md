@@ -88,16 +88,147 @@ the next retro.**
 **`main` now carries Playwright 1.63.0** (#134), so the e2e gate no longer produces a 25% false-red
 rate. That matters for **#66**, which is `status/blocked` behind exactly that crash — see *Blocked*.
 
-**Five pull requests are open and waiting on the owner**, all verified to merge cleanly onto
-`47961c9` on 2026-09-21:
+**Seven pull requests merged on 2026-09-22** — #180 and #181 first, then #175 (#139), #178 (#83),
+#182, and in the evening **#187 (#186)** and **#179 (#8)**. So the screenshot rule,
+`.claude/tools/pr-attach.sh`, the "read `THAT_PORT`" rule, the e2e split **and the timer** are all on
+`main`, which is at **`09e033e`**.
+
+**The E2E job has no headroom against Codeberg's ten-minute cap. Read this before diagnosing any
+red e2e run.** `codeberg-medium` kills a job at ten minutes and records the kill as `cancelled`,
+which the commit status then reports as **`failure` with no test output** — because nothing failed.
+Measured on 2026-09-22 across every run the forge has ever recorded: **no run above 600 seconds has
+ever passed**, the longest success is 9:24 (run 116), and `main` sat at 9:04–9:17 for weeks. Run 207
+on #8's branch reached **10:26** and was killed. #8 adds 16 test blocks, about 6% more work, against
+roughly 36 seconds of margin.
+
+**That is #186, fixed by PR #187: one e2e job per browser.** `playwright.config.ts` already declares
+`firefox` and `chromium` as two independent projects, so the split follows a seam that was already
+there, and it halves **both** large costs — half the tests per job, and one browser download instead
+of two. Sharding with `--shard` was rejected: it halves only the first. `verify.yml` was already
+split across two jobs for this same cap, so this is that pattern applied to the rig.
+
+**Measured after the split, and the cap is cleared:**
+
+| Branch | `e2e (chromium)` | `e2e (firefox)` |
+|---|---|---|
+| #187 — `main` plus the split | 4:13 | 5:47 |
+| #179 — the timer, stacked on it | 5:06 | **7:19** |
+| `main` at `09e033e`, both merged | 4:14 | 5:28 |
+
+**Firefox is the slower half**, and the worst job measured is 7:19, which leaves 2:41 of margin
+against the cap — against 36 seconds before. **`main` with the timer runs 5:28**, so the spread
+between runs is real and the margin is not tight. The split is uneven on purpose: it buys headroom, not balance. **If
+headroom is ever short again the next lever is caching the browsers**, not a finer split.
+
+**Knock-on when #187 merges: the commit status splits into two contexts**, `E2E / e2e (firefox)` and
+`E2E / e2e (chromium)`. Anything matching the old single name needs updating.
+
+**`workers: 4` in `playwright.config.ts` was deliberately left alone.** Its comment ties the number
+to `codeberg-medium`'s four vCPUs, which the split does not change.
+
+**Two pull requests are open, and one of them is a phantom.**
 
 | PR | Ticket | Notes |
 |---|---|---|
-| #175 | #139 a pinned ticket has a row in the current week | |
-| #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why |
-| #178 | #83 Today's tables sort on every column | rebased onto current `main` |
-| #179 | #8 the timer | **carries screenshots**, the first PR to do so |
-| #180 | `[Process]` a ticket that changes the interface shows it | no issue; project design |
+| #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why. **No screenshots, deliberately** — it changes no behaviour |
+| #179 | #8 the timer | merged, and **closed by the owner on 2026-09-22**. See below |
+
+**PR #179 read `open` on Codeberg for several hours although its merge was on `main`.** Verified in
+git, not inferred:
+`09e033e` on `main` is the merge commit, `codeberg/main..codeberg/issue-8-timer` is empty, and
+`git diff` between the two is empty. #8 is closed. The record and the repository disagree, and the
+repository is right.
+
+**The likely cause is the stack.** #179 was based on `issue-186-e2e-split`. Merging #187 deleted
+that branch, Forgejo retargeted #179 to `main` automatically, and the record did not survive the
+retarget plus the merge. **Worth watching the next time a stacked pull request is merged** — if it
+happens again it is a rule, not an accident, and the stacking guidance should warn about it.
+
+**The owner closed #179 at 17:07 on 2026-09-22**, so the record and the repository agree again. It
+closed as `merged=False`, which is the residue of the same retarget. The branch `issue-8-timer` is
+fully merged and droppable on the owner's word. **There are no open pull requests.**
+
+**Worklog rounding is settled and is #185**, raised and refined on the owner's word on
+2026-09-22. `status/todo`, v1, `enhancement`, 15 acceptance criteria. It **depends on #8** and
+cannot start before it lands.
+
+**The rule, and do not reopen it.** Stopping a timer opens a confirm dialog. In it the user picks a
+rounding direction and may add a description that becomes the Jira worklog's comment. One sentence
+covers every case:
+
+> **Up is ceiling to the 15-minute grid. Down is floor to the 15-minute grid. A floor of zero
+> discards the entry.**
+
+So a 7-minute run rounded down is thrown away, and "down" is also how a mistimed run is cancelled.
+That was the owner's choice on 2026-09-22, against clamping at 15 minutes and against hiding the
+control.
+
+**Three paths stop a timer, and only two of them ask.** The user's own stop asks. Starting a second
+timer asks, because the user is at the screen. **The midnight close does not and never will** —
+nobody is there — so that entry stays honest and off-grid. That is why `store.MinTimerSeconds`
+survives: its 60-second floor is *Jira's* constraint, and the midnight path is the only one still
+relying on it.
+
+**The rounding happens at timer stop, not at push and not in the API.**
+`TestPostEntryAcceptsSecondsThatAreNotAMultipleOf900` must keep passing untouched — off-grid
+seconds stay legal, because the midnight close still writes them.
+
+**#185 reverses a recorded decision**, which is why it is a ticket rather than a patch and
+`enhancement` rather than `bug`. Decision 8 of
+`docs/superpowers/specs/2026-08-21-manual-time-entry-design.md` scoped the 15-minute grid to the
+manual duration control and named #8's timer as the thing that would produce off-grid runs;
+decision 3 says the same from the other side. **#185 amends both.**
+
+**#185 is unblocked: #8 merged on 2026-09-22.** It still needs a design session before planning —
+the dialog is a new control that nothing draws — not the visual language, not the prototype, not #8's design document.
+
+**What #185 does not need building:** `time_entries.comment` is in the schema from the first
+migration, `store.UpdateEntry` already writes it, and `internal/jira/worklog.go` already sends a
+comment as an Atlassian Document Format node and omits the field when blank. `that-confirm.ts`,
+`that-entry-dialog.ts` and `that-duration.ts` are the parts the dialog is built from.
+
+**A description on manual time entry is out of scope on #185** and has no ticket. The column and
+the push already support one; only the form has no field.
+
+**The v1 intake queue is empty: all eight were approved on 2026-09-22.** #107, #109, #106, #74,
+#127, #108, #119 and #97 moved to `status/needs-refinement` after the owner walked them one at a
+time. Nothing else changed — `priority/low` survived on #97, #108 and #119, since only the `status/*`
+scope is exclusive with itself. **v1 refinement now holds thirteen tickets**, and #183 leads it as
+the only `priority/high` one; below it the defects #184, #164 and #161 come before the rest of the
+normal band. **Two of the thirteen need a design session before planning: #143 and #97.**
+
+**Raised on 2026-09-22 at `status/needs-refinement`, both v1, both asked for by the owner:**
+**#183** (`priority/high`) a running timer's figure and the Today sort disagree — the sort reads a
+row's logged `seconds`, the figure shows logged plus elapsed; and **#184** (`bug`) the prototype's
+Pinned table draws an ascending mark on Summary over rows that are not in that order. #183 came out
+of rebasing #8 over #83; #184 is a defect in #83 as merged.
+
+**A running row's key is `--color-ink-muted`, and the visual language no longer contradicts itself.
+Settled by the owner on 2026-09-22 — do not reopen.**
+
+The owner read #179's screenshots and said the green key was wrong. The first answer, from the
+record, was that the green key was specified — and it was, by a clause that contradicted the same
+document's role table:
+
+- The role table's prose: "**Running** is the live timer and its stop control, and nothing else."
+  A key is neither.
+- The row-key rule, four pages later, named "the running tone on a ticket whose timer is going" as
+  an example of state a key may carry. **That is the clause #8 was built on**, and the 2026-09-18
+  session screen drew the key green in all three options on the strength of it.
+
+The owner compared both states in the running app, **chose the role table over the clause**, and
+asked for the code to follow the language rather than the language to follow the code. So, on
+`issue-8-timer` (commit `7f52e28`, in PR #179):
+
+- The key never takes `text-running`. The **Today figure and the stop control still do** — a running
+  row says so through the two elements the language actually names.
+- The stale clause is **struck** from the row-key rule. The rule itself is untouched.
+- Decision 3 of `docs/superpowers/specs/2026-09-18-timer-design.md` records the correction.
+
+**The lesson is not the colour.** A whole-branch review, four task reviews and a design session all
+passed a defect that one look at a screenshot caught, because every one of them was reading the
+clause rather than the role table. Screenshots on pull requests are eight days old and have now paid
+for themselves once.
 
 **Nothing is in progress without a pull request.** #83 and #8, which sat here for days, both
 shipped on 2026-09-21 — see the table above. Their design decisions are recorded on the tickets and
@@ -132,7 +263,8 @@ count (10 vs CI's 4) was **never tested** and is the next hypothesis only if the
 written into each ticket: **#8** as above; **#83** ascending arrow = the drawn descending arrow,
 mirrored; **#80** a hairline note under the four fields, above the buttons.
 
-**Refined and still `status/todo`: #80, #55, #89, #91.** #134, #139, #39, #83 and #8 all shipped on
+**Refined and still `status/todo`: #80, #55, #89, #91 and #185.** **#185 is no longer waiting** —
+#8 merged on 2026-09-22, so its dependency is satisfied and it can start on the owner's word. #134, #139, #39, #83 and #8 all shipped on
 2026-09-21.
 
 **#80 was blocked and is not any more.** Its note needed "a muted info mark" and none existed
@@ -150,8 +282,9 @@ their sessions had already happened (2026-09-10 and 2026-09-03) and only non-vis
 remained. Check a ticket's own design document before booking a session; two of the three were
 already drawn.
 
-**Next, in order:** the owner's five open pull requests; then **#66 re-measured** against the new
-`main`; then **#80** (unblocked, its design fresh), **#55**, **#91**, **#89**.
+**Next, in order:** **#177**, the one real open pull request; then **#66 re-measured** against the
+new `main`; then **#80** (its design fresh), **#185** (unblocked, but a design session comes first),
+**#55**, **#91**, **#89**. Every one of them waits on the owner's word.
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
@@ -249,10 +382,13 @@ and Week's days come from the server's own rollup, so `day` and `started_at` sti
 each other. Both specs that state the old rule are corrected in that ticket, and it runs a design
 session first, because the dialog has to say which day it is for and that is not drawn.
 
-**#8 is the whole remaining product.** #10 merged on 2026-09-08 as PR #120; its design is
+**#8 merged on 2026-09-22, so v1's product work is now the refinement queue, not one ticket.**
+Thirteen tickets sit at `status/needs-refinement`; #185 is the only one at `status/todo`. The
+sentence below was written when #8 was the last of the design's thirteen still to build, and #13
+(the phone) remains in v2. #10 merged on 2026-09-08 as PR #120; its design is
 `docs/superpowers/specs/2026-09-07-edit-after-push-and-week-fetch-design.md` and its plan
-`docs/superpowers/plans/2026-09-08-edit-after-push-and-week-fetch.md`. **#8 still has no design**, so
-it starts with brainstorming.
+`docs/superpowers/plans/2026-09-08-edit-after-push-and-week-fetch.md`. **#8 got its design and
+shipped**; the line that said it had none is retired.
 
 ### Two things needing the owner
 
@@ -762,8 +898,9 @@ paper-white, and it changed three things in the language and none in the palette
   dialogs never set an ink colour and inherited the host page's, which on a dark sheet looks exactly
   right. A rule that is correct in one theme is invisible until somebody switches.
 
-**Open, and now a ticket — #97 at intake.** The scrim behind an open dialog is still half-opaque black in
-both themes. Darkening a white page by that much is a question about modality, not about depth.
+**Open, and now a ticket — #97, promoted to `status/needs-refinement` on 2026-09-22.** The scrim
+behind an open dialog is still half-opaque black in both themes. Darkening a white page by that much
+is a question about modality, not about depth. It needs a design session before planning.
 
 ## Decisions taken — do not reopen
 
