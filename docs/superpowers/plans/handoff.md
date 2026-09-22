@@ -188,6 +188,13 @@ comment as an Atlassian Document Format node and omits the field when blank. `th
 **A description on manual time entry is out of scope on #185** and has no ticket. The column and
 the push already support one; only the form has no field.
 
+**The v1 intake queue is empty: all eight were approved on 2026-09-22.** #107, #109, #106, #74,
+#127, #108, #119 and #97 moved to `status/needs-refinement` after the owner walked them one at a
+time. Nothing else changed — `priority/low` survived on #97, #108 and #119, since only the `status/*`
+scope is exclusive with itself. **v1 refinement now holds thirteen tickets**, and #183 leads it as
+the only `priority/high` one; below it the defects #184, #164 and #161 come before the rest of the
+normal band. **Two of the thirteen need a design session before planning: #143 and #97.**
+
 **Raised on 2026-09-22 at `status/needs-refinement`, both v1, both asked for by the owner:**
 **#183** (`priority/high`) a running timer's figure and the Today sort disagree — the sort reads a
 row's logged `seconds`, the figure shows logged plus elapsed; and **#184** (`bug`) the prototype's
@@ -886,8 +893,9 @@ paper-white, and it changed three things in the language and none in the palette
   dialogs never set an ink colour and inherited the host page's, which on a dark sheet looks exactly
   right. A rule that is correct in one theme is invisible until somebody switches.
 
-**Open, and now a ticket — #97 at intake.** The scrim behind an open dialog is still half-opaque black in
-both themes. Darkening a white page by that much is a question about modality, not about depth.
+**Open, and now a ticket — #97, promoted to `status/needs-refinement` on 2026-09-22.** The scrim
+behind an open dialog is still half-opaque black in both themes. Darkening a white page by that much
+is a question about modality, not about depth. It needs a design session before planning.
 
 ## Decisions taken — do not reopen
 
