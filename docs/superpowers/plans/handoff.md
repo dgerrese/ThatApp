@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-16**, against the Codeberg API rather than against local git — see
+**Verified on 2026-09-21**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -53,11 +53,10 @@ reversing — see the 2026-09-06 day file for both, and for why no test caught t
 to be stripped by hand at the close, the fifth time. The 2026-09-10 handoff merged as **PR #141**
 on 2026-09-16.
 
-**#84 merged as PR #146 on 2026-09-16**, after its fix wave. **It still carries
-`status/in-progress`** — the sixth merge to leave a status label behind; the evening's `eod` reported
-it rather than relabelling, so strip it on the owner's word. **#145** (no `enhancement` label while a
+**#84 merged as PR #146 on 2026-09-16**, after its fix wave, leaving `status/in-progress` behind for
+the sixth time; that label was stripped on 2026-09-17. **#145** (no `enhancement` label while a
 milestone's scope is undetermined) and **#147** (a locked 1Password vault never stops a commit, only
-a push — now a `CLAUDE.md` rule) merged the same day. **Remote `main` is at `2a90db9`.** #84's leftover `status/in-progress` was stripped on 2026-09-17.
+a push — now a `CLAUDE.md` rule) merged the same day.
 
 **#122 merged as PR #148 on 2026-09-17**, with **PR #149** after it; its `status/*` label was stripped
 by hand at the close, the seventh time. **The first release, `v2026.38.1`, is published** at
@@ -67,74 +66,92 @@ been started**. The owner accepted the release script's architecture checks in p
 not reopen that. Releases and packages had to be switched on in the repository's settings
 first; see *Environment notes*.
 
-**At the end of 2026-09-18, nothing had merged that day. `main` is still `c58f180`.** The owner
-had the session work the board in priority order on its own. That produced **twelve ticket pull
-requests and three `[Process]` pull requests, all open and waiting on the owner**:
+**On 2026-09-18 the owner had the session work the board in priority order on its own**, which
+produced twelve ticket pull requests and three `[Process]` ones. Nothing merged that day.
+
+**On 2026-09-21 the owner merged everything, in two waves, and `main` is now at `47961c9`.**
+
+First the seven non-ticket pull requests: **#170** (the 2026-09-18 handoff), **#165** (stacking),
+**#166** (PR title prefixes), **#169** (`CLAUDE.md` on CI skips, stacked on #168), **#168** (#167, CI
+skips docs-only PRs), **#172** (work starts on the owner's word) and **#171** (the `autopilot`
+skill).
+
+Then **all eleven ticket pull requests** — #152/#42, #153/#35, #154/#56, #155/#67, #156/#71,
+#157/#79, #158/#57, #159/#102, #160/#116, #162/#19, #163/#40 — and later **#174 (#134)**, the
+Playwright bump.
+
+**Every single one of those closes left `status/in-progress` behind**, twenty occurrences in one day,
+all stripped by hand. This is structural, not carelessness: the merge that closes the issue is the
+owner's action and the label strip is the session's, and nothing connects the two. **It belongs in
+the next retro.**
+
+**`main` now carries Playwright 1.63.0** (#134), so the e2e gate no longer produces a 25% false-red
+rate. That matters for **#66**, which is `status/blocked` behind exactly that crash — see *Blocked*.
+
+**Five pull requests are open and waiting on the owner**, all verified to merge cleanly onto
+`47961c9` on 2026-09-21:
 
 | PR | Ticket | Notes |
 |---|---|---|
-| #152 | #42 render race | |
-| #153 | #35 e2e gets its own database | **merge before #8** (#8's e2e stubs the timer until then) |
-| #154 | #56 Settings list race | |
-| #155 | #67 precache from disk | **restart `web` after merging** — the running watcher holds the old `build.mjs` |
-| #156 | #71 stale banner re-check | |
-| #157 | #79 log Jira failures | |
-| #158 | #57 pins test gaps | |
-| #159 | #102 poison sentinel | |
-| #160 | #116 no "Jira" in actions/states/reports | the owner kept "push failed" |
-| #162 | #19 Jira 403/429 classes | **stacked on #157**: base is `issue-79-log-jira-failures` |
-| #163 | #40 build creates `dist/` | |
-| #168 | #167 CI skips docs-only PRs | |
-| #165 | `[Process]` stacking rule | |
-| #166 | `[Process]` PR title prefixes | |
-| #169 | `[Process]` CLAUDE.md on CI skips | **stacked on #168** |
+| #175 | #139 a pinned ticket has a row in the current week | |
+| #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why |
+| #178 | #83 Today's tables sort on every column | rebased onto current `main` |
+| #179 | #8 the timer | **carries screenshots**, the first PR to do so |
+| #180 | `[Process]` a ticket that changes the interface shows it | no issue; project design |
 
-Every ticket above keeps `status/in-progress` until its PR merges, so strip the label at each merge
-(it has been left behind seven times). A stacked ticket closes only when its parent reaches `main`.
+**Nothing is in progress without a pull request.** #83 and #8, which sat here for days, both
+shipped on 2026-09-21 — see the table above. Their design decisions are recorded on the tickets and
+in `docs/superpowers/specs/2026-09-18-timer-design.md`, which #8 amended: the running stop control
+takes primary on hover like every other row control, a state the original session had not covered.
 
-**Two rules the owner set on 2026-09-18 and are in open `[Process]` PRs:** a branch cut from another
-open branch gets a PR based on that branch, not `main` (#165); every PR title starts with
-`[#<issue>]`, `[Process]` or `[Handoff]` (#166). **Follow both before they merge.** All open PRs
-were already retitled.
+**Blocked: #66 only — and its premise has changed, so read this before assuming it is still stuck.**
+The localhost forwarder made Chromium crash with #134 in 3 of 4 full runs, against 0 of 2 on `main`,
+so the owner chose to do #134 first. **#134 shipped on 2026-09-21 and `main` now runs Playwright
+1.63.0**, where that segfault does not occur in fifty measured runs.
 
-**In progress, not yet in review:**
-- **#83 (sorting), branch `issue-83-table-sort`, pushed.** Both tasks are done and reviewed, and the
-  whole-branch review said ready to merge. Its final fix wave (`37cac8f`: observer noise, optional
-  `moveBefore` typing, fallback test, return focus) is committed and green (table.spec 32/32,
-  `make verify`, `make test-e2e` 529/0). **Next: the scoped re-review of `37cac8f`, then open the PR
-  titled `[#83] …`.** Its SDD ledger is `.superpowers/sdd/2026-09-18-table-sort/`. Rows move with
-  `moveBefore` (focus survives) and fall back to `insertBefore` where it is missing: Firefox ESR 140
-  lacks it.
-- **#8 (timer), branch `issue-8-timer`, pushed.** The design was settled with the owner in a browser
-  session, `docs/superpowers/specs/2026-09-18-timer-design.md`. The plan is
-  `docs/superpowers/plans/2026-09-18-timer.md`. **Waiting on the owner's read of the design before
-  execution.** Decisions not to reopen:
-  - a play/stop button in the action column beside the pin (option A);
-  - the rail's running line gets a stop button after the elapsed time;
-  - a run under a minute is discarded;
-  - the server closes an overnight timer at local midnight on any read;
-  - the rail's elapsed time follows the prototype's `42:18` (`M:SS`, then `H:MM:SS`).
+**So #66 should be re-measured rather than assumed blocked.** Rebase it onto current `main` and run
+the suite. The ticket is explicit that the two crashes being the same bug is *inference, not
+measurement* — the signatures from #66's branch were never compared against #134's
+`SEGV_MAPERR 0x1b0`. Compare fault addresses before concluding either way.
+#66's branch is pushed with no PR, and it **rebases onto #35** whichever lands first — both touch
+`playwright.config.ts`, `.claude/e2e/README.md`, `tooltip.spec.ts` and `e2e.yml`, and #35 renames the
+upstream alias `that-app` → `that-e2e`.
 
-  The plan's e2e tests **stub `/api/timer*` statefully** and never reach the server, because until #35
-  merges the rig's server is the owner's dev database.
-
-**Blocked:** **#66** (the localhost forwarder) makes Chromium crash with #134 in 3 of 4 full runs,
-against 0 of 2 on `main`. **The owner chose to do #134 first.** #134 is out of intake at
-`status/needs-refinement`, and #66's branch is pushed with no PR.
+**#134 is refined and at `status/todo` (2026-09-21).** It is a **Playwright version bug, measured**:
+1.62.1 crashed 5 times in 20 full runs, 1.63.0 zero times in 30, with a ten-run control on 1.62.1
+taken after the clean sample to exclude drift. All five crashes were byte-identical —
+`SEGV_MAPERR 0x1b0` in the *browser* process inside `browser.newContext`, same stack frames, only the
+victim test differing. **The fix is a one-line bump of `@playwright/test` to 1.63.0** plus its
+lockfile; the suite passes unchanged (513/11/0), no API migration. Two dead ends not to revisit:
+shared memory is already handled twice (`ipc: host` and `--disable-dev-shm-usage`), and "never seen
+in CI" is not evidence — CI's `retries: 1` retries a crashed test and goes green. The local worker
+count (10 vs CI's 4) was **never tested** and is the next hypothesis only if the bump fails.
 
 **Design sessions held with the owner on 2026-09-18** (browser companion, screens under
 `.superpowers/brainstorm/913714-1789732588/content/` on this machine), and their outcomes are
 written into each ticket: **#8** as above; **#83** ascending arrow = the drawn descending arrow,
 mirrored; **#80** a hairline note under the four fields, above the buttons.
 
-**Refined and still `status/todo`:** #80, #39, #55, #91. The morning's decisions stand: #55 answers
-malformed ids with 404 everywhere, and #91 adds happy-dom as a dev dependency.
-**New today at `status/needs-refinement`:** #161 (a late save resets an edit form opened after it)
-and #164 (a CSS-only edit never rebuilds the worker), both `bug`, v1. **#134** is also at
-needs-refinement now. **Still waiting on design sessions:** #139, #143, #89.
+**Refined and still `status/todo`: #80, #55, #89, #91.** #134, #139, #39, #83 and #8 all shipped on
+2026-09-21.
 
-**Next, in order:** #83's re-review and PR; #8 once the owner has read the design; then #80, #39,
-#55, #91 (the normal and low bands); #134 before #66.
+**#80 was blocked and is not any more.** Its note needed "a muted info mark" and none existed
+anywhere in the project. Settled with the owner on the browser companion, 2026-09-21: the **circled
+i, unchanged geometry, drawn at 18px** — `<circle cx="12" cy="12" r="8.5"/><path d="M12 8.6h.01M12
+11.4v3.6"/>`, the same circle as `success` and `failed` with `warning`'s interior inverted, at 1.9
+stroke and **no weight exception**. 18px rather than 16px because at 16px the dot-to-stem gap is
+1.87px against a 1.27px stroke and the two fuse. The full reasoning, including what was rejected, is
+on the ticket. The morning's decisions stand: #55 answers
+malformed ids with 404 everywhere, and #91 adds happy-dom as a dev dependency.
+**Raised on 2026-09-18 at `status/needs-refinement`:** #161 (a late save resets an edit form opened
+after it) and #164 (a CSS-only edit never rebuilds the worker), both `bug`, v1. **#134** is also at
+needs-refinement now. **Still waiting on a design session: #143 only.** #139 and #89 turned out not to need one —
+their sessions had already happened (2026-09-10 and 2026-09-03) and only non-visual questions
+remained. Check a ticket's own design document before booking a session; two of the three were
+already drawn.
+
+**Next, in order:** the owner's five open pull requests; then **#66 re-measured** against the new
+`main`; then **#80** (unblocked, its design fresh), **#55**, **#91**, **#89**.
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
