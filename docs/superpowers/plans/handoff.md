@@ -101,6 +101,21 @@ carries screenshots — #179 already did, and #175 and #178 were given theirs on
 | #178 | #83 Today's tables sort on every column | rebased onto current `main`. **screenshots added 2026-09-22**: at rest, sorted by Key ascending, sorted by Today |
 | #179 | #8 the timer | **carries screenshots**, the first PR to do so |
 
+**The running row's key keeps the running tone. Settled again on 2026-09-22 — do not reopen.** The
+owner read #179's screenshots, said the green key looked wrong and that they remembered asking for
+the opposite. The record says otherwise and they confirmed it after seeing both side by side:
+
+- `docs/superpowers/specs/2026-08-20-visual-design-language.md:280` — a row key "takes a colour only
+  when it carries state — the running tone on a ticket whose timer is going".
+- The 2026-09-18 design session drew it green in **all three** options (`timer-row-control.html`).
+- Decision 3 of `docs/superpowers/specs/2026-09-18-timer-design.md`, which the build follows.
+
+**That document contradicts itself, and the contradiction is still there.** Line 94 of the same
+visual design language reads "**Running** is the live timer and its stop control, and nothing else",
+which excludes the key that line 280 grants it. That is where the owner's memory comes from. It is
+**not fixed** — a change under `docs/superpowers/specs/` is a product change and needs a ticket, and
+the owner has not asked for one.
+
 **Nothing is in progress without a pull request.** #83 and #8, which sat here for days, both
 shipped on 2026-09-21 — see the table above. Their design decisions are recorded on the tickets and
 in `docs/superpowers/specs/2026-09-18-timer-design.md`, which #8 amended: the running stop control
