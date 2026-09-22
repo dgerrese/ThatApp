@@ -88,11 +88,12 @@ the next retro.**
 **`main` now carries Playwright 1.63.0** (#134), so the e2e gate no longer produces a 25% false-red
 rate. That matters for **#66**, which is `status/blocked` behind exactly that crash — see *Blocked*.
 
-**#180 and #181 merged on 2026-09-22**, so the screenshot rule and `.claude/tools/pr-attach.sh` are
-on `main` and the 2026-09-21 handoff is recorded. `main` is at `9c52bc6`.
+**Four pull requests merged on 2026-09-22** — #180 and #181 first, then #175 (#139) and #178 (#83).
+So the screenshot rule and `.claude/tools/pr-attach.sh` are on `main`, and **`main` is at
+`5febdda`**.
 
-**Four pull requests are open and waiting on the owner.** Every one that changes the interface now
-carries screenshots — #179 already did, and #175 and #178 were given theirs on 2026-09-22:
+**Three pull requests are open and waiting on the owner.** Every one that changes the interface
+carries screenshots:
 
 | PR | Ticket | Notes |
 |---|---|---|
@@ -100,7 +101,19 @@ carries screenshots — #179 already did, and #175 and #178 were given theirs on
 | #179 | #8 the timer | **carries screenshots**, the first PR to do so — and they caught the green key. Corrected, rebased onto `5febdda`, both gates re-run, scoped re-review passed |
 | #182 | `[Process]` the dev stack's port is read, never assumed | no issue; project design |
 
-**#175 (#139) and #178 (#83) merged on 2026-09-22**, putting `main` at `5febdda`.
+
+**Open and waiting on the owner: whether worklogs round to 15 minutes.** On 2026-09-22 the owner
+said "all worklogs should be rounded to 15min" and called it a timer defect. **It is not one.**
+Decision 8 of `docs/superpowers/specs/2026-08-21-manual-time-entry-design.md` scopes the 15-minute
+grid to the manual duration control and names #8's timer, by number, as the thing that will produce
+off-grid runs; decision 3 says the same from the other side.
+`TestPostEntryAcceptsSecondsThatAreNotAMultipleOf900` exists so that tightening this fails a gate.
+
+So a change here **reverses a recorded decision** and needs a ticket. Three things were put to the
+owner and none is answered: **where** the rounding happens (at push, keeping the local record true;
+at timer stop; or in the API, which deletes that test), **which direction** (nearest rounds a
+two-minute run to zero, which collides with the timer's own 60-second rule), and **what happens to
+the under-a-minute discard** if everything rounds up. No ticket was raised — asking is the owner's.
 
 **Raised on 2026-09-22 at `status/needs-refinement`, both v1, both asked for by the owner:**
 **#183** (`priority/high`) a running timer's figure and the Today sort disagree — the sort reads a
