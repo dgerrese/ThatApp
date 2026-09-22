@@ -3,7 +3,8 @@ import "../components/that-button";
 import "../components/that-card";
 import "../components/that-confirm";
 
-import { ApiError, createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
+import { alertFor, messageOf } from "../alert";
+import { createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
 import { confirmDestructive } from "../components/that-confirm";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import { setThemePreference, themePreference } from "../theme";
@@ -448,21 +449,4 @@ function appearanceCard(): HTMLElement {
   card.append(fieldset);
 
   return card;
-}
-
-function alertFor(tone: string, message: string): HTMLElement {
-  const alert = document.createElement("that-alert");
-  alert.setAttribute("tone", tone);
-  alert.setAttribute("message", message);
-
-  return alert;
-}
-
-/** The server's message when there is one; ApiError carries it already. */
-function messageOf(error: unknown): string {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
-
-  return "Something went wrong.";
 }
