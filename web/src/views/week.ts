@@ -145,6 +145,11 @@ function weekSearchConfig(
         tooltip: () => "pin ticket",
         label: (hit) => `Pin ${hit.key}`,
         onPress: (hit) => {
+          // A pin adds its row at once (decision 2) — the same `addedTickets`
+          // path the add-to-week control uses, not a second one, and not a
+          // read to wait on. An unpin later takes nothing away: `onAdd` only
+          // ever inserts into the map, and nothing here ever removes from it.
+          onAdd(hit);
           void createPin(hit.instanceId, hit.key).catch(onPinFailure);
         },
       },

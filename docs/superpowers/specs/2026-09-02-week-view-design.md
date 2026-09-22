@@ -138,6 +138,17 @@ both need a row to sit in before either is true of it. **A row that is there bec
 because it was just searched for is now indistinguishable from a worked one, deliberately** — the
 grid shows what you are working on this week, not why each line is present.
 
+**A pinned row belongs to the current week only.** `/api/week` seeds one for every pinned ticket the
+rollup does not already carry, but only when the requested week is the one containing today, resolved
+in `THAT_TIMEZONE` — the same expression `weekRangeParam` already uses for its own default, so the
+two cannot disagree about which week that is. Navigating to a closed week shows what that week
+actually contained, not what happens to be pinned now: a week is a settled record of what was worked,
+and letting today's pin list leak into last month's row set would make a past week's shape depend on
+a decision made after that week closed. **Do not simplify this into seeding every week** — a
+search-added row (#84) carries no such limit, but it is never persisted; it lives only in the
+browser's `addedTickets` for as long as the view stays open, so it cannot leak across a reload the way
+a server-seeded row would.
+
 ## Push, and reporting a push that half-failed
 
 **The report renderer moves out of Today into a shared module.** `renderPushReport` and

@@ -143,7 +143,20 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, rollUp(startAt, entries, instances, positions))
+	// A pinned ticket gets an empty row only in the week containing today — see
+	// rollUp. Comparing against mondayOf(s.now().In(s.cfg.Location)), the same
+	// expression weekRangeParam uses for its default, keeps the two from ever
+	// disagreeing about which week that is.
+	var pinned []store.Pin
+	if start == mondayOf(s.now().In(s.cfg.Location)) {
+		pinned, err = s.db.Pins(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "store_failed", "could not read the pinned issues")
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusOK, rollUp(startAt, entries, instances, positions, pinned))
 }
 
 // mondayOf is the local date of the Monday on or before t. Go's Weekday puts
@@ -162,11 +175,16 @@ type rowKey struct {
 	issueKey   string
 }
 
+// rollUp builds one week's grid from entries and, for the current week only,
+// seeds an empty row for every ticket in pinned that entries did not already
+// give one — pass nil for any other week. See handleWeek for how "current" is
+// decided.
 func rollUp(
 	startAt time.Time,
 	entries []store.Entry,
 	instances map[int64]store.Instance,
 	positions map[int64]int,
+	pinned []store.Pin,
 ) weekRollupDTO {
 	days := make([]string, daysInWeek)
 	index := make(map[string]int, daysInWeek)
@@ -188,6 +206,22 @@ func rollUp(
 		}
 		byCell[key][at] = append(byCell[key][at], entry)
 		byDay[at] = append(byDay[at], entry)
+	}
+
+	// The instances guard matters: a row for an unknown instance would render
+	// with an empty name and a meaningless URL. It should be unreachable — a
+	// pin's instance is a foreign key with ON DELETE CASCADE, so the two are
+	// deleted together — but it costs nothing to hold the same invariant
+	// instanceIndex's callers already rely on rather than trust that ordering.
+	for _, pin := range pinned {
+		key := rowKey{instanceID: pin.InstanceID, issueKey: pin.IssueKey}
+		if _, seen := byCell[key]; seen {
+			continue
+		}
+		if _, known := instances[pin.InstanceID]; !known {
+			continue
+		}
+		byCell[key] = make([][]store.Entry, daysInWeek)
 	}
 
 	keys := make([]rowKey, 0, len(byCell))
