@@ -131,9 +131,10 @@ to `codeberg-medium`'s four vCPUs, which the split does not change.
 | PR | Ticket | Notes |
 |---|---|---|
 | #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why. **No screenshots, deliberately** — it changes no behaviour |
-| #179 | #8 the timer | **already merged — the forge record is wrong.** See below |
+| #179 | #8 the timer | merged, and **closed by the owner on 2026-09-22**. See below |
 
-**PR #179 reads `open` on Codeberg although its merge is on `main`.** Verified in git, not inferred:
+**PR #179 read `open` on Codeberg for several hours although its merge was on `main`.** Verified in
+git, not inferred:
 `09e033e` on `main` is the merge commit, `codeberg/main..codeberg/issue-8-timer` is empty, and
 `git diff` between the two is empty. #8 is closed. The record and the repository disagree, and the
 repository is right.
@@ -143,8 +144,9 @@ that branch, Forgejo retargeted #179 to `main` automatically, and the record did
 retarget plus the merge. **Worth watching the next time a stacked pull request is merged** — if it
 happens again it is a rule, not an accident, and the stacking guidance should warn about it.
 
-**Closing #179 is the owner's** — a close is never the session's to make. The branch
-`issue-8-timer` is fully merged and droppable on the owner's word.
+**The owner closed #179 at 17:07 on 2026-09-22**, so the record and the repository agree again. It
+closed as `merged=False`, which is the residue of the same retarget. The branch `issue-8-timer` is
+fully merged and droppable on the owner's word. **There are no open pull requests.**
 
 **Worklog rounding is settled and is #185**, raised and refined on the owner's word on
 2026-09-22. `status/todo`, v1, `enhancement`, 15 acceptance criteria. It **depends on #8** and
@@ -380,10 +382,13 @@ and Week's days come from the server's own rollup, so `day` and `started_at` sti
 each other. Both specs that state the old rule are corrected in that ticket, and it runs a design
 session first, because the dialog has to say which day it is for and that is not drawn.
 
-**#8 is the whole remaining product.** #10 merged on 2026-09-08 as PR #120; its design is
+**#8 merged on 2026-09-22, so v1's product work is now the refinement queue, not one ticket.**
+Thirteen tickets sit at `status/needs-refinement`; #185 is the only one at `status/todo`. The
+sentence below was written when #8 was the last of the design's thirteen still to build, and #13
+(the phone) remains in v2. #10 merged on 2026-09-08 as PR #120; its design is
 `docs/superpowers/specs/2026-09-07-edit-after-push-and-week-fetch-design.md` and its plan
-`docs/superpowers/plans/2026-09-08-edit-after-push-and-week-fetch.md`. **#8 still has no design**, so
-it starts with brainstorming.
+`docs/superpowers/plans/2026-09-08-edit-after-push-and-week-fetch.md`. **#8 got its design and
+shipped**; the line that said it had none is retired.
 
 ### Two things needing the owner
 
