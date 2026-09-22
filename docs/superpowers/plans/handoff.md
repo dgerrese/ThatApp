@@ -102,6 +102,12 @@ carries screenshots — #179 already did, and #175 and #178 were given theirs on
 
 **#175 (#139) and #178 (#83) merged on 2026-09-22**, putting `main` at `5febdda`.
 
+**Raised on 2026-09-22 at `status/needs-refinement`, both v1, both asked for by the owner:**
+**#183** (`priority/high`) a running timer's figure and the Today sort disagree — the sort reads a
+row's logged `seconds`, the figure shows logged plus elapsed; and **#184** (`bug`) the prototype's
+Pinned table draws an ascending mark on Summary over rows that are not in that order. #183 came out
+of rebasing #8 over #83; #184 is a defect in #83 as merged.
+
 **A running row's key is `--color-ink-muted`, and the visual language no longer contradicts itself.
 Settled by the owner on 2026-09-22 — do not reopen.**
 
