@@ -102,18 +102,39 @@ carries screenshots:
 | #182 | `[Process]` the dev stack's port is read, never assumed | no issue; project design |
 
 
-**Open and waiting on the owner: whether worklogs round to 15 minutes.** On 2026-09-22 the owner
-said "all worklogs should be rounded to 15min" and called it a timer defect. **It is not one.**
-Decision 8 of `docs/superpowers/specs/2026-08-21-manual-time-entry-design.md` scopes the 15-minute
-grid to the manual duration control and names #8's timer, by number, as the thing that will produce
-off-grid runs; decision 3 says the same from the other side.
-`TestPostEntryAcceptsSecondsThatAreNotAMultipleOf900` exists so that tightening this fails a gate.
+**Worklog rounding now has a ticket: #185**, raised on the owner's word on 2026-09-22 at
+`status/needs-refinement`, v1, `enhancement`. It **depends on #8** and cannot start before it lands.
 
-So a change here **reverses a recorded decision** and needs a ticket. Three things were put to the
-owner and none is answered: **where** the rounding happens (at push, keeping the local record true;
-at timer stop; or in the API, which deletes that test), **which direction** (nearest rounds a
-two-minute run to zero, which collides with the timer's own 60-second rule), and **what happens to
-the under-a-minute discard** if everything rounds up. No ticket was raised — asking is the owner's.
+The owner's shape: **stopping a timer opens a confirm dialog**, where the user chooses to round the
+run **up or down** to the 15-minute grid and optionally adds a **description** that becomes the
+Jira worklog's comment. That answers two of the three questions the rounding raised — the rounding
+happens **at timer stop**, and the **direction is the user's choice**, so nothing rounds to nearest
+and the collision with the 60-second floor never arises. `POST /api/timer/stop` gains a body; the
+endpoint still accepts off-grid seconds, so
+`TestPostEntryAcceptsSecondsThatAreNotAMultipleOf900` survives untouched.
+
+**Do not reopen why this needed a ticket.** Decision 8 of
+`docs/superpowers/specs/2026-08-21-manual-time-entry-design.md` scopes the 15-minute grid to the
+manual duration control and names #8's timer, by number, as the thing that will produce off-grid
+runs; decision 3 says the same from the other side. So this **reverses a recorded decision**, which
+is why it is a ticket and not a patch, and why it is `enhancement` rather than `bug`.
+
+**Three things #185 needs before it can leave refinement**, and all three are the owner's:
+
+1. **The under-a-minute discard.** `store.MinTimerSeconds` is 60 and the floor is *Jira's own* — a
+   shorter worklog is rejected. So does the dialog even open for a 30-second run?
+2. **Rounding down below the floor.** A 7-minute run rounded down is zero, which Jira will not
+   take. Clamp at 15 minutes, discard, or do not offer "down"?
+3. **The two paths that stop a timer with nobody watching** — starting a second timer, and a timer
+   crossing local midnight. Neither can show a dialog, so what rounding do those entries get?
+
+**#185 needs a design session.** The dialog is a new control that nothing draws — not the visual
+language, not the prototype, not #8's design document.
+
+**What #185 does not need building:** `time_entries.comment` is in the schema from the first
+migration, `store.UpdateEntry` already writes it, and `internal/jira/worklog.go` already sends a
+comment as an Atlassian Document Format node and omits the field when blank. `that-confirm.ts`,
+`that-entry-dialog.ts` and `that-duration.ts` are the parts the dialog is built from.
 
 **Raised on 2026-09-22 at `status/needs-refinement`, both v1, both asked for by the owner:**
 **#183** (`priority/high`) a running timer's figure and the Today sort disagree — the sort reads a
