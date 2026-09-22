@@ -127,8 +127,19 @@ func scanEntries(rows *sql.Rows, attempted string) ([]Entry, error) {
 	return entries, nil
 }
 
-// CreateEntry stores logged time and returns it with its assigned id.
-func (s *Store) CreateEntry(ctx context.Context, in EntryInput) (*Entry, error) {
+// execer is the ExecContext method set *sql.DB and *sql.Tx share, so a write can
+// run either directly or inside a transaction without the caller choosing which
+// by duplicating it.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// insertEntry stores logged time and returns it with its assigned id. It is the
+// shared write CreateEntry uses directly and timers.go uses inside the
+// transaction that closes a timer, so an entry a timer creates is written by the
+// exact same statement as one a manual save creates — nothing marks it as
+// timer-made.
+func insertEntry(ctx context.Context, q execer, in EntryInput) (*Entry, error) {
 	// Truncated because the timestamps are stored as RFC3339, which has
 	// one-second resolution. Without this the returned value would not equal the
 	// stored one.
@@ -139,7 +150,7 @@ func (s *Store) CreateEntry(ctx context.Context, in EntryInput) (*Entry, error) 
 	// and both read paths sort on it.
 	startedAt := in.StartedAt.UTC().Truncate(time.Second)
 
-	result, err := s.db.ExecContext(ctx,
+	result, err := q.ExecContext(ctx,
 		`INSERT INTO time_entries
 		        (instance_id, issue_key, day, started_at, seconds, comment, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -161,6 +172,11 @@ func (s *Store) CreateEntry(ctx context.Context, in EntryInput) (*Entry, error) 
 		StartedAt: startedAt, Seconds: in.Seconds, Comment: in.Comment,
 		CreatedAt: createdAt, UpdatedAt: createdAt,
 	}, nil
+}
+
+// CreateEntry stores logged time and returns it with its assigned id.
+func (s *Store) CreateEntry(ctx context.Context, in EntryInput) (*Entry, error) {
+	return insertEntry(ctx, s.db, in)
 }
 
 // EntriesForDay returns every entry whose day falls within an inclusive range,

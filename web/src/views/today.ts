@@ -4,6 +4,7 @@ import "../components/that-card";
 import "../components/that-issue-search";
 import "../components/that-table";
 import "../components/that-ticket-row";
+import "../components/that-timer";
 import { alignKeyColumn } from "../key-column";
 
 import {
@@ -28,6 +29,7 @@ import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import type { RegisterTeardown } from "../router";
+import { onTimerDiscarded } from "../timer-state";
 import { toolbarButton } from "../toolbar-button";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
@@ -399,6 +401,14 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     showPushReport(regions, ...pushReportNodes(responses, unanswered));
   });
   registerTeardown(stopPushListening);
+
+  // Decision 5 of the timer design: a stop or a switch under a minute leaves
+  // no entry, and says so once, in the same place a push report lands —
+  // there is no second alert surface to invent for it.
+  const stopTimerListening = onTimerDiscarded(() => {
+    showPushReport(regions, alertFor("warning", "Under a minute — nothing logged."));
+  });
+  registerTeardown(stopTimerListening);
 
   // Independent on purpose: the Pinned card paints from the store alone and
   // must not wait on a fan-out that may be slow or failing.

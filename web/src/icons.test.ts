@@ -11,7 +11,7 @@ test("every icon is on the 24 grid, in currentColor, and hidden from the reader"
     assert.match(svg, /stroke-width="1.9"/);
     assert.match(svg, /fill="none"/);
     assert.match(svg, /aria-hidden="true"/, `${name} is decorative: the label is the control's`);
-    assert.match(svg, /<(path|circle)/, `${name} draws something`);
+    assert.match(svg, /<(path|circle|rect)/, `${name} draws something`);
   }
 });
 

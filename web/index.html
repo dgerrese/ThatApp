@@ -86,7 +86,9 @@
 
           <div class="bg-rail-active h-0.5 my-1 rounded-xs"></div>
 
-          <!-- #8 makes this the running timer. -->
+          <!-- #8's rail.ts owns this region from here: the resting markup
+               below is what it repaints back to when nothing is running, and
+               what it replaces with the running line the moment something is. -->
           <div id="rail-timer" class="flex items-center gap-2">
             <span class="bg-rail-active size-[7px] shrink-0 rounded-full"></span>
             <span class="text-rail-muted text-base">No timer running</span>

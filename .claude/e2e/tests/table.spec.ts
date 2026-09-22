@@ -164,8 +164,9 @@ test("a row holding controls is no taller than a row of text alone", async ({ pa
     const controls = bodyRow?.querySelectorAll<HTMLElement>(
       "td.c-today button, td.c-act button",
     );
-    // Both of them, or this is measuring something other than what it claims.
-    if (!bodyRow || controls?.length !== 2) return null;
+    // The duration trigger, #8's timer button and the pin, or this is
+    // measuring something other than what it claims.
+    if (!bodyRow || controls?.length !== 3) return null;
 
     const withControls = bodyRow.getBoundingClientRect().height;
     for (const control of controls) control.style.display = "none";

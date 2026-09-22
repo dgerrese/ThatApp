@@ -31,6 +31,8 @@ export const ICON_NAMES = [
   "trash",
   "add-to-week",
   "search",
+  "play",
+  "stop",
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];
@@ -81,6 +83,11 @@ const PATHS: Record<IconName, string> = {
     '<path d="M20 14v1a2 2 0 0 1-2 2H8"/><path d="M11 14l-3 3 3 3"/>',
   // Transcribed from the prototype's #p-search, for that-issue-search's field.
   search: '<circle cx="11" cy="11" r="6.6"/><path d="M15.9 15.9 20.5 20.5"/>',
+  // #8's row and rail controls. The design's own geometry
+  // (2026-09-18-timer-design.md, Task 4 of the plan) — a rounded triangle and
+  // a rounded square, not drawn here first.
+  play: '<path d="M8 5.6v12.8a.6.6 0 0 0 .92.5l9.6-6.4a.6.6 0 0 0 0-1l-9.6-6.4A.6.6 0 0 0 8 5.6Z"/>',
+  stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>',
 };
 
 /**

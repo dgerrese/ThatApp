@@ -210,6 +210,28 @@ export interface WeekRow {
   seconds: number;
 }
 
+/** The one timer the server runs. The browser computes elapsed time from
+ *  `startedAt` itself, so there is no server tick to render. */
+export interface RunningTimer {
+  instanceId: number;
+  issueKey: string;
+  startedAt: string;
+}
+
+/** What GET /api/timer and POST /api/timer/start answer with. `stopped` is
+ *  the entry a midnight close or a switch just produced, if any. */
+export interface TimerStateResponse {
+  running: RunningTimer | null;
+  stopped: Entry | null;
+}
+
+/** What POST /api/timer/stop answers with. `discarded` is true only when a
+ *  timer was running and its run fell under a minute. */
+export interface StopTimerResponse {
+  stopped: Entry | null;
+  discarded: boolean;
+}
+
 export interface WeekRollup {
   start: string;
   end: string;
