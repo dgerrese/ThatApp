@@ -88,18 +88,38 @@ the next retro.**
 **`main` now carries Playwright 1.63.0** (#134), so the e2e gate no longer produces a 25% false-red
 rate. That matters for **#66**, which is `status/blocked` behind exactly that crash — see *Blocked*.
 
-**Four pull requests merged on 2026-09-22** — #180 and #181 first, then #175 (#139) and #178 (#83).
-So the screenshot rule and `.claude/tools/pr-attach.sh` are on `main`, and **`main` is at
-`5febdda`**.
+**Five pull requests merged on 2026-09-22** — #180 and #181 first, then #175 (#139), #178 (#83) and
+#182. So the screenshot rule, `.claude/tools/pr-attach.sh` and the "read `THAT_PORT`" rule are on
+`main`, and **`main` is at `a4750c2`**.
 
-**Three pull requests are open and waiting on the owner.** Every one that changes the interface
+**The E2E job has no headroom against Codeberg's ten-minute cap. Read this before diagnosing any
+red e2e run.** `codeberg-medium` kills a job at ten minutes and records the kill as `cancelled`,
+which the commit status then reports as **`failure` with no test output** — because nothing failed.
+Measured on 2026-09-22 across every run the forge has ever recorded: **no run above 600 seconds has
+ever passed**, the longest success is 9:24 (run 116), and `main` sat at 9:04–9:17 for weeks. Run 207
+on #8's branch reached **10:26** and was killed. #8 adds 16 test blocks, about 6% more work, against
+roughly 36 seconds of margin.
+
+**That is #186, fixed by PR #187: one e2e job per browser.** `playwright.config.ts` already declares
+`firefox` and `chromium` as two independent projects, so the split follows a seam that was already
+there, and it halves **both** large costs — half the tests per job, and one browser download instead
+of two. Sharding with `--shard` was rejected: it halves only the first. `verify.yml` was already
+split across two jobs for this same cap, so this is that pattern applied to the rig.
+
+**Knock-on when #187 merges: the commit status splits into two contexts**, `E2E / e2e (firefox)` and
+`E2E / e2e (chromium)`. Anything matching the old single name needs updating.
+
+**`workers: 4` in `playwright.config.ts` was deliberately left alone.** Its comment ties the number
+to `codeberg-medium`'s four vCPUs, which the split does not change.
+
+**Four pull requests are open and waiting on the owner.** Every one that changes the interface
 carries screenshots:
 
 | PR | Ticket | Notes |
 |---|---|---|
 | #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why. **No screenshots, deliberately** — it changes no behaviour |
-| #179 | #8 the timer | **carries screenshots**, the first PR to do so — and they caught the green key. Corrected, rebased onto `5febdda`, both gates re-run, scoped re-review passed |
-| #182 | `[Process]` the dev stack's port is read, never assumed | no issue; project design |
+| #179 | #8 the timer | **carries screenshots**, the first PR to do so — and they caught the green key. **Stacked on #187 and based on that branch**, so its diff is only the timer's 24 files. Retarget it to `main` once #187 merges |
+| #187 | #186 one e2e job per browser | the ten-minute cap, above. `make verify` and `make test-e2e` both green locally (546 passed, 14 skipped) |
 
 
 **Worklog rounding is settled and is #185**, raised and refined on the owner's word on
