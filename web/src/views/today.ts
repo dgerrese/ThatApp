@@ -558,6 +558,7 @@ function renderPinnedList(regions: Regions, pins: Pin[]): void {
   }
 
   const table = document.createElement("that-table") as ThatTable;
+  table.setAttribute("sort-id", "pinned");
   for (const pin of pins) {
     table.body.append(pinnedRow(pin));
   }
@@ -697,6 +698,7 @@ function renderOffListSection(regions: Regions): void {
   }
 
   const table = document.createElement("that-table") as ThatTable;
+  table.setAttribute("sort-id", "off-list");
   for (const issue of issues) {
     const id = totalKey(issue.instanceId, issue.issueKey);
     table.body.append(
@@ -1034,6 +1036,7 @@ function instanceSection(group: InstanceIssues, position: number, pins: Pin[]): 
   heading.append(tally);
 
   const table = document.createElement("that-table") as ThatTable;
+  table.setAttribute("sort-id", `instance-${String(group.id)}`);
   for (const issue of visible) {
     const row = document.createElement("that-ticket-row");
     row.setAttribute("key", issue.key);

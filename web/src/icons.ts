@@ -68,8 +68,10 @@ const PATHS: Record<IconName, string> = {
   fetch:
     '<path d="M7.4 19h9.9a3.6 3.6 0 0 0 .5-7.16 5.6 5.6 0 0 0-10.8-1.2A3.98 3.98 0 0 0 7.4 19Z"/>' +
     '<path d="M12 10.5v6"/><path d="M9.4 14 12 16.6l2.6-2.6"/>',
-  ascending: '<path d="M12 19V6M7.5 10.5 12 6l4.5 4.5"/>',
-  descending: '<path d="M12 5v13M7.5 13.5 12 18l4.5-4.5"/>',
+  // Transcribed from the prototype's #p-desc; ascending is its own mirror,
+  // both settled in the design session of 2026-09-18.
+  ascending: '<path d="M12 19.5V5M6.4 10.6 12 5l5.6 5.6"/>',
+  descending: '<path d="M12 4.5V19M6.4 13.4 12 19l5.6-5.6"/>',
   // Both transcribed from the prototype's #p-edit and #p-trash. The nib is
   // drawn as a separate stroke from the barrel so the pencil still reads as one
   // at 17px, where a single closed outline collapses into a lozenge.

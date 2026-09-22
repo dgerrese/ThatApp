@@ -65,6 +65,14 @@ export class ThatTicketRow extends HTMLElement {
     this.render();
   }
 
+  // #83's `that-table` re-sorts its body with `moveBefore`, which moves this
+  // element without disconnecting it — but only because this no-op exists.
+  // Without it the browser falls back to an ordinary remove-then-insert,
+  // firing disconnectedCallback and then connectedCallback, and
+  // connectedCallback calls render() unconditionally: every cell, including
+  // whichever control the user had focused, would be rebuilt mid-sort.
+  connectedMoveCallback(): void {}
+
   // `seconds` and `pinned` each move without the rest of the row changing, so
   // both repaint their own cell in place rather than rebuilding the row: a
   // rebuild would detach whichever control the user just used as a focus
