@@ -54,8 +54,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # One job per browser, because codeberg-medium kills a job at ten minutes and
+  # records the kill as `cancelled` — which the commit status then reports as a
+  # failure with no test output, since nothing failed (#186). Combined, this job
+  # ran 9:04 to 9:24 for weeks; run 207 reached 10:26 and was killed. No run
+  # above 600s has ever passed.
+  #
+  # The seam is already in playwright.config.ts: `firefox` and `chromium` are
+  # two independent projects. Splitting on it halves both large costs — half the
+  # tests per job, and one browser download instead of two. Sharding with
+  # --shard halves only the first, and still installs both browsers twice.
+  #
+  # verify.yml is split across two jobs for this same cap. This is that pattern.
   e2e:
     runs-on: codeberg-medium
+    strategy:
+      # A Firefox failure must not destroy the Chromium result: the two engines
+      # fail differently often enough that one run should report on both.
+      fail-fast: false
+      matrix:
+        browser: [firefox, chromium]
     steps:
       - uses: https://data.forgejo.org/actions/checkout@v5
 
@@ -82,13 +100,14 @@ jobs:
       - name: Build the server
         run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/that-server" ./cmd/server
 
-      # Only the two supported engines. WebKit is an explicit non-goal, which is
-      # also why this does not use the official Playwright image.
-      - name: Install Playwright and browsers
+      # Only this job's own engine. WebKit is an explicit non-goal, which is also
+      # why this does not use the official Playwright image. Installing one
+      # browser rather than both is half the reason the split fits in the cap.
+      - name: Install Playwright and its browser
         working-directory: .claude/e2e
         run: |
           npm ci --no-audit --no-fund
-          npx playwright install --with-deps firefox chromium
+          npx playwright install --with-deps ${{ matrix.browser }}
 
       - name: Run the end-to-end suite
         working-directory: .claude/e2e
@@ -115,7 +134,7 @@ jobs:
           curl -sf http://localhost:8080/api/health \
             || { echo "server did not become healthy"; exit 1; }
 
-          npx playwright test
+          npx playwright test --project=${{ matrix.browser }}
 
       - name: Stop the server
         if: always()
@@ -128,5 +147,7 @@ jobs:
         if: failure()
         uses: https://data.forgejo.org/forgejo/upload-artifact@v4
         with:
-          name: playwright-traces
+          # The browser is in the name because both matrix jobs upload, and two
+          # artifacts of one name collide.
+          name: playwright-traces-${{ matrix.browser }}
           path: .claude/e2e/test-results/
