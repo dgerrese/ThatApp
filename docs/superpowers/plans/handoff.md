@@ -100,6 +100,7 @@ carries screenshots — #179 already did, and #175 and #178 were given theirs on
 | #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why. **No screenshots, deliberately** — it changes no behaviour |
 | #178 | #83 Today's tables sort on every column | rebased onto current `main`. **screenshots added 2026-09-22**: at rest, sorted by Key ascending, sorted by Today |
 | #179 | #8 the timer | **carries screenshots**, the first PR to do so |
+| #182 | `[Process]` the dev stack's port is read, never assumed | no issue; project design |
 
 **The running row's key keeps the running tone. Settled again on 2026-09-22 — do not reopen.** The
 owner read #179's screenshots, said the green key looked wrong and that they remembered asking for
