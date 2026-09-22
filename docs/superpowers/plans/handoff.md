@@ -96,11 +96,11 @@ carries screenshots — #179 already did, and #175 and #178 were given theirs on
 
 | PR | Ticket | Notes |
 |---|---|---|
-| #175 | #139 a pinned ticket has a row in the current week | **screenshots added 2026-09-22**: the pinned row in the current week, and its absence in the week before |
 | #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why. **No screenshots, deliberately** — it changes no behaviour |
-| #178 | #83 Today's tables sort on every column | rebased onto current `main`. **screenshots added 2026-09-22**: at rest, sorted by Key ascending, sorted by Today |
-| #179 | #8 the timer | **carries screenshots**, the first PR to do so — and they caught the green key. Corrected 2026-09-22; both gates re-run and a scoped re-review passed |
+| #179 | #8 the timer | **carries screenshots**, the first PR to do so — and they caught the green key. Corrected, rebased onto `5febdda`, both gates re-run, scoped re-review passed |
 | #182 | `[Process]` the dev stack's port is read, never assumed | no issue; project design |
+
+**#175 (#139) and #178 (#83) merged on 2026-09-22**, putting `main` at `5febdda`.
 
 **A running row's key is `--color-ink-muted`, and the visual language no longer contradicts itself.
 Settled by the owner on 2026-09-22 — do not reopen.**
