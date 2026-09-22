@@ -99,23 +99,35 @@ carries screenshots — #179 already did, and #175 and #178 were given theirs on
 | #175 | #139 a pinned ticket has a row in the current week | **screenshots added 2026-09-22**: the pinned row in the current week, and its absence in the week before |
 | #177 | #39 one home for `alertFor` and `messageOf` | **adds `allowImportingTsExtensions` to `web/tsconfig.json`** — not a weakening; the PR body explains why. **No screenshots, deliberately** — it changes no behaviour |
 | #178 | #83 Today's tables sort on every column | rebased onto current `main`. **screenshots added 2026-09-22**: at rest, sorted by Key ascending, sorted by Today |
-| #179 | #8 the timer | **carries screenshots**, the first PR to do so |
+| #179 | #8 the timer | **carries screenshots**, the first PR to do so — and they caught the green key. Corrected 2026-09-22; both gates re-run and a scoped re-review passed |
 | #182 | `[Process]` the dev stack's port is read, never assumed | no issue; project design |
 
-**The running row's key keeps the running tone. Settled again on 2026-09-22 — do not reopen.** The
-owner read #179's screenshots, said the green key looked wrong and that they remembered asking for
-the opposite. The record says otherwise and they confirmed it after seeing both side by side:
+**A running row's key is `--color-ink-muted`, and the visual language no longer contradicts itself.
+Settled by the owner on 2026-09-22 — do not reopen.**
 
-- `docs/superpowers/specs/2026-08-20-visual-design-language.md:280` — a row key "takes a colour only
-  when it carries state — the running tone on a ticket whose timer is going".
-- The 2026-09-18 design session drew it green in **all three** options (`timer-row-control.html`).
-- Decision 3 of `docs/superpowers/specs/2026-09-18-timer-design.md`, which the build follows.
+The owner read #179's screenshots and said the green key was wrong. The first answer, from the
+record, was that the green key was specified — and it was, by a clause that contradicted the same
+document's role table:
 
-**That document contradicts itself, and the contradiction is still there.** Line 94 of the same
-visual design language reads "**Running** is the live timer and its stop control, and nothing else",
-which excludes the key that line 280 grants it. That is where the owner's memory comes from. It is
-**not fixed** — a change under `docs/superpowers/specs/` is a product change and needs a ticket, and
-the owner has not asked for one.
+- The role table's prose: "**Running** is the live timer and its stop control, and nothing else."
+  A key is neither.
+- The row-key rule, four pages later, named "the running tone on a ticket whose timer is going" as
+  an example of state a key may carry. **That is the clause #8 was built on**, and the 2026-09-18
+  session screen drew the key green in all three options on the strength of it.
+
+The owner compared both states in the running app, **chose the role table over the clause**, and
+asked for the code to follow the language rather than the language to follow the code. So, on
+`issue-8-timer` (commit `7f52e28`, in PR #179):
+
+- The key never takes `text-running`. The **Today figure and the stop control still do** — a running
+  row says so through the two elements the language actually names.
+- The stale clause is **struck** from the row-key rule. The rule itself is untouched.
+- Decision 3 of `docs/superpowers/specs/2026-09-18-timer-design.md` records the correction.
+
+**The lesson is not the colour.** A whole-branch review, four task reviews and a design session all
+passed a defect that one look at a screenshot caught, because every one of them was reading the
+clause rather than the role table. Screenshots on pull requests are eight days old and have now paid
+for themselves once.
 
 **Nothing is in progress without a pull request.** #83 and #8, which sat here for days, both
 shipped on 2026-09-21 — see the table above. Their design decisions are recorded on the tickets and
