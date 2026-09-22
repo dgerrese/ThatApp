@@ -102,39 +102,47 @@ carries screenshots:
 | #182 | `[Process]` the dev stack's port is read, never assumed | no issue; project design |
 
 
-**Worklog rounding now has a ticket: #185**, raised on the owner's word on 2026-09-22 at
-`status/needs-refinement`, v1, `enhancement`. It **depends on #8** and cannot start before it lands.
+**Worklog rounding is settled and is #185**, raised and refined on the owner's word on
+2026-09-22. `status/todo`, v1, `enhancement`, 15 acceptance criteria. It **depends on #8** and
+cannot start before it lands.
 
-The owner's shape: **stopping a timer opens a confirm dialog**, where the user chooses to round the
-run **up or down** to the 15-minute grid and optionally adds a **description** that becomes the
-Jira worklog's comment. That answers two of the three questions the rounding raised — the rounding
-happens **at timer stop**, and the **direction is the user's choice**, so nothing rounds to nearest
-and the collision with the 60-second floor never arises. `POST /api/timer/stop` gains a body; the
-endpoint still accepts off-grid seconds, so
-`TestPostEntryAcceptsSecondsThatAreNotAMultipleOf900` survives untouched.
+**The rule, and do not reopen it.** Stopping a timer opens a confirm dialog. In it the user picks a
+rounding direction and may add a description that becomes the Jira worklog's comment. One sentence
+covers every case:
 
-**Do not reopen why this needed a ticket.** Decision 8 of
-`docs/superpowers/specs/2026-08-21-manual-time-entry-design.md` scopes the 15-minute grid to the
-manual duration control and names #8's timer, by number, as the thing that will produce off-grid
-runs; decision 3 says the same from the other side. So this **reverses a recorded decision**, which
-is why it is a ticket and not a patch, and why it is `enhancement` rather than `bug`.
+> **Up is ceiling to the 15-minute grid. Down is floor to the 15-minute grid. A floor of zero
+> discards the entry.**
 
-**Three things #185 needs before it can leave refinement**, and all three are the owner's:
+So a 7-minute run rounded down is thrown away, and "down" is also how a mistimed run is cancelled.
+That was the owner's choice on 2026-09-22, against clamping at 15 minutes and against hiding the
+control.
 
-1. **The under-a-minute discard.** `store.MinTimerSeconds` is 60 and the floor is *Jira's own* — a
-   shorter worklog is rejected. So does the dialog even open for a 30-second run?
-2. **Rounding down below the floor.** A 7-minute run rounded down is zero, which Jira will not
-   take. Clamp at 15 minutes, discard, or do not offer "down"?
-3. **The two paths that stop a timer with nobody watching** — starting a second timer, and a timer
-   crossing local midnight. Neither can show a dialog, so what rounding do those entries get?
+**Three paths stop a timer, and only two of them ask.** The user's own stop asks. Starting a second
+timer asks, because the user is at the screen. **The midnight close does not and never will** —
+nobody is there — so that entry stays honest and off-grid. That is why `store.MinTimerSeconds`
+survives: its 60-second floor is *Jira's* constraint, and the midnight path is the only one still
+relying on it.
 
-**#185 needs a design session.** The dialog is a new control that nothing draws — not the visual
-language, not the prototype, not #8's design document.
+**The rounding happens at timer stop, not at push and not in the API.**
+`TestPostEntryAcceptsSecondsThatAreNotAMultipleOf900` must keep passing untouched — off-grid
+seconds stay legal, because the midnight close still writes them.
+
+**#185 reverses a recorded decision**, which is why it is a ticket rather than a patch and
+`enhancement` rather than `bug`. Decision 8 of
+`docs/superpowers/specs/2026-08-21-manual-time-entry-design.md` scoped the 15-minute grid to the
+manual duration control and named #8's timer as the thing that would produce off-grid runs;
+decision 3 says the same from the other side. **#185 amends both.**
+
+**#185 still needs a design session before planning.** The dialog is a new control that nothing
+draws — not the visual language, not the prototype, not #8's design document.
 
 **What #185 does not need building:** `time_entries.comment` is in the schema from the first
 migration, `store.UpdateEntry` already writes it, and `internal/jira/worklog.go` already sends a
 comment as an Atlassian Document Format node and omits the field when blank. `that-confirm.ts`,
 `that-entry-dialog.ts` and `that-duration.ts` are the parts the dialog is built from.
+
+**A description on manual time entry is out of scope on #185** and has no ticket. The column and
+the push already support one; only the form has no field.
 
 **Raised on 2026-09-22 at `status/needs-refinement`, both v1, both asked for by the owner:**
 **#183** (`priority/high`) a running timer's figure and the Today sort disagree — the sort reads a
@@ -202,7 +210,7 @@ count (10 vs CI's 4) was **never tested** and is the next hypothesis only if the
 written into each ticket: **#8** as above; **#83** ascending arrow = the drawn descending arrow,
 mirrored; **#80** a hairline note under the four fields, above the buttons.
 
-**Refined and still `status/todo`: #80, #55, #89, #91.** #134, #139, #39, #83 and #8 all shipped on
+**Refined and still `status/todo`: #80, #55, #89, #91, and #185 — which waits on #8.** #134, #139, #39, #83 and #8 all shipped on
 2026-09-21.
 
 **#80 was blocked and is not any more.** Its note needed "a muted info mark" and none existed
