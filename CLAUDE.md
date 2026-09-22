@@ -47,7 +47,7 @@ These come from the project owner. They are not preferences and not open to rein
 
 ```shell
 make help        # list targets
-make up          # start the dev stack on localhost:8080
+make up          # start the dev stack (its port is THAT_PORT — read it, never assume)
 make down        # stop it and drop its volumes
 make verify      # the full merge gate — lint, tsc, tests
 make test-go     # Go suite only
@@ -57,6 +57,12 @@ make tsc         # frontend type check
 make build-web   # build the frontend into web/dist
 make image       # dry-run the release image build against a throwaway registry
 ```
+
+**The dev stack's port is `THAT_PORT` in `.env`, and it is not always the default.** Read it — or
+read the published port out of `docker compose ps` — before opening a browser, a `curl` or a test
+against the running app. A machine may already run the released image beside the dev stack, and that
+one answers on the default port. Pointing at the wrong one does not fail: it serves a working app
+built from different code, which reads as a stale build and costs an hour.
 
 Anything not covered by a `make` target runs through Compose:
 
