@@ -226,7 +226,12 @@ what tomorrow's session must be told, and the terminal will be closed.
    whole e2e profile back up seconds after you tear it down, and the day ends with containers
    running and no explanation.
 2. `docker compose --profile e2e down`
-3. Confirm nothing still holds the port: `ss -ltn | grep :8080`
+3. Confirm nothing still holds the stack's port. Read it rather than typing a number, because the
+   released image may be running beside the dev stack on the default:
+
+   ```shell
+   ss -ltn | grep ":$(grep -E '^THAT_PORT=' .env | cut -d= -f2)"
+   ```
 
 **Never `make down` here.** That target is `docker compose --profile e2e down -v`, and the `-v`
 drops the build and dependency caches by design — `npm ci`, `go mod download` and a Playwright
