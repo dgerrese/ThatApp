@@ -73,3 +73,24 @@ test("the fetch glyph is not the refresh glyph", () => {
     "refresh means the view was re-read; fetch pulls time in and writes it",
   );
 });
+
+test("info and external are transcribed from the #80 design sessions", () => {
+  // Pasted verbatim from issue #80: the info mark settled 2026-09-21, the
+  // external mark 2026-09-23.
+  assert.ok(ICON_NAMES.includes("info"), "info is in the set");
+  assert.ok(ICON_NAMES.includes("external"), "external is in the set");
+  assert.match(
+    iconMarkup("info"),
+    /<circle cx="12" cy="12" r="8\.5"\/><path d="M12 8\.6h\.01M12 11\.4v3\.6"\/>/,
+  );
+  assert.match(
+    iconMarkup("external"),
+    /<path d="M14 5h5v5M19 5l-8 8M18 14v4\.5A1\.5 1\.5 0 0 1 16\.5 20h-11A1\.5 1\.5 0 0 1 4 18\.5v-11A1\.5 1\.5 0 0 1 5\.5 6H10"\/>/,
+  );
+});
+
+test("info is not warning turned upside down by colour alone", () => {
+  const shape = (name: IconName) => iconMarkup(name).replace(/^<svg[^>]*>|<\/svg>$/g, "");
+  assert.notEqual(shape("info"), shape("warning"));
+  assert.notEqual(shape("info"), shape("failed"));
+});
