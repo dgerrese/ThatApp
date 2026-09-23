@@ -2,12 +2,20 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
+
+// validRound reports whether round is one of the two directions the stop
+// dialog offers; the zero value ("") is deliberately not one of them, so an
+// omitted round is rejected the same way an unknown one is.
+func validRound(round store.Rounding) bool {
+	return round == store.RoundUp || round == store.RoundDown
+}
 
 // timerDTO is the timer in progress, if any. The browser computes elapsed time
 // from startedAt itself, so there is no server tick to render.
@@ -25,9 +33,8 @@ func (s *Server) timerDTOFrom(timer store.Timer) timerDTO {
 	}
 }
 
-// timerStateResponse is what GET /api/timer and POST /api/timer/start answer
-// with: the timer now running, if any, and the entry a midnight close or a
-// switch just created, if any.
+// timerStateResponse is what GET /api/timer answers with: the timer now
+// running, if any, and the entry a midnight close just created, if any.
 type timerStateResponse struct {
 	Running *timerDTO `json:"running"`
 	Stopped *entryDTO `json:"stopped"`
@@ -74,19 +81,39 @@ func (s *Server) handleGetTimer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// startTimerRequest is the body POST /api/timer/start accepts.
+// startTimerRequest is the body POST /api/timer/start accepts: the timer to
+// start, and — when one is already running — the direction and description
+// the stop dialog confirmed for closing it.
 type startTimerRequest struct {
-	InstanceID int64  `json:"instanceId"`
-	IssueKey   string `json:"issueKey"`
+	InstanceID int64          `json:"instanceId"`
+	IssueKey   string         `json:"issueKey"`
+	Round      store.Rounding `json:"round"`
+	Comment    string         `json:"comment"`
+}
+
+// startTimerResponse is what POST /api/timer/start answers with: the timer now
+// running, the entry the switch produced (if any), and whether that switch
+// discarded the run it closed.
+type startTimerResponse struct {
+	Running   *timerDTO `json:"running"`
+	Stopped   *entryDTO `json:"stopped"`
+	Discarded bool      `json:"discarded"`
 }
 
 // handleStartTimer stops whatever timer is running, as StopTimer would, then
 // starts the new one. Both happen in the store's one transaction, so the
-// response's "stopped" is the entry that switch produced, if any.
+// response's "stopped" is the entry that switch produced, if any. Round and
+// comment govern only the timer being closed; starting with nothing running
+// ignores them.
 func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 	var req startTimerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "the request body is not valid JSON")
+		return
+	}
+
+	if req.Round != "" && !validRound(req.Round) {
+		writeError(w, http.StatusBadRequest, "invalid_request", `round must be "up" or "down"`)
 		return
 	}
 
@@ -106,14 +133,19 @@ func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	running, stopped, _, err := s.db.StartTimer(r.Context(), inst.ID, key, s.now(), s.cfg.Location, store.TimerClose{})
+	running, stopped, wasRunning, err := s.db.StartTimer(r.Context(), inst.ID, key, s.now(), s.cfg.Location,
+		store.TimerClose{Round: req.Round, Comment: req.Comment})
+	if errors.Is(err, store.ErrRoundingRequired) {
+		writeError(w, http.StatusBadRequest, "invalid_request", "a timer is running: round is required to stop it")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "store_failed", "could not start the timer")
 		return
 	}
 
 	runningDTO := s.timerDTOFrom(*running)
-	resp := timerStateResponse{Running: &runningDTO}
+	resp := startTimerResponse{Running: &runningDTO, Discarded: wasRunning && stopped == nil}
 	if stopped != nil {
 		// instances and positions were already read above for req.InstanceID; the
 		// switched-away entry's instance is in the same map, so this reuses it
@@ -125,19 +157,39 @@ func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// stopTimerRequest is the body POST /api/timer/stop requires: the direction
+// the stop dialog confirmed, and its optional description.
+type stopTimerRequest struct {
+	Round   store.Rounding `json:"round"`
+	Comment string         `json:"comment"`
+}
+
 // stopTimerResponse is what POST /api/timer/stop answers with. Discarded is
-// true only when a timer was running and its run fell short of
-// store.MinTimerSeconds — nothing running is not an error and not a discard.
+// true only when a timer was running and its run rounded down to zero —
+// nothing running is not an error and not a discard.
 type stopTimerResponse struct {
 	Stopped   *entryDTO `json:"stopped"`
 	Discarded bool      `json:"discarded"`
 }
 
-// handleStopTimer ends whatever timer is running. Nothing running answers
-// 200 with both fields empty, matching the store's own "not an error" reading
-// of that case.
+// handleStopTimer ends whatever timer is running, landing its run on the
+// 15-minute grid in the direction the stop dialog confirmed. A malformed body
+// or a round that is neither "up" nor "down" is refused; nothing running still
+// answers 200 with both fields empty, matching the store's own "not an error"
+// reading of that case.
 func (s *Server) handleStopTimer(w http.ResponseWriter, r *http.Request) {
-	entry, wasRunning, err := s.db.StopTimer(r.Context(), s.now(), s.cfg.Location, store.TimerClose{})
+	var req stopTimerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "the request body is not valid JSON")
+		return
+	}
+	if !validRound(req.Round) {
+		writeError(w, http.StatusBadRequest, "invalid_request", `round must be "up" or "down"`)
+		return
+	}
+
+	entry, wasRunning, err := s.db.StopTimer(r.Context(), s.now(), s.cfg.Location,
+		store.TimerClose{Round: req.Round, Comment: req.Comment})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "store_failed", "could not stop the timer")
 		return
