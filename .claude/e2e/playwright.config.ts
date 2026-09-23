@@ -9,17 +9,15 @@ import { defineConfig, devices } from "@playwright/test";
 // breaks navigation to the plain-HTTP dev server — a collision "app-e2e"
 // itself was never exposed to. See the `app-e2e` service's network alias in
 // docker-compose.yml.
-const baseURL = process.env.THAT_BASE_URL ?? "http://that-e2e:8080";
+const upstream = process.env.THAT_BASE_URL ?? "http://that-e2e:8080";
 
-// The service worker (#12) only registers in a secure context, and plain
-// http:// on a Compose service alias is not one — browsers special-case only
-// localhost/127.0.0.1. Each engine gets there differently: Firefox has a
-// per-hostname secure-context allowlist pref; Chromium's equivalent flag
-// (--unsafely-treat-insecure-origin-as-secure) is unreliable under headless
-// (microsoft/playwright#22944), so Chromium instead resolves "localhost" —
-// which it always treats as secure — to the real host and navigates there.
-const { hostname, port } = new URL(baseURL);
-const localhostURL = `http://localhost:${port}`;
+// The service worker (#12) and window.caches only work in a secure context,
+// and plain http:// on a Compose alias is not one — browsers special-case only
+// localhost. forward.mjs (#66) gives both engines a genuine http://localhost
+// by forwarding TCP to the upstream; it does not start when the upstream is
+// already local (CI sets THAT_BASE_URL=http://localhost:8080).
+const upstreamIsLocal = ["localhost", "127.0.0.1"].includes(new URL(upstream).hostname);
+const baseURL = upstreamIsLocal ? upstream : "http://localhost:8080";
 
 export default defineConfig({
   testDir: "./tests",
@@ -39,6 +37,14 @@ export default defineConfig({
   // .forgejo/workflows/e2e.yml — move that runner label and this number
   // stops being justified. Unset locally, where the default is right.
   workers: process.env.CI ? 4 : undefined,
+  webServer: upstreamIsLocal
+    ? undefined
+    : {
+        command: "node forward.mjs",
+        port: 8080,
+        reuseExistingServer: false,
+        env: { THAT_UPSTREAM: upstream, THAT_FORWARD_PORT: "8080" },
+      },
   use: {
     baseURL,
     trace: "retain-on-failure",
@@ -58,22 +64,11 @@ export default defineConfig({
     // Firefox first: it is the primary target.
     {
       name: "firefox",
-      use: {
-        ...devices["Desktop Firefox"],
-        launchOptions: {
-          firefoxUserPrefs: { "dom.securecontext.allowlist": hostname },
-        },
-      },
+      use: { ...devices["Desktop Firefox"] },
     },
     {
       name: "chromium",
-      use: {
-        ...devices["Desktop Chrome"],
-        baseURL: localhostURL,
-        launchOptions: {
-          args: [`--host-resolver-rules=MAP localhost ${hostname}`],
-        },
-      },
+      use: { ...devices["Desktop Chrome"] },
     },
   ],
 });

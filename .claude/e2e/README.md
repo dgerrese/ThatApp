@@ -75,6 +75,23 @@ is real. Running against `app-e2e` instead turns "no test contacts a real
 Jira instance" from a rule the tests have to honour into one the rig makes
 structurally true: there is nothing real in that database to reach.
 
+## Why the browsers load localhost
+
+The service worker and `window.caches` only work in a secure context, and plain
+`http://` on a Compose alias is not one. `forward.mjs` gives both engines a genuine
+`http://localhost` by forwarding a TCP listener on `127.0.0.1:8080` to the real
+upstream; `playwright.config.ts` starts it as a `webServer` and points `baseURL`
+at it. This replaced two per-engine workarounds that each covered only part of
+the problem: Firefox's `dom.securecontext.allowlist` pref trusted the upstream
+origin but left `window.caches` throwing `SecurityError` there regardless, and
+Chromium's `--host-resolver-rules` only remapped the hostname inside the
+browser, so requests made from Node (rather than inside the browser) still
+could not follow it.
+
+The forwarder does not start when `THAT_BASE_URL` already names a localhost
+upstream, which is how CI runs it (`http://localhost:8080`, no Compose
+network) — there the address is already real and nothing needs forwarding.
+
 ## Browser coverage
 
 Firefox and Chromium only. Firefox is the primary target and is listed

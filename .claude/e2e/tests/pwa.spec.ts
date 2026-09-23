@@ -82,26 +82,10 @@ test("the service worker registered by the app shell reaches activated", async (
   await waitForActivatedWorker(page);
 });
 
-// window.caches is unavailable to this test in Firefox: under this rig's
-// http-as-secure-context workaround (see playwright.config.ts), Firefox
-// throws "The operation is insecure." from the page's CacheStorage binding
-// specifically, even though the worker's own self.caches — what install()
-// and activate() actually use — is unaffected by it. The "reaches activated"
-// test above already proves that on Firefox too: activation is gated on
-// precacheShell() and evictStaleCaches() resolving, so a worker that
-// activates has necessarily opened and populated both caches correctly.
-// This test asserts the cache contents directly and needs window.caches to
-// do it, so it is Chromium-only.
 test("activation evicts stale caches and leaves exactly the two current-build ones, with the shell holding the shipped files", async ({
   page,
   context,
-  browserName,
 }) => {
-  test.skip(
-    browserName !== "chromium",
-    "window.caches throws SecurityError in this rig's Firefox — see comment above",
-  );
-
   await stubIssues(context);
 
   // main.ts's own auto-registration on "load" would race the stale-cache
@@ -480,13 +464,7 @@ test("a plain fetch of index.html leaves the shell cache usable for navigations"
 test("a cache-first miss answered by the SPA fallback is served but never cached", async ({
   page,
   context,
-  browserName,
 }) => {
-  test.skip(
-    browserName !== "chromium",
-    "window.caches throws SecurityError in this rig's Firefox — see the comment above the eviction test",
-  );
-
   await stubIssues(context);
   await page.goto("/today");
   await waitForActivatedWorker(page);
