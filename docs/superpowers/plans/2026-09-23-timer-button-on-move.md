@@ -22,6 +22,16 @@ the same opt-in `that-ticket-row` already has.
 **Spec:** Codeberg issue #192 (the design of record,
 `docs/superpowers/specs/2026-08-04-thatapp-design.md`, does not reach this level).
 
+## Deviation found in execution
+
+The issue says the `insertBefore` fallback reaches the same early return. It does not. Under that
+fallback `that-ticket-row` reconnects too, and its `connectedCallback` rebuilds the row. The row
+therefore gets a new `that-timer` with an empty memo. Task 1's "without moveBefore" test passed
+before the fix, so it was replaced with a test that removes and reinserts a live `that-timer`
+directly (commit e9191cc). That is the only reconnect that reaches the stale memo. The memo reset
+is still the root-cause fix for any reconnect of the same element. Task 1's test code below is the
+original text.
+
 ## Global Constraints
 
 - Docker only: run everything through `make` or `docker compose`; never `go`, `node` or `npm` bare.
