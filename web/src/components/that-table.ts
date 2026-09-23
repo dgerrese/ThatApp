@@ -9,7 +9,7 @@ import {
   type SortState,
   type SortableRow,
 } from "../table-sort";
-import { elapsedFor } from "../timer-state";
+import { currentTimer, elapsedFor, onTimerChanged } from "../timer-state";
 
 // Not yet in TypeScript's lib.dom.d.ts. Declared optional, since not every
 // engine has it (see supportsMoveBefore below) — a required signature here
@@ -53,6 +53,13 @@ const OBSERVED_ROW_ATTRIBUTES = ["key", "summary", "status", "seconds"];
 
 const STORAGE_PREFIX = "thatapp.sort.";
 
+/** Which run is on, if any. A tick leaves this unchanged; a start, stop or switch does not. */
+function runIdentity(): string {
+  const timer = currentTimer();
+
+  return timer === null ? "" : `${String(timer.instanceId)}:${timer.issueKey}:${timer.startedAt}`;
+}
+
 /**
  * The shell both listing views share: a card holding a real table, with the
  * header row every instance card carries so no two of them can disagree
@@ -91,6 +98,7 @@ export class ThatTable extends HTMLElement {
   private nextOrder = 0;
   private sortState: SortState | null = null;
   private observer: MutationObserver | undefined;
+  private stopTimerListening: (() => void) | undefined;
   // Firefox's current ESR (140) predates moveBefore (Firefox 144, Chrome 133),
   // and the owner's channel is not guaranteed to be past it — see reorder()'s
   // own comment for what the fallback costs. Checked once, not per call: the
@@ -137,11 +145,23 @@ export class ThatTable extends HTMLElement {
       }
     });
     this.observe();
+
+    // onTimerChanged fires on every tick too. Re-sorting then would move rows
+    // once a second while they are read, so only a change of run re-sorts (#183).
+    let seenRun = runIdentity();
+    this.stopTimerListening = onTimerChanged(() => {
+      const run = runIdentity();
+      if (run === seenRun) return;
+      seenRun = run;
+      this.sortBody();
+    });
   }
 
   disconnectedCallback(): void {
     this.observer?.disconnect();
     this.observer = undefined;
+    this.stopTimerListening?.();
+    this.stopTimerListening = undefined;
   }
 
   private observe(): void {
@@ -157,8 +177,11 @@ export class ThatTable extends HTMLElement {
    * `subtree: true` is what lets a row's own attribute change reach this
    * observer without Today wiring anything per row — but it also reaches
    * every change *inside* a row: `that-ticket-row`'s own re-renders, and
-   * soon #8's per-second timer ticking the Today cell's text. None of those
-   * are a row arriving, leaving or changing what it sorts by, so a mutation
+   * #8's per-second timer ticking the Today cell's text. That tick is
+   * ignored here for the same reason it changes no observed attribute — the
+   * run check in connectedCallback is what decides whether a timer change
+   * re-sorts, not this observer. None of those are a row arriving, leaving
+   * or changing what it sorts by, so a mutation
    * only counts here when it is a row being added or removed directly under
    * `body` (`childList` with `target === body`), or one of the four
    * sort-relevant attributes changing directly on a row (`attributes` with
