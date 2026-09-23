@@ -244,3 +244,63 @@ test("a failed boot read of the timer retries until the rail shows what's actual
 
   await expect(railTimer(page)).toContainText("WORK-1", { timeout: 10_000 });
 });
+
+const instanceTable = (page: Page) => page.locator('that-table[sort-id="instance-1"]');
+
+async function rowKeys(page: Page): Promise<string[]> {
+  return instanceTable(page)
+    .locator("tbody > that-ticket-row")
+    .evaluateAll((rows) => rows.map((row) => row.getAttribute("key") ?? ""));
+}
+
+/** Two clicks on Key: ascending leaves WORK-1, WORK-2 alone; descending moves WORK-2 up. */
+async function sortKeyDescending(page: Page): Promise<void> {
+  const keyButton = instanceTable(page).locator("th.c-key button");
+  await keyButton.click();
+  await keyButton.click();
+  await expect.poll(() => rowKeys(page)).toEqual(["WORK-2", "WORK-1"]);
+}
+
+async function expectTimerDrawn(page: Page, issueKey: string, running: boolean): Promise<void> {
+  const button = ticketRow(page, issueKey).locator("that-timer button");
+  await expect(button).toHaveAttribute("aria-label", running ? "stop timer" : "start timer");
+  await expect(button.locator(running ? "svg rect" : "svg path")).toHaveCount(1);
+}
+
+/**
+ * #192: a sort that moves a row must not leave its that-timer's button empty.
+ * WORK-2 is the moved row and runs the timer, so its button must read stop.
+ */
+test("a row a sort moves keeps its start/stop button drawn", async ({ page }) => {
+  await page.goto("/today");
+  await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
+  await expectTimerDrawn(page, "WORK-2", true);
+
+  await sortKeyDescending(page);
+
+  await expectTimerDrawn(page, "WORK-2", true);
+  await expectTimerDrawn(page, "WORK-1", false);
+});
+
+/**
+ * #192's insertBefore path: without moveBefore (Firefox ESR before 144) a move
+ * disconnects and reconnects every moved element, so that-timer rebuilds its
+ * button. Deletes moveBefore the same way table.spec.ts's fallback test does.
+ */
+test("without moveBefore, a reconnected timer draws its button again", async ({ page }) => {
+  await page.addInitScript(() => {
+    for (const proto of [Element.prototype, Node.prototype]) {
+      if (Object.prototype.hasOwnProperty.call(proto, "moveBefore")) {
+        delete (proto as unknown as Record<string, unknown>)["moveBefore"];
+      }
+    }
+  });
+  await page.goto("/today");
+  await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
+  await expectTimerDrawn(page, "WORK-2", true);
+
+  await sortKeyDescending(page);
+
+  await expectTimerDrawn(page, "WORK-2", true);
+  await expectTimerDrawn(page, "WORK-1", false);
+});

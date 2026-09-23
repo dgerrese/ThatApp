@@ -61,6 +61,7 @@ export class ThatTimer extends HTMLElement {
     });
     this.replaceChildren(trigger);
     this.trigger = trigger;
+    this.renderedMine = undefined;
     this.paint();
   }
 
