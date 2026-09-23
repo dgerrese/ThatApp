@@ -50,8 +50,9 @@ test: test-go test-web ## Run all tests
 
 # Part of `verify`, through `test` above. Node runs the .ts directly under its
 # own type stripping, so the suite carries no test dependency — the runner is
-# the standard library. Scope is the DOM-free modules; anything reaching for
-# `document` is the e2e rig's, not this target's.
+# the standard library. A test that needs `document` builds one from happy-dom
+# (a dev dependency) inside its own file; node --test runs each file in its own
+# process, so it reaches no other suite.
 test-web: install-web ## Run the frontend unit tests
 	$(WEB) node --test 'src/**/*.test.ts'
 
