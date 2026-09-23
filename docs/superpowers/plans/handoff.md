@@ -23,13 +23,67 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-21**, against the Codeberg API rather than against local git — see
+**Verified on 2026-09-23 at end of day**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
 > **The forge changed on 2026-09-01.** Issue and pull-request numbers below were verified against
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
+
+### The state at the end of 2026-09-23 — read this first
+
+**This block supersedes everything below it in this section where the two disagree.** Most of what
+follows was written on 2026-09-21 and 2026-09-22 and is kept as the record of how things came to be.
+
+**`main` is at `eed84b2`** (the merge of PR #199, #80). The owner handed the v1 board to an
+autonomous run on 2026-09-23 while refining in a second chat; the day is in
+[`handoff/2026-09-23.md`](handoff/2026-09-23.md).
+
+**Merged on 2026-09-23:** #55 (PR #189), #183 (PR #190), #184 (PR #191), #91 (PR #193), #192
+(PR #195), #164 (PR #196), #161 (PR #197), #80 (PR #199), and the `[Process]` PR #194. Every one of
+those closes left `status/in-progress` behind and each was stripped by hand — the label strip after a
+merge is still structural, not a lapse.
+
+**Five pull requests are open, all waiting on the owner:**
+
+| PR | Ticket | Notes |
+|---|---|---|
+| #210 | #185 the stop dialog | Mergeable; `main` merged in and re-gated. **Reload open tabs after deploying** — old code posts a stop with no body, which now gets a 400 |
+| #213 | #66 real `localhost` for both browsers | Its CI criterion waits on its own CI run |
+| #214 | #74 prettier gate | **Merge it last.** #210 and `main` (since #80) carry files that fail its gate; once the others are in, merge `main` into it, run `make fmt`, re-gate, push |
+| #216 | #106 one definition of the push marks | |
+| #219 | #109 a failed pin reports beside its row | |
+
+**In progress without a pull request: #127**, branch `issue-127-row-height`, three signed commits,
+pushed at end of day. Task 1 is committed and reviewed and the screenshots are taken. **Left:** look at
+the after images, `make fmt` on its four changed files, the whole-branch review, both gates, then the
+PR. Its measure and capture specs sit in the session scratchpad, not the repo.
+
+**Blocked: #107**, by its own tripwire — after the entries dialog closes, `:focus-visible` differs
+between Firefox and Chromium. The question for the owner, with the measurement, is on the ticket.
+
+**Left in v1 at `status/todo`:** #143 (normal), then #119, #108, #97 and #89 (`priority/low`).
+
+**At `status/needs-refinement`, raised on 2026-09-23 at the owner's request:** **#198** (nothing cleans
+`web/dist`; v2) and **#220** (CI on a self-hosted runner on an always-on host; v1). #220's first open
+question is whether Codeberg runs a fork's workflow on a self-hosted runner without approval — it must
+be answered before any runner is registered.
+
+**At `status/intake`, the session's own findings, for the owner's next cycle:** #200–#209, #211, #212,
+#215, #217, #218 and #221.
+
+**Rules the owner set on 2026-09-23 — do not reopen:**
+- **A finding of the session's own is filed at `status/intake` at once, never asked about.** Asking
+  "do you want a ticket?" is the failure.
+- **Every screenshot is a dark and light pair**, and **a prototype is captured inside the design
+  companion's frame, never as a bare file** — now in the `ticket-workflow` skill (PR #194). Never add
+  a doctype to the prototype: the companion then stops wrapping it and renders a drawing nobody
+  approved.
+
+**CI on Codeberg stalled from about 16:04.** Every run since — `main`'s push for #80 and the open PRs —
+sat `waiting` for a `codeberg-medium` runner for over an hour, with no incident on Codeberg's status
+page. The local gates were the check on every branch. #220 is the lasting fix.
 
 **Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #51, #73, #87 —
 none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20,
@@ -126,7 +180,7 @@ headroom is ever short again the next lever is caching the browsers**, not a fin
 **`workers: 4` in `playwright.config.ts` was deliberately left alone.** Its comment ties the number
 to `codeberg-medium`'s four vCPUs, which the split does not change.
 
-**Two pull requests are open, and one of them is a phantom.**
+**Two pull requests were open on 2026-09-22, and one of them was a phantom. Both are resolved: #177 merged at 17:19 that day.**
 
 | PR | Ticket | Notes |
 |---|---|---|
@@ -146,9 +200,9 @@ happens again it is a rule, not an accident, and the stacking guidance should wa
 
 **The owner closed #179 at 17:07 on 2026-09-22**, so the record and the repository agree again. It
 closed as `merged=False`, which is the residue of the same retarget. The branch `issue-8-timer` is
-fully merged and droppable on the owner's word. **There are no open pull requests.**
+fully merged and droppable on the owner's word.
 
-**Worklog rounding is settled and is #185**, raised and refined on the owner's word on
+**#185 is built and open as PR #210 (2026-09-23)**; what follows is its record. **Worklog rounding is settled and is #185**, raised and refined on the owner's word on
 2026-09-22. `status/todo`, v1, `enhancement`, 15 acceptance criteria. It **depends on #8** and
 cannot start before it lands.
 
@@ -190,7 +244,7 @@ comment as an Atlassian Document Format node and omits the field when blank. `th
 **A description on manual time entry is out of scope on #185** and has no ticket. The column and
 the push already support one; only the form has no field.
 
-**The v1 intake queue is empty: all eight were approved on 2026-09-22.** #107, #109, #106, #74,
+*(2026-09-22; the queue has since moved — see the block at the top.)* **The v1 intake queue was empty: all eight were approved on 2026-09-22.** #107, #109, #106, #74,
 #127, #108, #119 and #97 moved to `status/needs-refinement` after the owner walked them one at a
 time. Nothing else changed — `priority/low` survived on #97, #108 and #119, since only the `status/*`
 scope is exclusive with itself. **v1 refinement now holds thirteen tickets**, and #183 leads it as
@@ -230,12 +284,12 @@ passed a defect that one look at a screenshot caught, because every one of them 
 clause rather than the role table. Screenshots on pull requests are eight days old and have now paid
 for themselves once.
 
-**Nothing is in progress without a pull request.** #83 and #8, which sat here for days, both
+**#127 is in progress without a pull request as of 2026-09-23** — see the block at the top. #83 and #8, which sat here for days, both
 shipped on 2026-09-21 — see the table above. Their design decisions are recorded on the tickets and
 in `docs/superpowers/specs/2026-09-18-timer-design.md`, which #8 amended: the running stop control
 takes primary on hover like every other row control, a state the original session had not covered.
 
-**Blocked: #66 only — and its premise has changed, so read this before assuming it is still stuck.**
+**#66 is no longer blocked: it was re-measured and shipped as PR #213 on 2026-09-23 — 0 Chromium crashes in 6 full runs on 1.63.0.** The record below is how it got there.
 The localhost forwarder made Chromium crash with #134 in 3 of 4 full runs, against 0 of 2 on `main`,
 so the owner chose to do #134 first. **#134 shipped on 2026-09-21 and `main` now runs Playwright
 1.63.0**, where that segfault does not occur in fifty measured runs.
@@ -248,7 +302,7 @@ measurement* — the signatures from #66's branch were never compared against #1
 `playwright.config.ts`, `.claude/e2e/README.md`, `tooltip.spec.ts` and `e2e.yml`, and #35 renames the
 upstream alias `that-app` → `that-e2e`.
 
-**#134 is refined and at `status/todo` (2026-09-21).** It is a **Playwright version bug, measured**:
+**#134 shipped on 2026-09-21.** It is a **Playwright version bug, measured**:
 1.62.1 crashed 5 times in 20 full runs, 1.63.0 zero times in 30, with a ten-run control on 1.62.1
 taken after the clean sample to exclude drift. All five crashes were byte-identical —
 `SEGV_MAPERR 0x1b0` in the *browser* process inside `browser.newContext`, same stack frames, only the
@@ -263,7 +317,7 @@ count (10 vs CI's 4) was **never tested** and is the next hypothesis only if the
 written into each ticket: **#8** as above; **#83** ascending arrow = the drawn descending arrow,
 mirrored; **#80** a hairline note under the four fields, above the buttons.
 
-**Refined and still `status/todo`: #80, #55, #89, #91 and #185.** **#185 is no longer waiting** —
+*(2026-09-22.)* Of **#80, #55, #89, #91 and #185**, all but #89 have since shipped or are open as PRs. **#185 is no longer waiting** —
 #8 merged on 2026-09-22, so its dependency is satisfied and it can start on the owner's word. #134, #139, #39, #83 and #8 all shipped on
 2026-09-21.
 
@@ -282,9 +336,7 @@ their sessions had already happened (2026-09-10 and 2026-09-03) and only non-vis
 remained. Check a ticket's own design document before booking a session; two of the three were
 already drawn.
 
-**Next, in order:** **#177**, the one real open pull request; then **#66 re-measured** against the
-new `main`; then **#80** (its design fresh), **#185** (unblocked, but a design session comes first),
-**#55**, **#91**, **#89**. Every one of them waits on the owner's word.
+**What comes next is in the block at the top of this section.**
 
 **#139 inherits decision 1 of #84's design** and is otherwise untouched.
 
@@ -293,8 +345,7 @@ Its plan was `docs/superpowers/plans/2026-09-09-prototype-drift.md`, twelve task
 subagent-driven development, plus a whole-branch review whose fix wave carried nine findings. Before it, #10 (edit after push, widened on 2026-09-07 to carry a
 week's fetch) was the last one, and it merged as PR #120 on 2026-09-08. Its design was approved that morning, its
 twelve-task plan executed, and the whole-branch review caught two Critical defects the task reviews
-could not — see the day file. **`issue-10-edit-after-push-and-week-fetch` is merged and can be
-deleted on the owner's word.**
+could not — see the day file. `issue-10-edit-after-push-and-week-fetch` has since been deleted.
 #95 shipped the second edition across Today and Week over six tasks, four fix rounds and a
 whole-branch review; the six tickets its reviews raised are #105 to #110.
 **#61 was closed on 2026-09-03** on the owner's instruction, `wontfix`, folded into #95 rather than
@@ -309,8 +360,8 @@ and `handoff-2026-09-01` merged as **PR #82**. That leaves
 **`worktrees-without-the-tax` was deleted on 2026-09-16**, locally and on Codeberg, on the owner's
 instruction — see *Decisions taken*. **`issue-121-push-corrected-entries`, `project-design-bugs-first`,
 `issue-84-global-search`, `handoff-2026-09-10`, `handoff-2026-09-16`,
-`project-design-unsigned-commits` and `type-labels-wait-for-scope` exist only locally and are fully
-merged**, droppable on the owner's word. `issue-122-release-image` and
+`project-design-unsigned-commits` and `type-labels-wait-for-scope` no longer exist, locally or on
+Codeberg** (checked 2026-09-23). `issue-122-release-image` and
 `project-design-release-image-docs` were deleted on 2026-09-17 on the owner's word.
 
 **The board's own hygiene was re-audited on 2026-09-17 and is clean**: all 47 open issues carry
@@ -382,7 +433,7 @@ and Week's days come from the server's own rollup, so `day` and `started_at` sti
 each other. Both specs that state the old rule are corrected in that ticket, and it runs a design
 session first, because the dialog has to say which day it is for and that is not drawn.
 
-**#8 merged on 2026-09-22, so v1's product work is now the refinement queue, not one ticket.**
+*(2026-09-22; superseded by the block at the top.)* **#8 merged on 2026-09-22, so v1's product work is now the refinement queue, not one ticket.**
 Thirteen tickets sit at `status/needs-refinement`; #185 is the only one at `status/todo`. The
 sentence below was written when #8 was the last of the design's thirteen still to build, and #13
 (the phone) remains in v2. #10 merged on 2026-09-08 as PR #120; its design is
