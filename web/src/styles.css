@@ -261,8 +261,9 @@ a.that-key:hover {
   padding-block: 5px;
   vertical-align: middle;
 }
-/* .that-tbl td's own font-size would otherwise outrank the status cell's
-   text-sm utility class on specificity, not source order. */
+/* Rules here are unlayered, so .that-tbl td beats the status cell's text-sm
+   utility, which Tailwind layers; the drawing's own .tbl .c-status rule is
+   restated here instead. */
 .that-tbl .c-status {
   font-size: var(--text-sm);
 }
