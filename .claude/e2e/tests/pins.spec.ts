@@ -672,3 +672,128 @@ test.describe("the ticket row's own pin control", () => {
     expect(triggerBox!.width).toBeGreaterThan(figureBox!.width);
   });
 });
+
+/**
+ * #109: a failed pin or unpin reports at the top of whichever section holds
+ * the ticket's row once the lists are redrawn from server truth. Pinned only
+ * gets the report when the row is there (an unpin) or nowhere (a pin pressed
+ * in the search panel).
+ */
+test.describe("a failed pin reports beside its row", () => {
+  const failure = { code: "jira_error", message: "Jira did not take the pin." };
+
+  async function failPinRequests(page: Page): Promise<void> {
+    await page.route("**/api/pins**", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({ status: 502, json: failure });
+    });
+  }
+
+  const pinned = (page: Page) => page.locator('section[aria-labelledby="today-pinned"]');
+  const instance = (page: Page) => page.locator('section[aria-labelledby="today-instance-1"]');
+  const offList = (page: Page) => page.locator('section[aria-labelledby="today-offlist"]');
+
+  test("a pin that fails on an instance row reports at the top of that instance section", async ({
+    page,
+  }) => {
+    await stubPins(page, []);
+    await stubIssues(page, [
+      {
+        id: 1,
+        name: "Ridgeline",
+        error: null,
+        issues: [
+          {
+            key: "RIDGE-7",
+            summary: "Rotate the staging certificates",
+            status: "To Do",
+            url: "https://example.atlassian.net/browse/RIDGE-7",
+          },
+        ],
+      },
+    ]);
+    await failPinRequests(page);
+
+    await page.goto("/today");
+    await page.getByRole("button", { name: "Pin RIDGE-7", exact: true }).click();
+
+    await expect(instance(page).locator("that-alert + that-table")).toHaveCount(1);
+    await expect(instance(page).locator("that-alert")).toHaveText(failure.message);
+    await expect(pinned(page).locator("that-alert")).toHaveCount(0);
+    await expect(instance(page).getByRole("button", { name: "Pin RIDGE-7", exact: true })).toBeVisible();
+  });
+
+  test("a pin that fails on an off-list row reports at the top of the off-list section", async ({
+    page,
+  }) => {
+    await stubPins(page, []);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await page.route("**/api/entries**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: {
+          today: "2026-08-31",
+          entries: [
+            {
+              id: 1,
+              instanceId: 1,
+              instanceName: "Ridgeline",
+              instancePosition: 0,
+              issueKey: "SHARED-40",
+              day: "2026-08-31",
+              startedAt: "2026-08-31T09:00:00+02:00",
+              seconds: 1800,
+              comment: "",
+              pushState: "unpushed",
+            },
+          ],
+        },
+      }),
+    );
+    await stubSearch(page, [sharedHit]);
+    await failPinRequests(page);
+
+    await page.goto("/today");
+    await expect(offList(page).getByText("Vendor security review")).toBeVisible();
+    await page.getByRole("button", { name: "Pin SHARED-40", exact: true }).click();
+
+    await expect(offList(page).locator("that-alert + that-table")).toHaveCount(1);
+    await expect(offList(page).locator("that-alert")).toHaveText(failure.message);
+    await expect(pinned(page).locator("that-alert")).toHaveCount(0);
+    await expect(offList(page).getByRole("button", { name: "Pin SHARED-40", exact: true })).toBeVisible();
+  });
+
+  test("an unpin that fails reports at the top of Pinned", async ({ page }) => {
+    await stubPins(page, [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")]);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await failPinRequests(page);
+
+    await page.goto("/today");
+    await page.getByRole("button", { name: "Unpin SHARED-12", exact: true }).click();
+
+    await expect(pinned(page).locator("that-alert + that-table")).toHaveCount(1);
+    await expect(pinned(page).locator("that-alert")).toHaveText(failure.message);
+    await expect(instance(page).locator("that-alert")).toHaveCount(0);
+    await expect(pinned(page).getByRole("button", { name: "Unpin SHARED-12", exact: true })).toBeVisible();
+  });
+
+  test("a pin that fails from the search panel, for an issue with no row, reports in Pinned", async ({
+    page,
+  }) => {
+    await stubPins(page, []);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await stubSearch(page, [sharedHit]);
+    await failPinRequests(page);
+
+    await page.goto("/today");
+    await page.getByRole("textbox", { name: "Search all instances" }).fill("vendor");
+    await page.getByRole("button", { name: "Pin SHARED-40", exact: true }).click();
+
+    await expect(pinned(page).locator("that-alert")).toHaveText(failure.message);
+    await expect(instance(page).locator("that-alert")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Pin SHARED-40", exact: true })).toBeVisible();
+  });
+});

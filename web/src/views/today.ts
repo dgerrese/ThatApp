@@ -163,8 +163,7 @@ function issueSearchConfig(
 ): IssueSearchConfig {
   return {
     placeholder: "Search all instances",
-    footer:
-      "Searching all instances by key and summary. Not limited to issues assigned to you.",
+    footer: "Searching all instances by key and summary. Not limited to issues assigned to you.",
     controls: [
       // #84's own body: "a result row carries the same duration control as a
       // real row" — this is that control, not a stand-in for one.
@@ -189,7 +188,9 @@ function issueSearchConfig(
         label: (hit) => (hitIsPinned(hit, pinnedKeys()) ? `Unpin ${hit.key}` : `Pin ${hit.key}`),
         onPress: (hit) => {
           const eventName = hitIsPinned(hit, pinnedKeys()) ? UNPIN : PIN;
-          container.dispatchEvent(new CustomEvent<EntryTicket>(eventName, { detail: ticketFromHit(hit) }));
+          container.dispatchEvent(
+            new CustomEvent<EntryTicket>(eventName, { detail: ticketFromHit(hit) }),
+          );
         },
       },
     ],
@@ -761,7 +762,11 @@ async function fetchOffListInfo(regions: Regions, issue: OffListIssue, id: strin
  * an issue that simply has no summary (a settled, resolved-to-nothing row
  * looks exactly like that instead, which is the correct terminal state).
  */
-function offListRow(issue: OffListIssue, info: OffListInfo | null | undefined, pending: boolean): HTMLElement {
+function offListRow(
+  issue: OffListIssue,
+  info: OffListInfo | null | undefined,
+  pending: boolean,
+): HTMLElement {
   const row = document.createElement("that-ticket-row");
   row.setAttribute("key", issue.issueKey);
   row.setAttribute("instance-id", String(issue.instanceId));
@@ -806,7 +811,7 @@ async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
   try {
     await createPin(ticket.instanceId, ticket.issueKey);
   } catch (error) {
-    undoOptimisticMark(regions, error);
+    undoOptimisticMark(regions, ticket, error);
 
     return;
   }
@@ -823,8 +828,7 @@ async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
  */
 async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
   const pin = currentPins(regions).find(
-    (candidate) =>
-      candidate.instanceId === ticket.instanceId && candidate.key === ticket.issueKey,
+    (candidate) => candidate.instanceId === ticket.instanceId && candidate.key === ticket.issueKey,
   );
   // The row is showing a pin this view has no id for, which means the pins it
   // is drawn from have already moved on. Re-rendering from them is both the
@@ -838,7 +842,7 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
   try {
     await deletePin(pin.id);
   } catch (error) {
-    undoOptimisticMark(regions, error);
+    undoOptimisticMark(regions, ticket, error);
 
     return;
   }
@@ -849,10 +853,13 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
 /**
  * Redraws both lists from what the server last said, so a row whose pin
  * control flipped optimistically stops claiming a change that never happened,
- * and names the failure above them. The alert is prepended after the redraw
- * because the redraw is what would otherwise wipe it.
+ * then names the failure above the table holding the ticket's row. The redraw
+ * is server truth, so that is wherever the failed action left the row. A
+ * ticket with no row on the page (a pin pressed in the search panel) reports
+ * in Pinned. The alert goes in after the redraw because the redraw is what
+ * would otherwise wipe it.
  */
-function undoOptimisticMark(regions: Regions, error: unknown): void {
+function undoOptimisticMark(regions: Regions, ticket: EntryTicket, error: unknown): void {
   renderPinnedList(regions, regions.pins);
   if (regions.lastIssues) {
     renderResponse(regions, regions.lastIssues);
@@ -862,7 +869,30 @@ function undoOptimisticMark(regions: Regions, error: unknown): void {
     // before the assigned response has ever arrived.
     renderOffListSection(regions);
   }
-  regions.pinnedList.prepend(alertFor("error", messageOf(error)));
+
+  const alert = alertFor("error", messageOf(error));
+  const table = ticketRowOf(regions, ticket)?.closest("that-table");
+  if (table) {
+    table.before(alert);
+  } else {
+    regions.pinnedList.prepend(alert);
+  }
+}
+
+/** The ticket's row in Pinned, the off-list section or an instance card. The
+ *  search panel's results are not that-ticket-rows and live outside both
+ *  regions, so they never match. */
+function ticketRowOf(regions: Regions, ticket: EntryTicket): Element | undefined {
+  const rows = [
+    ...regions.layoutGrid.querySelectorAll("that-ticket-row"),
+    ...regions.results.querySelectorAll("that-ticket-row"),
+  ];
+
+  return rows.find(
+    (row) =>
+      row.getAttribute("instance-id") === String(ticket.instanceId) &&
+      row.getAttribute("key") === ticket.issueKey,
+  );
 }
 
 /** The pinned (instanceId, key) pairs, keyed the same way offListIssues'
