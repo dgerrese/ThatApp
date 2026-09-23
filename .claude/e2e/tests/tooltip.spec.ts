@@ -52,13 +52,7 @@ async function mountTrigger(
  * block below finds it by what it contains — fetching every script for real
  * and inspecting the body — rather than by name.
  *
- * The refetch goes through THAT_BASE_URL directly rather than route.fetch():
- * the chromium project (see playwright.config.ts) points the *browser* at
- * "localhost" and relies on a Chromium-only --host-resolver-rules flag to
- * land it on the real host, a mapping route.fetch()'s own Node-side request
- * never sees — it tried to dial literal localhost and got ECONNREFUSED. The
- * compose network alias in THAT_BASE_URL is reachable from this file's own
- * runtime regardless of which project is asking.
+ * The refetch goes through THAT_BASE_URL directly rather than route.fetch().
  */
 test("a that-tooltip that never upgrades stays invisible, not printed into the page", async ({
   page,
