@@ -283,24 +283,27 @@ test("a row a sort moves keeps its start/stop button drawn", async ({ page }) =>
 });
 
 /**
- * #192's insertBefore path: without moveBefore (Firefox ESR before 144) a move
- * disconnects and reconnects every moved element, so that-timer rebuilds its
- * button. Deletes moveBefore the same way table.spec.ts's fallback test does.
+ * The insertBefore-style reconnect criterion 2 names, done directly rather
+ * than through a sort: a real sort without moveBefore rebuilds the whole row
+ * (that-ticket-row.render() creates a fresh that-timer), so it never reaches
+ * the stale memo — table.spec.ts already covers that fallback path.
+ * Removing and reinserting the same element is what fires that-timer's own
+ * disconnectedCallback/connectedCallback on the one instance the bug needs.
  */
-test("without moveBefore, a reconnected timer draws its button again", async ({ page }) => {
-  await page.addInitScript(() => {
-    for (const proto of [Element.prototype, Node.prototype]) {
-      if (Object.prototype.hasOwnProperty.call(proto, "moveBefore")) {
-        delete (proto as unknown as Record<string, unknown>)["moveBefore"];
-      }
-    }
-  });
+test("a that-timer disconnected and reconnected draws its button again", async ({ page }) => {
   await page.goto("/today");
   await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
   await expectTimerDrawn(page, "WORK-2", true);
 
-  await sortKeyDescending(page);
+  await ticketRow(page, "WORK-2")
+    .locator("that-timer")
+    .evaluate((el) => {
+      const parent = el.parentNode;
+      if (!parent) throw new Error("that-timer has no parent");
+      const next = el.nextSibling;
+      parent.removeChild(el);
+      parent.insertBefore(el, next);
+    });
 
   await expectTimerDrawn(page, "WORK-2", true);
-  await expectTimerDrawn(page, "WORK-1", false);
 });
