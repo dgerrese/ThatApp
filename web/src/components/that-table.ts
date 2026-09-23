@@ -177,11 +177,10 @@ export class ThatTable extends HTMLElement {
    * `subtree: true` is what lets a row's own attribute change reach this
    * observer without Today wiring anything per row — but it also reaches
    * every change *inside* a row: `that-ticket-row`'s own re-renders, and
-   * #8's per-second timer ticking the Today cell's text. That tick is
-   * ignored here for the same reason it changes no observed attribute — the
-   * run check in connectedCallback is what decides whether a timer change
-   * re-sorts, not this observer. None of those are a row arriving, leaving
-   * or changing what it sorts by, so a mutation
+   * #8's per-second timer ticking the Today cell's text (whether a timer
+   * change re-sorts is the run check's call in connectedCallback, not this
+   * observer's). None of those are a row arriving, leaving or changing what
+   * it sorts by, so a mutation
    * only counts here when it is a row being added or removed directly under
    * `body` (`childList` with `target === body`), or one of the four
    * sort-relevant attributes changing directly on a row (`attributes` with
