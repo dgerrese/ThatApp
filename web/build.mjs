@@ -187,6 +187,21 @@ if (watch) {
     }, 50);
   });
 
+  // Tailwind's watcher writes app.css on its own, outside esbuild, so neither
+  // hook above sees a CSS-only edit and the worker kept a stale build id and a
+  // stale precached app.css (#164). Watching the output rather than Tailwind
+  // catches every rewrite whatever caused it.
+  let pendingCss;
+  watchPath("dist", (_event, filename) => {
+    if (filename !== "app.css") return;
+    clearTimeout(pendingCss);
+    pendingCss = setTimeout(() => {
+      buildWorker(assetPaths).catch((err) => {
+        console.error(`rebuilding the worker after app.css changed failed: ${err.message}`);
+      });
+    }, 50);
+  });
+
   const stop = () => {
     css.kill();
     process.exit(0);
