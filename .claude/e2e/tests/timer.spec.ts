@@ -307,3 +307,23 @@ test("a that-timer disconnected and reconnected draws its button again", async (
 
   await expectTimerDrawn(page, "WORK-2", true);
 });
+
+/**
+ * #192 with moveBefore: the moved row's own button survives the move, so its
+ * focus does too. The header is clicked with dispatchEvent, as in
+ * table.spec.ts's focus test — a real click would move focus to the header.
+ */
+test("a focused start/stop button keeps focus when a sort moves its row", async ({ page }) => {
+  await page.goto("/today");
+  const button = ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" });
+  await button.focus();
+  await expect(button).toBeFocused();
+
+  const keyButton = instanceTable(page).locator("th.c-key button");
+  await keyButton.dispatchEvent("click");
+  await keyButton.dispatchEvent("click");
+  await expect.poll(() => rowKeys(page)).toEqual(["WORK-2", "WORK-1"]);
+
+  await expect(button).toBeFocused();
+  await expectTimerDrawn(page, "WORK-2", false);
+});
