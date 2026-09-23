@@ -106,7 +106,7 @@ func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	running, stopped, err := s.db.StartTimer(r.Context(), inst.ID, key, s.now(), s.cfg.Location)
+	running, stopped, _, err := s.db.StartTimer(r.Context(), inst.ID, key, s.now(), s.cfg.Location, store.TimerClose{})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "store_failed", "could not start the timer")
 		return
@@ -137,7 +137,7 @@ type stopTimerResponse struct {
 // 200 with both fields empty, matching the store's own "not an error" reading
 // of that case.
 func (s *Server) handleStopTimer(w http.ResponseWriter, r *http.Request) {
-	entry, wasRunning, err := s.db.StopTimer(r.Context(), s.now(), s.cfg.Location)
+	entry, wasRunning, err := s.db.StopTimer(r.Context(), s.now(), s.cfg.Location, store.TimerClose{})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "store_failed", "could not stop the timer")
 		return

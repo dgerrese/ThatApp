@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
 func decodeTimerState(t *testing.T, rec *httptest.ResponseRecorder) timerStateResponse {
@@ -223,7 +225,7 @@ func TestGetTimerClosesAnOvernightTimer(t *testing.T) {
 	start := time.Date(2026, 8, 21, 22, 0, 0, 0, time.UTC) // 2026-08-22 00:00 +02:00 local
 	srv, db, inst := serverInZone(t, zone, start)
 
-	if _, _, err := db.StartTimer(t.Context(), inst.ID, "OVERNIGHT-1", start, loc); err != nil {
+	if _, _, _, err := db.StartTimer(t.Context(), inst.ID, "OVERNIGHT-1", start, loc, store.TimerClose{}); err != nil {
 		t.Fatalf("seeding the running timer: %v", err)
 	}
 

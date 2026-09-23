@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -37,7 +39,7 @@ func TestStartTimerReportsItRunning(t *testing.T) {
 	loc := mustLoadLocation(t, "Europe/Amsterdam")
 	now := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
 
-	running, stopped, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", now, loc)
+	running, stopped, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", now, loc, TimerClose{})
 	if err != nil {
 		t.Fatalf("StartTimer() returned error: %v", err)
 	}
@@ -66,18 +68,19 @@ func TestStartTimerReportsItRunning(t *testing.T) {
 	}
 }
 
-func TestStopTimerAfter25MinutesCreatesOneEntry(t *testing.T) {
+func TestStopTimerAfter25MinutesRoundedUpCreatesOneEntry(t *testing.T) {
 	s := openTestStore(t)
 	inst := createTestInstance(t, s)
 	loc := mustLoadLocation(t, "Europe/Amsterdam")
 	start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
 	stop := start.Add(25 * time.Minute)
 
-	if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+	if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 		t.Fatalf("StartTimer() returned error: %v", err)
 	}
 
-	entry, wasRunning, err := s.StopTimer(context.Background(), stop, loc)
+	entry, wasRunning, err := s.StopTimer(context.Background(), stop, loc,
+		TimerClose{Round: RoundUp, Comment: "Traced the export"})
 	if err != nil {
 		t.Fatalf("StopTimer() returned error: %v", err)
 	}
@@ -85,10 +88,13 @@ func TestStopTimerAfter25MinutesCreatesOneEntry(t *testing.T) {
 		t.Fatal("wasRunning = false, want true")
 	}
 	if entry == nil {
-		t.Fatal("entry = nil, want the 1500s entry the run earned")
+		t.Fatal("entry = nil, want the 1800s entry the rounded-up run earned")
 	}
-	if entry.Seconds != 1500 {
-		t.Errorf("entry.Seconds = %d, want 1500", entry.Seconds)
+	if entry.Seconds != 1800 {
+		t.Errorf("entry.Seconds = %d, want 1800", entry.Seconds)
+	}
+	if entry.Comment != "Traced the export" {
+		t.Errorf("entry.Comment = %q, want the confirmed description", entry.Comment)
 	}
 	if !entry.StartedAt.Equal(start) {
 		t.Errorf("entry.StartedAt = %v, want %v", entry.StartedAt, start)
@@ -114,37 +120,11 @@ func TestStopTimerAfter25MinutesCreatesOneEntry(t *testing.T) {
 	}
 }
 
-func TestStopTimerAfter59SecondsCreatesNoEntry(t *testing.T) {
-	s := openTestStore(t)
-	inst := createTestInstance(t, s)
-	loc := mustLoadLocation(t, "Europe/Amsterdam")
-	start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
-	stop := start.Add(59 * time.Second)
-
-	if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
-		t.Fatalf("StartTimer() returned error: %v", err)
-	}
-
-	entry, wasRunning, err := s.StopTimer(context.Background(), stop, loc)
-	if err != nil {
-		t.Fatalf("StopTimer() returned error: %v", err)
-	}
-	if !wasRunning {
-		t.Fatal("wasRunning = false, want true: a timer was running, however short its run")
-	}
-	if entry != nil {
-		t.Errorf("entry = %+v, want nil: a run under a minute is discarded", entry)
-	}
-	if rows := countTimerRows(t, s); rows != 0 {
-		t.Errorf("timers has %d rows, want 0: a discarded run still clears the timer", rows)
-	}
-}
-
 func TestStopTimerWithNothingRunning(t *testing.T) {
 	s := openTestStore(t)
 	loc := mustLoadLocation(t, "Europe/Amsterdam")
 
-	entry, wasRunning, err := s.StopTimer(context.Background(), time.Now().UTC(), loc)
+	entry, wasRunning, err := s.StopTimer(context.Background(), time.Now().UTC(), loc, TimerClose{})
 	if err != nil {
 		t.Fatalf("StopTimer() returned error: %v", err)
 	}
@@ -163,19 +143,20 @@ func TestStartTimerSwitchesFromA10MinuteRun(t *testing.T) {
 	start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
 	switchAt := start.Add(10 * time.Minute)
 
-	if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+	if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 		t.Fatalf("starting A: %v", err)
 	}
 
-	running, stopped, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-2", switchAt, loc)
+	running, stopped, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-2", switchAt, loc,
+		TimerClose{Round: RoundUp})
 	if err != nil {
 		t.Fatalf("starting B: %v", err)
 	}
 	if stopped == nil {
 		t.Fatal("stopped = nil, want A's entry")
 	}
-	if stopped.IssueKey != "RIDGE-1" || stopped.Seconds != 600 {
-		t.Errorf("stopped = %+v, want RIDGE-1 at 600s", stopped)
+	if stopped.IssueKey != "RIDGE-1" || stopped.Seconds != 900 {
+		t.Errorf("stopped = %+v, want RIDGE-1 at 900s", stopped)
 	}
 	if running == nil || running.IssueKey != "RIDGE-2" {
 		t.Fatalf("running = %+v, want RIDGE-2", running)
@@ -196,16 +177,20 @@ func TestStartTimerSwitchesFromA30SecondRun(t *testing.T) {
 	start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
 	switchAt := start.Add(30 * time.Second)
 
-	if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+	if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 		t.Fatalf("starting A: %v", err)
 	}
 
-	running, stopped, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-2", switchAt, loc)
+	running, stopped, wasRunning, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-2", switchAt, loc,
+		TimerClose{Round: RoundDown})
 	if err != nil {
 		t.Fatalf("starting B: %v", err)
 	}
 	if stopped != nil {
-		t.Errorf("stopped = %+v, want nil: A's run was under a minute", stopped)
+		t.Errorf("stopped = %+v, want nil: A's run rounded down to zero", stopped)
+	}
+	if !wasRunning {
+		t.Error("wasRunning = false, want true: A was running before the switch")
 	}
 	if running == nil || running.IssueKey != "RIDGE-2" {
 		t.Fatalf("running = %+v, want RIDGE-2", running)
@@ -240,7 +225,7 @@ func TestMidnightClosesAnOvernightTimer(t *testing.T) {
 	t.Run("via RunningTimer", func(t *testing.T) {
 		s := openTestStore(t)
 		inst := createTestInstance(t, s)
-		if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+		if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 			t.Fatalf("starting: %v", err)
 		}
 
@@ -268,11 +253,11 @@ func TestMidnightClosesAnOvernightTimer(t *testing.T) {
 	t.Run("via StopTimer", func(t *testing.T) {
 		s := openTestStore(t)
 		inst := createTestInstance(t, s)
-		if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+		if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 			t.Fatalf("starting: %v", err)
 		}
 
-		entry, wasRunning, err := s.StopTimer(context.Background(), read, loc)
+		entry, wasRunning, err := s.StopTimer(context.Background(), read, loc, TimerClose{Round: RoundUp})
 		if err != nil {
 			t.Fatalf("StopTimer() returned error: %v", err)
 		}
@@ -287,11 +272,12 @@ func TestMidnightClosesAnOvernightTimer(t *testing.T) {
 	t.Run("via StartTimer", func(t *testing.T) {
 		s := openTestStore(t)
 		inst := createTestInstance(t, s)
-		if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+		if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 			t.Fatalf("starting A: %v", err)
 		}
 
-		running, stopped, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-2", read, loc)
+		running, stopped, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-2", read, loc,
+			TimerClose{Round: RoundUp})
 		if err != nil {
 			t.Fatalf("starting B: %v", err)
 		}
@@ -326,7 +312,7 @@ func TestUTCVsLocalTrap(t *testing.T) {
 				start := time.Date(2026, 9, 21, 22, 0, 0, 0, loc)
 				readAt := time.Date(2026, 9, 21, 23, 0, 0, 0, loc)
 
-				if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+				if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 					t.Fatalf("starting: %v", err)
 				}
 
@@ -351,7 +337,7 @@ func TestUTCVsLocalTrap(t *testing.T) {
 				start := time.Date(2026, 9, 21, 22, 0, 0, 0, loc)
 				readAt := time.Date(2026, 9, 22, 7, 0, 0, 0, loc)
 
-				if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+				if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 					t.Fatalf("starting: %v", err)
 				}
 
@@ -380,7 +366,7 @@ func TestStartedJustBeforeMidnightLeavesOnly30Seconds(t *testing.T) {
 	start := time.Date(2026, 9, 21, 23, 59, 30, 0, loc)
 	read := time.Date(2026, 9, 22, 9, 0, 0, 0, loc)
 
-	if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+	if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 		t.Fatalf("starting: %v", err)
 	}
 
@@ -400,11 +386,11 @@ func TestStartedJustBeforeMidnightLeavesOnly30Seconds(t *testing.T) {
 }
 
 // TestDiscardBoundaryIsExactlySixtySeconds pins the discard rule at the exact
-// second it turns on: a run of 59s discards, one of 60s logs, one of 61s logs.
-// The 59s and 1500s cases elsewhere in this file are both too far from the
-// line to prove where it actually falls — a `seconds < MinTimerSeconds`
-// mutated to `<=` would discard a 60s run and every other case in this file
-// would still pass.
+// second it turns on, on the midnight path — the only path MinTimerSeconds
+// still governs: a run of 59s discards, one of 60s logs, one of 61s logs.
+// Each case starts that much before local midnight and closes the next
+// morning, passing RoundUp so a wrongly-rounded 59s (which would round up to
+// 900) cannot be mistaken for the floor holding.
 func TestDiscardBoundaryIsExactlySixtySeconds(t *testing.T) {
 	cases := map[string]struct {
 		duration    time.Duration
@@ -421,14 +407,15 @@ func TestDiscardBoundaryIsExactlySixtySeconds(t *testing.T) {
 			s := openTestStore(t)
 			inst := createTestInstance(t, s)
 			loc := mustLoadLocation(t, "Europe/Amsterdam")
-			start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
-			stop := start.Add(tc.duration)
+			midnight := time.Date(2026, 9, 21, 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+			start := midnight.Add(-tc.duration)
+			stop := time.Date(2026, 9, 22, 9, 0, 0, 0, loc)
 
-			if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+			if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 				t.Fatalf("starting: %v", err)
 			}
 
-			entry, wasRunning, err := s.StopTimer(context.Background(), stop, loc)
+			entry, wasRunning, err := s.StopTimer(context.Background(), stop, loc, TimerClose{Round: RoundUp})
 			if err != nil {
 				t.Fatalf("StopTimer() returned error: %v", err)
 			}
@@ -451,14 +438,16 @@ func TestDiscardBoundaryIsExactlySixtySeconds(t *testing.T) {
 			s := openTestStore(t)
 			inst := createTestInstance(t, s)
 			loc := mustLoadLocation(t, "Europe/Amsterdam")
-			start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
-			switchAt := start.Add(tc.duration)
+			midnight := time.Date(2026, 9, 21, 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+			start := midnight.Add(-tc.duration)
+			switchAt := time.Date(2026, 9, 22, 9, 0, 0, 0, loc)
 
-			if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc); err != nil {
+			if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
 				t.Fatalf("starting A: %v", err)
 			}
 
-			_, stopped, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-2", switchAt, loc)
+			_, stopped, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-2", switchAt, loc,
+				TimerClose{Round: RoundUp})
 			if err != nil {
 				t.Fatalf("starting B: %v", err)
 			}
@@ -516,7 +505,7 @@ func TestClosingATimerAcrossADSTTransitionMeasuresRealElapsedTime(t *testing.T) 
 			s := openTestStore(t)
 			inst := createTestInstance(t, s)
 
-			if _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", tc.start, loc); err != nil {
+			if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", tc.start, loc, TimerClose{}); err != nil {
 				t.Fatalf("starting: %v", err)
 			}
 
@@ -533,6 +522,148 @@ func TestClosingATimerAcrossADSTTransitionMeasuresRealElapsedTime(t *testing.T) 
 			if closed.Seconds != tc.wantSeconds {
 				t.Errorf("closed.Seconds = %d, want %d — the cap must measure real elapsed "+
 					"time, not a nominal 24h day", closed.Seconds, tc.wantSeconds)
+			}
+		})
+	}
+}
+
+// TestAConfirmedCloseRoundsToTheGrid pins the rule the stop dialog confirms:
+// up is the ceiling, down the floor, and a result of zero discards. It runs
+// every case through both user paths, the stop and the switch, because
+// they share closeTimer and a refactor that split them must not diverge.
+func TestAConfirmedCloseRoundsToTheGrid(t *testing.T) {
+	cases := []struct {
+		elapsed time.Duration
+		round   Rounding
+		want    int // 0 means discarded
+	}{
+		{0, RoundUp, 0},
+		{0, RoundDown, 0},
+		{1 * time.Second, RoundUp, 900},
+		{1 * time.Second, RoundDown, 0},
+		{59 * time.Second, RoundUp, 900},
+		{59 * time.Second, RoundDown, 0},
+		{60 * time.Second, RoundUp, 900},
+		{60 * time.Second, RoundDown, 0},
+		{899 * time.Second, RoundUp, 900},
+		{899 * time.Second, RoundDown, 0},
+		{900 * time.Second, RoundUp, 900},
+		{900 * time.Second, RoundDown, 900},
+		{901 * time.Second, RoundUp, 1800},
+		{901 * time.Second, RoundDown, 900},
+		{1800 * time.Second, RoundUp, 1800},
+		{1800 * time.Second, RoundDown, 1800},
+	}
+	loc := mustLoadLocation(t, "Europe/Amsterdam")
+	start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+
+	for _, path := range []string{"stop", "switch"} {
+		for _, tc := range cases {
+			name := fmt.Sprintf("%s %s after %v", path, tc.round, tc.elapsed)
+			t.Run(name, func(t *testing.T) {
+				s := openTestStore(t)
+				inst := createTestInstance(t, s)
+				if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
+					t.Fatalf("starting: %v", err)
+				}
+				choice := TimerClose{Round: tc.round, Comment: "Traced the export"}
+				at := start.Add(tc.elapsed)
+
+				var (
+					entry      *Entry
+					wasRunning bool
+					err        error
+				)
+				if path == "stop" {
+					entry, wasRunning, err = s.StopTimer(context.Background(), at, loc, choice)
+				} else {
+					_, entry, wasRunning, err = s.StartTimer(context.Background(), inst.ID, "RIDGE-2", at, loc, choice)
+				}
+				if err != nil {
+					t.Fatalf("closing: %v", err)
+				}
+				if !wasRunning {
+					t.Error("wasRunning = false, want true")
+				}
+				if tc.want == 0 {
+					if entry != nil {
+						t.Errorf("entry = %+v, want nil: the rounded run is zero, so it is discarded", entry)
+					}
+					return
+				}
+				if entry == nil {
+					t.Fatalf("entry = nil, want %ds", tc.want)
+				}
+				if entry.Seconds != tc.want {
+					t.Errorf("entry.Seconds = %d, want %d", entry.Seconds, tc.want)
+				}
+				if entry.Comment != "Traced the export" {
+					t.Errorf("entry.Comment = %q, want the confirmed description", entry.Comment)
+				}
+			})
+		}
+	}
+}
+
+// A same-day close with no direction is refused and changes nothing.
+func TestAUserCloseWithoutARoundingIsRefusedAndLeavesTheTimerRunning(t *testing.T) {
+	loc := mustLoadLocation(t, "Europe/Amsterdam")
+	start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+	at := start.Add(20 * time.Minute)
+
+	for _, path := range []string{"stop", "switch"} {
+		t.Run(path, func(t *testing.T) {
+			s := openTestStore(t)
+			inst := createTestInstance(t, s)
+			if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
+				t.Fatalf("starting: %v", err)
+			}
+
+			var err error
+			if path == "stop" {
+				_, _, err = s.StopTimer(context.Background(), at, loc, TimerClose{})
+			} else {
+				_, _, _, err = s.StartTimer(context.Background(), inst.ID, "RIDGE-2", at, loc, TimerClose{})
+			}
+			if !errors.Is(err, ErrRoundingRequired) {
+				t.Fatalf("err = %v, want ErrRoundingRequired", err)
+			}
+
+			running, _, err := s.RunningTimer(context.Background(), at, loc)
+			if err != nil {
+				t.Fatalf("RunningTimer: %v", err)
+			}
+			if running == nil || running.IssueKey != "RIDGE-1" {
+				t.Errorf("running = %+v, want RIDGE-1 still running: the refusal must roll back", running)
+			}
+		})
+	}
+}
+
+// A timer whose start day has passed is the midnight close even when the user
+// stops it, so it stays honest whatever direction was confirmed (23:37 local
+// to midnight is 1380s, off the grid).
+func TestAStaleTimerStoppedByTheUserIsTheMidnightCloseAndStaysHonest(t *testing.T) {
+	loc := mustLoadLocation(t, "Europe/Amsterdam")
+	start := time.Date(2026, 9, 21, 23, 37, 0, 0, loc)
+	read := time.Date(2026, 9, 22, 9, 0, 0, 0, loc)
+
+	for _, round := range []Rounding{RoundUp, RoundDown} {
+		t.Run(string(round), func(t *testing.T) {
+			s := openTestStore(t)
+			inst := createTestInstance(t, s)
+			if _, _, _, err := s.StartTimer(context.Background(), inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
+				t.Fatalf("starting: %v", err)
+			}
+			entry, _, err := s.StopTimer(context.Background(), read, loc, TimerClose{Round: round})
+			if err != nil {
+				t.Fatalf("StopTimer: %v", err)
+			}
+			if entry == nil || entry.Seconds != 1380 {
+				t.Fatalf("entry = %+v, want the honest 1380s: past midnight nothing rounds", entry)
+			}
+			if entry.Day != "2026-09-21" {
+				t.Errorf("entry.Day = %q, want the start's local day", entry.Day)
 			}
 		})
 	}
