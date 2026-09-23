@@ -4,17 +4,13 @@ import "./that-confirm";
 import "./that-duration";
 
 import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "../api";
-import { confirmDestructive } from "./that-confirm";
+import { COMMENT_FIELD_CLASS, confirmDestructive } from "./that-confirm";
 import { announceEntriesChanged } from "../entries-changed";
 import { longDay, totalFigure } from "../format";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
 import type { Entry } from "../types";
 import type { ThatDuration } from "./that-duration";
-
-export const COMMENT_FIELD_CLASS =
-  "border-edge bg-surface min-w-0 h-[38px] flex-1 rounded-sm border px-3 py-[10px] text-sm " +
-  "focus:border-ink focus:outline-none";
 
 /**
  * What the row that opened the dialog knows about its ticket.

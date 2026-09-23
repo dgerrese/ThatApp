@@ -3,12 +3,12 @@ import "./that-button";
 import { fieldFigure, roundedSeconds } from "../duration";
 import type { Rounding, StopChoice } from "../types";
 import {
+  COMMENT_FIELD_CLASS,
   CONFIRM_BODY_CLASS,
   CONFIRM_DIALOG_CLASS,
   CONFIRM_HEADING_CLASS,
   dialogButton,
 } from "./that-confirm";
-import { COMMENT_FIELD_CLASS } from "./that-entry-dialog";
 
 /**
  * The stop dialog of #185: the rounding is the button. A native <dialog>
