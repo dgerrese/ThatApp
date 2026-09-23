@@ -472,6 +472,7 @@ async function expectTimerDrawn(page: Page, issueKey: string, running: boolean):
  * WORK-2 is the moved row and runs the timer, so its button must read stop.
  */
 test("a row a sort moves keeps its start/stop button drawn", async ({ page }) => {
+  await stubTimer(page);
   await page.goto("/today");
   await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
   await expectTimerDrawn(page, "WORK-2", true);
@@ -491,6 +492,7 @@ test("a row a sort moves keeps its start/stop button drawn", async ({ page }) =>
  * disconnectedCallback/connectedCallback on the one instance the bug needs.
  */
 test("a that-timer disconnected and reconnected draws its button again", async ({ page }) => {
+  await stubTimer(page);
   await page.goto("/today");
   await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
   await expectTimerDrawn(page, "WORK-2", true);
@@ -514,6 +516,7 @@ test("a that-timer disconnected and reconnected draws its button again", async (
  * table.spec.ts's focus test — a real click would move focus to the header.
  */
 test("a focused start/stop button keeps focus when a sort moves its row", async ({ page }) => {
+  await stubTimer(page);
   await page.goto("/today");
   const button = ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" });
   await button.focus();
