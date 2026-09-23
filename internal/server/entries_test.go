@@ -986,6 +986,8 @@ func TestPatchMissingEntryIsNotFound(t *testing.T) {
 	for _, tc := range []struct{ name, body string }{
 		{"a valid body on an unknown id", `{"seconds":900}`},
 		{"a bad duration on an unknown id is the unknown id", `{"seconds":0}`},
+		{"invalid JSON on an unknown id is the unknown id", "not json"},
+		{"an empty body on an unknown id is the unknown id", "{}"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, _, _ := serverInZone(t, "Europe/Amsterdam",
@@ -993,16 +995,15 @@ func TestPatchMissingEntryIsNotFound(t *testing.T) {
 
 			rec := callEntries(t, srv, http.MethodPatch, "/api/entries/999999", tc.body)
 
-			assertRejected(t, rec, http.StatusNotFound, "entry_not_found")
+			assertRejected(t, rec, http.StatusNotFound, "not_found")
 		})
 	}
 }
 
-// TestPatchEntryRejectsAnIDThatIsNotAPositiveInteger: ids are store-generated
-// integers, so a garbled one is the client's mistake. 0 and a negative are the
-// cases the handler's own message promises and the parse alone would let
-// through — /api/entries/0 answering entry_not_found would contradict it.
-func TestPatchEntryRejectsAnIDThatIsNotAPositiveInteger(t *testing.T) {
+// TestPatchEntryAnswersAnIDThatIsNotAPositiveIntegerAsMissing: ids that are
+// not positive integers name no entry, so they answer as a missing one does
+// (#55).
+func TestPatchEntryAnswersAnIDThatIsNotAPositiveIntegerAsMissing(t *testing.T) {
 	for _, tc := range []struct{ name, id string }{
 		{"a non-numeric id", "abc"},
 		{"zero", "0"},
@@ -1014,7 +1015,7 @@ func TestPatchEntryRejectsAnIDThatIsNotAPositiveInteger(t *testing.T) {
 
 			rec := callEntries(t, srv, http.MethodPatch, "/api/entries/"+tc.id, `{"seconds":900}`)
 
-			assertRejected(t, rec, http.StatusBadRequest, "invalid_request")
+			assertRejected(t, rec, http.StatusNotFound, "not_found")
 		})
 	}
 }
@@ -1041,16 +1042,16 @@ func TestDeleteMissingEntryIsNotFound(t *testing.T) {
 
 	rec := callEntries(t, srv, http.MethodDelete, "/api/entries/404", "")
 
-	assertRejected(t, rec, http.StatusNotFound, "entry_not_found")
+	assertRejected(t, rec, http.StatusNotFound, "not_found")
 }
 
-func TestDeleteEntryRejectsANonNumericID(t *testing.T) {
+func TestDeleteEntryAnswersANonNumericIDAsMissing(t *testing.T) {
 	srv, _, _ := serverInZone(t, "Europe/Amsterdam",
 		time.Date(2026, 8, 21, 12, 5, 0, 0, time.UTC))
 
 	rec := callEntries(t, srv, http.MethodDelete, "/api/entries/abc", "")
 
-	assertRejected(t, rec, http.StatusBadRequest, "invalid_request")
+	assertRejected(t, rec, http.StatusNotFound, "not_found")
 }
 
 func TestPushStateOfDerivesFromTheTwoColumnsAndUpdatedAt(t *testing.T) {

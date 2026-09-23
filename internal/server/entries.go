@@ -287,21 +287,6 @@ type updateEntryRequest struct {
 	Comment *string `json:"comment"`
 }
 
-// entryIDFromPath reads the {id} wildcard, answering 400 for a non-numeric id
-// itself, as /api/pins/{id} does: an entry id follows a click on a
-// store-generated integer, so a garbled one is the client's mistake rather than
-// a route that does not exist.
-func entryIDFromPath(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id <= 0 {
-		writeError(w, http.StatusBadRequest, "invalid_request",
-			"the entry id must be a positive integer")
-		return 0, false
-	}
-
-	return id, true
-}
-
 // handleUpdateEntry rewrites a duration, a comment, or both. It never touches
 // day or started_at: the start time is not editable, and moving an entry between
 // days would let the browser rewrite history the server stamped.
@@ -323,8 +308,14 @@ func entryIDFromPath(w http.ResponseWriter, r *http.Request) (int64, bool) {
 // a running timer PATCHing seconds while the foot form holds an open comment is
 // exactly this interleaving, and that ticket has to decide what to do about it.
 func (s *Server) handleUpdateEntry(w http.ResponseWriter, r *http.Request) {
-	id, ok := entryIDFromPath(w, r)
+	id, ok := idFromPath(w, r, "no such entry")
 	if !ok {
+		return
+	}
+
+	existing, err := s.db.Entry(r.Context(), id)
+	if err != nil {
+		writeEntryStoreError(w, err, "could not read the entry")
 		return
 	}
 
@@ -336,12 +327,6 @@ func (s *Server) handleUpdateEntry(w http.ResponseWriter, r *http.Request) {
 	if req.Seconds == nil && req.Comment == nil {
 		writeError(w, http.StatusBadRequest, "invalid_request",
 			"a duration, a comment, or both are required")
-		return
-	}
-
-	existing, err := s.db.Entry(r.Context(), id)
-	if err != nil {
-		writeEntryStoreError(w, err, "could not read the entry")
 		return
 	}
 
@@ -382,7 +367,7 @@ func (s *Server) handleUpdateEntry(w http.ResponseWriter, r *http.Request) {
 // with no way left to reach it. A 404 is confirmation rather than a failure —
 // the outcome already matches the intent.
 func (s *Server) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
-	id, ok := entryIDFromPath(w, r)
+	id, ok := idFromPath(w, r, "no such entry")
 	if !ok {
 		return
 	}
@@ -437,7 +422,7 @@ func (s *Server) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 // way.
 func writeEntryStoreError(w http.ResponseWriter, err error, failure string) {
 	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "entry_not_found", "no such entry")
+		writeError(w, http.StatusNotFound, "not_found", "no such entry")
 		return
 	}
 

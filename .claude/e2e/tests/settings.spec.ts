@@ -65,7 +65,7 @@ async function stubInstancesApi(
       const body = route.request().postDataJSON() as { name: string; siteUrl: string; email: string };
       const existing = instances.find((instance) => instance.id === id);
       if (!existing) {
-        await route.fulfill({ status: 404, json: { code: "not_found", message: "No such instance" } });
+        await route.fulfill({ status: 404, json: { code: "not_found", message: "no such instance" } });
         return;
       }
       existing.name = body.name;

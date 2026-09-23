@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 // errorBody is the shape every API failure takes. The code is stable and
@@ -30,4 +31,16 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, errorBody{Code: code, Message: message})
+}
+
+// idFromPath reads the {id} wildcard. Anything but a positive integer names no
+// resource, so it is answered exactly as a missing row is: 404 not_found.
+func idFromPath(w http.ResponseWriter, r *http.Request, message string) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusNotFound, "not_found", message)
+		return 0, false
+	}
+
+	return id, true
 }

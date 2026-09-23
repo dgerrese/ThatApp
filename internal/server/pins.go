@@ -7,7 +7,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"codeberg.org/DionGerrese/ThatApp/internal/jira"
@@ -154,34 +153,18 @@ func (s *Server) pinsWithInstances(
 	return pins, byID, positions, true
 }
 
-// pinIDFromPath reads the {id} wildcard, answering 400 for a non-numeric id
-// itself. This differs from instanceIDFromPath, which reports a missing or
-// malformed id as 404: an instance id living in a browser-typed URL and a pin
-// id following a click on a store-generated integer are not the same kind of
-// input, so a garbled pin id is the client's mistake rather than a route that
-// simply doesn't exist.
-func pinIDFromPath(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id <= 0 {
-		writeError(w, http.StatusBadRequest, "invalid_request", "the pin id must be a positive integer")
-		return 0, false
-	}
-
-	return id, true
-}
-
 // handleDeletePin unpins an issue. It contacts no Jira instance: unpinning is
 // purely a store operation, and an unreachable site must not strand a pin the
 // user is trying to remove.
 func (s *Server) handleDeletePin(w http.ResponseWriter, r *http.Request) {
-	id, ok := pinIDFromPath(w, r)
+	id, ok := idFromPath(w, r, "no such pin")
 	if !ok {
 		return
 	}
 
 	if err := s.db.DeletePin(r.Context(), id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, "pin_not_found", "no such pin")
+			writeError(w, http.StatusNotFound, "not_found", "no such pin")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "store_failed", "could not remove the pin")
