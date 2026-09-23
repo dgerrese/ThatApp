@@ -16,9 +16,9 @@ import { navigate } from "../router";
 import type { RegisterTeardown } from "../router";
 import { toolbarButton } from "../toolbar-button";
 import type { IssueHit, WeekRollup, WeekRow } from "../types";
-import { weekLabel } from "../week-label";
 import { failuresIn, noFailures, weekGrid } from "../week-grid";
 import type { Failures } from "../week-grid";
+import { weekLabel } from "../week-label";
 
 /** A stable string for a `Failures` value, independent of `Set` iteration
  *  order — what lets `show` tell two reads' failure sets apart by value

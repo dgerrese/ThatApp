@@ -72,7 +72,7 @@ function footCells(grid: HTMLElement): HTMLTableCellElement[] {
 test("an empty week draws the message and a way to Today, not a table", () => {
   const grid = weekGrid(rollup([]), noFailures(), noop);
 
-  assert.equal(grid.querySelector("table"), null);
+  assert.equal(grid.querySelector("table") === null, true, "empty week drew a table");
   assert.equal(grid.querySelector("p")?.textContent, "Nothing logged this week.");
   const link = grid.querySelector("a");
   assert.equal(link?.getAttribute("href"), "/today");
@@ -106,7 +106,7 @@ test("each push state draws its own marker, and pushed draws none", async (t) =>
       const mark = button.querySelector("span[aria-hidden='true']");
 
       if (marker === null) {
-        assert.equal(mark, null);
+        assert.equal(mark === null, true, "pushed cell drew a marker");
       } else {
         assert.ok(mark?.classList.contains(marker), `marker lacks ${marker}`);
       }
@@ -149,11 +149,17 @@ test("a failed push marks its own cell and day, outranking the rollup's state", 
   );
 
   const failed = cellButton(grid, 0, 1);
-  assert.ok(failed.querySelector("span[aria-hidden='true']")?.classList.contains("border-b-failed"));
+  assert.ok(
+    failed.querySelector("span[aria-hidden='true']")?.classList.contains("border-b-failed"),
+    "failed cell lacks its failed marker",
+  );
   assert.match(failed.getAttribute("aria-label") ?? "", /push failed/);
 
   const pushed = cellButton(grid, 1, 1);
-  assert.ok(pushed.querySelector("span[aria-hidden='true']")?.classList.contains("bg-pending"));
+  assert.ok(
+    pushed.querySelector("span[aria-hidden='true']")?.classList.contains("bg-pending"),
+    "unfailed cell lacks its unpushed marker",
+  );
 
   const tuesday = footCells(grid)[1];
   assert.equal(tuesday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"), "push failed");
@@ -179,7 +185,7 @@ test("rows, days and the week are totalled, and a zero total is an em dash", () 
 
   assert.equal(rowTotal(0)?.textContent, "1h 30m");
   assert.equal(rowTotal(1)?.textContent, "—");
-  assert.ok(rowTotal(1)?.classList.contains("text-ink-muted"));
+  assert.ok(rowTotal(1)?.classList.contains("text-ink-muted"), "zero row total isn't muted");
 
   const foot = footCells(grid).map((td) => td.textContent);
   assert.deepEqual(foot, ["1h 00m", "0h 30m", "—", "—", "—", "—", "—", "1h 30m"]);
@@ -207,7 +213,11 @@ test("the key links to Jira, or is plain text with no site to link to", async (t
   await t.test("without one", () => {
     const grid = weekGrid(rollup([row({ url: "" })]), noFailures(), noop);
 
-    assert.equal(grid.querySelector("tbody th a"), null);
+    assert.equal(
+      grid.querySelector("tbody th a") === null,
+      true,
+      "a ticket with no url still drew a link",
+    );
     assert.equal(grid.querySelector("tbody th span.that-key")?.textContent, "ABC-1");
   });
 });
