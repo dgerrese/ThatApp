@@ -313,6 +313,12 @@ func (s *Server) handleUpdateEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existing, err := s.db.Entry(r.Context(), id)
+	if err != nil {
+		writeEntryStoreError(w, err, "could not read the entry")
+		return
+	}
+
 	var req updateEntryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "the request body is not valid JSON")
@@ -321,12 +327,6 @@ func (s *Server) handleUpdateEntry(w http.ResponseWriter, r *http.Request) {
 	if req.Seconds == nil && req.Comment == nil {
 		writeError(w, http.StatusBadRequest, "invalid_request",
 			"a duration, a comment, or both are required")
-		return
-	}
-
-	existing, err := s.db.Entry(r.Context(), id)
-	if err != nil {
-		writeEntryStoreError(w, err, "could not read the entry")
 		return
 	}
 

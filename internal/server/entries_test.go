@@ -986,6 +986,8 @@ func TestPatchMissingEntryIsNotFound(t *testing.T) {
 	for _, tc := range []struct{ name, body string }{
 		{"a valid body on an unknown id", `{"seconds":900}`},
 		{"a bad duration on an unknown id is the unknown id", `{"seconds":0}`},
+		{"invalid JSON on an unknown id is the unknown id", "not json"},
+		{"an empty body on an unknown id is the unknown id", "{}"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, _, _ := serverInZone(t, "Europe/Amsterdam",
