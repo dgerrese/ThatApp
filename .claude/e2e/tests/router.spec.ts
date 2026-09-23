@@ -47,7 +47,6 @@ test("a view whose import resolves after a later navigation never replaces it", 
     todayRequested = resolve;
   });
 
-  // Plain fetch() against THAT_BASE_URL, as tooltip.spec.ts does.
   const base = process.env["THAT_BASE_URL"] ?? "http://that-e2e:8080";
   await page.route("**/chunk-*.js", async (route) => {
     const requested = new URL(route.request().url());

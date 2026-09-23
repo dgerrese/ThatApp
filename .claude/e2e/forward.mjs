@@ -4,11 +4,10 @@
 // CacheStorage (Firefox) or only reach the browser, not Node (Chromium).
 import net from "node:net";
 
-if (!process.env.THAT_UPSTREAM) {
-  throw new Error("THAT_UPSTREAM is required — set by playwright.config.ts's webServer.env");
+if (!process.env.FORWARD_UPSTREAM) {
+  throw new Error("FORWARD_UPSTREAM is required — set by playwright.config.ts's webServer.env");
 }
-const upstream = new URL(process.env.THAT_UPSTREAM);
-const listenPort = Number(process.env.THAT_FORWARD_PORT ?? "8080");
+const upstream = new URL(process.env.FORWARD_UPSTREAM);
 
 net
   .createServer((client) => {
@@ -17,4 +16,4 @@ net
     client.on("error", () => server.destroy());
     server.on("error", () => client.destroy());
   })
-  .listen(listenPort, "127.0.0.1");
+  .listen(8080, "127.0.0.1");

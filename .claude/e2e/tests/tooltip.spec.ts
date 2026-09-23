@@ -51,8 +51,6 @@ async function mountTrigger(
  * chunk's filename carries a build hash this spec cannot predict, so the
  * block below finds it by what it contains — fetching every script for real
  * and inspecting the body — rather than by name.
- *
- * The refetch goes through THAT_BASE_URL directly rather than route.fetch().
  */
 test("a that-tooltip that never upgrades stays invisible, not printed into the page", async ({
   page,

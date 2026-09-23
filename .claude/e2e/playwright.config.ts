@@ -43,7 +43,7 @@ export default defineConfig({
         command: "node forward.mjs",
         port: 8080,
         reuseExistingServer: false,
-        env: { THAT_UPSTREAM: upstream, THAT_FORWARD_PORT: "8080" },
+        env: { FORWARD_UPSTREAM: upstream },
       },
   use: {
     baseURL,
