@@ -79,12 +79,28 @@ export function clockTime(date: Date): string {
 }
 
 const WEEKDAYS = [
-  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
 ] as const;
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ] as const;
 
 /**
@@ -123,7 +139,7 @@ export function longDay(day: string): string {
 
   const epochDay = daysFromCivil(year, month, date);
   // Epoch day 0 (1970-01-01) was a Thursday, index 4 in WEEKDAYS below.
-  const weekdayIndex = (((epochDay % 7) + 7) % 7 + 4) % 7;
+  const weekdayIndex = ((((epochDay % 7) + 7) % 7) + 4) % 7;
 
   return `${WEEKDAYS[weekdayIndex] ?? ""} ${String(date)} ${MONTHS[month - 1] ?? ""}`;
 }

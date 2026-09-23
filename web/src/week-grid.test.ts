@@ -11,8 +11,13 @@ import { failuresIn, noFailures, weekGrid } from "./week-grid.ts";
 Object.assign(globalThis, { document: new Window().document });
 
 const DAYS = [
-  "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10",
-  "2026-09-11", "2026-09-12", "2026-09-13",
+  "2026-09-07",
+  "2026-09-08",
+  "2026-09-09",
+  "2026-09-10",
+  "2026-09-11",
+  "2026-09-12",
+  "2026-09-13",
 ];
 
 const EMPTY_CELL: WeekCell = { seconds: 0, pushState: null };
@@ -84,7 +89,15 @@ test("the header names every column by weekday and date", () => {
   const headings = [...grid.querySelectorAll("thead th")].map((th) => th.textContent);
 
   assert.deepEqual(headings, [
-    "Ticket", "Mon 7", "Tue 8", "Wed 9", "Thu 10", "Fri 11", "Sat 12", "Sun 13", "Total",
+    "Ticket",
+    "Mon 7",
+    "Tue 8",
+    "Wed 9",
+    "Thu 10",
+    "Fri 11",
+    "Sat 12",
+    "Sun 13",
+    "Total",
   ]);
 });
 
@@ -110,7 +123,10 @@ test("each push state draws its own marker, and pushed draws none", async (t) =>
       } else {
         assert.ok(mark?.classList.contains(marker), `marker lacks ${marker}`);
       }
-      assert.equal(button.getAttribute("aria-label"), `ABC-1, Mon 7, 1h 00m, ${words}, click to edit`);
+      assert.equal(
+        button.getAttribute("aria-label"),
+        `ABC-1, Mon 7, 1h 00m, ${words}, click to edit`,
+      );
     });
   }
 });
@@ -125,7 +141,10 @@ test("a day total wears its day's marker, named for a reader who cannot see it",
   );
   const monday = footCells(grid)[0];
 
-  assert.equal(monday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"), "not pushed");
+  assert.equal(
+    monday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"),
+    "not pushed",
+  );
   assert.equal(monday?.querySelector(".sr-only")?.textContent, "not pushed, ");
 });
 
@@ -162,7 +181,10 @@ test("a failed push marks its own cell and day, outranking the rollup's state", 
   );
 
   const tuesday = footCells(grid)[1];
-  assert.equal(tuesday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"), "push failed");
+  assert.equal(
+    tuesday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"),
+    "push failed",
+  );
 });
 
 test("rows, days and the week are totalled, and a zero total is an em dash", () => {

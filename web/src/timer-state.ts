@@ -12,11 +12,7 @@
  * state change, and does not need to: both mean "repaint from what this
  * module says now".
  */
-import {
-  getTimer,
-  startTimer as postStartTimer,
-  stopTimer as postStopTimer,
-} from "./api";
+import { getTimer, startTimer as postStartTimer, stopTimer as postStopTimer } from "./api";
 import { announceEntriesChanged } from "./entries-changed";
 import type { RunningTimer } from "./types";
 

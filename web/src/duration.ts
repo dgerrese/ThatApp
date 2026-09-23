@@ -74,8 +74,7 @@ function minutesFromTyped(typed: string): number | null {
     hourPart = digits.length <= 2 ? "0" : digits.slice(0, -2);
   }
 
-  const typedMinutes =
-    Number(hourPart || "0") * MINUTES_PER_HOUR + Number(minutePart || "0");
+  const typedMinutes = Number(hourPart || "0") * MINUTES_PER_HOUR + Number(minutePart || "0");
 
   return typedMinutes > MAX_MINUTES ? null : typedMinutes;
 }

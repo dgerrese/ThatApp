@@ -61,7 +61,9 @@ test("ascending and descending are transcribed from the prototype's #p-desc and 
 });
 
 test("the three sort marks are three different shapes", () => {
-  const shapes = new Set(["sortable", "ascending", "descending"].map((n) => iconMarkup(n as IconName)));
+  const shapes = new Set(
+    ["sortable", "ascending", "descending"].map((n) => iconMarkup(n as IconName)),
+  );
   assert.equal(shapes.size, 3, "a sort state told apart by colour alone is the defect this avoids");
 });
 

@@ -18,7 +18,13 @@ test("static, bare and dynamic imports are all followed, transitively", () => {
     }),
   );
 
-  assert.deepEqual(result.files, ["app.js", "chunk-A.js", "chunk-B.js", "chunk-C.js", "chunk-D.js"]);
+  assert.deepEqual(result.files, [
+    "app.js",
+    "chunk-A.js",
+    "chunk-B.js",
+    "chunk-C.js",
+    "chunk-D.js",
+  ]);
   assert.deepEqual(result.missing, []);
 });
 

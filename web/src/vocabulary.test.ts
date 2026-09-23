@@ -64,7 +64,11 @@ test("the retired ramp step has no callers left", () => {
   const offenders = sources()
     .filter(({ text }) => /\btext-md\b/.test(text))
     .map(({ path }) => path);
-  assert.deepEqual(offenders, [], `--text-md was retired onto --text-base:\n${offenders.join("\n")}`);
+  assert.deepEqual(
+    offenders,
+    [],
+    `--text-md was retired onto --text-base:\n${offenders.join("\n")}`,
+  );
 });
 
 test("a hover paints the wash, not a ground", () => {
