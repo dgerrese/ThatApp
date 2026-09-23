@@ -585,6 +585,13 @@ func TestAConfirmedCloseRoundsToTheGrid(t *testing.T) {
 				if !wasRunning {
 					t.Error("wasRunning = false, want true")
 				}
+				wantRows := 0
+				if path == "switch" {
+					wantRows = 1
+				}
+				if rows := countTimerRows(t, s); rows != wantRows {
+					t.Errorf("timer rows = %d, want %d: the closed timer must be gone even when discarded", rows, wantRows)
+				}
 				if tc.want == 0 {
 					if entry != nil {
 						t.Errorf("entry = %+v, want nil: the rounded run is zero, so it is discarded", entry)
