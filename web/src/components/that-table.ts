@@ -180,12 +180,11 @@ export class ThatTable extends HTMLElement {
    * #8's per-second timer ticking the Today cell's text (whether a timer
    * change re-sorts is the run check's call in connectedCallback, not this
    * observer's). None of those are a row arriving, leaving or changing what
-   * it sorts by, so a mutation
-   * only counts here when it is a row being added or removed directly under
-   * `body` (`childList` with `target === body`), or one of the four
-   * sort-relevant attributes changing directly on a row (`attributes` with
-   * `target.parentElement === body`) — never a change on some element a row
-   * merely contains.
+   * it sorts by, so a mutation only counts here when it is a row being added
+   * or removed directly under `body` (`childList` with `target === body`), or
+   * one of the four sort-relevant attributes changing directly on a row
+   * (`attributes` with `target.parentElement === body`) — never a change on
+   * some element a row merely contains.
    */
   private isOwnRowChange(record: MutationRecord): boolean {
     if (record.type === "childList") return record.target === this.body;
@@ -311,13 +310,14 @@ export class ThatTable extends HTMLElement {
 
   private sortableRow(row: Element): SortableRow {
     const seconds = Number(row.getAttribute("seconds") ?? "0");
+    const key = row.getAttribute("key") ?? "";
 
     return {
-      key: row.getAttribute("key") ?? "",
+      key,
       summary: row.getAttribute("summary") ?? "",
       status: row.getAttribute("status") ?? "",
       seconds: Number.isFinite(seconds) ? seconds : 0,
-      elapsed: elapsedFor(Number(row.getAttribute("instance-id") ?? "0"), row.getAttribute("key") ?? ""),
+      elapsed: elapsedFor(Number(row.getAttribute("instance-id") ?? "0"), key),
       order: this.rowOrder.get(row) ?? 0,
     };
   }
