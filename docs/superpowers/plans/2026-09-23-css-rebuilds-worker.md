@@ -77,8 +77,8 @@ Revert the probe edit (`git checkout web/src/styles.css`).
 After the `watchPath("src", …)` block in `web/build.mjs`, add:
 
 ```js
-  // Tailwind's watcher writes app.css on its own, outside esbuild, so neither
-  // hook above sees a CSS-only edit and the worker kept a stale build id and a
+  // Tailwind's watcher writes app.css on its own, outside esbuild, so none of the
+  // hooks above sees a CSS-only edit and the worker kept a stale build id and a
   // stale precached app.css (#164). Watching the output rather than Tailwind
   // catches every rewrite whatever caused it.
   let pendingCss;

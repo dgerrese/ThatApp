@@ -187,8 +187,8 @@ if (watch) {
     }, 50);
   });
 
-  // Tailwind's watcher writes app.css on its own, outside esbuild, so neither
-  // hook above sees a CSS-only edit and the worker kept a stale build id and a
+  // Tailwind's watcher writes app.css on its own, outside esbuild, so none of the
+  // hooks above sees a CSS-only edit and the worker kept a stale build id and a
   // stale precached app.css (#164). Watching the output rather than Tailwind
   // catches every rewrite whatever caused it.
   let pendingCss;
