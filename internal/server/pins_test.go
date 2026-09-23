@@ -142,23 +142,16 @@ func TestDeleteMissingPinIsNotFound(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/pins/404", nil))
 
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
-	}
-	if !strings.Contains(rec.Body.String(), "pin_not_found") {
-		t.Errorf("body = %s, want the pin_not_found code", rec.Body.String())
-	}
+	assertRejected(t, rec, http.StatusNotFound, "not_found")
 }
 
-func TestDeletePinRejectsANonNumericID(t *testing.T) {
+func TestDeletePinAnswersANonNumericIDAsMissing(t *testing.T) {
 	srv, _, _ := newServerWithStore(t)
 
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/pins/abc", nil))
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusBadRequest)
-	}
+	assertRejected(t, rec, http.StatusNotFound, "not_found")
 }
 
 // jiraIssueHandler stands in for one site's single-issue endpoint. A code other

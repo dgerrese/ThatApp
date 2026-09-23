@@ -9,7 +9,6 @@ import (
 	"log"
 	"math"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -179,21 +178,9 @@ func verifyJiraCredentials(w http.ResponseWriter, r *http.Request, apiBase, emai
 	return true
 }
 
-// instanceIDFromPath reads the {id} wildcard. A non-numeric id is a 404 rather
-// than a 400: the path simply does not name an instance.
-func instanceIDFromPath(r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id <= 0 {
-		return 0, false
-	}
-
-	return id, true
-}
-
 func (s *Server) handleUpdateInstance(w http.ResponseWriter, r *http.Request) {
-	id, ok := instanceIDFromPath(r)
+	id, ok := idFromPath(w, r, "no such instance")
 	if !ok {
-		writeError(w, http.StatusNotFound, "not_found", "no such instance")
 		return
 	}
 
@@ -271,9 +258,8 @@ func (s *Server) handleUpdateInstance(w http.ResponseWriter, r *http.Request) {
 // all: there is nothing left to verify, and a site being down must not strand a
 // row the user is trying to remove.
 func (s *Server) handleDeleteInstance(w http.ResponseWriter, r *http.Request) {
-	id, ok := instanceIDFromPath(r)
+	id, ok := idFromPath(w, r, "no such instance")
 	if !ok {
-		writeError(w, http.StatusNotFound, "not_found", "no such instance")
 		return
 	}
 
@@ -298,9 +284,8 @@ type connectionTestDTO struct {
 }
 
 func (s *Server) handleTestInstance(w http.ResponseWriter, r *http.Request) {
-	id, ok := instanceIDFromPath(r)
+	id, ok := idFromPath(w, r, "no such instance")
 	if !ok {
-		writeError(w, http.StatusNotFound, "not_found", "no such instance")
 		return
 	}
 
