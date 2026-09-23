@@ -36,6 +36,10 @@ export class ThatTimer extends HTMLElement {
     this.stopListening = undefined;
   }
 
+  // that-table moves rows with moveBefore; without this no-op the move
+  // reconnects this element and render() replaces a button that may hold focus.
+  connectedMoveCallback(): void {}
+
   attributeChangedCallback(): void {
     if (this.trigger) this.paint();
   }
@@ -61,6 +65,7 @@ export class ThatTimer extends HTMLElement {
     });
     this.replaceChildren(trigger);
     this.trigger = trigger;
+    this.renderedMine = undefined;
     this.paint();
   }
 
