@@ -31,7 +31,7 @@ frontend drifts from prettier's output.
 
 ## Measured on `main` at f159c57
 
-`prettier --list-different "**/*.{ts,css,html,json}"` run in `web/` reports 22 committed files, not
+`prettier --list-different "**/*.{ts,css,html,json}"` run in `web/` reports 21 committed files, not
 the seven the issue names, plus `dist/app.css` and `dist/index.html`:
 
 ```
@@ -55,7 +55,7 @@ ignored by prettier's own default.
 **Files:**
 - Create: `web/.prettierignore`
 - Modify: `web/package.json` (`scripts.lint`)
-- Reformatted by `make fmt`: the 22 files above
+- Reformatted by `make fmt`: the 21 files above
 
 **Interfaces:** none — no code consumes this.
 
@@ -77,15 +77,15 @@ dist/
 - [ ] **Step 2: Run it on the unformatted tree — RED**
 
 Run: `make lint-web`
-Expected: exits non-zero; prettier prints `[warn]` for the 22 files above and
-`Code style issues found in 22 files`. It must **not** list any `dist/` file. Keep the output.
+Expected: exits non-zero; prettier prints `[warn]` for the 21 files above and
+`Code style issues found in 21 files`. It must **not** list any `dist/` file. Keep the output.
 
 - [ ] **Step 3: Set the gate aside and reformat**
 
 ```bash
 git stash push --include-untracked -- web/.prettierignore web/package.json
 make fmt
-git status --short          # expect exactly the 22 files, nothing under dist/ (ignored), no Go files
+git status --short          # expect exactly the 21 files, nothing under dist/ (ignored), no Go files
 ```
 
 - [ ] **Step 4: Verify the reformat alone, then commit it**
