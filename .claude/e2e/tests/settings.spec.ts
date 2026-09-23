@@ -437,3 +437,36 @@ test("a failed initial load still renders the Add form", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
   await expect(page.getByRole("status")).toBeVisible();
 });
+
+const TOKEN_PAGE = "https://id.atlassian.com/manage-profile/security/api-tokens";
+
+async function expectTokenNote(page: Page, form: string): Promise<void> {
+  const note = page.locator(`${form} [data-token-note]`);
+  await expect(note).toBeVisible();
+  for (const scope of ["read:jira-user", "read:jira-work", "write:jira-work"]) {
+    await expect(note).toContainText(scope);
+  }
+  await expect(note).toContainText("Without write:jira-work your issues still list, but pushes fail.");
+  await expect(note).not.toContainText("↗");
+
+  // Exact name: the external mark is aria-hidden, so it adds nothing to it.
+  const link = note.getByRole("link", { name: "Create a token", exact: true });
+  await expect(link).toHaveAttribute("href", TOKEN_PAGE);
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toHaveAttribute("rel", "noopener");
+  await expect(link.locator("svg")).toHaveAttribute("width", "14");
+  // The info mark is the note's first svg in document order.
+  await expect(note.locator("svg").first()).toHaveAttribute("width", "18");
+}
+
+test("the add and edit forms say what a token needs before it can push", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+
+  await expectTokenNote(page, "that-card:not([data-editing-id])");
+
+  await addInstance(page);
+  await page.getByRole("button", { name: "Edit" }).click();
+
+  await expectTokenNote(page, "that-card[data-editing-id]");
+});

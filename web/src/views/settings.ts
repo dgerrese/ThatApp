@@ -6,6 +6,7 @@ import "../components/that-confirm";
 import { alertFor, messageOf } from "../alert";
 import { createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
 import { confirmDestructive } from "../components/that-confirm";
+import { iconMarkup } from "../icons";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import { setThemePreference, themePreference } from "../theme";
 import type { Instance } from "../types";
@@ -330,7 +331,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     actions.append(cancel);
   }
 
-  form.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper, status, actions);
+  form.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper, tokenNote(), status, actions);
   card.append(form);
 
   // that-button renders a real <button type="button">, so it does not submit the
@@ -368,6 +369,63 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
   }
 
   return card;
+}
+
+const TOKEN_PAGE = "https://id.atlassian.com/manage-profile/security/api-tokens";
+
+/**
+ * The prototype's `.tnote`. Guidance rather than a check: the connection test
+ * only reads, and Jira has no side-effect-free write to probe a token's write
+ * scope with, so a token missing write:jira-work passes it and fails every
+ * push (#80). The link carries the current truth if Atlassian renames things.
+ */
+function tokenNote(): HTMLElement {
+  const note = document.createElement("div");
+  note.dataset["tokenNote"] = "";
+  note.className =
+    "flex items-start gap-2.5 rounded-sm border border-edge px-3 py-2.5 " +
+    "text-sm leading-[1.55] text-ink-muted";
+
+  const mark = document.createElement("span");
+  mark.className = "mt-px shrink-0";
+  mark.innerHTML = iconMarkup("info", 18);
+
+  // Neither mark takes an aria-label: both are decorative, the note's text
+  // says everything, and the link's accessible name stays "Create a token".
+  const link = document.createElement("a");
+  link.href = TOKEN_PAGE;
+  link.target = "_blank";
+  // Without noopener the opened page gets a window.opener handle back here.
+  link.rel = "noopener";
+  link.className = "inline-flex items-center gap-[3px] font-bold text-primary";
+  link.textContent = "Create a token";
+  link.insertAdjacentHTML("beforeend", iconMarkup("external", 14));
+
+  const text = document.createElement("span");
+  text.append(
+    "Use an unscoped API token, or a scoped one with ",
+    scope("read:jira-user"),
+    " ",
+    scope("read:jira-work"),
+    " ",
+    scope("write:jira-work"),
+    ". Without ",
+    scope("write:jira-work"),
+    " your issues still list, but pushes fail. ",
+    link,
+  );
+
+  note.append(mark, text);
+
+  return note;
+}
+
+function scope(name: string): HTMLElement {
+  const chip = document.createElement("span");
+  chip.className = "whitespace-nowrap rounded-sm bg-hover px-[5px] py-px font-mono text-xs text-ink";
+  chip.textContent = name;
+
+  return chip;
 }
 
 interface Field {
