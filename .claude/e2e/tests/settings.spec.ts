@@ -546,3 +546,63 @@ test("a save finishing with its own form still shown resets to Add an instance",
   await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
   await expect(page.getByLabel("Name")).toHaveValue("");
 });
+
+const saveFailure = { status: 500, json: { code: "store_failed", message: "could not save the instance" } };
+
+test("a save failing after its form was replaced reports in the page error slot", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  await page.getByRole("button", { name: "Cancel changes" }).click();
+  held.release(saveFailure);
+
+  await expect(page.getByText("Could not save Work: could not save the instance")).toBeVisible();
+  await expect(page.locator("form").getByText("could not save the instance")).toHaveCount(0);
+});
+
+test("a save failing with its form still shown reports in the form", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  held.release(saveFailure);
+
+  await expect(page.locator("form").getByText("could not save the instance", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Edit Work" })).toBeVisible();
+});
+
+test("an Edit form opened on the instance being saved shows the saved values", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByLabel("Name")).toHaveValue("Work");
+
+  held.release();
+
+  await expect(page.getByRole("heading", { name: "Edit Work Renamed" })).toBeVisible();
+  await expect(page.getByLabel("Name")).toHaveValue("Work Renamed");
+});
