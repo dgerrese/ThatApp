@@ -19,14 +19,7 @@ import { navigate } from "../router";
 import type { RegisterTeardown } from "../router";
 import { toolbarButton } from "../toolbar-button";
 import type { IssueHit, PushResponse, WeekCell, WeekDay, WeekRollup, WeekRow } from "../types";
-import { weekLabel } from "../week-label";
-
-/**
- * Column headings, by position rather than by date. `cells` and `days` are
- * index-aligned and always seven long, so index 0 is Monday by contract — which
- * is what lets the grid be labelled without a Date being constructed.
- */
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+import { dayHeading, weekLabel } from "../week-label";
 
 /**
  * The entries a push left behind, keyed to the cells they belong to. A failed
@@ -1042,16 +1035,6 @@ function headCell(text: string): HTMLTableCellElement {
   th.textContent = text;
 
   return th;
-}
-
-/**
- * `Mon 7`. The weekday comes from the column's position, the number from the
- * day string the server sent — sliced rather than parsed, because
- * `new Date("2026-09-07")` is UTC midnight read back in the browser's zone, and
- * one timezone west that is the 6th.
- */
-function dayHeading(day: string, index: number): string {
-  return `${WEEKDAYS[index] ?? ""} ${String(Number(day.slice(8, 10)))}`;
 }
 
 /** A week off is not an error, and the navigation above stays put so the week
