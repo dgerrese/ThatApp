@@ -9,6 +9,7 @@ import {
   type SortState,
   type SortableRow,
 } from "../table-sort";
+import { elapsedFor } from "../timer-state";
 
 // Not yet in TypeScript's lib.dom.d.ts. Declared optional, since not every
 // engine has it (see supportsMoveBefore below) — a required signature here
@@ -234,9 +235,10 @@ export class ThatTable extends HTMLElement {
       }
     }
 
-    const sorted = [...rows].sort((a, b) =>
-      compareRows(this.sortableRow(a), this.sortableRow(b), this.sortState),
-    );
+    const keyed = rows.map((row) => ({ row, sortable: this.sortableRow(row) }));
+    const sorted = keyed
+      .sort((a, b) => compareRows(a.sortable, b.sortable, this.sortState))
+      .map(({ row }) => row);
 
     if (sorted.some((row, index) => row !== rows[index])) {
       this.observer?.disconnect();
@@ -293,6 +295,7 @@ export class ThatTable extends HTMLElement {
       summary: row.getAttribute("summary") ?? "",
       status: row.getAttribute("status") ?? "",
       seconds: Number.isFinite(seconds) ? seconds : 0,
+      elapsed: elapsedFor(Number(row.getAttribute("instance-id") ?? "0"), row.getAttribute("key") ?? ""),
       order: this.rowOrder.get(row) ?? 0,
     };
   }

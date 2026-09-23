@@ -1,7 +1,8 @@
 import { fieldFigure } from "../duration";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
-import { elapsedSeconds, isRunningTicket, onTimerChanged } from "../timer-state";
+import { shownSeconds } from "../table-sort";
+import { elapsedFor, isRunningTicket, onTimerChanged } from "../timer-state";
 // A type-only import is erased at compile time (verbatimModuleSyntax makes
 // that a guarantee), so describing the request with the dialog's own shape
 // costs no bundle bytes and cannot drift from what openEntryDialog expects.
@@ -244,13 +245,17 @@ export class ThatTicketRow extends HTMLElement {
     );
   }
 
-  /** Today's logged seconds, read off the attribute — plus the running
-   *  timer's own elapsed time while it is this row's. */
+  /** The figure this row shows — see shownSeconds, which the sort compares too. */
   private durationSeconds(): number {
     const seconds = Number(this.getAttribute("seconds") ?? "0");
-    const logged = Number.isFinite(seconds) ? seconds : 0;
 
-    return this.mine() ? logged + elapsedSeconds() : logged;
+    return shownSeconds({
+      seconds: Number.isFinite(seconds) ? seconds : 0,
+      elapsed: elapsedFor(
+        Number(this.getAttribute("instance-id") ?? "0"),
+        this.getAttribute("key") ?? "",
+      ),
+    });
   }
 
   /**

@@ -9,7 +9,15 @@ export interface SortableRow {
   summary: string;
   status: string;
   seconds: number;
+  /** What the running timer adds to this row's figure: 0 unless the timer is this row's. */
+  elapsed: number;
   order: number;
+}
+
+/** The Today figure a row shows: logged seconds plus its own running time. The
+ *  cell paints this and the sort compares it, so the two cannot disagree (#183). */
+export function shownSeconds(row: Pick<SortableRow, "seconds" | "elapsed">): number {
+  return row.seconds + row.elapsed;
 }
 
 const COLUMNS: readonly SortColumn[] = ["key", "summary", "status", "today"];
@@ -66,7 +74,7 @@ function compareColumn(a: SortableRow, b: SortableRow, column: SortColumn): numb
     case "status":
       return a.status.localeCompare(b.status, undefined, { sensitivity: "base" });
     case "today":
-      return a.seconds - b.seconds;
+      return shownSeconds(a) - shownSeconds(b);
   }
 }
 

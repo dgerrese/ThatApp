@@ -18,6 +18,7 @@ function rows(partials: Partial<SortableRow>[]): SortableRow[] {
     summary: partial.summary ?? "",
     status: partial.status ?? "",
     seconds: partial.seconds ?? 0,
+    elapsed: partial.elapsed ?? 0,
     order,
   }));
 }
@@ -178,6 +179,23 @@ test("today ascending puts the least seconds first", () => {
   assert.deepEqual(
     sorted.map((row) => row.seconds),
     [900, 1800, 3600],
+  );
+});
+
+test("today compares the shown figure: a running row's elapsed time counts", () => {
+  // RUNNING has logged less (0:59 against 1:00) but shows more (1:01) with two
+  // minutes on its timer, so it must lead a descending sort.
+  const data = rows([
+    { key: "STOPPED", seconds: 3600 },
+    { key: "RUNNING", seconds: 3540, elapsed: 120 },
+  ]);
+  const state: SortState = { column: "today", direction: "descending" };
+
+  const sorted = [...data].sort((a, b) => compareRows(a, b, state));
+
+  assert.deepEqual(
+    sorted.map((row) => row.key),
+    ["RUNNING", "STOPPED"],
   );
 });
 
