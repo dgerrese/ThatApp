@@ -1,0 +1,2 @@
+# Build output. Prettier reads ignore files from web/, so the repo-root .gitignore never reaches it.
+dist/
