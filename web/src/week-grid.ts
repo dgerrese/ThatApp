@@ -105,8 +105,10 @@ function gridTable(
 ): HTMLTableElement {
   const table = document.createElement("table");
   // that-tnum on the table, so every figure under it is tabular — figures that
-  // sit above one another have to align or the column reads as noise.
-  table.className = "that-tnum w-full text-base";
+  // sit above one another have to align or the column reads as noise. text-lg
+  // with the 1.5 line the drawing inherits, not Tailwind's own text-lg line,
+  // which makes the totals row 47.83px against the drawn 47.
+  table.className = "that-tnum w-full text-lg/[1.5]";
 
   const caption = document.createElement("caption");
   caption.className = "sr-only";

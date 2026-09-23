@@ -42,6 +42,13 @@ its extra 0.83px comes from the summary's own `text-lg` (#95) bringing Tailwind'
 height, not from the cell size. That is out of this ticket's scope (row heights) and is reported
 as a finding rather than fixed here.
 
+## Deviation found in execution
+
+Task 1's GREEN run showed `.that-tbl td { font-size }` outranking the status cell's own `text-sm`
+utility (`web/src/components/that-ticket-row.ts`), turning the status 15px. The drawing states the
+status size on the table rule itself (`.tbl .c-status { font-size: 13px }`), so `styles.css` gains
+the same: `.that-tbl .c-status { font-size: var(--text-sm); }`, placed with the cell rules.
+
 ## Global Constraints
 
 - Docker only: run everything through `make` or `docker compose`; never `go`, `node` or `npm` bare.

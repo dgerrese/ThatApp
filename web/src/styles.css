@@ -255,10 +255,16 @@ a.that-key:hover {
 }
 .that-tbl td {
   padding-block: 11px;
+  font-size: var(--text-lg);
 }
 .that-tbl td.c-act {
   padding-block: 5px;
   vertical-align: middle;
+}
+/* .that-tbl td's own font-size would otherwise outrank the status cell's
+   text-sm utility class on specificity, not source order. */
+.that-tbl .c-status {
+  font-size: var(--text-sm);
 }
 
 /* The one column read right to left: a duration, unlike a key or a status, is
