@@ -33,6 +33,8 @@ export const ICON_NAMES = [
   "search",
   "play",
   "stop",
+  "info",
+  "external",
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];
@@ -88,6 +90,14 @@ const PATHS: Record<IconName, string> = {
   // a rounded square, not drawn here first.
   play: '<path d="M8 5.6v12.8a.6.6 0 0 0 .92.5l9.6-6.4a.6.6 0 0 0 0-1l-9.6-6.4A.6.6 0 0 0 8 5.6Z"/>',
   stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>',
+  // #80's token note. Settled on the companion 2026-09-21: success and failed's
+  // own circle, with warning's dot-and-stem inverted. Drawn at 18px, never 16 —
+  // at 16 the dot and the stem fuse, and thinning the stroke does not help.
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 8.6h.01M12 11.4v3.6"/>',
+  // Settled 2026-09-23 for a link that leaves the app, at 14px inline with its
+  // text. Issue keys are outbound too and stay bare, by the owner's choice.
+  external:
+    '<path d="M14 5h5v5M19 5l-8 8M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
 };
 
 /**

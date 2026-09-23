@@ -93,7 +93,7 @@ test("no typed character stands in for a drawn mark", () => {
     // another's. Backtick stays in the set: icons.ts itself builds markup with
     // backtick template literals, and a typed glyph landing in one must still
     // be caught.
-    for (const match of text.matchAll(/(["'`])[^\n]*?[●▲×−✓✗←→][^\n]*?\1/g)) {
+    for (const match of text.matchAll(/(["'`])[^\n]*?[●▲×−✓✗←→↗][^\n]*?\1/g)) {
       offenders.push(`${path}: ${match[0]}`);
     }
   }

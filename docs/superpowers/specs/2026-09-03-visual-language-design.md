@@ -354,7 +354,8 @@ theme's worst hue clears by 0.54, which is the smallest margin in the table.
 
 **No glyph may stand in for an icon.** Not a dingbat, not a geometric shape from the text stream, not
 an emoji. Every mark that carries meaning is inline SVG on a 24px grid, `1.9` stroke, round caps and
-joins, `currentColor`, rendered at 16px in the rail's nav and 18px in a row control.
+joins, `currentColor`, rendered at 16px in the rail's nav, 18px in a row control and in a form's
+note, and 14px inline with text.
 
 The reason is not taste. A typed character is rendered by whichever font resolves it, and that is not
 the font the design chose: coverage varies, metrics vary, and a face that lacks the codepoint falls
@@ -382,9 +383,15 @@ separating two facts on one line, are typography and stay as characters. The rul
 character standing in for a *drawn mark*, not a licence to redraw punctuation.
 
 The set the app needs: pin, pin-off, search, sortable, ascending, descending, pushed, warning,
-failed, success, and the three nav marks, transcribed from the prototype's `#p-clock`, `#p-cal`
-and `#p-gear` into `index.html`. `index.html` is where they are drawn from, not what settles what
-they should be — #117 found one of the three drifted from its source and corrected it.
+failed, success, info, external, and the three nav marks, transcribed from the prototype's
+`#p-clock`, `#p-cal` and `#p-gear` into `index.html`. `index.html` is where they are drawn from,
+not what settles what they should be — #117 found one of the three drifted from its source and
+corrected it.
+
+> `info` and `external` came from #80's design sessions. `info` is drawn at 18px even in a
+> form's note, because at 16px its dot and stem fuse; `external` is 14px because at 16px it
+> stands taller than the 13px text it follows. The issue keys are outbound links too and carry no
+> `external` mark — their tooltip already says where they go.
 
 ## Decision 9 — one surface reacts at a time
 
