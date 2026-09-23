@@ -47,6 +47,12 @@ export function elapsedSeconds(): number {
   return Math.max(0, Math.floor((Date.now() - Date.parse(running.startedAt)) / 1000));
 }
 
+/** The seconds the running timer adds to this ticket's figure: its elapsed
+ *  time when it is this ticket's, 0 otherwise. */
+export function elapsedFor(instanceId: number, issueKey: string): number {
+  return isRunningTicket(instanceId, issueKey) ? elapsedSeconds() : 0;
+}
+
 function setRunning(next: RunningTimer | null): void {
   running = next;
   if (running && tickHandle === undefined) {
