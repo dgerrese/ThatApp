@@ -11,6 +11,9 @@
  * announcement a start or stop fires — a subscriber cannot tell a tick from a
  * state change, and does not need to: both mean "repaint from what this
  * module says now".
+ *
+ * A stop, or a start over a running timer, asks the stop dialog how to round
+ * first; the dialog is the only way either reaches the server.
  */
 import {
   getTimer,
@@ -18,10 +21,9 @@ import {
   stopTimer as postStopTimer,
 } from "./api";
 import { announceEntriesChanged } from "./entries-changed";
-import type { RunningTimer } from "./types";
+import type { RunningTimer, StopChoice } from "./types";
 
 const TIMER_CHANGED = "that-timer-changed";
-const TIMER_DISCARDED = "that-timer-discarded";
 const TICK_MS = 1000;
 
 let running: RunningTimer | null = null;
@@ -75,33 +77,40 @@ export function onTimerChanged(handle: () => void): () => void {
   return () => document.removeEventListener(TIMER_CHANGED, handle);
 }
 
-/** Fired once per discarded stop or switch, so a listener can say so without
- *  polling for it. Modelled on push-reported.ts's announce/on pair. */
-function announceTimerDiscarded(): void {
-  document.dispatchEvent(new CustomEvent(TIMER_DISCARDED));
-}
-
-export function onTimerDiscarded(handle: () => void): () => void {
-  document.addEventListener(TIMER_DISCARDED, handle);
-
-  return () => document.removeEventListener(TIMER_DISCARDED, handle);
-}
-
 export async function readTimer(): Promise<void> {
   const response = await getTimer();
   setRunning(response.running);
   if (response.stopped) announceEntriesChanged();
 }
 
+/** The stop dialog's answer for the running timer, or null when it was kept
+ *  running. Imported lazily: the dialog is only ever needed after a click. */
+async function askHowToStop(nextIssueKey?: string): Promise<StopChoice | null> {
+  const issueKey = running?.issueKey;
+  if (issueKey === undefined) return null;
+  const { confirmStop } = await import("./components/that-stop-dialog");
+
+  return confirmStop(issueKey, nextIssueKey, elapsedSeconds);
+}
+
+/** Starting over a running timer stops it first, so it asks how, the same as
+ *  a stop does; kept running, nothing starts. */
 export async function startTimer(instanceId: number, issueKey: string): Promise<void> {
-  const response = await postStartTimer(instanceId, issueKey);
+  let choice: StopChoice | undefined;
+  if (running) {
+    const answer = await askHowToStop(issueKey);
+    if (!answer) return;
+    choice = answer;
+  }
+  const response = await postStartTimer(instanceId, issueKey, choice);
   setRunning(response.running);
   if (response.stopped) announceEntriesChanged();
 }
 
 export async function stopTimer(): Promise<void> {
-  const response = await postStopTimer();
+  const choice = await askHowToStop();
+  if (!choice) return;
+  const response = await postStopTimer(choice);
   setRunning(null);
   if (response.stopped) announceEntriesChanged();
-  if (response.discarded) announceTimerDiscarded();
 }

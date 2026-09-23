@@ -1,7 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
-
-/** A run under this many seconds leaves no entry — store.MinTimerSeconds, mirrored here. */
-const MIN_TIMER_SECONDS = 60;
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 interface StubRunning {
   instanceId: number;
@@ -9,21 +6,48 @@ interface StubRunning {
   startedAt: number; // epoch ms
 }
 
+interface StubEntry {
+  id: number;
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+  day: string;
+  startedAt: string;
+  seconds: number;
+  comment: string;
+  pushState: "unpushed";
+}
+
+/** What the stub heard and wrote, for a test to assert on. */
+interface TimerRecorder {
+  stops: Record<string, unknown>[];
+  starts: Record<string, unknown>[];
+  logged: StubEntry[];
+}
+
+const GRID_SECONDS = 900;
+
 /**
  * A stateful stand-in for the three real timer endpoints, applying the same
- * rules the store does — switch and the under-a-minute discard — so this spec
- * proves the browser's *interface* to them without a second proof of the
- * rules themselves. Those already have table-driven coverage in
- * internal/store/timers_test.go and internal/server/timer_test.go; see
- * Task 3 step 1's note in docs/superpowers/plans/2026-09-18-timer.md for why
- * this spec does not drive the real endpoints.
+ * rules the store does — switch, the 15-minute grid the stop dialog chose,
+ * and a zero rounding discarding the run — so this spec proves the browser's
+ * *interface* to them without a second proof of the rules themselves. Those
+ * already have table-driven coverage in internal/store/timers_test.go and
+ * internal/server/timer_test.go; see Task 3 step 1's note in
+ * docs/superpowers/plans/2026-09-18-timer.md for why this spec does not drive
+ * the real endpoints.
  *
  * One closure per test, so a test can run fully parallel with any other: no
  * state survives past the page it was created for, and a page.route survives
  * page.reload(), which is what lets the reload test work against it too.
  */
-async function stubTimer(page: Page): Promise<void> {
-  let running: StubRunning | null = null;
+async function stubTimer(page: Page, options?: { runningFor?: number }): Promise<TimerRecorder> {
+  const recorder: TimerRecorder = { stops: [], starts: [], logged: [] };
+  let running: StubRunning | null =
+    options?.runningFor === undefined
+      ? null
+      : { instanceId: 1, issueKey: "WORK-1", startedAt: Date.now() - options.runningFor * 1000 };
   let nextEntryId = 1;
 
   const runningDTO = () =>
@@ -33,17 +57,20 @@ async function stubTimer(page: Page): Promise<void> {
       startedAt: new Date(running.startedAt).toISOString(),
     };
 
-  // Closes whatever is running as of `now`, the same close rule the store
-  // applies: under a minute leaves no entry. Returns the entry DTO, or null
-  // either way — nothing was running, or the run was discarded.
-  const close = (now: number) => {
+  const isRounding = (value: unknown): value is "up" | "down" => value === "up" || value === "down";
+
+  // Closes whatever is running as of `now` on the grid `round` names. Returns
+  // the entry, or null — nothing was running, or the rounding came to zero.
+  const close = (now: number, round: "up" | "down", comment: string) => {
     if (!running) return null;
-    const seconds = Math.floor((now - running.startedAt) / 1000);
+    const elapsed = Math.floor((now - running.startedAt) / 1000);
+    const steps = round === "up" ? Math.ceil(elapsed / GRID_SECONDS) : Math.floor(elapsed / GRID_SECONDS);
+    const seconds = steps * GRID_SECONDS;
     const closed = running;
     running = null;
-    if (seconds < MIN_TIMER_SECONDS) return null;
+    if (seconds === 0) return null;
 
-    return {
+    const entry: StubEntry = {
       id: nextEntryId++,
       instanceId: closed.instanceId,
       instanceName: "Work",
@@ -52,9 +79,12 @@ async function stubTimer(page: Page): Promise<void> {
       day: "2026-09-21",
       startedAt: new Date(closed.startedAt).toISOString(),
       seconds,
-      comment: "",
-      pushState: "unpushed" as const,
+      comment,
+      pushState: "unpushed",
     };
+    recorder.logged.push(entry);
+
+    return entry;
   };
 
   await page.route("**/api/timer", (route) =>
@@ -62,19 +92,37 @@ async function stubTimer(page: Page): Promise<void> {
   );
 
   await page.route("**/api/timer/start", (route) => {
-    const body = route.request().postDataJSON() as { instanceId: number; issueKey: string };
-    const stopped = close(Date.now());
-    running = { instanceId: body.instanceId, issueKey: body.issueKey, startedAt: Date.now() };
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    recorder.starts.push(body);
+    const wasRunning = running !== null;
+    if (wasRunning && !isRounding(body["round"])) {
+      return route.fulfill({ status: 400, json: { code: "invalid_request", message: "round" } });
+    }
+    const stopped = isRounding(body["round"])
+      ? close(Date.now(), body["round"], String(body["comment"] ?? ""))
+      : null;
+    running = { instanceId: Number(body["instanceId"]), issueKey: String(body["issueKey"]), startedAt: Date.now() };
 
-    return route.fulfill({ status: 200, json: { running: runningDTO(), stopped } });
+    return route.fulfill({
+      status: 200,
+      json: { running: runningDTO(), stopped, discarded: wasRunning && stopped === null },
+    });
   });
 
   await page.route("**/api/timer/stop", (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
+    recorder.stops.push(body);
+    const round = body["round"];
+    if (!isRounding(round)) {
+      return route.fulfill({ status: 400, json: { code: "invalid_request", message: "round" } });
+    }
     const wasRunning = running !== null;
-    const stopped = close(Date.now());
+    const stopped = close(Date.now(), round, String(body["comment"] ?? ""));
 
     return route.fulfill({ status: 200, json: { stopped, discarded: wasRunning && stopped === null } });
   });
+
+  return recorder;
 }
 
 async function stubToday(page: Page): Promise<void> {
@@ -117,12 +165,25 @@ function parseElapsed(text: string): number {
 
 test.beforeEach(async ({ page }) => {
   await stubToday(page);
-  await stubTimer(page);
 });
+
+const dialogButtonNames = (page: Page) =>
+  page.getByRole("dialog").locator("that-button button").allInnerTexts();
+
+/** How many rendered lines a button's text occupies. */
+function lineCount(button: Locator): Promise<number> {
+  return button.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+
+    return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+  });
+}
 
 test("starting a timer on a row turns its control to stop, tints the Today figure, leaves the key muted, and the rail shows the running line", async ({
   page,
 }) => {
+  await stubTimer(page);
   await page.goto("/today");
 
   const row = ticketRow(page, "WORK-1");
@@ -142,6 +203,7 @@ test("starting a timer on a row turns its control to stop, tints the Today figur
 });
 
 test("a reload keeps the timer running and its elapsed time carries on", async ({ page }) => {
+  await stubTimer(page);
   await page.goto("/today");
   await ticketRow(page, "WORK-1").getByRole("button", { name: "start timer" }).click();
   await expect(railTimer(page)).toContainText("WORK-1");
@@ -158,6 +220,7 @@ test("a reload keeps the timer running and its elapsed time carries on", async (
 });
 
 test("starting another row's timer stops the first and runs the second", async ({ page }) => {
+  await stubTimer(page);
   await page.goto("/today");
 
   const first = ticketRow(page, "WORK-1");
@@ -167,6 +230,7 @@ test("starting another row's timer stops the first and runs the second", async (
   await expect(first.getByRole("button", { name: "stop timer" })).toBeVisible();
 
   await second.getByRole("button", { name: "start timer" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Log 0:15" }).click();
 
   await expect(first.getByRole("button", { name: "start timer" })).toBeVisible();
   await expect(first.locator("td.c-today .that-tnum")).not.toHaveClass(/text-running\b/);
@@ -175,6 +239,7 @@ test("starting another row's timer stops the first and runs the second", async (
 });
 
 test("stopping from the rail on Week returns it to 'No timer running'", async ({ page }) => {
+  await stubTimer(page);
   await page.goto("/today");
   await ticketRow(page, "WORK-1").getByRole("button", { name: "start timer" }).click();
   await expect(railTimer(page)).toContainText("WORK-1");
@@ -198,18 +263,124 @@ test("stopping from the rail on Week returns it to 'No timer running'", async ({
   await expect(page).toHaveURL(/\/week$/);
 
   await railTimer(page).getByRole("button", { name: "stop timer" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Log 0:15" }).click();
 
   await expect(railTimer(page)).toContainText("No timer running");
 });
 
-test("a stop within a minute reports nothing was logged", async ({ page }) => {
+test("a stop rounds up in the dialog and the entry carries the seconds and the comment", async ({ page }) => {
+  const recorder = await stubTimer(page);
   await page.goto("/today");
 
   const row = ticketRow(page, "WORK-1");
   await row.getByRole("button", { name: "start timer" }).click();
   await row.getByRole("button", { name: "stop timer" }).click();
 
-  await expect(page.getByText("Under a minute — nothing logged.")).toBeVisible();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading")).toHaveText("Stop the timer?");
+  await dialog.getByRole("textbox", { name: "Description" }).fill("Traced the export");
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => recorder.logged).toEqual([
+    expect.objectContaining({ issueKey: "WORK-1", seconds: 900, comment: "Traced the export" }),
+  ]);
+  expect(recorder.stops[0]).toEqual({ round: "up", comment: "Traced the export" });
+});
+
+test("a short run rounded down is discarded and logs nothing", async ({ page }) => {
+  const recorder = await stubTimer(page);
+  await page.goto("/today");
+
+  const row = ticketRow(page, "WORK-1");
+  await row.getByRole("button", { name: "start timer" }).click();
+  await row.getByRole("button", { name: "stop timer" }).click();
+
+  await page.getByRole("dialog").getByRole("button", { name: "Discard run" }).click();
+
+  await expect(railTimer(page)).toContainText("No timer running");
+  expect(recorder.logged).toEqual([]);
+  expect(recorder.stops[0]?.["round"]).toBe("down");
+});
+
+test("under 15 minutes the buttons read Keep running, Discard run, Log 0:15, each on one line", async ({
+  page,
+}) => {
+  await stubTimer(page, { runningFor: 7 * 60 });
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("WORK-1");
+
+  await railTimer(page).getByRole("button", { name: "stop timer" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("WORK-1 ran 0:07")).toBeVisible();
+  expect(await dialogButtonNames(page)).toEqual(["Keep running", "Discard run", "Log 0:15"]);
+  await expect(dialog.getByRole("button", { name: "Discard run" })).toHaveClass(/\bbg-failed\b/);
+  await expect(dialog.getByRole("button", { name: "Log 0:15" })).toHaveClass(/\bbg-primary\b/);
+
+  for (const name of ["Keep running", "Discard run", "Log 0:15"]) {
+    expect(await lineCount(dialog.getByRole("button", { name })), name).toBe(1);
+  }
+  // The house field height; a column-flex label let flex-1 override it.
+  expect((await dialog.getByRole("textbox", { name: "Description" }).boundingBox())?.height).toBe(38);
+});
+
+test("at 15 minutes or more the down button logs the floor, and Enter rounds up", async ({ page }) => {
+  const recorder = await stubTimer(page, { runningFor: 20 * 60 });
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("WORK-1");
+
+  await railTimer(page).getByRole("button", { name: "stop timer" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: "Log 0:30" })).toBeVisible();
+  expect(await dialogButtonNames(page)).toEqual(["Keep running", "Log 0:15", "Log 0:30"]);
+  await expect(dialog.getByRole("button", { name: "Log 0:15" })).not.toHaveClass(/\bbg-failed\b/);
+
+  await dialog.getByRole("textbox", { name: "Description" }).press("Enter");
+
+  await expect.poll(() => recorder.logged[0]?.seconds).toBe(1800);
+});
+
+test("Keep running, or Esc, leaves the timer running", async ({ page }) => {
+  const recorder = await stubTimer(page);
+  await page.goto("/today");
+
+  const row = ticketRow(page, "WORK-1");
+  const dialog = page.getByRole("dialog");
+  await row.getByRole("button", { name: "start timer" }).click();
+
+  await row.getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(row.getByRole("button", { name: "stop timer" })).toBeVisible();
+
+  await row.getByRole("button", { name: "stop timer" }).click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(row.getByRole("button", { name: "stop timer" })).toBeVisible();
+
+  expect(recorder.stops).toEqual([]);
+});
+
+test("switching names both tickets, and Keep running starts nothing", async ({ page }) => {
+  const recorder = await stubTimer(page);
+  await page.goto("/today");
+
+  const first = ticketRow(page, "WORK-1");
+  await first.getByRole("button", { name: "start timer" }).click();
+  await expect(first.getByRole("button", { name: "stop timer" })).toBeVisible();
+
+  await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading")).toHaveText("Stop WORK-1 and start WORK-2?");
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+
+  await expect(dialog).toHaveCount(0);
+  expect(recorder.starts.length).toBe(1);
+  await expect(first.getByRole("button", { name: "stop timer" })).toBeVisible();
 });
 
 /**
@@ -223,6 +394,7 @@ test("a stop within a minute reports nothing was logged", async ({ page }) => {
 test("a failed boot read of the timer retries until the rail shows what's actually running", async ({
   page,
 }) => {
+  await stubTimer(page);
   let failures = 0;
   const startedAt = new Date(Date.now() - 90_000).toISOString();
 

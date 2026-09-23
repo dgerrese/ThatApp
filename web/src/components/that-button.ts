@@ -46,9 +46,10 @@ export class ThatButton extends HTMLElement {
     // default arrow, and Tailwind v4's Preflight deliberately leaves it that
     // way, so without this every button in the app looks unclickable. The
     // disabled variant outranks it on specificity, so a dead button still says
-    // so.
+    // so. whitespace-nowrap: a label never breaks (Decision 13 of the visual
+    // language) — a row too narrow for its buttons wraps whole buttons.
     const base =
-      "inline-flex h-[38px] cursor-pointer items-center rounded-sm px-3 text-base font-bold " +
+      "inline-flex h-[38px] cursor-pointer items-center whitespace-nowrap rounded-sm px-3 text-base font-bold " +
       "disabled:cursor-not-allowed disabled:opacity-50";
     button.className = `${base} ${VARIANTS[variant] ?? VARIANTS["secondary"] ?? ""}`;
     button.disabled = this.hasAttribute("disabled");

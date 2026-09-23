@@ -1,5 +1,10 @@
 import "./that-button";
 
+export const CONFIRM_DIALOG_CLASS =
+  "bg-raised text-ink shadow-dialog border-edge m-auto rounded-md border p-5";
+export const CONFIRM_HEADING_CLASS = "mb-2 text-xl font-bold tracking-[-0.02em]";
+export const CONFIRM_BODY_CLASS = "text-ink-muted mb-4 text-base";
+
 /**
  * Wraps a native <dialog> rather than building a modal from a div: showModal()
  * supplies the focus trap, the inert background, the top layer, Esc dismissal
@@ -16,17 +21,16 @@ export class ThatConfirm extends HTMLElement {
     // Preflight's `* { margin: 0 }` is author origin, which beats the UA's own
     // `dialog { margin: auto }` regardless of specificity — without this the
     // dialog resolves to the top-left corner in both Firefox and Chromium.
-    dialog.className =
-      "bg-raised text-ink shadow-dialog border-edge m-auto max-w-sm rounded-md border p-5";
+    dialog.className = `${CONFIRM_DIALOG_CLASS} max-w-sm`;
 
     const heading = document.createElement("h2");
     heading.id = "that-confirm-heading";
-    heading.className = "mb-2 text-xl font-bold tracking-[-0.02em]";
+    heading.className = CONFIRM_HEADING_CLASS;
     heading.textContent = this.getAttribute("heading") ?? "";
 
     const body = document.createElement("p");
     body.id = "that-confirm-body";
-    body.className = "text-ink-muted mb-4 text-base";
+    body.className = CONFIRM_BODY_CLASS;
     body.textContent = this.getAttribute("body") ?? "";
 
     const actions = document.createElement("div");
@@ -51,7 +55,7 @@ export class ThatConfirm extends HTMLElement {
   }
 }
 
-function dialogButton(label: string, variant: string): HTMLElement {
+export function dialogButton(label: string, variant: string): HTMLElement {
   const element = document.createElement("that-button");
   element.setAttribute("label", label);
   element.setAttribute("variant", variant);

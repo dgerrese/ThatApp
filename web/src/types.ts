@@ -225,8 +225,24 @@ export interface TimerStateResponse {
   stopped: Entry | null;
 }
 
-/** What POST /api/timer/stop answers with. `discarded` is true only when a
- *  timer was running and its run fell under a minute. */
+export type Rounding = "up" | "down";
+
+/** What the stop dialog confirmed: which way to round, and the worklog comment. */
+export interface StopChoice {
+  round: Rounding;
+  comment: string;
+}
+
+/** What POST /api/timer/start answers with. `discarded` is true when a timer
+ *  was running and the rounding confirmed for it came to zero. */
+export interface StartTimerResponse {
+  running: RunningTimer | null;
+  stopped: Entry | null;
+  discarded: boolean;
+}
+
+/** What POST /api/timer/stop answers with. `discarded` is true when a timer
+ *  was running and the rounding confirmed for it came to zero. */
 export interface StopTimerResponse {
   stopped: Entry | null;
   discarded: boolean;

@@ -11,6 +11,8 @@
  * ever parsed back. `H:MM` here is the editable shape, which is a third thing.
  */
 
+import type { Rounding } from "./types";
+
 const SECONDS_PER_MINUTE = 60;
 const MINUTES_PER_HOUR = 60;
 const STEP_MINUTES = 15;
@@ -111,4 +113,18 @@ export function steppedSeconds(seconds: number, direction: 1 | -1): number {
   const minutes = Math.min(Math.max(next * STEP_MINUTES, 0), MAX_MINUTES);
 
   return minutes * SECONDS_PER_MINUTE;
+}
+
+/**
+ * A timer run on the 15-minute grid, as the stop dialog offers it: up is the
+ * ceiling, down the floor, and zero means the run is discarded. The server
+ * applies the same rule to its own clock (store.roundedSeconds); this copy is
+ * only what the buttons say.
+ */
+export function roundedSeconds(seconds: number, round: Rounding): number {
+  const safe = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+  const grid = STEP_MINUTES * SECONDS_PER_MINUTE;
+  const steps = round === "up" ? Math.ceil(safe / grid) : Math.floor(safe / grid);
+
+  return steps * grid;
 }
