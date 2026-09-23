@@ -38,12 +38,84 @@ the owner settled on 2026-09-18, and how the parts fit.
 5. **Under a minute is discarded.** A stop, or a switch to another ticket, after less than 60 s
    creates no entry. Jira would reject such a worklog anyway. The stop reports that nothing was
    logged.
+
+   **Superseded for the two user paths on 2026-09-23 (#185).** A stop or a switch now opens the
+   stop dialog, and its down button is what discards; the 60-second floor survives on the midnight
+   close only (decision 6).
 6. **An overnight timer is closed by the server.** Any read of the timer finds a timer whose start
    day (in `THAT_TIMEZONE`) is before today's, stops it at local midnight of its start day, creates
    the capped entry (subject to 5), and reports nothing running.
 
 The rail's elapsed time follows the prototype's drawing (`42:18`): minutes and seconds under an
 hour, `H:MM:SS` from an hour on, ticking every second. The row's Today figure keeps its drawn `H:MM`.
+
+## The stop dialog (#185, settled 2026-09-23)
+
+The owner asked for this on 2026-09-22, after saying "all worklogs should be rounded to 15min".
+One sentence covers every case:
+
+> **Up is ceiling to the 15-minute grid. Down is floor to the 15-minute grid. A floor of zero
+> discards the entry.**
+
+| Run | Up | Down |
+|---|---|---|
+| 30 seconds | 15 min | discarded |
+| 7 min | 15 min | discarded |
+| 20 min | 30 min | 15 min |
+| exactly 30 min | 30 min | 30 min |
+
+**"Down" is therefore also how a mistimed run is thrown away**, and it is the only way the dialog
+destroys anything. The dialog must say so plainly where the run is under 15 minutes, because there
+the button's effect is a discard rather than a rounding. The rounding happens **at timer stop, in
+the dialog** — not at push and not in the API — so the entry that lands is already on the grid and
+pushing stays a plain copy of the local record.
+
+### The three paths that stop a timer
+
+| Path | Dialog? | Rounding |
+|---|---|---|
+| The user stops the timer (`POST /api/timer/stop`) | **Yes** | The user's choice |
+| The user starts a second timer, stopping the first (`handleStartTimer`) | **Yes** | The user's choice |
+| The timer crosses local midnight, closed by the store inside `RunningTimer` | **No** — nobody is there | **None. The entry stays honest.** |
+
+The midnight close is the reason `store.MinTimerSeconds` survives. Its 60-second floor is *Jira's*
+constraint, not a preference — Jira rejects a shorter worklog — so a midnight close that catches a
+run of a few seconds must still discard it. The two dialog paths no longer need that floor, because
+"down" is what discards there. **A stop of a timer whose start day has passed is the midnight
+close and stays honest whatever the dialog chose** — the dialog never opens for it, so there is
+nothing for the dialog's choice to override.
+
+### The dialog
+
+Held with the owner on the browser companion. **The rounding is the button**, chosen over a
+two-part toggle followed by a confirm button, and over two choice rows with a large figure: this
+dialog opens on every stop, so one click decides.
+
+- **Heading** "Stop the timer?". Under it, muted: the key in the key face, then "ran" and the run's
+  honest elapsed figure, for example `OPS-10442 ran 0:20`.
+- **Description**: one text field, labelled with the house eyebrow label, placeholder "Optional —
+  becomes the Jira worklog comment".
+- **Buttons, right-aligned, in this order:** "Keep running" (quiet — it cancels, and the timer keeps
+  running), then the down button (secondary), then the up button (primary, so Enter rounds up).
+- **Each rounding button names its result:** "Log 0:15", "Log 0:30". A run on the grid shows the same
+  figure on both, and both stay.
+- **Under 15 minutes, the down button reads "Discard run"**, in the `danger` variant (the failed
+  tone), because there it throws the run away. The button itself carries the warning; no extra line.
+- **Starting a second timer opens the same dialog** for the run it stops. Its heading names both
+  tickets — "Stop OPS-10442 and start WEB-7?" — and "Keep running" cancels the start too.
+
+**Button labels never break — set by the owner, and app-wide.** The screen first showed the
+7-minute variant's labels wrapping. So `that-button` gains `whitespace-nowrap`, which applies to
+every button in the app (Decision 13 of the visual language), and this dialog grows wider to hold
+its button row on one line, rather than letting `max-w-sm` wrap a label.
+
+**The run line and every button label tick with the running timer while the dialog is open**, so a
+button always names what it will write rather than freezing the figure at the moment the dialog
+opened.
+
+**The "Under a minute — nothing logged." notice is retired** (reversible, owner to confirm):
+every discard on a user path is now a button named "Discard run", so the notice's job is done by
+the dialog itself before the stop ever commits.
 
 ## Server
 
@@ -66,11 +138,19 @@ reads the clock:
 - `GET /api/timer` → `200 {"running": null}` or `{"running": {"instanceId", "issueKey",
   "startedAt"}}`. The browser computes elapsed from `startedAt`, so there is no server tick. A
   midnight close also returns `"stopped": <entry>`.
-- `POST /api/timer/start` with `{"instanceId", "issueKey"}` → `200 {"running": {…}, "stopped":
-  <entry or null>}`. An unknown instance is `404 instance_not_found`, and a blank key is
-  `400 invalid_request`.
-- `POST /api/timer/stop` → `200 {"stopped": <entry or null>, "discarded": bool}`. With nothing
-  running it answers `{"stopped": null, "discarded": false}` and is not an error.
+- `POST /api/timer/start` with `{"instanceId", "issueKey", "round"?, "comment"?}` → `200
+  {"running": {…}, "stopped": <entry or null>, "discarded": bool}`. An unknown instance is
+  `404 instance_not_found`, a blank key is `400 invalid_request`, and so — settled by #185 — is a
+  `round` present but not `"up"`/`"down"`, or a same-day timer already running with no `round`.
+  Nothing running ignores `round` and `comment` rather than failing.
+- `POST /api/timer/stop` with `{"round": "up"|"down", "comment": "…"}` → `200 {"stopped": <entry
+  or null>, "discarded": bool}`. No body, or a `round` other than `"up"`/`"down"`, is
+  `400 invalid_request` (#185) — there is no silent default. With nothing running it answers
+  `{"stopped": null, "discarded": false}` and is not an error.
+- **A timer whose start day has passed is closed honestly by the midnight close even when the
+  user is the one who stops it** — decision 6, unchanged by #185. The 60-second floor
+  (`store.MinTimerSeconds`) lives on that path only; the two dialog paths above use `round` to
+  decide instead.
 
 Entries are rendered exactly as `/api/entries` renders them (the existing DTO).
 
@@ -80,6 +160,10 @@ Entries are rendered exactly as `/api/entries` renders them (the existing DTO).
   start or stop. It exposes `onTimerChanged`, like `entries-changed.ts`, and a single 1-second tick
   that runs only while a timer runs. A stop or start that created an entry calls
   `announceEntriesChanged()`, so every total refreshes through the existing path.
+- **`timer-state.ts` opens `that-stop-dialog` before posting** (#185): a stop or a switch no
+  longer calls the endpoint directly, it opens the dialog for the run being stopped, and only a
+  confirmed "Log …" or "Discard run" click carries `round` and `comment` into the `POST`.
+  "Keep running" closes the dialog and posts nothing, so the timer already running is left alone.
 - **`that-timer`** (`web/src/components/that-timer.ts`, light DOM) is the row's play/stop button. It
   takes the row's instance and key, renders play or stop from `timer-state`, and starts or stops on
   click. Its accessible name is "start timer" or "stop timer".
@@ -87,8 +171,8 @@ Entries are rendered exactly as `/api/entries` renders them (the existing DTO).
   the key and adds the live elapsed time to the Today figure.
 - **Rail** (`rail.ts` plus the `#rail-timer` slot in `index.html`): the running line with its stop
   button, or "No timer running".
-- A discarded stop says so once, in the same place a push report appears. Wording: "Under a minute —
-  nothing logged."
+- **The "Under a minute — nothing logged." notice is retired** (#185, reversible, owner to
+  confirm): see *The stop dialog* above.
 
 ## Testing
 
