@@ -110,7 +110,7 @@ async function stubEntries(page: Page, seed: StubEntry[] = []): Promise<Recorder
         recorder.patched.push({ id, body });
         const found = entries.find((candidate) => candidate.id === id);
         if (!found) {
-          await route.fulfill({ status: 404, json: { code: "entry_not_found", message: "gone" } });
+          await route.fulfill({ status: 404, json: { code: "not_found", message: "no such entry" } });
 
           return;
         }

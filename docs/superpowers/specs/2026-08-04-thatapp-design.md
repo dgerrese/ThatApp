@@ -220,6 +220,9 @@ Errors return a JSON body with a stable machine-readable `code` and a human-read
 HTTP status reflects the class of failure; a Jira instance being unreachable is a `502`, not a
 `500`.
 
+An `:id` that is not a positive integer names no resource, so it answers exactly as a missing one:
+`404` `not_found`.
+
 ## Jira integration
 
 Jira Cloud REST API v3, authenticated with HTTP Basic using the account email as username and an
