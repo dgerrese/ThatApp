@@ -102,7 +102,15 @@ export async function startTimer(instanceId: number, issueKey: string): Promise<
     if (!answer) return;
     choice = answer;
   }
-  const response = await postStartTimer(instanceId, issueKey, choice);
+  let response;
+  try {
+    response = await postStartTimer(instanceId, issueKey, choice);
+  } catch (error) {
+    // A timer started in another tab is unknown here, so this start went out
+    // without a rounding and was refused; re-read it so the next click asks.
+    await readTimer().catch(() => undefined);
+    throw error;
+  }
   setRunning(response.running);
   if (response.stopped) announceEntriesChanged();
 }

@@ -416,3 +416,31 @@ test("a failed boot read of the timer retries until the rail shows what's actual
 
   await expect(railTimer(page)).toContainText("WORK-1", { timeout: 10_000 });
 });
+
+/**
+ * A timer started from another tab or device is unknown to this one, so its
+ * first start goes out with no rounding and the server refuses it. That
+ * refusal must re-read the timer, or every later click fails the same way
+ * until a reload.
+ */
+test("a start refused over a timer this tab never saw re-reads it, so the next click asks to switch", async ({
+  page,
+}) => {
+  const recorder = await stubTimer(page, { runningFor: 60 });
+  await page.route(
+    "**/api/timer",
+    (route) => route.fulfill({ status: 200, json: { running: null, stopped: null } }),
+    { times: 1 },
+  );
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("No timer running");
+
+  const start = ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" });
+  await start.click();
+  await expect.poll(() => recorder.starts.length).toBe(1);
+
+  await start.click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading")).toHaveText("Stop WORK-1 and start WORK-2?");
+});
