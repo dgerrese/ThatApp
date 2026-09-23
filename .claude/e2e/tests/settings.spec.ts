@@ -225,6 +225,50 @@ async function addSecondInstance(page: Page): Promise<void> {
   await expect(page.getByText("Personal", { exact: true })).toBeVisible();
 }
 
+interface HeldAnswer {
+  status: number;
+  json: unknown;
+}
+
+interface HeldRequest {
+  arrived: Promise<void>;
+  release: (answer?: HeldAnswer) => void;
+}
+
+/**
+ * Holds the next `method` request to `url` open until release() — registered
+ * after stubInstancesApi, so it runs first. Released with no answer, the stub
+ * answers it as usual.
+ */
+async function holdNextRequest(page: Page, url: string, method: string): Promise<HeldRequest> {
+  let arrive: () => void = () => {};
+  const arrived = new Promise<void>((resolve) => {
+    arrive = resolve;
+  });
+  let release: (answer?: HeldAnswer) => void = () => {};
+  const released = new Promise<HeldAnswer | undefined>((resolve) => {
+    release = resolve;
+  });
+  let held = false;
+
+  await page.route(url, async (route) => {
+    if (route.request().method() !== method || held) {
+      await route.fallback();
+      return;
+    }
+    held = true;
+    arrive();
+    const answer = await released;
+    if (answer) {
+      await route.fulfill(answer);
+    } else {
+      await route.fallback();
+    }
+  });
+
+  return { arrived, release };
+}
+
 test("typed input survives removing another instance", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
   await page.goto("/settings");
@@ -436,4 +480,69 @@ test("a failed initial load still renders the Add form", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
   await expect(page.getByRole("status")).toBeVisible();
+});
+
+// #161: save() must not reset a form the user has since replaced.
+test("a save finishing after Edit on another row leaves that edit form alone", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+  await addSecondInstance(page);
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByRole("listitem").filter({ hasText: "Work" }).getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  await page.getByRole("listitem").filter({ hasText: "Personal" }).getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Personal typed");
+
+  held.release();
+  await expect(page.getByText("Work Renamed", { exact: true })).toBeVisible();
+
+  await expect(page.getByRole("heading", { name: "Edit Personal" })).toBeVisible();
+  await expect(page.getByLabel("Name")).toHaveValue("Personal typed");
+});
+
+test("a save finishing after Cancel leaves the new Add form alone", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  await page.getByRole("button", { name: "Cancel changes" }).click();
+  await page.getByLabel("Name").fill("Half-typed");
+
+  held.release();
+  await expect(page.getByText("Work Renamed", { exact: true })).toBeVisible();
+
+  await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
+  await expect(page.getByLabel("Name")).toHaveValue("Half-typed");
+});
+
+test("a save finishing with its own form still shown resets to Add an instance", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  held.release();
+  await expect(page.getByText("Work Renamed", { exact: true })).toBeVisible();
+
+  await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
+  await expect(page.getByLabel("Name")).toHaveValue("");
 });

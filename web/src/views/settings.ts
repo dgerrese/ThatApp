@@ -360,7 +360,10 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
       if (editing) {
         clearRowStatus(regions, editing.id);
       }
-      showForm(regions, undefined);
+      // The user may have moved on while this save was in flight (#161).
+      if (regions.formCard.contains(card)) {
+        showForm(regions, undefined);
+      }
     } catch (error) {
       status.replaceChildren(alertFor("error", messageOf(error)));
       submit.removeAttribute("disabled");
