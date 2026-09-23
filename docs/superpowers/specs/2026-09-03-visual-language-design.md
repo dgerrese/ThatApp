@@ -535,8 +535,10 @@ and Week headers are brought to this rule as part of #117.
 Set by the owner on 2026-09-23 in #185's design session, when the stop dialog's screen first
 showed the 7-minute variant's labels wrapping. **`that-button` carries `whitespace-nowrap`,
 app-wide.** A container too narrow for its button row grows, or wraps whole buttons, never a
-label — the stop dialog is the first case, growing to `w-[440px]` rather than letting `max-w-sm`
-wrap "Discard run".
+label — the stop dialog is the first case, growing wider than `that-confirm`'s `max-w-sm` to hold
+its button row on one line rather than letting a label wrap. The prototype draws that dialog at
+440px, the width the design session settled on; a later dialog is free to need a different one
+and still follow this rule.
 
 ## What the first edition still governs
 

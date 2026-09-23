@@ -82,8 +82,10 @@ The midnight close is the reason `store.MinTimerSeconds` survives. Its 60-second
 constraint, not a preference — Jira rejects a shorter worklog — so a midnight close that catches a
 run of a few seconds must still discard it. The two dialog paths no longer need that floor, because
 "down" is what discards there. **A stop of a timer whose start day has passed is the midnight
-close and stays honest whatever the dialog chose** — the dialog never opens for it, so there is
-nothing for the dialog's choice to override.
+close and stays honest whatever the dialog chose.** A browser left open across midnight still
+shows the timer running and still opens the dialog on stop, which still posts a `round` — the
+server is the one that knows the start day has passed, so it closes the timer honestly at its
+local midnight and **ignores the `round` it was sent**, rather than the dialog knowing not to ask.
 
 ### The dialog
 
@@ -92,11 +94,18 @@ two-part toggle followed by a confirm button, and over two choice rows with a la
 dialog opens on every stop, so one click decides.
 
 - **Heading** "Stop the timer?". Under it, muted: the key in the key face, then "ran" and the run's
-  honest elapsed figure, for example `OPS-10442 ran 0:20`.
+  honest elapsed figure, for example `OPS-10442 ran 0:20`. **That figure is `H:MM`** — the duration
+  field's shape, the same `0:20` a 20-minute entry shows elsewhere — not the rail's ticking
+  `M:SS`/`H:MM:SS`, because the dialog reports a finished run rather than a running clock.
 - **Description**: one text field, labelled with the house eyebrow label, placeholder "Optional —
   becomes the Jira worklog comment".
-- **Buttons, right-aligned, in this order:** "Keep running" (quiet — it cancels, and the timer keeps
-  running), then the down button (secondary), then the up button (primary, so Enter rounds up).
+- **Buttons, right-aligned, in this order:** "Keep running", then the down button, then the up
+  button (primary, so Enter rounds up). **"Keep running" and the down button both use
+  `that-button`'s `secondary` variant** — the ghost the prototype draws as `.btn.quiet`, since
+  there is no separate `quiet` variant on the built component. "Keep running" is the one that
+  cancels, leaving the timer running; the down button is the one that rounds down or discards.
+  **This is reversible** — the owner may have meant the two to read differently (cancel vs. a
+  live choice) and split them into two looks later.
 - **Each rounding button names its result:** "Log 0:15", "Log 0:30". A run on the grid shows the same
   figure on both, and both stay.
 - **Under 15 minutes, the down button reads "Discard run"**, in the `danger` variant (the failed
@@ -120,18 +129,36 @@ the dialog itself before the stop ever commits.
 ## Server
 
 **Store** (`internal/store/timers.go`). Each call takes `now` and the location, so no store method
-reads the clock:
+reads the clock. #185 adds a `TimerClose` argument, carrying the dialog's choice:
+
+```go
+type TimerClose struct {
+    Round   Rounding // "" (none chosen), RoundUp ("up") or RoundDown ("down")
+    Comment string
+}
+```
 
 - `RunningTimer(ctx, now, loc) (*Timer, *Entry, error)`: the running timer, or nil. If the timer's
-  start day is before `now`'s local day, it closes it first (decision 6) and returns the created
-  entry, which is nil if the run was discarded.
-- `StartTimer(ctx, instanceID, issueKey, now, loc) (*Timer, *Entry, error)`: stops any running timer
-  as `StopTimer` would, then starts the new one, in **one transaction**. Returns the new timer and the
-  entry the stopped one created, if any.
-- `StopTimer(ctx, now, loc) (*Entry, stopped bool, error)`: nothing running → `stopped == false`.
-  Otherwise it deletes the row and creates the entry in one transaction. The end is
-  `min(now, local midnight after the start day)`, `started_at` is the timer's start, `day` is the
-  start's local day, and under 60 s there is no entry (decision 5).
+  start day is before `now`'s local day, it closes it first (decision 6, honest and capped) and
+  returns the created entry, which is nil if the run was discarded under the 60-second floor. It
+  passes the **zero `TimerClose`** — there is nobody to have chosen a rounding on this path.
+- `StartTimer(ctx, instanceID, issueKey, now, loc, choice TimerClose) (running *Timer, stopped
+  *Entry, wasRunning bool, err error)`: stops any running timer as `StopTimer` would — using
+  `choice` — then starts the new one, in **one transaction**. `wasRunning` reports whether there
+  was a timer to stop at all; `stopped` is the entry that stop produced, if any.
+- `StopTimer(ctx, now, loc, choice TimerClose) (stopped *Entry, wasRunning bool, err error)`:
+  nothing running → `wasRunning == false`, `stopped == nil`. Otherwise it deletes the row and
+  creates the entry in one transaction, and **which rule applies depends on the timer's start
+  day, not on who called it**:
+  - **The start day is `now`'s local day** (a same-day close): `choice.Round` decides. Up
+    ceilings to the 15-minute grid, down floors it and a floor of zero discards (`stopped ==
+    nil`). **`choice.Round` empty or unrecognised returns `ErrRoundingRequired` and writes
+    nothing** — the caller must have asked the dialog first.
+  - **The start day is before `now`'s local day** (the midnight close, decision 6): the entry is
+    capped at local midnight of the start day, written honestly with no rounding, and
+    `store.MinTimerSeconds` (60) still discards a run under a minute. **`choice.Round` and
+    `choice.Comment` are ignored on this path** — a stale browser can still post a `round`, and
+    the store is what has the authority to disregard it, not the caller.
 
 **HTTP** (`internal/server/timer.go`), JSON shaped like the other endpoints:
 
@@ -179,7 +206,9 @@ Entries are rendered exactly as `/api/entries` renders them (the existing DTO).
 - **Store:** table-driven tests for start, stop, switch and every decision above, including the
   midnight cap and the discard, across `THAT_TIMEZONE`s where the UTC day differs from the local
   day. The day boundary is one of the two places `CLAUDE.md` says to test hardest.
-- **Handlers:** `httptest` for the three endpoints, including an empty stop and an unknown instance.
+- **Handlers:** `httptest` for the three endpoints, including an unknown instance and #185's
+  rejection cases: no body → `400`, an unrecognised `round` → `400`, a same-day switch with no
+  `round` → `400`, and nothing running → `round`/`comment` ignored rather than erroring.
 - **e2e (Firefox and Chromium):** start a timer, reload, and the timer is still running with its
   elapsed time preserved (the ticket's criterion). Switching tickets stops the first. Stopping from
   the rail works on Week.
