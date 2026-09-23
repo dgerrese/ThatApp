@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { weekLabel } from "./week-label.ts";
+import { dayHeading, weekLabel } from "./week-label.ts";
 
 void test("a week inside one month names the month once", async (t) => {
   const cases: { start: string; end: string; want: string }[] = [
@@ -67,4 +67,30 @@ void test("a day number keeps no leading zero", async (t) => {
     const got = weekLabel("2026-09-01", "2026-09-07");
     assert.equal(got, "1–7 Sep");
   });
+});
+
+void test("a day heading is the column's weekday and the date's day number", async (t) => {
+  const cases: { day: string; index: number; want: string }[] = [
+    { day: "2026-09-07", index: 0, want: "Mon 7" },
+    { day: "2026-09-13", index: 6, want: "Sun 13" },
+    { day: "2026-10-01", index: 3, want: "Thu 1" },
+  ];
+
+  for (const { day, index, want } of cases) {
+    await t.test(`${day} in column ${String(index)} is ${want}`, () => {
+      assert.equal(dayHeading(day, index), want);
+    });
+  }
+});
+
+void test("a malformed day falls back to the weekday, never NaN", async (t) => {
+  for (const day of ["", "2026-09-xx", "not a day", "2026-09-7"]) {
+    await t.test(JSON.stringify(day), () => {
+      assert.equal(dayHeading(day, 0), "Mon");
+    });
+  }
+});
+
+void test("a column past Sunday keeps the date and no stray space", () => {
+  assert.equal(dayHeading("2026-09-14", 7), "14");
 });

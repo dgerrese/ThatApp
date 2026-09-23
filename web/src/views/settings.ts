@@ -352,19 +352,26 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     };
 
     try {
-      if (editing) {
-        await updateInstance(editing.id, draft);
-      } else {
-        await createInstance(draft);
-      }
+      const saved = editing ? await updateInstance(editing.id, draft) : await createInstance(draft);
       await refresh(regions);
       if (editing) {
         clearRowStatus(regions, editing.id);
       }
-      showForm(regions, undefined);
+      // The user may have moved on while this save was in flight (#161). An Edit
+      // form they opened on this same instance was filled from pre-save values.
+      if (regions.formCard.contains(card)) {
+        showForm(regions, undefined);
+      } else if (regions.formCard.querySelector(`[data-editing-id="${saved.id}"]`)) {
+        showForm(regions, saved);
+      }
     } catch (error) {
-      status.replaceChildren(alertFor("error", messageOf(error)));
-      submit.removeAttribute("disabled");
+      if (regions.formCard.contains(card)) {
+        status.replaceChildren(alertFor("error", messageOf(error)));
+        submit.removeAttribute("disabled");
+      } else {
+        const label = editing?.name ?? (draft.name || "the new instance");
+        regions.errorSlot.replaceChildren(alertFor("error", `Could not save ${label}: ${messageOf(error)}`));
+      }
     }
   }
 

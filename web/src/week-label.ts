@@ -37,3 +37,23 @@ export function weekLabel(start: string, end: string): string {
 
   return `${String(from.day)}–${String(to.day)} ${from.month}`;
 }
+
+/**
+ * Column headings, by position rather than by date. `cells` and `days` are
+ * index-aligned and always seven long, so index 0 is Monday by contract — which
+ * is what lets the grid be labelled without a Date being constructed.
+ */
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/**
+ * `Mon 7`. The weekday comes from the column's position, the number from the
+ * day string the server sent — sliced rather than parsed, for the reason at the
+ * top of this file. A day that is not `YYYY-MM-DD` has no number to show, so it
+ * shows none rather than `NaN`.
+ */
+export function dayHeading(day: string, index: number): string {
+  const date = /^\d{4}-\d{2}-(\d{2})$/.exec(day)?.[1];
+  const parts = [WEEKDAYS[index], date === undefined ? undefined : String(Number(date))];
+
+  return parts.filter((part) => part !== undefined).join(" ");
+}
