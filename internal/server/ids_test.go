@@ -14,8 +14,10 @@ func TestEveryIDRouteAnswersAMalformedIDAsAMissingOne(t *testing.T) {
 	routes := []struct {
 		method, prefix, suffix, body, message string
 	}{
-		{http.MethodPatch, "/api/instances/", "",
-			`{"name":"X","siteUrl":"https://x.atlassian.net","email":"me@example.com"}`, "no such instance"},
+		{
+			http.MethodPatch, "/api/instances/", "",
+			`{"name":"X","siteUrl":"https://x.atlassian.net","email":"me@example.com"}`, "no such instance",
+		},
 		{http.MethodDelete, "/api/instances/", "", "", "no such instance"},
 		{http.MethodPost, "/api/instances/", "/test", "", "no such instance"},
 		{http.MethodDelete, "/api/pins/", "", "", "no such pin"},
