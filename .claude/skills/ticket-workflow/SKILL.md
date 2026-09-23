@@ -401,6 +401,21 @@ Three things that cost time the first time, on #8:
 - **Name each file for what it shows** — the script uses the file name as alt text, and a pull
   request full of `screenshot-1.png` helps nobody.
 
+**Every screenshot comes as a pair, one in dark and one in light**, named for what it shows plus
+`-dark` or `-light`. Light was added to the design on 2026-09-04 and is judged on its own, so a
+dark-only picture shows half of what was built. Set the app's theme the way its theme control does,
+through the stored preference or `data-theme`. Asked for by the owner on 2026-09-23, after PR #191.
+
+**A prototype is captured inside the design companion's frame, never as a bare file.** The prototypes
+are fragments on purpose: the companion wraps a file in `frame-template.html` — which carries the
+doctype and a small reset — only when the file does *not* start with a doctype. Opened bare, the
+browser falls into quirks mode, where a table does not inherit colour, and on #184 the Summary cells
+photographed black on the dark card. **Do not "fix" that by adding a doctype to the prototype**: the
+companion then renders it unwrapped, with taller rows and misaligned buttons, which is not the drawing
+the owner approved. Substitute the prototype for `<!-- CONTENT -->` in the brainstorming skill's
+`scripts/frame-template.html` and capture that page; the prototype's own dark/light switch
+(`#lm-toggle`) gives the second theme.
+
 Delete the capture spec afterwards and commit neither it nor the images.
 
 **This does not replace the written comparison above.** A screenshot shows what was built; it does
