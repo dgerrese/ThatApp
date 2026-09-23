@@ -9,6 +9,7 @@ import { announceEntriesChanged } from "../entries-changed";
 import { longDay, totalFigure } from "../format";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
+import { PUSH_MARKS, knownPushState, type PushMark } from "../push-marks";
 import type { Entry } from "../types";
 import type { ThatDuration } from "./that-duration";
 
@@ -63,56 +64,6 @@ const ICON_BUTTON_DESTRUCTIVE = `${ICON_BUTTON_BASE} hover:text-failed focus-vis
 /** The prototype's `.etitle`: the day line and the summary beneath the
  *  identity row both wear it, so the two lines read as one register. */
 const SUBLINE_CLASS = "text-ink-muted mt-[5px] text-base leading-[1.35] [overflow-wrap:anywhere]";
-
-interface PushMarkStyle {
-  words: string;
-  /** The mark's colour, worn by the holder — which is what lets the two drawn
-   *  silhouettes below be `currentColor` rather than naming a tone twice. */
-  tone: string;
-  /** A drawn silhouette, for the two states Week's grid also draws as shapes. */
-  shape?: string;
-  /** Or a real icon, for the one state a row has the room to draw properly. */
-  icon?: "success";
-}
-
-/**
- * "Not pushed" is where an unrecognised state lands, and the direction
- * matters: pushState crosses the network and is only typed at compile time, so
- * a state this build does not know (a cached shell against a newer server, a
- * response that lost the field) has to resolve to something. Telling someone
- * their time reached Jira when it did not is the one wrong answer that is
- * indistinguishable from a true one.
- */
-const UNPUSHED: PushMarkStyle = {
-  words: "not pushed",
-  tone: "text-pending",
-  shape: "size-[7px] rounded-full bg-current",
-};
-
-/**
- * What each push state looks like and what it is called. The words are Week's
- * word for word, because a state that is "not pushed" in the grid and
- * something else in the dialog is two states to a reader — and so are the two
- * silhouettes, disc for unpushed and hollow ring for dirty, so no pair of them
- * is told apart by hue alone.
- *
- * `unpushed` draws a mark rather than nothing: a fresh entry is the case this
- * dialog is most often looking at, and the marker is what the design gives it
- * instead of a line of prose explaining that saving is not sending.
- */
-const PUSH_STATES: Record<string, PushMarkStyle> = {
-  unpushed: UNPUSHED,
-  dirty: {
-    words: "edited since it was pushed",
-    tone: "text-dirty",
-    shape: "size-[7px] rounded-full border-[1.5px] border-current",
-  },
-  pushed: {
-    words: "pushed",
-    tone: "text-running",
-    icon: "success",
-  },
-};
 
 /**
  * One ticket's logged time for today: what is already down, and the single form
@@ -552,11 +503,15 @@ export class ThatEntryDialog extends HTMLElement {
    * The push state as a mark with a popover naming it. `pushed` gets the drawn
    * check the prototype gives it: this row has the room a grid cell does not.
    *
+   * `unpushed` draws a mark rather than nothing: a fresh entry is the case this
+   * dialog is most often looking at, and the marker is what the design gives it
+   * instead of a line of prose explaining that saving is not sending.
+   *
    * `role="img"` with a label, because the mark is the only thing here carrying
    * the fact; the popover is decoration over it and never the accessible name.
    */
   private pushMark(entry: Entry): [HTMLElement, HTMLElement] {
-    const state = PUSH_STATES[entry.pushState] ?? UNPUSHED;
+    const state: PushMark = PUSH_MARKS[knownPushState(entry.pushState)];
     const id = `that-entry-mark-${String(this.sequence)}-${String(entry.id)}`;
 
     const holder = document.createElement("span");

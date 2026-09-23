@@ -11,8 +11,13 @@ import { failuresIn, noFailures, weekGrid } from "./week-grid.ts";
 Object.assign(globalThis, { document: new Window().document });
 
 const DAYS = [
-  "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10",
-  "2026-09-11", "2026-09-12", "2026-09-13",
+  "2026-09-07",
+  "2026-09-08",
+  "2026-09-09",
+  "2026-09-10",
+  "2026-09-11",
+  "2026-09-12",
+  "2026-09-13",
 ];
 
 const EMPTY_CELL: WeekCell = { seconds: 0, pushState: null };
@@ -84,14 +89,22 @@ test("the header names every column by weekday and date", () => {
   const headings = [...grid.querySelectorAll("thead th")].map((th) => th.textContent);
 
   assert.deepEqual(headings, [
-    "Ticket", "Mon 7", "Tue 8", "Wed 9", "Thu 10", "Fri 11", "Sat 12", "Sun 13", "Total",
+    "Ticket",
+    "Mon 7",
+    "Tue 8",
+    "Wed 9",
+    "Thu 10",
+    "Fri 11",
+    "Sat 12",
+    "Sun 13",
+    "Total",
   ]);
 });
 
 test("each push state draws its own marker, and pushed draws none", async (t) => {
   const cases: { state: WeekCell["pushState"]; marker: string | null; words: string }[] = [
-    { state: "unpushed", marker: "bg-pending", words: "not pushed" },
-    { state: "dirty", marker: "border-dirty", words: "edited since it was pushed" },
+    { state: "unpushed", marker: "text-pending", words: "not pushed" },
+    { state: "dirty", marker: "text-dirty", words: "edited since it was pushed" },
     { state: "pushed", marker: null, words: "pushed" },
   ];
 
@@ -109,8 +122,12 @@ test("each push state draws its own marker, and pushed draws none", async (t) =>
         assert.equal(mark === null, true, "pushed cell drew a marker");
       } else {
         assert.ok(mark?.classList.contains(marker), `marker lacks ${marker}`);
+        assert.ok(mark?.classList.contains("size-[7px]"), `${String(state)} marker is not 7px`);
       }
-      assert.equal(button.getAttribute("aria-label"), `ABC-1, Mon 7, 1h 00m, ${words}, click to edit`);
+      assert.equal(
+        button.getAttribute("aria-label"),
+        `ABC-1, Mon 7, 1h 00m, ${words}, click to edit`,
+      );
     });
   }
 });
@@ -125,8 +142,15 @@ test("a day total wears its day's marker, named for a reader who cannot see it",
   );
   const monday = footCells(grid)[0];
 
-  assert.equal(monday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"), "not pushed");
+  assert.equal(
+    monday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"),
+    "not pushed",
+  );
   assert.equal(monday?.querySelector(".sr-only")?.textContent, "not pushed, ");
+  assert.ok(
+    monday?.querySelector("span[aria-hidden='true']")?.classList.contains("size-[7px]"),
+    "day total's marker is not 7px",
+  );
 });
 
 test("a failed push marks its own cell and day, outranking the rollup's state", () => {
@@ -150,19 +174,22 @@ test("a failed push marks its own cell and day, outranking the rollup's state", 
 
   const failed = cellButton(grid, 0, 1);
   assert.ok(
-    failed.querySelector("span[aria-hidden='true']")?.classList.contains("border-b-failed"),
+    failed.querySelector("span[aria-hidden='true']")?.classList.contains("text-failed"),
     "failed cell lacks its failed marker",
   );
   assert.match(failed.getAttribute("aria-label") ?? "", /push failed/);
 
   const pushed = cellButton(grid, 1, 1);
   assert.ok(
-    pushed.querySelector("span[aria-hidden='true']")?.classList.contains("bg-pending"),
+    pushed.querySelector("span[aria-hidden='true']")?.classList.contains("text-pending"),
     "unfailed cell lacks its unpushed marker",
   );
 
   const tuesday = footCells(grid)[1];
-  assert.equal(tuesday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"), "push failed");
+  assert.equal(
+    tuesday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"),
+    "push failed",
+  );
 });
 
 test("rows, days and the week are totalled, and a zero total is an em dash", () => {
