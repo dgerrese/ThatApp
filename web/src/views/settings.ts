@@ -337,7 +337,15 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     actions.append(cancel);
   }
 
-  form.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper, tokenNote(), status, actions);
+  form.append(
+    name.wrapper,
+    siteUrl.wrapper,
+    email.wrapper,
+    token.wrapper,
+    tokenNote(),
+    status,
+    actions,
+  );
   card.append(form);
 
   // that-button renders a real <button type="button">, so it does not submit the
@@ -437,7 +445,8 @@ function tokenNote(): HTMLElement {
 
 function scope(name: string): HTMLElement {
   const chip = document.createElement("span");
-  chip.className = "whitespace-nowrap rounded-sm bg-hover px-[5px] py-px font-mono text-xs text-ink";
+  chip.className =
+    "whitespace-nowrap rounded-sm bg-hover px-[5px] py-px font-mono text-xs text-ink";
   chip.textContent = name;
 
   return chip;
