@@ -262,8 +262,9 @@ a.that-key:hover {
   vertical-align: middle;
 }
 /* Rules here are unlayered, so .that-tbl td beats the status cell's text-sm
-   utility, which Tailwind layers; the drawing's own .tbl .c-status rule is
-   restated here instead. */
+   utility, which Tailwind layers; the drawing's own .tbl .c-key and
+   .tbl .c-status rules are restated here instead. */
+.that-tbl .c-key,
 .that-tbl .c-status {
   font-size: var(--text-sm);
 }

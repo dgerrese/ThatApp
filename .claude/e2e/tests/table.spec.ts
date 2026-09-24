@@ -646,9 +646,9 @@ test("with localStorage throwing, the page loads in Jira's order and sorting sti
 
 /**
  * #127: the drawing's `.tbl td` sets 15px on the cell itself, so a cell's own
- * line box is 15px too. The status cell is the one that carries its own drawn
- * size (`.tbl .c-status`, 13px), and the key, the duration figure and the
- * header labels keep theirs on their own elements.
+ * line box is 15px too. The key and status cells carry their own drawn size
+ * (`.tbl .c-key`, `.tbl .c-status`, 13px), and the key link, the duration
+ * figure and the header labels keep theirs on their own elements.
  */
 test("a body cell computes the drawn 15px, and the children with their own drawn size keep it", async ({
   page,
@@ -662,8 +662,8 @@ test("a body cell computes the drawn 15px, and the children with their own drawn
   const sizes = await table.evaluate((element) => {
     const size = (el: Element) => getComputedStyle(el).fontSize;
     return {
-      cells: Array.from(element.querySelectorAll("tbody td:not(.c-status)"), size),
-      statuses: Array.from(element.querySelectorAll("tbody td.c-status"), size),
+      cells: Array.from(element.querySelectorAll("tbody td:not(.c-key, .c-status)"), size),
+      statuses: Array.from(element.querySelectorAll("tbody td.c-key, tbody td.c-status"), size),
       keys: Array.from(element.querySelectorAll("tbody .c-key .that-key"), size),
       figures: Array.from(element.querySelectorAll("tbody .c-today .font-mono"), size),
       headers: Array.from(element.querySelectorAll("thead th button"), size),
