@@ -537,6 +537,16 @@ icon-only today. Nothing inline changes.
 alone, and draws no fetch control at all, because it predates both this decision and #10. Its Today
 and Week headers are brought to this rule as part of #117.
 
+## Decision 13 — a button label never breaks
+
+Set by the owner on 2026-09-23 in #185's design session, when the stop dialog's screen first
+showed the 7-minute variant's labels wrapping. **`that-button` carries `whitespace-nowrap`,
+app-wide.** A container too narrow for its button row grows, or wraps whole buttons, never a
+label — the stop dialog is the first case, growing wider than `that-confirm`'s `max-w-sm` to hold
+its button row on one line rather than letting a label wrap. The prototype draws that dialog at
+440px, the width the design session settled on; a later dialog is free to need a different one
+and still follow this rule.
+
 ## What the first edition still governs
 
 Unchanged, and this document does not restate them. Read

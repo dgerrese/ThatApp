@@ -16,9 +16,46 @@ type Timer struct {
 	StartedAt  time.Time // UTC, second resolution
 }
 
-// MinTimerSeconds is the shortest run that leaves an entry; Jira rejects
-// worklogs under a minute, so a shorter run is discarded instead of logged.
+// MinTimerSeconds is the shortest run the midnight close still logs; Jira
+// rejects worklogs under a minute, so a shorter overnight run is discarded
+// instead of logged. A same-day close never consults it — rounding to
+// GridSeconds decides that path instead.
 const MinTimerSeconds = 60
+
+// Rounding is the direction a stop the user confirmed lands on the grid.
+type Rounding string
+
+// RoundUp and RoundDown are the two directions the stop dialog offers.
+const (
+	RoundUp   Rounding = "up"
+	RoundDown Rounding = "down"
+)
+
+// GridSeconds is the 15-minute grid a confirmed stop rounds to.
+const GridSeconds = 900
+
+// ErrRoundingRequired refuses a stop or a switch of a same-day timer that
+// names no direction. Only the midnight close logs an honest run, because
+// only there is nobody present to confirm one.
+var ErrRoundingRequired = errors.New("stopping a timer needs a rounding direction, up or down")
+
+// TimerClose is what the user confirmed in the stop dialog. The zero value
+// is the midnight close's: no direction and no comment.
+type TimerClose struct {
+	Round   Rounding
+	Comment string
+}
+
+func roundedSeconds(seconds int, round Rounding) int {
+	if seconds <= 0 {
+		return 0
+	}
+	if round == RoundUp {
+		return (seconds + GridSeconds - 1) / GridSeconds * GridSeconds
+	}
+
+	return seconds / GridSeconds * GridSeconds
+}
 
 // timerDayLayout renders the local date a timer started on. ISO dates in this
 // form sort the same as strings as they do chronologically, which is what lets
@@ -101,19 +138,34 @@ func localMidnightAfter(start time.Time, loc *time.Location) time.Time {
 }
 
 // closeTimer ends a running timer at min(now, the local midnight after its
-// start day) and, if that run reached MinTimerSeconds, inserts the honest entry
-// it earned — written by insertEntry, the same call CreateEntry makes, so the
-// entry is indistinguishable from one a manual save creates. A run that falls
-// short returns a nil entry and nil error: that is the discard, not a failure.
-func closeTimer(ctx context.Context, tx *sql.Tx, timer Timer, now time.Time, loc *time.Location) (*Entry, error) {
+// start day) and, if that run earned one, inserts the honest entry — written
+// by insertEntry, the same call CreateEntry makes, so the entry is
+// indistinguishable from one a manual save creates. A stale timer (its start
+// day has passed) is the midnight close: honest and floored at
+// MinTimerSeconds, whoever triggered it. Anything else is a same-day close,
+// which needs choice.Round to land on the grid — with none given, it refuses
+// via ErrRoundingRequired rather than guess, and changes nothing. A run that
+// rounds or floors to zero returns a nil entry and nil error: that is the
+// discard, not a failure.
+func closeTimer(ctx context.Context, tx *sql.Tx, timer Timer, now time.Time, loc *time.Location, choice TimerClose) (*Entry, error) {
 	end := now
 	if deadline := localMidnightAfter(timer.StartedAt, loc); deadline.Before(end) {
 		end = deadline
 	}
-
 	seconds := int(end.Sub(timer.StartedAt) / time.Second)
-	if seconds < MinTimerSeconds {
-		return nil, nil
+
+	switch {
+	case staleTimer(timer.StartedAt, now, loc):
+		if seconds < MinTimerSeconds {
+			return nil, nil
+		}
+	case choice.Round == RoundUp || choice.Round == RoundDown:
+		seconds = roundedSeconds(seconds, choice.Round)
+		if seconds == 0 {
+			return nil, nil
+		}
+	default:
+		return nil, ErrRoundingRequired
 	}
 
 	entry, err := insertEntry(ctx, tx, EntryInput{
@@ -122,6 +174,7 @@ func closeTimer(ctx context.Context, tx *sql.Tx, timer Timer, now time.Time, loc
 		Day:        timer.StartedAt.In(loc).Format(timerDayLayout),
 		StartedAt:  timer.StartedAt,
 		Seconds:    seconds,
+		Comment:    choice.Comment,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("closing the timer for %q: %w", timer.IssueKey, err)
@@ -165,7 +218,7 @@ func (s *Store) RunningTimer(
 		return timer, nil, commitTimerTx(tx, "reading the timer")
 	}
 
-	entry, err := closeTimer(ctx, tx, *timer, now, loc)
+	entry, err := closeTimer(ctx, tx, *timer, now, loc, TimerClose{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -180,50 +233,55 @@ func (s *Store) RunningTimer(
 // one, in one transaction — the switch the row control and the rail both drive.
 // Keeping both in one transaction is what keeps the "exactly one timer" rule
 // true under a crash mid-switch: there is no window where either both or
-// neither exist.
+// neither exist. wasRunning is true when a timer was running and this call
+// closed it, whether or not that close earned an entry; choice governs how a
+// same-day close lands, and a refusal (ErrRoundingRequired) rolls the whole
+// transaction back, leaving the original timer running untouched.
 func (s *Store) StartTimer(
-	ctx context.Context, instanceID int64, issueKey string, now time.Time, loc *time.Location,
-) (running *Timer, stopped *Entry, err error) {
+	ctx context.Context, instanceID int64, issueKey string, now time.Time, loc *time.Location, choice TimerClose,
+) (running *Timer, stopped *Entry, wasRunning bool, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("beginning transaction to start a timer: %w", err)
+		return nil, nil, false, fmt.Errorf("beginning transaction to start a timer: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	existing, err := runningTimerRow(ctx, tx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	var closedEntry *Entry
 	if existing != nil {
-		closedEntry, err = closeTimer(ctx, tx, *existing, now, loc)
+		closedEntry, err = closeTimer(ctx, tx, *existing, now, loc, choice)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
 		if err := deleteRunningTimer(ctx, tx); err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
 	}
 
 	startedAt := now.UTC().Truncate(time.Second)
 	if err := insertRunningTimer(ctx, tx, instanceID, issueKey, startedAt); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	if err := commitTimerTx(tx, "starting the timer"); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
-	return &Timer{InstanceID: instanceID, IssueKey: issueKey, StartedAt: startedAt}, closedEntry, nil
+	return &Timer{InstanceID: instanceID, IssueKey: issueKey, StartedAt: startedAt}, closedEntry, existing != nil, nil
 }
 
 // StopTimer ends whatever is running. Nothing running is not an error: it
 // answers wasRunning == false so the caller — the row control and the rail
 // alike — can tell "stopped cleanly" from "there was nothing to stop" without
-// inspecting an error string.
+// inspecting an error string. choice governs how a same-day close lands; a
+// refusal (ErrRoundingRequired) rolls the transaction back, leaving the timer
+// running.
 func (s *Store) StopTimer(
-	ctx context.Context, now time.Time, loc *time.Location,
+	ctx context.Context, now time.Time, loc *time.Location, choice TimerClose,
 ) (stopped *Entry, wasRunning bool, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -239,7 +297,7 @@ func (s *Store) StopTimer(
 		return nil, false, commitTimerTx(tx, "stopping the timer")
 	}
 
-	entry, err := closeTimer(ctx, tx, *existing, now, loc)
+	entry, err := closeTimer(ctx, tx, *existing, now, loc, choice)
 	if err != nil {
 		return nil, false, err
 	}

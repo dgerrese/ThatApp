@@ -24,6 +24,9 @@ this ticket. Nothing here talks to Jira: the worklog push is #9.
    field is what gives way. See *The duration control*.
 3. **Every committed duration is a multiple of 15 minutes.** The constraint lives in the control,
    not in a preference — there is no toggle. The API is deliberately looser; see decision 8.
+
+   **Amended 2026-09-23 (#185):** the timer now rounds at stop, in its dialog, so a timer entry
+   lands on the grid too — this decision's grid is no longer manual entry's alone.
 4. **`started_at` is never edited.** It defaults to creation time and is sent to Jira because a
    worklog requires it. The start time does not matter in practice, so it is displayed muted in the
    entry list — the only thing distinguishing two entries with the same duration and no comment —
@@ -42,6 +45,11 @@ this ticket. Nothing here talks to Jira: the worklog push is #9.
 8. **The API does not enforce the 15-minute grid.** #8's timer will produce a run of 7m13s. The grid
    is a property of the manual control, not of the resource, and a test pins that so the tightening
    fails a gate rather than #8.
+
+   **Amended 2026-09-23 (#185):** the timer now rounds at stop, in its dialog, so most timer runs
+   reach the API already on the grid — but the API still accepts off-grid seconds, which the
+   midnight close still writes, and `TestPostEntryAcceptsSecondsThatAreNotAMultipleOf900` stays
+   untouched and passing.
 
 ## The store — `internal/store/entries.go`
 

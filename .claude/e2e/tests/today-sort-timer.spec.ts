@@ -158,6 +158,7 @@ test("ticks never re-sort a table sorted by Today; stopping the timer does", asy
   expect(await figures(table)).toEqual(["1:00", "1:01"]);
 
   await work2.getByRole("button", { name: "stop timer" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Log 0:15" }).click();
   await expect.poll(() => rowKeys(table)).toEqual(["WORK-2", "WORK-1"]);
   const stoppedFigures = await figures(table);
   expect(stoppedFigures).toEqual(["1:01", "1:00"]);

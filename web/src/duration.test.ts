@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import {
   exactSecondsFromTyped,
   fieldFigure,
+  roundedSeconds,
   secondsFromTyped,
   steppedSeconds,
 } from "./duration.ts";
@@ -284,5 +285,19 @@ test("stepping stops at zero and at a day", async (t) => {
       const got = steppedSeconds(seconds, direction);
       assert.equal(got, want);
     });
+  }
+});
+
+test("roundedSeconds is the ceiling up and the floor down on the 15-minute grid", () => {
+  const cases: [number, "up" | "down", number][] = [
+    [0, "up", 0], [0, "down", 0],
+    [1, "up", 900], [1, "down", 0],
+    [899, "up", 900], [899, "down", 0],
+    [900, "up", 900], [900, "down", 900],
+    [901, "up", 1800], [901, "down", 900],
+    [1800, "up", 1800], [1800, "down", 1800],
+  ];
+  for (const [seconds, round, want] of cases) {
+    assert.equal(roundedSeconds(seconds, round), want, `${round} from ${seconds}`);
   }
 });

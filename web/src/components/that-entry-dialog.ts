@@ -4,7 +4,7 @@ import "./that-confirm";
 import "./that-duration";
 
 import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "../api";
-import { confirmDestructive } from "./that-confirm";
+import { COMMENT_FIELD_CLASS, confirmDestructive } from "./that-confirm";
 import { announceEntriesChanged } from "../entries-changed";
 import { longDay, totalFigure } from "../format";
 import { iconMarkup } from "../icons";
@@ -386,9 +386,7 @@ export class ThatEntryDialog extends HTMLElement {
     // and the duration field's mono face resolve "normal" line-height a pixel
     // or two apart at the same nominal size, and only an explicit height keeps
     // all three foot-form controls at the drawn 38px regardless.
-    comment.className =
-      "border-edge bg-surface min-w-0 h-[38px] flex-1 rounded-sm border px-3 py-[10px] text-sm " +
-      "focus:border-ink focus:outline-none";
+    comment.className = COMMENT_FIELD_CLASS;
     comment.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();

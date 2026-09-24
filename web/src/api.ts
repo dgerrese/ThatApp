@@ -11,6 +11,8 @@ import type {
   IssuesResponse,
   Pin,
   PushResponse,
+  StartTimerResponse,
+  StopChoice,
   StopTimerResponse,
   TimerStateResponse,
   WeekFetchResponse,
@@ -199,15 +201,24 @@ export function getTimer(): Promise<TimerStateResponse> {
   return request<TimerStateResponse>("/api/timer");
 }
 
-export function startTimer(instanceId: number, issueKey: string): Promise<TimerStateResponse> {
-  return request<TimerStateResponse>("/api/timer/start", {
+/** `choice` is how to close the timer already running, which the server
+ *  requires when one runs on the same day. */
+export function startTimer(
+  instanceId: number,
+  issueKey: string,
+  choice?: StopChoice,
+): Promise<StartTimerResponse> {
+  return request<StartTimerResponse>("/api/timer/start", {
     method: "POST",
-    body: JSON.stringify({ instanceId, issueKey }),
+    body: JSON.stringify({ instanceId, issueKey, ...choice }),
   });
 }
 
-export function stopTimer(): Promise<StopTimerResponse> {
-  return request<StopTimerResponse>("/api/timer/stop", { method: "POST" });
+export function stopTimer(choice: StopChoice): Promise<StopTimerResponse> {
+  return request<StopTimerResponse>("/api/timer/stop", {
+    method: "POST",
+    body: JSON.stringify(choice),
+  });
 }
 
 /** Pulls a week's worklogs in. `start` is the Monday the week begins on, and

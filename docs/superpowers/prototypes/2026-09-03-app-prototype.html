@@ -29,12 +29,14 @@
         --ink: oklch(0.962 0.005 70); --ink-muted: oklch(0.725 0.012 55); --edge: oklch(0.300 0.012 40);
         --pri: oklch(0.720 0.19 330); --pri-ink: oklch(0.160 0.02 330);
         --run: oklch(0.750 0.15 150); --pend: oklch(0.800 0.13 85); --fail: oklch(0.720 0.17 25);
-        --h265: oklch(0.72 0.12 265); --h175: oklch(0.72 0.12 175); --faint: oklch(0.560 0.012 50); }
+        --h265: oklch(0.72 0.12 265); --h175: oklch(0.72 0.12 175); --faint: oklch(0.560 0.012 50);
+        --state-ink: oklch(0.16 0.01 60); }
   .pt.light { --surface: oklch(0.972 0.008 60); --raised: oklch(0.995 0.004 70);
         --ink: oklch(0.195 0.009 55); --ink-muted: oklch(0.465 0.010 55); --edge: oklch(0.905 0.007 65);
         --pri: oklch(0.500 0.21 330); --pri-ink: oklch(0.990 0.004 70);
         --run: oklch(0.480 0.15 150); --pend: oklch(0.500 0.13 75); --fail: oklch(0.490 0.19 25);
-        --h265: oklch(0.60 0.13 265); --h175: oklch(0.60 0.13 175); --faint: oklch(0.620 0.008 60); }
+        --h265: oklch(0.60 0.13 265); --h175: oklch(0.60 0.13 175); --faint: oklch(0.620 0.008 60);
+        --state-ink: oklch(0.99 0.004 70); }
   /* The rail carries one set of tones in both themes, so its roles are re-declared
      rather than inherited from the page. */
   .pt.light .rail { --pri: oklch(0.720 0.19 330); --pri-ink: oklch(0.160 0.02 330);
@@ -306,6 +308,18 @@
   .btn.quiet { color: var(--ink-muted); }
   .btn.quiet:hover { background: var(--hover); color: var(--ink); }
 
+  .stopdemo { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 28px; color: var(--ink); }
+  .ssheet { width: 440px; margin: 0; padding: 20px; box-sizing: border-box; }
+  .ssheet .sh { margin: 0 0 8px; font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
+  .srun { margin: 0 0 16px; font-size: 14px; color: var(--ink-muted); }
+  .sdesc { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .sdesc .ecomment-in { width: 100%; font-size: 13px; }
+  .seyebrow { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); }
+  .sacts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+  .btn { white-space: nowrap; }
+  .btn.danger { background: var(--fail); color: var(--state-ink); }
+  .btn.danger:hover { opacity: .9; }
+
   /* subgrid: label, helper and input each get their own row across all four
      fields, so a two-line helper cannot push one input out of line */
   /* inputs share a baseline by sitting at the bottom of their row; a longer
@@ -492,6 +506,31 @@
   </div></div>
 </div>
 
+<div class="stopdemo">
+  <div class="sheet ssheet">
+    <h3 class="sh">Stop the timer?</h3>
+    <p class="srun"><span class="ekey">RIDGE-5325</span> ran <span class="mono">0:20</span></p>
+    <label class="sdesc"><span class="seyebrow">Description</span>
+      <input class="ecomment-in" placeholder="Optional — becomes the Jira worklog comment"></label>
+    <div class="sacts">
+      <button class="btn quiet">Keep running</button>
+      <button class="btn quiet">Log 0:15</button>
+      <button class="btn primary">Log 0:30</button>
+    </div>
+  </div>
+  <div class="sheet ssheet">
+    <h3 class="sh">Stop the timer?</h3>
+    <p class="srun"><span class="ekey">RIDGE-5325</span> ran <span class="mono">0:07</span></p>
+    <label class="sdesc"><span class="seyebrow">Description</span>
+      <input class="ecomment-in" placeholder="Optional — becomes the Jira worklog comment"></label>
+    <div class="sacts">
+      <button class="btn quiet">Keep running</button>
+      <button class="btn danger">Discard run</button>
+      <button class="btn primary">Log 0:15</button>
+    </div>
+  </div>
+</div>
+
 <p class="cap">
   <b>Today</b> &mdash; refresh carries its label beside the title, per Decision 12, summaries link and
   underline in magenta on hover, the pinned dot sits 8px from its key exactly as Week's does, and the Log hint has 10px of air.
@@ -501,6 +540,10 @@
   empty ones, each carries a popover naming its state, the legend is gone because the popovers replaced
   it, the failed triangle went from 6&times;5 to 9&times;8, and the search is here for putting a new ticket
   into the week. Totals stay inert.
+  <b>Stop dialog</b> &mdash; the rounding is the button: down reads "Discard run" in the failed tone
+  under 15 minutes, because there it throws the run away rather than rounding it; up is primary so
+  Enter rounds up; "Keep running" cancels and leaves the timer running; labels never break, which is
+  why the sheet is 440px rather than letting one wrap.
 </p>
 </div>
 
