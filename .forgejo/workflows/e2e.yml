@@ -7,12 +7,12 @@ name: E2E
 # the rig at localhost through THAT_BASE_URL — the override playwright.config.ts
 # already reads. No test and no config change is needed for that.
 #
-# Running on localhost is not merely equivalent, it is simpler. The Firefox
-# `dom.securecontext.allowlist` pref and the Chromium `--host-resolver-rules`
-# argument in playwright.config.ts exist only because a Compose alias is not a
-# secure origin, so the service worker will not register against it. Browsers
-# special-case localhost as secure, so on this path both settings evaluate to
-# no-ops and the worker runs in a genuine secure context.
+# Running on localhost is not merely equivalent, it is simpler. Locally,
+# forward.mjs (#66) gives the browsers a genuine localhost by forwarding to
+# the Compose alias, because plain http:// there is not a secure context and
+# the service worker will not register against it. Here THAT_BASE_URL already
+# names localhost, so playwright.config.ts leaves the forwarder unstarted and
+# the browsers reach the real server directly.
 #
 # Same path gate as the Compose-based workflow it replaces, and for the same
 # reason (#16): the rig depends on more than .claude/e2e, so every file it

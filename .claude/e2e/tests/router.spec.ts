@@ -47,13 +47,7 @@ test("a view whose import resolves after a later navigation never replaces it", 
     todayRequested = resolve;
   });
 
-  // Plain fetch() against THAT_BASE_URL rather than route.fetch(): the
-  // chromium project (see playwright.config.ts) points the *browser* at
-  // "localhost" and relies on a Chromium-only --host-resolver-rules flag to
-  // land it on the real host — a mapping route.fetch()'s own Node-side
-  // request never sees, so it dials literal localhost and gets ECONNREFUSED.
-  // Same workaround tooltip.spec.ts uses, for the same reason.
-  const base = process.env["THAT_BASE_URL"] ?? "http://that-app:8080";
+  const base = process.env["THAT_BASE_URL"] ?? "http://that-e2e:8080";
   await page.route("**/chunk-*.js", async (route) => {
     const requested = new URL(route.request().url());
     const file = requested.pathname.slice(1);
