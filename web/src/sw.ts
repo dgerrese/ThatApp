@@ -94,7 +94,9 @@ async function precacheShell(): Promise<void> {
 async function evictStaleCaches(): Promise<void> {
   const names = await caches.keys();
   await Promise.all(
-    names.filter((name) => name !== SHELL_CACHE && name !== DATA_CACHE).map((name) => caches.delete(name)),
+    names
+      .filter((name) => name !== SHELL_CACHE && name !== DATA_CACHE)
+      .map((name) => caches.delete(name)),
   );
   await caches.open(DATA_CACHE);
 }

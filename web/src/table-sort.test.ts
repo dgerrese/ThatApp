@@ -65,12 +65,7 @@ test("the cycle for each column", async (t) => {
 });
 
 test("key sorts by project then issue number, case-insensitively", () => {
-  const data = rows([
-    { key: "RIDGE-10" },
-    { key: "ridge-9" },
-    { key: "NW-2" },
-    { key: "RIDGE-9" },
-  ]);
+  const data = rows([{ key: "RIDGE-10" }, { key: "ridge-9" }, { key: "NW-2" }, { key: "RIDGE-9" }]);
   const state: SortState = { column: "key", direction: "ascending" };
 
   const sorted = [...data].sort((a, b) => compareRows(a, b, state));

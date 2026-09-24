@@ -110,7 +110,11 @@ export function startRail(): void {
   // element — two callers each clearing a partial list is how a failure's
   // text-failed-rail once ended up layered on top of a stale text-pending-rail
   // instead of replacing it.
-  const UNPUSHED_STATE_CLASSES = ["text-rail-muted", "text-pending-rail", "text-failed-rail"] as const;
+  const UNPUSHED_STATE_CLASSES = [
+    "text-rail-muted",
+    "text-pending-rail",
+    "text-failed-rail",
+  ] as const;
   const setUnpushedState = (state: (typeof UNPUSHED_STATE_CLASSES)[number]): void => {
     unpushed.classList.remove(...UNPUSHED_STATE_CLASSES);
     unpushed.classList.add(state);

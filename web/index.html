@@ -5,7 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ThatApp</title>
     <link rel="preload" href="/fonts/chivo-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/chivo-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link
+      rel="preload"
+      href="/fonts/chivo-mono-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <style>
       /* An absent data-theme attribute is the auto state, so a failed
          localStorage read lands on following the OS rather than on a guess.
@@ -59,10 +65,10 @@
         really is zero, there really is nothing to split, no timer is running,
         and there is nothing to push.
       -->
-      <aside class="that-rail bg-rail text-rail-ink flex flex-col gap-[26px] px-3.5 py-[22px] md:overflow-y-auto">
-        <h1 class="text-primary-rail text-xs font-bold tracking-[0.16em] uppercase">
-          ThatApp
-        </h1>
+      <aside
+        class="that-rail bg-rail text-rail-ink flex flex-col gap-[26px] px-3.5 py-[22px] md:overflow-y-auto"
+      >
+        <h1 class="text-primary-rail text-xs font-bold tracking-[0.16em] uppercase">ThatApp</h1>
 
         <div class="flex flex-col gap-2">
           <!-- Which period the figure below describes. The rail used to mean
@@ -74,7 +80,10 @@
             class="text-rail-muted text-xs font-bold tracking-[0.12em] uppercase"
             >Today</span
           >
-          <div id="rail-total" class="that-tnum font-mono text-hero leading-[0.88] font-bold tracking-[-0.035em]">
+          <div
+            id="rail-total"
+            class="that-tnum text-hero font-mono leading-[0.88] font-bold tracking-[-0.035em]"
+          >
             0h 00m
           </div>
           <!-- #7 fills this with the split bar and a figure per instance. The
@@ -84,7 +93,7 @@
             <span class="text-rail-muted text-base">Nothing to split yet</span>
           </div>
 
-          <div class="bg-rail-active h-0.5 my-1 rounded-xs"></div>
+          <div class="bg-rail-active my-1 h-0.5 rounded-xs"></div>
 
           <!-- #8's rail.ts owns this region from here: the resting markup
                below is what it repaints back to when nothing is running, and
@@ -105,23 +114,29 @@
             id="rail-push"
             type="button"
             disabled
-            class="border-rail-active bg-primary-rail text-primary-rail-ink text-base mt-0.5 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm border font-bold hover:brightness-[1.07] disabled:cursor-not-allowed disabled:bg-transparent disabled:text-rail-muted"
+            class="border-rail-active bg-primary-rail text-primary-rail-ink disabled:text-rail-muted mt-0.5 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-sm border text-base font-bold hover:brightness-[1.07] disabled:cursor-not-allowed disabled:bg-transparent"
           >
             Push worklogs
           </button>
 
-          <div class="bg-rail-active h-0.5 my-1 rounded-xs"></div>
+          <div class="bg-rail-active my-1 h-0.5 rounded-xs"></div>
         </div>
 
         <nav class="flex flex-col gap-0.5">
           <a
             href="/today"
             data-route
-            class="that-nav text-base flex h-[38px] items-center gap-[11px] rounded-xs px-2.5"
+            class="that-nav flex h-[38px] items-center gap-[11px] rounded-xs px-2.5 text-base"
           >
             <svg
-              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.9" stroke-linecap="round" aria-hidden="true"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.9"
+              stroke-linecap="round"
+              aria-hidden="true"
             >
               <circle cx="12" cy="12" r="8.5" />
               <path d="M12 7.5V12l3 2" />
@@ -132,11 +147,17 @@
           <a
             href="/week"
             data-route
-            class="that-nav text-base flex h-[38px] items-center gap-[11px] rounded-xs px-2.5"
+            class="that-nav flex h-[38px] items-center gap-[11px] rounded-xs px-2.5 text-base"
           >
             <svg
-              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.9" stroke-linecap="round" aria-hidden="true"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.9"
+              stroke-linecap="round"
+              aria-hidden="true"
             >
               <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
               <path d="M3.5 10h17M9 5V3M15 5V3" />
@@ -147,7 +168,7 @@
           <a
             href="/settings"
             data-route
-            class="that-nav text-base flex h-[38px] items-center gap-[11px] rounded-xs px-2.5"
+            class="that-nav flex h-[38px] items-center gap-[11px] rounded-xs px-2.5 text-base"
           >
             <!-- Transcribed from the prototype's #p-gear (line 283), not drawn
                  here: this app previously carried a hand-drawn substitute. 1.7
@@ -158,8 +179,15 @@
                  the prototype's own choice for this mark: the tooth corners
                  miter to points without it. -->
             <svg
-              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
             >
               <path
                 d="M9.62 5.10 L10.33 2.55 L13.67 2.55 L14.38 5.10 A 7.30 7.30 0 0 1 15.20 5.44 L17.51 4.14 L19.86 6.49 L18.56 8.80 A 7.30 7.30 0 0 1 18.90 9.62 L21.45 10.33 L21.45 13.67 L18.90 14.38 A 7.30 7.30 0 0 1 18.56 15.20 L19.86 17.51 L17.51 19.86 L15.20 18.56 A 7.30 7.30 0 0 1 14.38 18.90 L13.67 21.45 L10.33 21.45 L9.62 18.90 A 7.30 7.30 0 0 1 8.80 18.56 L6.49 19.86 L4.14 17.51 L5.44 15.20 A 7.30 7.30 0 0 1 5.10 14.38 L2.55 13.67 L2.55 10.33 L5.10 9.62 A 7.30 7.30 0 0 1 5.44 8.80 L4.14 6.49 L6.49 4.14 L8.80 5.44 A 7.30 7.30 0 0 1 9.62 5.10 Z"

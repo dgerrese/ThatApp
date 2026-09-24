@@ -58,7 +58,10 @@ test("an instance that refused is named with what it said", () => {
       {
         instanceId: 2,
         instanceName: "Northwind",
-        error: { code: "jira_unauthorized", message: "the token does not carry the scope this needs" },
+        error: {
+          code: "jira_unauthorized",
+          message: "the token does not carry the scope this needs",
+        },
       },
     ],
   });

@@ -84,7 +84,14 @@ test("every text pair clears 4.5:1 in the theme it is used in", () => {
 test("the rail's own pairs clear their floors, and the rail is one value", () => {
   const rail = token("color-rail");
   assert.equal(rail.light, rail.dark, "the rail carries one set of tones in both themes");
-  for (const name of ["rail-ink", "rail-muted", "primary-rail", "running-rail", "pending-rail", "failed-rail"]) {
+  for (const name of [
+    "rail-ink",
+    "rail-muted",
+    "primary-rail",
+    "running-rail",
+    "pending-rail",
+    "failed-rail",
+  ]) {
     const ratio = contrast(token(`color-${name}`).dark, rail.dark);
     assert.ok(ratio >= TEXT_FLOOR, `${name} on the rail is ${ratio.toFixed(2)}:1`);
   }
@@ -102,8 +109,14 @@ test("the light primary is why the -rail variant exists", () => {
 test("ink-faint clears the mark floor and fails the text floor, in both themes", () => {
   for (const theme of ["light", "dark"] as const) {
     const ratio = contrast(token("color-ink-faint")[theme], token("color-raised")[theme]);
-    assert.ok(ratio >= MARK_FLOOR, `${theme}: ink-faint is ${ratio.toFixed(2)}:1, below the mark floor`);
-    assert.ok(ratio < TEXT_FLOOR, `${theme}: ink-faint now clears the text floor — the comment on it is wrong`);
+    assert.ok(
+      ratio >= MARK_FLOOR,
+      `${theme}: ink-faint is ${ratio.toFixed(2)}:1, below the mark floor`,
+    );
+    assert.ok(
+      ratio < TEXT_FLOOR,
+      `${theme}: ink-faint now clears the text floor — the comment on it is wrong`,
+    );
   }
 });
 
@@ -115,8 +128,16 @@ test("ink-faint clears the mark floor and fails the text floor, in both themes",
 test("the rail stands 0.073 below the dark page, by value alone", () => {
   const railL = oklch(token("color-rail").dark)[0];
   const surfaceL = oklch(token("color-surface").dark)[0];
-  assert.equal(railL, 0.105, "the rail's lightness is decision 2 — see the spec before changing it");
-  assert.equal(surfaceL, 0.178, "the dark page's lightness is decision 2 — see the spec before changing it");
+  assert.equal(
+    railL,
+    0.105,
+    "the rail's lightness is decision 2 — see the spec before changing it",
+  );
+  assert.equal(
+    surfaceL,
+    0.178,
+    "the dark page's lightness is decision 2 — see the spec before changing it",
+  );
 });
 
 test("the retired ramp step is gone and the ramp starts at 12px", () => {
@@ -150,7 +171,11 @@ test("styles.css never carries a two-value color-scheme", () => {
 test("light defines a surface by its edge, dark by depth", () => {
   const ring = token("color-edge-ring");
   assert.equal(ring.dark, "transparent", "dark has no hairline: its shadows already define a card");
-  assert.notEqual(ring.light, "transparent", "light needs the hairline — a card is 0.023 off its page");
+  assert.notEqual(
+    ring.light,
+    "transparent",
+    "light needs the hairline — a card is 0.023 off its page",
+  );
   for (const name of ["shadow-card", "shadow-popover", "shadow-dialog"]) {
     assert.match(css, new RegExp(`--${name}:`), `--${name} is declared`);
   }
@@ -185,7 +210,10 @@ test("both faces are declared, self-hosted, and preloaded", () => {
   assert.match(css, /font-family:\s*"Chivo";/);
   assert.match(css, /font-family:\s*"Chivo Mono";/);
   assert.ok(!/Space Grotesk/.test(css), "Space Grotesk is retired");
-  assert.ok(!/fonts\.googleapis|fonts\.gstatic/.test(css), "no font CDN: the app is offline-capable");
+  assert.ok(
+    !/fonts\.googleapis|fonts\.gstatic/.test(css),
+    "no font CDN: the app is offline-capable",
+  );
   for (const file of ["chivo-latin.woff2", "chivo-mono-latin.woff2"]) {
     assert.ok(html.includes(`/fonts/${file}`), `${file} is preloaded in index.html`);
   }

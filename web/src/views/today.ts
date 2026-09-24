@@ -162,8 +162,7 @@ function issueSearchConfig(
 ): IssueSearchConfig {
   return {
     placeholder: "Search all instances",
-    footer:
-      "Searching all instances by key and summary. Not limited to issues assigned to you.",
+    footer: "Searching all instances by key and summary. Not limited to issues assigned to you.",
     controls: [
       // #84's own body: "a result row carries the same duration control as a
       // real row" — this is that control, not a stand-in for one.
@@ -188,7 +187,9 @@ function issueSearchConfig(
         label: (hit) => (hitIsPinned(hit, pinnedKeys()) ? `Unpin ${hit.key}` : `Pin ${hit.key}`),
         onPress: (hit) => {
           const eventName = hitIsPinned(hit, pinnedKeys()) ? UNPIN : PIN;
-          container.dispatchEvent(new CustomEvent<EntryTicket>(eventName, { detail: ticketFromHit(hit) }));
+          container.dispatchEvent(
+            new CustomEvent<EntryTicket>(eventName, { detail: ticketFromHit(hit) }),
+          );
         },
       },
     ],
@@ -752,7 +753,11 @@ async function fetchOffListInfo(regions: Regions, issue: OffListIssue, id: strin
  * an issue that simply has no summary (a settled, resolved-to-nothing row
  * looks exactly like that instead, which is the correct terminal state).
  */
-function offListRow(issue: OffListIssue, info: OffListInfo | null | undefined, pending: boolean): HTMLElement {
+function offListRow(
+  issue: OffListIssue,
+  info: OffListInfo | null | undefined,
+  pending: boolean,
+): HTMLElement {
   const row = document.createElement("that-ticket-row");
   row.setAttribute("key", issue.issueKey);
   row.setAttribute("instance-id", String(issue.instanceId));
@@ -814,8 +819,7 @@ async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
  */
 async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
   const pin = currentPins(regions).find(
-    (candidate) =>
-      candidate.instanceId === ticket.instanceId && candidate.key === ticket.issueKey,
+    (candidate) => candidate.instanceId === ticket.instanceId && candidate.key === ticket.issueKey,
   );
   // The row is showing a pin this view has no id for, which means the pins it
   // is drawn from have already moved on. Re-rendering from them is both the

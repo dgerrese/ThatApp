@@ -4,7 +4,13 @@ import "../components/that-card";
 import "../components/that-confirm";
 
 import { alertFor, messageOf } from "../alert";
-import { createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "../api";
+import {
+  createInstance,
+  deleteInstance,
+  listInstances,
+  testInstance,
+  updateInstance,
+} from "../api";
 import { confirmDestructive } from "../components/that-confirm";
 import { iconMarkup } from "../icons";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
@@ -370,7 +376,9 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
         submit.removeAttribute("disabled");
       } else {
         const label = editing?.name ?? (draft.name || "the new instance");
-        regions.errorSlot.replaceChildren(alertFor("error", `Could not save ${label}: ${messageOf(error)}`));
+        regions.errorSlot.replaceChildren(
+          alertFor("error", `Could not save ${label}: ${messageOf(error)}`),
+        );
       }
     }
   }

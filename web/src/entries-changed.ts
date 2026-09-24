@@ -31,7 +31,9 @@ const ENTRIES_CHANGED = "that-entries-changed";
  * day themselves.
  */
 export function announceEntriesChanged(entries?: Entry[]): void {
-  document.dispatchEvent(new CustomEvent<Entry[] | undefined>(ENTRIES_CHANGED, { detail: entries }));
+  document.dispatchEvent(
+    new CustomEvent<Entry[] | undefined>(ENTRIES_CHANGED, { detail: entries }),
+  );
 }
 
 /** Returns the function that stops listening. */

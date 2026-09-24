@@ -15,11 +15,7 @@
  * A stop, or a start over a running timer, asks the stop dialog how to round
  * first; the dialog is the only way either reaches the server.
  */
-import {
-  getTimer,
-  startTimer as postStartTimer,
-  stopTimer as postStopTimer,
-} from "./api";
+import { getTimer, startTimer as postStartTimer, stopTimer as postStopTimer } from "./api";
 import { announceEntriesChanged } from "./entries-changed";
 import type { RunningTimer, StopChoice } from "./types";
 

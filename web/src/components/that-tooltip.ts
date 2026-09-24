@@ -93,9 +93,7 @@ export class ThatTooltip extends HTMLElement {
     // trigger at the top of the content column, or Week's own header arrows,
     // would otherwise open partly off-screen.
     const top =
-      box.top - this.offsetHeight - gap < 0
-        ? box.bottom + gap
-        : box.top - this.offsetHeight - gap;
+      box.top - this.offsetHeight - gap < 0 ? box.bottom + gap : box.top - this.offsetHeight - gap;
 
     // All four longhands, not just top/left: the UA stylesheet gives an open
     // popover `inset: 0` for its default centred position, and leaving right

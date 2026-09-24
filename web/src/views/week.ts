@@ -410,7 +410,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
     const painting = paintingFor(rollup);
     const signature = { rollup: JSON.stringify(painting), failures: failuresKey(marked) };
-    if (painted === null || painted.rollup !== signature.rollup || painted.failures !== signature.failures) {
+    if (
+      painted === null ||
+      painted.rollup !== signature.rollup ||
+      painted.failures !== signature.failures
+    ) {
       painted = signature;
       paintWeek(painting, marked);
     }

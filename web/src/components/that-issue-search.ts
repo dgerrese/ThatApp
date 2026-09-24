@@ -423,7 +423,11 @@ export class ThatIssueSearch extends HTMLElement {
    * split, now also what lets `scrollTop` and focus survive a repaint — see
    * the field comment on rowsAreaEl).
    */
-  private showResults(config: IssueSearchConfig, results: IssueHit[], errors: InstanceFailure[]): void {
+  private showResults(
+    config: IssueSearchConfig,
+    results: IssueHit[],
+    errors: InstanceFailure[],
+  ): void {
     this.lastResults = results;
     this.lastErrors = errors;
     this.showingResults = true;
@@ -629,7 +633,11 @@ export class ThatIssueSearch extends HTMLElement {
    *  and must not read as a different kind of control. Returns both nodes,
    *  the same shape that-entry-dialog's own rowAction helper returns for the
    *  identical button-plus-tooltip pairing. */
-  private iconControl(control: IssueSearchIconControl, hit: IssueHit, index: number): HTMLElement[] {
+  private iconControl(
+    control: IssueSearchIconControl,
+    hit: IssueHit,
+    index: number,
+  ): HTMLElement[] {
     const id = `that-issue-search-control-${String(++iconControlSequence)}`;
 
     const button = document.createElement("button");
@@ -670,7 +678,11 @@ export class ThatIssueSearch extends HTMLElement {
    * rest, both released on hover or focus alongside the opacity fade, not
    * ticket-row's reserve-the-width recipe.
    */
-  private durationControl(control: IssueSearchDurationControl, hit: IssueHit, index: number): HTMLElement {
+  private durationControl(
+    control: IssueSearchDurationControl,
+    hit: IssueHit,
+    index: number,
+  ): HTMLElement {
     const trigger = document.createElement("button");
     trigger.type = "button";
     trigger.dataset.controlIndex = String(index);
