@@ -41,6 +41,35 @@ function issue(key: string, summary: string): StubIssue {
   return { key, summary, status: "To Do", url: `https://work.atlassian.net/browse/${key}` };
 }
 
+// A pinned row is the only path that puts a failure note under a summary —
+// today.ts's pinnedRow sets `error` from a pin's own error, never from an
+// assigned issue (see today.ts's cardBuilding, which renders a whole-card
+// alert for an instance error instead of touching any row). Copied and
+// trimmed from pins.spec.ts's own `pin` — only the fields this file needs.
+function pinWithError(summary: string, failureMessage: string): Record<string, unknown> {
+  return {
+    id: 1,
+    instanceId: 1,
+    instanceName: "Work",
+    instancePosition: 0,
+    key: "WORK-1",
+    summary,
+    status: "To Do",
+    url: "https://work.atlassian.net/browse/WORK-1",
+    error: { code: "instance_unreachable", message: failureMessage },
+  };
+}
+
+async function stubPinWithError(
+  page: Page,
+  summary: string,
+  failureMessage: string,
+): Promise<void> {
+  await page.route("**/api/pins**", (route) =>
+    route.fulfill({ status: 200, json: [pinWithError(summary, failureMessage)] }),
+  );
+}
+
 // Narrow enough that the summary column truncates a long summary.
 test.use({ viewport: { width: 900, height: 700 } });
 
@@ -73,4 +102,36 @@ test("a Today summary that is not cut shows no tooltip on hover or focus", async
   await expect(page.locator("that-tooltip", { hasText: "Short one" })).toBeHidden();
   await page.getByRole("link", { name: "WORK-2" }).focus();
   await expect(page.locator("that-tooltip", { hasText: "Short one" })).toBeHidden();
+});
+
+const longFailure =
+  "The Jira site could not be reached because the gateway timed out after three retries " +
+  "against every configured endpoint for this instance";
+
+test("a cut failure note on a pinned row shows its full text on hover", async ({ page }) => {
+  // One configured instance with nothing assigned — an empty instances array
+  // hides the Pinned card entirely (pins.spec.ts's own "no instances
+  // configured hides the pinned card" test), which is not what this test is
+  // about.
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubPinWithError(page, "Weekly standup", longFailure);
+  await page.goto("/today");
+  await page.getByText(longFailure, { exact: true }).first().hover();
+  const tip = page.locator("that-tooltip", { hasText: longFailure });
+  await expect(tip).toBeVisible();
+});
+
+// Decision from the brief: the failure note's tooltip is hover-only, unlike
+// the summary's own — no focus-for, so focusing the row's key link (which
+// opens the summary's tooltip) must never also open this one. Both texts are
+// cut here, so the only thing distinguishing them is that wiring.
+test("focusing a pinned row's key link shows the summary tooltip but not the failure note's", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubPinWithError(page, longSummary, longFailure);
+  await page.goto("/today");
+  await page.getByRole("link", { name: "WORK-1" }).focus();
+  await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeVisible();
+  await expect(page.locator("that-tooltip", { hasText: longFailure })).toBeHidden();
 });
