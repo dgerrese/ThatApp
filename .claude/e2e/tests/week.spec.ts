@@ -1804,9 +1804,11 @@ function weekSearchField(page: Page) {
 /** The result row for `key`, scoped from the key's own link — the only
  *  element in a row that names its ticket, the same reasoning search.spec.ts's
  *  own resultRow gives: every control's accessible name is fixed per
- *  IssueSearchControl and repeats across rows. */
+ *  IssueSearchControl and repeats across rows. Reaches the ancestor carrying
+ *  `data-hit-key` rather than a fixed number of `..` hops (#143 nested the
+ *  key inside its own text column), matching search.spec.ts's own fix. */
 function weekSearchResultRow(page: Page, key: string) {
-  return page.getByTitle(`Open ${key} in Jira`).locator("..");
+  return page.getByTitle(`Open ${key} in Jira`).locator("xpath=ancestor::*[@data-hit-key]");
 }
 
 test.describe("Week's own search", () => {

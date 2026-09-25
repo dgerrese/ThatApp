@@ -137,9 +137,12 @@ function searchField(page: Page) {
 
 /** The result row for `key`, scoped from the key's own link — the only
  *  element in a row that names its ticket, since a control's accessible name
- *  is fixed per IssueSearchControl and repeats across every row. */
+ *  is fixed per IssueSearchControl and repeats across every row. Reaches the
+ *  ancestor carrying `data-hit-key` rather than a fixed number of `..` hops
+ *  (#143 nested the key inside its own text column), so it stays correct
+ *  regardless of how deep the key sits. */
 function resultRow(page: Page, key: string) {
-  return page.getByTitle(`Open ${key} in Jira`).locator("..");
+  return page.getByTitle(`Open ${key} in Jira`).locator("xpath=ancestor::*[@data-hit-key]");
 }
 
 /** Enough hits under one instance to overflow any plausible viewport — task
@@ -286,7 +289,9 @@ test.describe("that-issue-search on Today", () => {
       .getByRole("button", { name: "Pin RIDGE-5140", exact: true })
       .hover();
 
-    const tooltip = page.locator("that-issue-search that-tooltip");
+    // :popover-open: the row's own summary carries a cut-text tooltip too
+    // (#143), so a bare "that-tooltip" locator would match both.
+    const tooltip = page.locator("that-issue-search that-tooltip:popover-open");
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText("pin ticket");
   });
@@ -640,7 +645,11 @@ test.describe("that-issue-search on Today", () => {
     ).toHaveCount(0);
 
     await unpinButton.hover();
-    await expect(page.locator("that-issue-search that-tooltip")).toHaveText("unpin ticket");
+    // :popover-open: the row's own summary carries a cut-text tooltip too
+    // (#143), so a bare "that-tooltip" locator would match both.
+    await expect(page.locator("that-issue-search that-tooltip:popover-open")).toHaveText(
+      "unpin ticket",
+    );
 
     await unpinButton.click();
 
@@ -987,6 +996,18 @@ test.describe("the search panel's height stops at the window's edge", () => {
   // render above that box's own top edge, so this only holds because
   // that-tooltip is a top-layer popover, positioned in the viewport's own
   // coordinate space rather than the rows area's.
+  //
+  // #143 update: stacking the key over the summary made a row taller than
+  // the pin control it centres, which pushes the control (and so the
+  // tooltip that opens above it) down within the row. Unscrolled, the very
+  // first row now sits close enough under the group heading that its
+  // tooltip no longer needs to clear rowsArea's own top edge at all — the
+  // scenario this test exists to prove would stop proving anything. Scrolled
+  // by exactly the first row's own distance from the top (measured, not
+  // hard-coded, so this stays correct if either height changes again), the
+  // same row sits flush with rowsArea's top instead, which restores the
+  // original scenario: opening above it pushes the tooltip past the area's
+  // own edge regardless of how tall the row itself is.
   test("the first row's tooltip escapes the rows area's own clipping box via the top layer", async ({
     page,
   }) => {
@@ -998,7 +1019,14 @@ test.describe("the search panel's height stops at the window's edge", () => {
     const areaBox = await rowsArea(page).boundingBox();
     expect(areaBox).not.toBeNull();
 
-    const firstPin = resultRow(page, "RIDGE-5000").getByRole("button", {
+    const firstRow = resultRow(page, "RIDGE-5000");
+    const firstRowBox = await firstRow.boundingBox();
+    expect(firstRowBox).not.toBeNull();
+    await rowsArea(page).evaluate((el, delta) => {
+      el.scrollTop = delta;
+    }, firstRowBox!.y - areaBox!.y);
+
+    const firstPin = firstRow.getByRole("button", {
       name: "Pin RIDGE-5000",
       exact: true,
     });
@@ -1121,4 +1149,114 @@ test.describe("the search panel's height stops at the window's edge", () => {
       })
       .toBeLessThanOrEqual(700 - 16 + 0.5);
   });
+});
+
+// #143: the row stacks the key over the summary rather than sitting them side
+// by side, so the summary reads at the row's full text width instead of
+// whatever the key's own width leaves it.
+test.describe("the search results row stacks key over summary (#143)", () => {
+  test.beforeEach(async ({ page }) => {
+    await stubPins(page, []);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await stubEntries(page);
+  });
+
+  test("a search result draws its key above its summary, on the row's full text width", async ({
+    page,
+  }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+
+    const row = page.locator("[data-hit-key]").first();
+    const key = row.getByRole("link", { name: "RIDGE-5140" });
+    // .first(): the row's own that-tooltip carries the same text, hidden.
+    const summary = row.getByText("Capacity planning spreadsheet is out of date", {
+      exact: true,
+    }).first();
+    const k = await key.boundingBox();
+    const s = await summary.boundingBox();
+    expect((k?.y ?? 0) + (k?.height ?? 0)).toBeLessThanOrEqual((s?.y ?? 0) + 1);
+    expect(Math.abs((k?.x ?? 0) - (s?.x ?? 0))).toBeLessThan(2);
+  });
+});
+
+// #143: the summary's own cut-text tooltip, the same contract that-ticket-row
+// already gives its summary — on hover of the text and on focus of the row's
+// key link, never as the accessible name. Proved on both hosts of
+// that-issue-search, since neither owns the tooltip wiring itself.
+test.describe("a cut summary in the search panel comes back in a tooltip (#143)", () => {
+  const longSummary =
+    "Reconcile the capacity forecast against every team's actual booked hours, including " +
+    "contractors who log their time in an entirely different Jira instance from ours";
+
+  function fieldFor(page: Page, path: "/today" | "/week") {
+    return path === "/today"
+      ? searchField(page)
+      : page.getByRole("textbox", { name: "Add a ticket to this week", exact: true });
+  }
+
+  for (const path of ["/today", "/week"] as const) {
+    test(`shows the full text on key focus and on hover of the text, on ${path}`, async ({
+      page,
+    }) => {
+      const longHit = hit(1, "Ridgeline", 0, "RIDGE-9100", longSummary);
+
+      if (path === "/today") {
+        await stubPins(page, []);
+        await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+        await stubEntries(page);
+      } else {
+        // Week's own minimal render — an empty rollup is enough, since this
+        // test is about the search panel rather than the grid underneath it.
+        // Copied from week.spec.ts's own openWeek/rollup shape.
+        await page.route("**/api/entries**", (route) =>
+          route.fulfill({ status: 200, json: { today: "2026-09-10", entries: [] } }),
+        );
+        await page.route("**/api/week**", (route) =>
+          route.fulfill({
+            status: 200,
+            json: {
+              start: "2026-09-07",
+              end: "2026-09-13",
+              prevStart: "2026-08-31",
+              nextStart: "2026-09-14",
+              weekNumber: 37,
+              days: Array.from({ length: 7 }, (_, i) => ({
+                day: `2026-09-0${String(i + 7)}`,
+                seconds: 0,
+                pushState: null,
+              })),
+              rows: [],
+              seconds: 0,
+            },
+          }),
+        );
+      }
+      await stubSearch(page, [longHit]);
+      await page.goto(path);
+
+      const field = fieldFor(page, path);
+      await field.fill("capacity");
+
+      const row = resultRow(page, "RIDGE-9100");
+      const keyLink = row.getByRole("link", { name: "RIDGE-9100" });
+      const tooltip = page.locator("that-issue-search that-tooltip", { hasText: longSummary });
+
+      await keyLink.focus();
+      await expect(tooltip).toBeVisible();
+
+      // Back to the field rather than a bare blur: this component closes the
+      // whole panel on a focusout whose relatedTarget it does not itself
+      // contain (see build()'s own focusout listener), and a blur to nowhere
+      // is exactly that — the field is still part of the component, so
+      // "focus elsewhere" the brief asks for is this, not a closed panel.
+      await field.focus();
+      await expect(tooltip).toBeHidden();
+
+      await row.getByText(longSummary, { exact: true }).first().hover();
+      await expect(tooltip).toBeVisible();
+    });
+  }
 });

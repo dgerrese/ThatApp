@@ -82,6 +82,13 @@ function hitKey(hit: IssueHit): string {
  *  pinTriggerSequence gives. */
 let iconControlSequence = 0;
 
+/** One id per row's key link and summary, so the summary's own cut-text
+ *  tooltip (#143) can `for`/`focus-for` resolve them on a page holding many
+ *  rows — the same reasoning iconControlSequence gives, and the same shape
+ *  that-ticket-row's own summaryTriggerSequence uses for the identical
+ *  pairing. */
+let resultTextSequence = 0;
+
 /** One id per panel mounted, so its input's `aria-controls` names it
  *  uniquely even if more than one that-issue-search is ever on screen at
  *  once. */
@@ -565,16 +572,24 @@ export class ThatIssueSearch extends HTMLElement {
     return heading;
   }
 
-  /** The drawing's `.rrow`: the key (`.rk`), the summary (`.rs`), then the
-   *  host's own controls, left to right. `data-hit-key` is what
-   *  `repaint`'s own focus restore uses to find this row again after a
-   *  rebuild — see the field comment on rowsAreaEl. */
+  /** The drawing's `.rrow`: a text column holding the key (`.rk`) above the
+   *  summary (`.rs`), then the host's own controls, left to right (#143,
+   *  2026-09-23 refinement — the key and summary used to sit side by side).
+   *  `data-hit-key` is what `repaint`'s own focus restore uses to find this
+   *  row again after a rebuild — see the field comment on rowsAreaEl. */
   private resultRow(config: IssueSearchConfig, hit: IssueHit): HTMLElement {
     const row = document.createElement("div");
     row.className = "hover:bg-hover flex items-center gap-2.5 rounded-sm px-[9px] py-1.5";
     row.dataset.hitKey = hitKey(hit);
 
-    row.append(this.keyLabel(hit), this.summaryLabel(hit));
+    const textId = ++resultTextSequence;
+    const text = document.createElement("div");
+    text.className = "flex min-w-0 flex-1 flex-col";
+    const key = this.keyLabel(hit, textId);
+    const summary = this.summaryLabel(hit, textId);
+    text.append(key, summary, this.summaryTooltip(hit, summary, key));
+    row.append(text);
+
     config.controls.forEach((control, index) => {
       if (control.kind === "duration") {
         row.append(this.durationControl(control, hit, index));
@@ -597,10 +612,10 @@ export class ThatIssueSearch extends HTMLElement {
    *  unrecognised and dropped focus to `<body>` on a repaint same as
    *  before the fix — a plain `<span>` (no url) is never focusable, so it
    *  needs no such attribute. */
-  private keyLabel(hit: IssueHit): HTMLElement {
+  private keyLabel(hit: IssueHit, textId: number): HTMLElement {
     if (hit.url === "") {
       const span = document.createElement("span");
-      span.className = "that-key that-tnum shrink-0 text-ink-muted";
+      span.className = "that-key that-tnum self-start text-ink-muted";
       span.title = `Open ${hit.key} in Jira`;
       span.textContent = hit.key;
 
@@ -608,23 +623,44 @@ export class ThatIssueSearch extends HTMLElement {
     }
 
     const link = document.createElement("a");
+    link.id = `that-search-key-${String(textId)}`;
     link.href = hit.url;
     link.target = "_blank";
     link.rel = "noopener";
     link.title = `Open ${hit.key} in Jira`;
-    link.className = "that-key that-tnum shrink-0 text-ink-muted";
+    link.className = "that-key that-tnum self-start text-ink-muted";
     link.textContent = hit.key;
     link.dataset.controlIndex = "key";
 
     return link;
   }
 
-  private summaryLabel(hit: IssueHit): HTMLElement {
+  private summaryLabel(hit: IssueHit, textId: number): HTMLElement {
     const summary = document.createElement("span");
-    summary.className = "min-w-0 flex-1 truncate text-base";
+    summary.id = `that-search-summary-${String(textId)}`;
+    summary.className = "truncate text-base";
     summary.textContent = hit.summary;
 
     return summary;
+  }
+
+  /**
+   * The summary's own cut-text tooltip (#143): `for` gives back the
+   * summary's hover, `focus-for` follows the key link so a keyboard user
+   * reaches it too — the same contract that-ticket-row's own summaryTooltip
+   * gives, and its first consumer outside that component. `focus-for` is
+   * omitted when the key carries no link (no site to open), the same
+   * condition that-ticket-row's `linked` flag guards.
+   */
+  private summaryTooltip(hit: IssueHit, summary: HTMLElement, key: HTMLElement): HTMLElement {
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", summary.id);
+    if (key.id !== "") tooltip.setAttribute("focus-for", key.id);
+    tooltip.setAttribute("wrap", "");
+    tooltip.setAttribute("when-cut", "");
+    tooltip.textContent = hit.summary;
+
+    return tooltip;
   }
 
   /** An icon control — pin, and later Week's own return-into-week mark —
