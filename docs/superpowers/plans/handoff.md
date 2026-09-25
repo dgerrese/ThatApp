@@ -54,6 +54,11 @@ and `Closes #235`, and the Task 9 screenshot pair. The images exist only in the 
 which does not survive the session; recapture them from `issue-143-keyboard-and-cut-text` (rail key focus, rail stop
 focus, Today summary focus; dark and light). Codeberg returned 504 on every upload attempt.
 
+**#237's body still reads `SHOTS` where its screenshot pair belongs** — the uploads kept failing
+with 504. Recapture from `issue-204-running-time-in-totals` (a timer running on an instance with no
+entries, beside one with an hour logged; dark and light), attach with `.claude/tools/pr-attach.sh 237`,
+and replace the placeholder.
+
 **#227 is in progress, stacked on #229:** branch `issue-227-table-arrow-keys` at `369d517`, on Codeberg
 (pushed on the third attempt; Codeberg refused the first two), no pull request yet. Tasks 1 (Today) and 2 (Week) committed and green — Task 2's gate was 712 passed. Still to do:
 Task 2's task review, the whole-branch review, screenshots, and the pull request with **base
