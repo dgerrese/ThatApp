@@ -54,8 +54,8 @@ and `Closes #235`, and the Task 9 screenshot pair. The images exist only in the 
 which does not survive the session; recapture them from `issue-143-keyboard-and-cut-text` (rail key focus, rail stop
 focus, Today summary focus; dark and light). Codeberg returned 504 on every upload attempt.
 
-**#227 is in progress, stacked on #229:** branch `issue-227-table-arrow-keys` (pushed, no pull request
-yet), Tasks 1 (Today) and 2 (Week) committed and green — Task 2's gate was 712 passed. Still to do:
+**#227 is in progress, stacked on #229:** branch `issue-227-table-arrow-keys` at `369d517`, on Codeberg
+(pushed on the third attempt; Codeberg refused the first two), no pull request yet. Tasks 1 (Today) and 2 (Week) committed and green — Task 2's gate was 712 passed. Still to do:
 Task 2's task review, the whole-branch review, screenshots, and the pull request with **base
 `issue-143-keyboard-and-cut-text`**, not `main`. Plan: `docs/superpowers/plans/2026-09-25-table-arrow-keys.md`.
 It lives in the worktree `../ThatApp-review-229` (see *Environment notes* below).
