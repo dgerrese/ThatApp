@@ -75,10 +75,6 @@ export class ThatTooltip extends HTMLElement {
     this.observer?.disconnect();
     this.observer = undefined;
 
-    // A disconnected element can still be in the top layer — removing it from
-    // the document does not implicitly close its popover — so a caller that
-    // removes an open tooltip would otherwise leave it painting nothing behind.
-    if (this.matches(":popover-open")) this.hidePopover();
     this.focusTrigger?.removeEventListener("focus", this.onShow);
     this.focusTrigger?.removeEventListener("blur", this.onHide);
     this.focusTrigger = null;

@@ -581,7 +581,7 @@ function runningTimerLine(
 
   // This line is rebuilt only when what is running changes, never on a tick
   // (see paintTimer) — otherwise the tooltip appended below would go with it
-  // every second and Task 1's disconnect-hides-it fix would make it flicker.
+  // every second, and removing an open popover closes it, so it would flicker.
   const keyId = `that-rail-key-${String(++railCutTextSequence)}`;
   const key = document.createElement("span");
   key.id = keyId;
