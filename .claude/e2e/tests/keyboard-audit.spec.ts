@@ -1,15 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * #143 Task 6 — the keyboard audit found two places where a repaint that
- * follows a keyboard action drops focus to <body> instead of keeping it on
- * something the next Tab or Enter can reach: Settings' Remove (the row
- * holding the pressed button is deleted from the list) and Today's pin/unpin
- * controls (pinning or unpinning moves the ticket's row between the Pinned
- * table, an instance card and the off-list table, all three rebuilt from
- * scratch — see today.ts's renderPinnedList/renderResponse/
- * renderOffListSection). Both are fixed in this ticket; see today.ts's
- * focusedPinTicket/restorePinFocus and settings.ts's refocusAfterRemoval.
+ * #143's keyboard audit found two places where a repaint that follows a
+ * keyboard action drops focus to <body> instead of keeping it on something
+ * the next Tab or Enter can reach: Settings' Remove (the row holding the
+ * pressed button is deleted from the list) and Today's pin/unpin controls
+ * (pinning or unpinning moves the ticket's row between the Pinned table, an
+ * instance card and the off-list table, all three rebuilt from scratch —
+ * see today.ts's renderPinnedList/renderResponse/renderOffListSection).
+ * Both are fixed here; see today.ts's focusedPinTicket/restorePinFocus and
+ * settings.ts's refocusAfterRemoval.
  */
 
 async function stubIssues(page: Page, groups: unknown[]): Promise<void> {

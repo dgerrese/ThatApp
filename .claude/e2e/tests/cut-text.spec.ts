@@ -136,7 +136,7 @@ test("focusing a pinned row's key link shows the summary tooltip but not the fai
   await expect(page.locator("that-tooltip", { hasText: longFailure })).toBeHidden();
 });
 
-// Task 5: the rail and the entry dialog give their cut text back too.
+// The rail and the entry dialog give their cut text back too (#143).
 
 const longInstanceName =
   "Ridgeline Analytics and Reporting Platform for the Quarterly Capacity and Utilisation Programme";
