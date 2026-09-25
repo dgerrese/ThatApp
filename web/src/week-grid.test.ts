@@ -8,7 +8,12 @@ import { failuresIn, noFailures, weekGrid } from "./week-grid.ts";
 
 // The renderer builds through the global `document`, which node lacks. node --test
 // runs every file in its own process, so this global reaches no other suite.
-Object.assign(globalThis, { document: new Window().document });
+// HTMLAnchorElement too (#143): week-grid.ts's own keyTooltip tells a link
+// from a plain span with `instanceof HTMLAnchorElement`, and that check is
+// only meaningful against the same window `document` came from — a class
+// from a different realm never matches, in happy-dom same as a real browser.
+const dom = new Window();
+Object.assign(globalThis, { document: dom.document, HTMLAnchorElement: dom.HTMLAnchorElement });
 
 const DAYS = [
   "2026-09-07",

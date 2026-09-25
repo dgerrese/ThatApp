@@ -85,13 +85,34 @@ test("a cut summary in a Today row shows its full text on hover", async ({ page 
   await expect(tip).toBeVisible();
 });
 
-test("a cut summary in a Today row shows its full text when the key link is focused", async ({
+// Owner, 2026-09-25: dropped `focus-for` from the Today row's own summary
+// tooltip. It used to follow the key link so a keyboard user reached it too,
+// but that opened both this tooltip and the key's own "open in Jira" one at
+// once, and below ~900px the summary's covered the key's. The search panel's
+// own copy of this pairing (search.spec.ts) is unaffected — it keeps
+// `focus-for` and `below`.
+test("a Today row's key focus shows only the key's own tooltip, not the cut summary's", async ({
   page,
 }) => {
   await stubIssues(page, [group(1, "Work", [issue("WORK-1", longSummary)])]);
   await page.goto("/today");
   await page.getByRole("link", { name: "WORK-1" }).focus();
-  await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeVisible();
+  await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeVisible();
+  await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeHidden();
+});
+
+// At the same viewport this file already uses (900px) where the owner saw the
+// collision: exactly one tooltip on screen, the key's own.
+test("at 900px, focusing a cut-summary row's key shows exactly one tooltip: open in Jira", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [issue("WORK-1", longSummary)])]);
+  await page.goto("/today");
+  await page.getByRole("link", { name: "WORK-1" }).focus();
+
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText("open in Jira");
 });
 
 test("a Today summary that is not cut shows no tooltip on hover or focus", async ({ page }) => {
@@ -121,18 +142,20 @@ test("a cut failure note on a pinned row shows its full text on hover", async ({
   await expect(tip).toBeVisible();
 });
 
-// Decision from the brief: the failure note's tooltip is hover-only, unlike
-// the summary's own — no focus-for, so focusing the row's key link (which
-// opens the summary's tooltip) must never also open this one. Both texts are
-// cut here, so the only thing distinguishing them is that wiring.
-test("focusing a pinned row's key link shows the summary tooltip but not the failure note's", async ({
+// Both the failure note's tooltip and (since 2026-09-25, owner) the
+// summary's own are hover-only on a Today row — no focus-for on either, so
+// focusing the row's key link opens only the key's own "open in Jira"
+// tooltip. Both other texts are cut here, so the only thing distinguishing
+// them from the key's is that wiring.
+test("focusing a pinned row's key link shows only the key's own tooltip, neither the summary's nor the failure note's", async ({
   page,
 }) => {
   await stubIssues(page, [group(1, "Work", [])]);
   await stubPinWithError(page, longSummary, longFailure);
   await page.goto("/today");
   await page.getByRole("link", { name: "WORK-1" }).focus();
-  await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeVisible();
+  await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeVisible();
+  await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeHidden();
   await expect(page.locator("that-tooltip", { hasText: longFailure })).toBeHidden();
 });
 

@@ -112,6 +112,13 @@ test("an issue key links to Jira, and a row with no site URL does not", async ({
 
   await expect(page.getByText("MIGR-3")).toBeVisible();
   await expect(page.getByRole("link", { name: "MIGR-3" })).toHaveCount(0);
+
+  // Owner, 2026-09-25: an unlinked key gets no tooltip at all, native or
+  // drawn — there is nowhere for it to send anyone.
+  const plainKey = page.getByText("MIGR-3");
+  await expect(plainKey).not.toHaveAttribute("title");
+  await plainKey.hover();
+  await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeHidden();
 });
 
 test("an instance with nothing assigned says so", async ({ page }) => {

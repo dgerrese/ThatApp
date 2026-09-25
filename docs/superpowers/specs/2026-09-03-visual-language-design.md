@@ -451,7 +451,9 @@ top edge, so a trigger near the top of the content column has nowhere to open up
 variant about 340px wide, shown only when the text is actually cut — never for a summary or a key
 that already fits. It opens on hover of the cut text itself and on focus of its row's existing
 focusable element (the key link, where the row has one), adding no new stop to the tab order. Like
-every other tooltip here, it is never the accessible name.
+every other tooltip here, it is never the accessible name. **Exception: on Today's own rows the cut
+summary's tooltip opens on hover only** — key focus opens only the key's own tooltip below, not this
+one (owner, 2026-09-25). The search panel's identical pairing is unaffected.
 
 **A key that links to Jira carries a tooltip reading "open in Jira"** (#143), replacing the native
 title, centred like any other non-trailing control — owner, 2026-09-25.

@@ -328,6 +328,23 @@ test.describe("that-issue-search on Today", () => {
     await expect(tooltip).toBeVisible();
   });
 
+  // Owner, 2026-09-25: an unlinked key (no site to open) gets no tooltip at
+  // all, native or drawn — the same rule that-ticket-row.ts and week-grid.ts
+  // now follow.
+  test("an unlinked result key has no title and no tooltip on hover", async ({ page }) => {
+    await stubSearch(page, [{ ...ridge5140, url: "" }]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+    const key = page.getByText("RIDGE-5140", { exact: true });
+    await expect(key).not.toHaveAttribute("title");
+
+    await key.hover();
+    await expect(
+      page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" }),
+    ).toBeHidden();
+  });
+
   // Review finding 2: the missing screen-reader signal that typing opened a
   // popup, and that closing it closes one.
   test("the field's aria-expanded follows the panel open and closed", async ({ page }) => {

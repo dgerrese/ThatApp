@@ -662,9 +662,10 @@ export class ThatIssueSearch extends HTMLElement {
    *  needs no such attribute. */
   private keyLabel(hit: IssueHit, textId: number): HTMLElement {
     if (hit.url === "") {
+      // No title either (owner, 2026-09-25): a key with no site to open gets
+      // no tooltip at all, not even the native one it used to carry.
       const span = document.createElement("span");
       span.className = "that-key that-tnum self-start text-ink-muted";
-      span.title = `Open ${hit.key} in Jira`;
       span.textContent = hit.key;
 
       return span;

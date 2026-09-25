@@ -1290,6 +1290,12 @@ test("a key from an instance with no site URL renders as plain text", async ({ p
   await expect(key).toHaveText("RIDGE-1");
   const tagName = await key.evaluate((element) => element.tagName);
   expect(tagName).toBe("SPAN");
+
+  // Owner, 2026-09-25: an unlinked key gets no tooltip at all, native or
+  // drawn — there is nowhere for it to send anyone.
+  await expect(key).not.toHaveAttribute("title");
+  await key.hover();
+  await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeHidden();
 });
 
 /**

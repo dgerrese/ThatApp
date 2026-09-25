@@ -83,9 +83,10 @@ let weekKeyLinkSequence = 0;
  */
 function keyLink(issueKey: string, url: string): HTMLElement {
   if (url === "") {
+    // No title either (owner, 2026-09-25): a key with no site to open gets
+    // no tooltip at all, not even the native one it used to carry.
     const span = document.createElement("span");
     span.className = "that-key text-ink-muted";
-    span.title = `Open ${issueKey} in Jira`;
     span.textContent = issueKey;
 
     return span;
@@ -104,10 +105,16 @@ function keyLink(issueKey: string, url: string): HTMLElement {
 }
 
 /** The key link's own that-tooltip (#143), replacing the native title it used
- *  to carry — the same contract that-ticket-row's own keyTooltip gives. */
-function keyTooltip(forId: string): HTMLElement {
+ *  to carry — the same contract that-ticket-row's own keyTooltip gives.
+ *  `instanceof`, not a second `url !== ""` check (matching
+ *  that-issue-search.ts's own keyTooltip): keyLink above is the one place
+ *  that decides link-or-span, so this reads its answer off the element
+ *  rather than re-deciding it. */
+function keyTooltip(key: HTMLElement): HTMLElement | null {
+  if (!(key instanceof HTMLAnchorElement)) return null;
+
   const tooltip = document.createElement("that-tooltip");
-  tooltip.setAttribute("for", forId);
+  tooltip.setAttribute("for", key.id);
   tooltip.textContent = "open in Jira";
 
   return tooltip;
@@ -160,7 +167,8 @@ function gridTable(
     const key = keyLink(row.issueKey, row.url);
     holder.append(dot, key);
     ticket.append(holder);
-    if (row.url !== "") ticket.append(keyTooltip(key.id));
+    const tooltip = keyTooltip(key);
+    if (tooltip) ticket.append(tooltip);
     tr.append(ticket);
 
     row.cells.forEach((cell, index) => {

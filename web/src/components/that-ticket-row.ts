@@ -128,7 +128,7 @@ export class ThatTicketRow extends HTMLElement {
 
     const sumCell = document.createElement("td");
     sumCell.className = "c-sum";
-    sumCell.append(this.summarySpan(), this.summaryTooltip(url !== ""));
+    sumCell.append(this.summarySpan(), this.summaryTooltip());
     const failure = this.getAttribute("error");
     if (failure !== null && failure !== "") {
       sumCell.append(this.failureNote(failure), this.failureTooltip(failure));
@@ -414,19 +414,20 @@ export class ThatTicketRow extends HTMLElement {
     const key = this.getAttribute("key") ?? "";
 
     if (url === "") {
+      // No title either (owner, 2026-09-25): a key with no site to open gets
+      // no tooltip at all, not even the native one it used to carry.
       const span = document.createElement("span");
       span.className = "that-key that-tnum text-ink-muted";
-      span.title = `Open ${key} in Jira`;
       span.textContent = key;
 
       return span;
     }
 
     const link = document.createElement("a");
-    // The summary's tooltip follows this element's focus (#143) — only when
-    // it exists, which is why the plain-span branch above sets no id: a
-    // that-tooltip's focus-for is nothing to follow when there is nothing
-    // focusable to give it.
+    // keyLinkId is set on the link alone — only when it exists, which is why
+    // the plain-span branch above sets no id: this element's own tooltip
+    // (keyTooltip below) is nothing to attach when there is nothing focusable
+    // or hoverable to give it.
     link.id = this.keyLinkId;
     link.href = url;
     link.target = "_blank";
@@ -492,10 +493,8 @@ export class ThatTicketRow extends HTMLElement {
   }
 
   /**
-   * Hover-only (#143): no `focus-for`, deliberately. The key link's focus
-   * already opens the summary's own tooltip above this one, and a failed row
-   * showing both at once would stack them over each other — the owner may
-   * reverse this once a failed row is seen for real.
+   * Hover-only (#143): no `focus-for`, deliberately — the same rule the
+   * summary's own tooltip follows below since 2026-09-25.
    */
   private failureTooltip(message: string): HTMLElement {
     return cutTextTooltip(this.failureId, message);
@@ -512,17 +511,16 @@ export class ThatTicketRow extends HTMLElement {
 
   /**
    * that-tooltip's first cut-text consumer (#143): `for` gives back the
-   * summary's own hover, `focus-for` follows the key link so a keyboard user
-   * reaches it too — the row's own first Tab stop, so this adds none.
-   * `linked` is false for a row with no site URL, whose key is a plain span
-   * with nothing to focus.
+   * summary's own hover. No `focus-for` (owner, 2026-09-25): it used to
+   * follow the key link so a keyboard user reached it too, but that meant
+   * focusing the key opened both this tooltip and the key's own "open in
+   * Jira" one (keyTooltip above) at once, and below ~900px the summary's own
+   * tooltip covered the key's. The search panel's copy of this pairing
+   * (that-issue-search.ts's own summaryTooltip) keeps `focus-for` and
+   * `below`, unchanged — it does not collide the same way.
    */
-  private summaryTooltip(linked: boolean): HTMLElement {
-    return cutTextTooltip(
-      this.summaryId,
-      this.getAttribute("summary") ?? "",
-      linked ? this.keyLinkId : undefined,
-    );
+  private summaryTooltip(): HTMLElement {
+    return cutTextTooltip(this.summaryId, this.getAttribute("summary") ?? "");
   }
 }
 

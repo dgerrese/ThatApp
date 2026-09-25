@@ -219,6 +219,15 @@ test("the timer control's tooltip reads start timer, then stop timer once it is 
 
   await row.getByRole("button", { name: "start timer" }).click();
   await expect(tooltip).toHaveText("stop timer");
+
+  // Stopped from elsewhere entirely — the rail's own stop button, not the
+  // row — proving paint() reacts to onTimerChanged regardless of what
+  // stopped it, not only a click on this control itself.
+  await railTimer(page).getByRole("button", { name: "stop timer" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Log 0:15" }).click();
+
+  await row.getByRole("button", { name: "start timer" }).hover();
+  await expect(tooltip).toHaveText("start timer");
 });
 
 test("a reload keeps the timer running and its elapsed time carries on", async ({ page }) => {
