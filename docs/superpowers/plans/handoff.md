@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-23 at end of day**, against the Codeberg API rather than against local git — see
+**Verified on 2026-09-24 at end of day**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -31,47 +31,39 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### The state at the end of 2026-09-23 — read this first
+### The state at the end of 2026-09-24 — read this first
 
-**This block supersedes everything below it in this section where the two disagree.** Most of what
-follows was written on 2026-09-21 and 2026-09-22 and is kept as the record of how things came to be.
+**This block supersedes everything below it in this section where the two disagree.** The day is in
+[`handoff/2026-09-24.md`](handoff/2026-09-24.md).
 
-**`main` is at `eed84b2`** (the merge of PR #199, #80). The owner handed the v1 board to an
-autonomous run on 2026-09-23 while refining in a second chat; the day is in
-[`handoff/2026-09-23.md`](handoff/2026-09-23.md).
+**`main` is at `9d552f0`** (the merge of PR #214, #74). **Merged on 2026-09-24:** #185 (PR #210),
+#66 (PR #213), #74 (PR #214) and the handoff PR #222. Local `main` was brought level with
+`git fetch codeberg main:main`, not by a merge.
 
-**Merged on 2026-09-23:** #55 (PR #189), #183 (PR #190), #184 (PR #191), #91 (PR #193), #192
-(PR #195), #164 (PR #196), #161 (PR #197), #80 (PR #199), and the `[Process]` PR #194. Every one of
-those closes left `status/in-progress` behind and each was stripped by hand — the label strip after a
-merge is still structural, not a lapse.
-
-**Five pull requests are open, all waiting on the owner:**
+**Four pull requests are open, all waiting on the owner:**
 
 | PR | Ticket | Notes |
 |---|---|---|
-| #210 | #185 the stop dialog | Mergeable; `main` merged in and re-gated. **Reload open tabs after deploying** — old code posts a stop with no body, which now gets a 400 |
-| #213 | #66 real `localhost` for both browsers | Its CI criterion waits on its own CI run |
-| #214 | #74 prettier gate | **Merge it last.** #210 and `main` (since #80) carry files that fail its gate; once the others are in, merge `main` into it, run `make fmt`, re-gate, push |
-| #216 | #106 one definition of the push marks | |
-| #219 | #109 a failed pin reports beside its row | |
-
-**In progress without a pull request: #127**, branch `issue-127-row-height`, three signed commits,
-pushed at end of day. Task 1 is committed and reviewed and the screenshots are taken. **Left:** look at
-the after images, `make fmt` on its four changed files, the whole-branch review, both gates, then the
-PR. Its measure and capture specs sit in the session scratchpad, not the repo.
+| #216 | #106 one definition of the push marks | Cut before #214; may fail the prettier gate once it meets `main` |
+| #219 | #109 a failed pin reports beside its row | Same as #216 |
+| #223 | #127 table body cells take the drawn 15px | Rebased onto `9d552f0` at the owner's request and force-pushed with lease. Both gates green after the rebase |
+| #224 | follows #74: formats two files | `main` fails `npm run lint`'s prettier check on `web/src/duration.test.ts` and `web/src/views/settings.ts`, which #185 brought in beside #214. Whitespace only |
 
 **Blocked: #107**, by its own tripwire — after the entries dialog closes, `:focus-visible` differs
 between Firefox and Chromium. The question for the owner, with the measurement, is on the ticket.
 
 **Left in v1 at `status/todo`:** #143 (normal), then #119, #108, #97 and #89 (`priority/low`).
 
-**At `status/needs-refinement`, raised on 2026-09-23 at the owner's request:** **#198** (nothing cleans
-`web/dist`; v2) and **#220** (CI on a self-hosted runner on an always-on host; v1). #220's first open
-question is whether Codeberg runs a fork's workflow on a self-hosted runner without approval — it must
-be answered before any runner is registered.
+**At `status/needs-refinement` in v1:** #220 (CI on a self-hosted runner on an always-on host). Its
+first open question is whether Codeberg runs a fork's workflow on a self-hosted runner without
+approval — it must be answered before any runner is registered. #198 (nothing cleans `web/dist`) is
+v2.
 
 **At `status/intake`, the session's own findings, for the owner's next cycle:** #200–#209, #211, #212,
 #215, #217, #218 and #221.
+
+**Label anomalies, left for the owner:** #185, #74 and #66 are closed and still carry
+`status/in-progress`. The strip after a merge is still structural, not a lapse.
 
 **Rules the owner set on 2026-09-23 — do not reopen:**
 - **A finding of the session's own is filed at `status/intake` at once, never asked about.** Asking
@@ -81,9 +73,9 @@ be answered before any runner is registered.
   a doctype to the prototype: the companion then stops wrapping it and renders a drawing nobody
   approved.
 
-**CI on Codeberg stalled from about 16:04.** Every run since — `main`'s push for #80 and the open PRs —
-sat `waiting` for a `codeberg-medium` runner for over an hour, with no incident on Codeberg's status
-page. The local gates were the check on every branch. #220 is the lasting fix.
+**Playwright empties `.claude/e2e/test-results/` at the start of every run.** A screenshot left there
+does not survive the next run of any test. Copy captures out to the session scratchpad straight after
+the run that makes them. Found on 2026-09-24, when a second capture run deleted the first run's images.
 
 **Closed and merged:** #1, #2, #3, #4, #5, #6, #7, #9, #12, #16, #29, #30, #44, #51, #73, #87 —
 none carries a `status/*` label any more, by the rule set on 2026-08-20. #5 as PR #38 on 2026-08-20,
