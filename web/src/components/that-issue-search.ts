@@ -696,10 +696,13 @@ export class ThatIssueSearch extends HTMLElement {
    * reaches it too — the same contract that-ticket-row's own summaryTooltip
    * gives, and its first consumer outside that component. `focus-for` is
    * omitted when the key carries no link (no site to open), the same
-   * condition that-ticket-row's `linked` flag guards.
+   * condition that-ticket-row's `linked` flag guards. `below`: task 7's own
+   * fix — the row stacks the key directly above the summary, so the
+   * tooltip's default above-opening would cover the key link the
+   * `focus-for` pairing just moved focus to.
    */
   private summaryTooltip(hit: IssueHit, summary: HTMLElement, key: HTMLElement): HTMLElement {
-    return cutTextTooltip(summary.id, hit.summary, key.id);
+    return cutTextTooltip(summary.id, hit.summary, key.id, true);
   }
 
   /** An icon control — pin, and later Week's own return-into-week mark —

@@ -111,8 +111,20 @@ export class ThatTooltip extends HTMLElement {
     // #content starts flush against the window's top edge (#3's), so a
     // trigger at the top of the content column, or Week's own header arrows,
     // would otherwise open partly off-screen.
-    const top =
-      box.top - this.offsetHeight - gap < 0 ? box.bottom + gap : box.top - this.offsetHeight - gap;
+    //
+    // `below` is the opt-in for the drawing's other variant, `.tip.below`
+    // (prototype line 166): open under the trigger instead, falling back
+    // above when the box would run past the window's bottom edge. Task 7's
+    // own case — the search panel stacks a row's key link over its summary,
+    // so the summary's tooltip must open away from the key link above it,
+    // not over it.
+    const top = this.hasAttribute("below")
+      ? box.bottom + gap + this.offsetHeight > window.innerHeight
+        ? box.top - this.offsetHeight - gap
+        : box.bottom + gap
+      : box.top - this.offsetHeight - gap < 0
+        ? box.bottom + gap
+        : box.top - this.offsetHeight - gap;
 
     // Only a wrapping tooltip is clamped: it is the wide, cut-text case this
     // is for (#143), sized to run into a window edge. An icon tooltip's

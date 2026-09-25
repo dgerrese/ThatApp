@@ -196,6 +196,77 @@ test("the tooltip falls back below when there is no room above", async ({ page }
   expect(tooltipBox!.y - (triggerBox!.y + triggerBox!.height)).toBeCloseTo(7, 0);
 });
 
+// Task 7 fix: the search panel's summary tooltip covered a focused key link
+// sitting directly above it, because reveal() always opens above by default.
+// `below` is the opt-in the drawing gives this case (.tip.below, prototype
+// line 166) — a trigger with room below it opens there instead. Fixed at
+// mid-viewport, the same reasoning as "the tooltip opens above its trigger"
+// above: room on both sides, so this is the plain case, not the edge one.
+test("a below tooltip opens under its trigger, with the drawn 7px gap", async ({ page }) => {
+  await page.evaluate(() => {
+    const trigger = document.createElement("button");
+    trigger.id = "below-trigger";
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", "Pin this issue");
+    trigger.textContent = "•";
+    trigger.style.cssText = "position: fixed; top: 300px; left: 300px;";
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "below-trigger");
+    tooltip.setAttribute("below", "");
+    tooltip.textContent = "Pin this issue";
+
+    document.body.append(trigger, tooltip);
+  });
+
+  await page.locator("#below-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const tooltipBox = await tooltip.boundingBox();
+  const triggerBox = await page.locator("#below-trigger").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(triggerBox).not.toBeNull();
+
+  // Tooltip's top edge sits 7px below the trigger's bottom edge, not above it.
+  expect(tooltipBox!.y - (triggerBox!.y + triggerBox!.height)).toBeCloseTo(7, 0);
+});
+
+// The drawing's own fallback for `below`: a trigger flush against the
+// window's bottom edge has no room to open into, so it falls back to the
+// same above placement a plain tooltip always uses.
+test("a below tooltip falls back above when there is no room below", async ({ page }) => {
+  await page.evaluate(() => {
+    const trigger = document.createElement("button");
+    trigger.id = "bottom-trigger";
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", "Pin this issue");
+    trigger.textContent = "•";
+    trigger.style.cssText = "position: fixed; bottom: 10px; left: 300px;";
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "bottom-trigger");
+    tooltip.setAttribute("below", "");
+    tooltip.textContent = "Pin this issue";
+
+    document.body.append(trigger, tooltip);
+  });
+
+  await page.locator("#bottom-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const tooltipBox = await tooltip.boundingBox();
+  const triggerBox = await page.locator("#bottom-trigger").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(triggerBox).not.toBeNull();
+
+  // Tooltip's bottom edge sits 7px above the trigger's top edge, not below it.
+  expect(triggerBox!.y - (tooltipBox!.y + tooltipBox!.height)).toBeCloseTo(7, 0);
+});
+
 test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) => {
   await mountTrigger(page);
   const tooltip = page.locator("that-tooltip[data-fixture]");

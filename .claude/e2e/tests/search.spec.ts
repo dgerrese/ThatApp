@@ -1259,6 +1259,51 @@ test.describe("a cut summary in the search panel comes back in a tooltip (#143)"
       await expect(tooltip).toBeVisible();
     });
   }
+
+  // Task 7 fix: the controller's screenshots showed the tooltip's default
+  // above-opening covering the key link that keyboard focus had just moved
+  // to — the row stacks the key directly above the summary (#143's own
+  // refinement). `below` is the search panel's opt-in for this row shape.
+  test("the summary tooltip opens below the summary, clear of the focused key link", async ({
+    page,
+  }) => {
+    const longHit = hit(1, "Ridgeline", 0, "RIDGE-9200", longSummary);
+    await stubPins(page, []);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await stubEntries(page);
+    await stubSearch(page, [longHit]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+    const row = resultRow(page, "RIDGE-9200");
+    await expect(row).toBeVisible();
+
+    await searchField(page).press("ArrowDown");
+    const keyLink = row.getByRole("link", { name: "RIDGE-9200" });
+    await expect(keyLink).toBeFocused();
+
+    const tooltip = page.locator("that-issue-search that-tooltip", { hasText: longSummary });
+    await expect(tooltip).toBeVisible();
+
+    const summary = row.getByText(longSummary, { exact: true }).first();
+    const tooltipBox = await tooltip.boundingBox();
+    const keyBox = await keyLink.boundingBox();
+    const summaryBox = await summary.boundingBox();
+    expect(tooltipBox).not.toBeNull();
+    expect(keyBox).not.toBeNull();
+    expect(summaryBox).not.toBeNull();
+
+    // Opens below the summary, not above it where the focused key link sits.
+    expect(tooltipBox!.y).toBeGreaterThanOrEqual(summaryBox!.y + summaryBox!.height - 1);
+
+    // No overlap with the focused key link's own box.
+    const overlaps =
+      tooltipBox!.y < keyBox!.y + keyBox!.height &&
+      tooltipBox!.y + tooltipBox!.height > keyBox!.y &&
+      tooltipBox!.x < keyBox!.x + keyBox!.width &&
+      tooltipBox!.x + tooltipBox!.width > keyBox!.x;
+    expect(overlaps).toBe(false);
+  });
 });
 
 // #143, point 4: arrow-key movement across the results, and Escape back to
