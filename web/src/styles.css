@@ -255,10 +255,18 @@ a.that-key:hover {
 }
 .that-tbl td {
   padding-block: 11px;
+  font-size: var(--text-lg);
 }
 .that-tbl td.c-act {
   padding-block: 5px;
   vertical-align: middle;
+}
+/* Rules here are unlayered, so .that-tbl td beats the status cell's text-sm
+   utility, which Tailwind layers; the drawing's own .tbl .c-key and
+   .tbl .c-status rules are restated here instead. */
+.that-tbl .c-key,
+.that-tbl .c-status {
+  font-size: var(--text-sm);
 }
 
 /* The one column read right to left: a duration, unlike a key or a status, is

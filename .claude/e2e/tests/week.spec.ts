@@ -1344,6 +1344,42 @@ test("a body row is 46px, a cell's trigger carries the drawn padding, and tfoot 
 });
 
 /**
+ * #127: `.grid tbody td, .grid tbody th` and `.grid tfoot th, .grid tfoot td`
+ * set 15px, and the figures inherit it. The line box stays the drawing's 1.5
+ * rather than Tailwind's text-lg default, which the totals row's drawn 47px
+ * height is what proves: the default's 23.33px line made it 47.83.
+ */
+test("body and totals cells compute the drawn 15px, and the totals row keeps the drawn 47px", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+
+  const sizes = await page.locator("table").first().evaluate((element) => {
+    const size = (el: Element) => getComputedStyle(el).fontSize;
+    return {
+      cells: Array.from(element.querySelectorAll("tbody td, tbody th, tfoot td, tfoot th"), size),
+      figures: Array.from(element.querySelectorAll("tbody td .font-mono, tfoot td"), size),
+      keys: Array.from(element.querySelectorAll("tbody .that-key"), size),
+      headers: Array.from(element.querySelectorAll("thead th"), size),
+      footHeight: element.querySelector("tfoot tr")?.getBoundingClientRect().height ?? null,
+    };
+  });
+
+  expect(sizes.cells.length).toBeGreaterThan(0);
+  expect(new Set(sizes.cells)).toEqual(new Set(["15px"]));
+  expect(new Set(sizes.figures)).toEqual(new Set(["15px"]));
+  expect(new Set(sizes.keys)).toEqual(new Set(["13px"]));
+  expect(new Set(sizes.headers)).toEqual(new Set(["12px"]));
+  expect(sizes.footHeight).not.toBeNull();
+  expect(Math.round(sizes.footHeight ?? 0)).toBe(47);
+});
+
+/**
  * #117 task 10, W12: `.cell:hover, .cell:focus-visible { background: var(--hover) }`
  * — a grid cell takes the same hover wash on keyboard focus that it takes
  * under the pointer, which is what makes tabbing through a week legible.
