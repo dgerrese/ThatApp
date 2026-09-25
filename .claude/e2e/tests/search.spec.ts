@@ -1260,3 +1260,199 @@ test.describe("a cut summary in the search panel comes back in a tooltip (#143)"
     });
   }
 });
+
+// #143, point 4: arrow-key movement across the results, and Escape back to
+// the field. The focused element's row and column are read fresh off the DOM
+// on every press (that-issue-search's own moveFocus), never tracked as
+// separate state, which is what test 6 below exists to prove survives a
+// repaint mid-navigation.
+test.describe("the search panel moves by arrow keys and Escape returns to the field (#143)", () => {
+  const rowA = hit(1, "Ridgeline", 0, "RIDGE-6001", "Row A summary");
+  const rowB = hit(1, "Ridgeline", 0, "RIDGE-6002", "Row B summary");
+  const rowC = hit(1, "Ridgeline", 0, "RIDGE-6003", "Row C summary");
+
+  test.beforeEach(async ({ page }) => {
+    await stubPins(page, []);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await stubEntries(page);
+  });
+
+  test("down in the input focuses the first row's key link", async ({ page }) => {
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    await searchField(page).fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await searchField(page).press("ArrowDown");
+    await expect(
+      resultRow(page, "RIDGE-6001").getByRole("link", { name: "RIDGE-6001" }),
+    ).toBeFocused();
+  });
+
+  test("down again moves to the second row's key link, and right then moves to its Log control", async ({
+    page,
+  }) => {
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    await searchField(page).fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await searchField(page).press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      resultRow(page, "RIDGE-6002").getByRole("link", { name: "RIDGE-6002" }),
+    ).toBeFocused();
+
+    await page.keyboard.press("ArrowRight");
+    await expect(
+      resultRow(page, "RIDGE-6002").getByRole("button", {
+        name: "Log time against RIDGE-6002",
+        exact: true,
+      }),
+    ).toBeFocused();
+  });
+
+  test("up from the first row returns to the field, and the panel stays open", async ({ page }) => {
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    const field = searchField(page);
+    await field.fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await field.press("ArrowDown");
+    await page.keyboard.press("ArrowUp");
+
+    await expect(field).toBeFocused();
+    await expect(field).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("escape in a row returns to the field without closing; a second escape closes it", async ({
+    page,
+  }) => {
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    const field = searchField(page);
+    await field.fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await field.press("ArrowDown");
+    await page.keyboard.press("Escape");
+
+    await expect(field).toBeFocused();
+    await expect(field).toHaveAttribute("aria-expanded", "true");
+
+    await field.press("Escape");
+    await expect(field).toHaveAttribute("aria-expanded", "false");
+  });
+
+  // Controller ruling: "Tab leaves the panel, as today" means Tab keeps its
+  // native order and no arrow handler intercepts it — proved here by the one
+  // signal an interception would leave behind, since this component's own
+  // Tab-driven close runs through the same aria-expanded flag every other
+  // close does.
+  test("tab from the field leaves the panel as today, with no arrow handler interfering", async ({
+    page,
+  }) => {
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    const field = searchField(page);
+    await field.fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await field.press("Tab");
+    await expect(field).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("pressing pin with Enter, then Down, moves to the next row's pin control across the repaint", async ({
+    page,
+  }) => {
+    await stubSearch(page, [rowA, rowB]);
+    const pinnedRowA = {
+      id: 9,
+      instanceId: rowA.instanceId,
+      instanceName: rowA.instanceName,
+      instancePosition: rowA.instancePosition,
+      key: rowA.key,
+      summary: rowA.summary,
+      status: rowA.status,
+      url: rowA.url,
+      error: null,
+    };
+    await stubPins(page, [], [pinnedRowA]);
+    await page.route("**/api/pins", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({ status: 201, json: pinnedRowA });
+    });
+
+    await page.goto("/today");
+    await searchField(page).fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    const pinButtonA = resultRow(page, "RIDGE-6001").getByRole("button", {
+      name: "Pin RIDGE-6001",
+      exact: true,
+    });
+    await pinButtonA.focus();
+    await pinButtonA.press("Enter");
+
+    const unpinButtonA = resultRow(page, "RIDGE-6001").getByRole("button", {
+      name: "Unpin RIDGE-6001",
+      exact: true,
+    });
+    await expect(unpinButtonA).toBeFocused();
+
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      resultRow(page, "RIDGE-6002").getByRole("button", { name: "Pin RIDGE-6002", exact: true }),
+    ).toBeFocused();
+  });
+
+  test("on Week, down in the input focuses the first row's first control", async ({ page }) => {
+    await page.route("**/api/entries**", (route) =>
+      route.fulfill({ status: 200, json: { today: "2026-09-10", entries: [] } }),
+    );
+    await page.route("**/api/week**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: {
+          start: "2026-09-07",
+          end: "2026-09-13",
+          prevStart: "2026-08-31",
+          nextStart: "2026-09-14",
+          weekNumber: 37,
+          days: Array.from({ length: 7 }, (_, i) => ({
+            day: `2026-09-0${String(i + 7)}`,
+            seconds: 0,
+            pushState: null,
+          })),
+          rows: [],
+          seconds: 0,
+        },
+      }),
+    );
+    // No url: keyLabel draws a plain, unfocusable span for the key, so
+    // column 0 is the add-to-week button rather than a link — proving the
+    // rule reads "the row's first focusable element", not the key link every
+    // other case above happens to have there.
+    const noUrlHit = { ...rowA, url: "" };
+    await stubSearch(page, [noUrlHit]);
+    await page.goto("/week");
+
+    const field = page.getByRole("textbox", { name: "Add a ticket to this week", exact: true });
+    await field.fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await field.press("ArrowDown");
+    await expect(
+      page.getByRole("button", { name: "Add RIDGE-6001 to this week", exact: true }),
+    ).toBeFocused();
+  });
+});

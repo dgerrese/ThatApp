@@ -3,6 +3,7 @@ import { fieldFigure } from "../duration";
 import type { IconName } from "../icons";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
+import { nextSearchFocus } from "../search-keys";
 import type { InstanceFailure, IssueHit } from "../types";
 
 /**
@@ -275,9 +276,15 @@ export class ThatIssueSearch extends HTMLElement {
       this.scheduleSearch(config);
     });
     input.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      this.close();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.close();
+
+        return;
+      }
+      if (event.key === "ArrowDown" && this.panel && !this.panel.hidden) {
+        this.moveFocus("input", event);
+      }
     });
     this.input = input;
 
@@ -300,6 +307,22 @@ export class ThatIssueSearch extends HTMLElement {
     // on rowsAreaEl for why a rebuilt-per-repaint pair was the blocker.
     const rowsAreaEl = document.createElement("div");
     rowsAreaEl.className = "min-h-0 overflow-y-auto";
+    // #143, point 3: arrow-key movement across result rows. The focused
+    // element's own row and column are read fresh on every press rather than
+    // tracked as state, so a repaint mid-navigation (a pin landing) never
+    // leaves this stale.
+    rowsAreaEl.addEventListener("keydown", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !this.rowsAreaEl) return;
+      const row = target.closest<HTMLElement>("[data-hit-key]");
+      if (!row) return;
+      const rowEls = [...this.rowsAreaEl.querySelectorAll<HTMLElement>("[data-hit-key]")];
+      const rowIndex = rowEls.indexOf(row);
+      const controls = [...row.querySelectorAll<HTMLElement>("[data-control-index]")];
+      const column = controls.indexOf(target);
+      if (rowIndex === -1 || column === -1) return;
+      this.moveFocus({ row: rowIndex, column }, event);
+    });
     const fixedBottomEl = document.createElement("div");
     fixedBottomEl.className = "shrink-0";
     panel.append(rowsAreaEl, fixedBottomEl);
@@ -523,6 +546,28 @@ export class ThatIssueSearch extends HTMLElement {
     const row = this.rowsAreaEl.querySelector<HTMLElement>(hitSelector);
     const control = row?.querySelector<HTMLElement>(controlSelector);
     control?.focus();
+  }
+
+  /** Resolves one arrow or Escape press to where focus should land next
+   *  (`nextSearchFocus`, #143 point 3) and moves it there. `null` leaves the
+   *  key for the browser's own handling (Tab, and anything typed while a
+   *  control has focus), which is also why `preventDefault` only runs once an
+   *  answer is known. */
+  private moveFocus(from: { row: number; column: number } | "input", event: KeyboardEvent): void {
+    if (!this.rowsAreaEl) return;
+    const rowEls = [...this.rowsAreaEl.querySelectorAll<HTMLElement>("[data-hit-key]")];
+    const rows = rowEls.map((row) => row.querySelectorAll("[data-control-index]").length);
+    const answer = nextSearchFocus(rows, from, event.key);
+    if (answer === null) return;
+
+    event.preventDefault();
+    if (answer === "input") {
+      this.input?.focus();
+
+      return;
+    }
+    const controls = rowEls[answer.row]?.querySelectorAll<HTMLElement>("[data-control-index]");
+    controls?.[answer.column]?.focus();
   }
 
   /** Grouped by instance in first-seen order, since the search endpoint fans
