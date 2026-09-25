@@ -701,6 +701,133 @@ test("switching to Week drops the timer's elapsed time from the rail total, and 
   await expect(page.locator("#rail-total")).toHaveText("1h 30m");
 });
 
+/**
+ * Review finding on #204 task 2: setRailPeriod flips `currentPeriod`
+ * synchronously (inside the destination view's own mount), but `lastEntries`
+ * only catches up once that period's own listEntries() read lands — an async
+ * gap a real 1-second tick can land inside. paintFigures() must sit out that
+ * gap entirely rather than combine the old period's entries with the new
+ * period's TODAY_PERIOD-ness (or lack of it); this holds each direction's
+ * read open long enough for `clock.runFor` to prove a tick changes nothing
+ * until the read for the period actually on screen lands.
+ */
+test("a tick during a period switch paints neither period's entries under the other's label", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] },
+    }),
+  );
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/timer", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+
+    return route.fulfill({
+      status: 200,
+      json: {
+        running: {
+          instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+          startedAt: new Date(t0 - 1_800_000).toISOString(),
+        },
+        stopped: null,
+      },
+    });
+  });
+
+  // Both flags start false: the boot reads (Today's own and the rail's own)
+  // must resolve at once. Each holds a queue rather than one resolver — Today's
+  // mount fires two bare listEntries() calls of its own (its row totals and
+  // the rail's), and losing one to an overwritten resolver would hang it.
+  let holdToday = false;
+  let holdWeek = false;
+  const todayReleases: (() => void)[] = [];
+  const weekReleases: (() => void)[] = [];
+
+  await page.route("**/api/entries**", async (route) => {
+    const ranged = new URL(route.request().url()).searchParams.has("from");
+    if (ranged && holdWeek) {
+      await new Promise<void>((resolve) => weekReleases.push(resolve));
+    } else if (!ranged && holdToday) {
+      await new Promise<void>((resolve) => todayReleases.push(resolve));
+    }
+
+    return route.fulfill({
+      status: 200,
+      json: {
+        today: DAY,
+        entries: [
+          {
+            id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+            day: DAY, startedAt: `${DAY}T08:00:00Z`,
+            seconds: ranged ? 7200 : 3600, comment: "", pushState: "unpushed",
+          },
+        ],
+      },
+    });
+  });
+
+  const weekDays = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"];
+  await page.route("**/api/week**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        start: DAY, end: "2026-09-27", prevStart: "2026-09-14", nextStart: "2026-09-28",
+        weekNumber: 39,
+        days: weekDays.map((day, index) => ({
+          day, seconds: index === 0 ? 7200 : 0, pushState: index === 0 ? "unpushed" : null,
+        })),
+        rows: [
+          {
+            instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1", url: "",
+            cells: weekDays.map((_, index) => ({
+              seconds: index === 0 ? 7200 : 0, pushState: index === 0 ? "unpushed" : null,
+            })),
+            seconds: 7200,
+          },
+        ],
+        seconds: 7200,
+      },
+    }),
+  );
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+
+  // Today -> Week: hold the rail's own ranged re-read. A tick landing before
+  // it does must leave the Today figure exactly alone, not drop its elapsed
+  // time because the period is now Week's.
+  holdWeek = true;
+  await page.getByRole("link", { name: "Week" }).click();
+  await expect(page).toHaveURL(/\/week$/);
+
+  await page.clock.runFor(65_000);
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+
+  holdWeek = false;
+  weekReleases.splice(0).forEach((release) => release());
+  await expect(page.locator("#rail-total")).toHaveText("2h 00m");
+  await expect(page.locator("tfoot td").last()).toHaveText("2h 00m");
+
+  // Week -> Today: hold the bare re-read. A tick landing before it does must
+  // leave Week's figure exactly alone, not add the timer's elapsed time to
+  // Week's stale entries because the period is now Today's.
+  holdToday = true;
+  await page.getByRole("link", { name: "Today" }).click();
+  await expect(page).toHaveURL(/\/today$/);
+
+  await page.clock.runFor(65_000);
+  await expect(page.locator("#rail-total")).toHaveText("2h 00m");
+
+  holdToday = false;
+  todayReleases.splice(0).forEach((release) => release());
+  await expect(page.locator("#rail-total")).toHaveText("1h 32m");
+});
+
 test("the unpushed count and the push confirmation's total do not move while the timer runs", async ({
   page,
 }) => {

@@ -155,8 +155,19 @@ export function startRail(): void {
    *
    * `pending`/unpushed/push stay out of this on purpose — see Task 2's
    * global constraint that a run must not move the push count or its total.
+   *
+   * Guarded on `painted`: setRailPeriod flips `currentPeriod` synchronously,
+   * inside the destination view's own mount, but `lastEntries` only catches up
+   * once that period's own read lands in paint() — an async gap a real
+   * 1-second tick can land inside. Without this guard a tick in that gap
+   * combines the old period's stale `lastEntries` with the new period's
+   * TODAY_PERIOD-ness (or lack of it): Today's entries suddenly lose their
+   * elapsed time, or Week's stale entries suddenly gain the timer's. `paint()`
+   * sets `painted` back to true; `applyPeriod` is what dropped it.
    */
   const paintFigures = (): void => {
+    if (!painted) return;
+
     const slices = sliceByInstance(lastEntries);
     let seconds = lastEntries.reduce((sum, entry) => sum + entry.seconds, 0);
 
@@ -360,7 +371,6 @@ export function startRail(): void {
   // repaint on independent conditions (paintFigures also runs from paint()).
   onTimerChanged(paintFigures);
   paintTimer();
-  paintFigures();
   void refreshTimer();
 
   /**
