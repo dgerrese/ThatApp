@@ -160,8 +160,13 @@ const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
 // pre-save values and overwrite that save (#200).
 const savingIds = new Set<number>();
 
-function setRowEditDisabled(regions: Regions, instanceId: number, disabled: boolean): void {
-  const row = regions.listCard.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
+// Queries the live document rather than a regions.listCard: savingIds is
+// module-level and survives the router reusing this module across
+// navigations, but each render owns its own (eventually detached) regions.
+// A save's finally must reach the row on screen now, not the one its own
+// render started with (#200 review).
+function setRowEditDisabled(instanceId: number, disabled: boolean): void {
+  const row = document.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
   row?.querySelector("[data-row-edit]")?.toggleAttribute("disabled", disabled);
 }
 
@@ -372,7 +377,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
 
     if (editing) {
       savingIds.add(editing.id);
-      setRowEditDisabled(regions, editing.id, true);
+      setRowEditDisabled(editing.id, true);
     }
 
     const draft = {
@@ -388,8 +393,8 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
       if (editing) {
         clearRowStatus(regions, editing.id);
       }
-      // The user may have moved on while this save was in flight (#161). An Edit
-      // form they opened on this same instance was filled from pre-save values.
+      // Reset only the form this save came from; the user may have moved on
+      // while it was in flight (#161).
       if (regions.formCard.contains(card)) {
         showForm(regions, undefined);
       }
@@ -406,7 +411,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     } finally {
       if (editing) {
         savingIds.delete(editing.id);
-        setRowEditDisabled(regions, editing.id, false);
+        setRowEditDisabled(editing.id, false);
       }
     }
   }

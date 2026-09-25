@@ -684,7 +684,7 @@ test("when the held save fails, Edit is enabled again and the failure reports wh
   await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
   await expect(page.locator("form").getByText("could not save the instance", { exact: true })).toBeVisible();
 
-  // A second case: the form is replaced (Add instead) while the save is held.
+  // A second case: Cancel changes replaces the form with Add while the save is held.
   const heldReplaced = await holdNextRequest(page, "**/api/instances/*", "PATCH");
   await row.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Name").fill("Work Renamed Again");
@@ -692,8 +692,38 @@ test("when the held save fails, Edit is enabled again and the failure reports wh
   await heldReplaced.arrived;
 
   await page.getByRole("button", { name: "Cancel changes" }).click();
+  await expect(row.getByRole("button", { name: "Edit" })).toBeDisabled();
   heldReplaced.release(saveFailure);
 
   await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
   await expect(page.getByText("Could not save Work: could not save the instance")).toBeVisible();
+});
+
+// The router caches the settings module, so savingIds (module-level) survives
+// a re-render, but each render owns its own `regions` object. A finally that
+// re-enables through the render that started the save would write into that
+// render's now-detached listCard, leaving the live row's Edit disabled forever.
+test("navigating away and back while a save is held still re-enables that row's Edit", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
+  await page.goto("/settings");
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  await page.getByRole("link", { name: "Today", exact: true }).click();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
+
+  held.release();
+
+  const row = page.locator("li[data-instance-id]", { hasText: "Work" });
+  await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
 });
