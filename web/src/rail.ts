@@ -101,6 +101,13 @@ export function startRail(): void {
   let pending: Entry[] = [];
   let pushing = false;
 
+  // What paint() last painted, and what paintFigures() last drew from it plus
+  // the running timer — the two DOM writes paintFigures guards separately
+  // (decision: total.textContent only on change, split only on a slice-shape
+  // change), so a 1-second tick that moves neither leaves both untouched.
+  let lastEntries: Entry[] = [];
+  let lastSplitSignature: string | undefined;
+
   const syncPushButton = (): void => {
     push.disabled = pushing || pending.length === 0;
   };
@@ -139,13 +146,58 @@ export function startRail(): void {
     unpushed.textContent = message;
   };
 
+  /**
+   * The total and the split, from `lastEntries` plus — on Today alone — the
+   * running timer's elapsed time. Also the tick handler: onTimerChanged fires
+   * every second a timer runs, so both DOM writes below are guarded to fire
+   * only when what they show actually changed, which in practice is once a
+   * minute (#204's constraint on rebuild frequency).
+   *
+   * `pending`/unpushed/push stay out of this on purpose — see Task 2's
+   * global constraint that a run must not move the push count or its total.
+   */
+  const paintFigures = (): void => {
+    const slices = sliceByInstance(lastEntries);
+    let seconds = lastEntries.reduce((sum, entry) => sum + entry.seconds, 0);
+
+    if (currentPeriod === TODAY_PERIOD) {
+      const running = currentTimer();
+      if (running) {
+        const elapsed = elapsedSeconds();
+        seconds += elapsed;
+        const slice = slices.find((candidate) => candidate.position === running.instancePosition);
+        if (slice) {
+          slice.seconds += elapsed;
+        } else {
+          slices.push({
+            name: running.instanceName,
+            position: running.instancePosition,
+            seconds: elapsed,
+          });
+          slices.sort((a, b) => a.position - b.position);
+        }
+      }
+    }
+
+    const totalText = totalFigure(seconds);
+    if (total.textContent !== totalText) total.textContent = totalText;
+
+    const signature = slices
+      .map((slice) => `${String(slice.position)}:${totalFigure(slice.seconds)}`)
+      .join("|");
+    if (signature !== lastSplitSignature) {
+      lastSplitSignature = signature;
+      drawSplit(split, slices);
+    }
+  };
+
   const paint = (entries: Entry[]): void => {
     period.textContent = currentPeriod.label;
     push.textContent = currentPeriod.pushLabel;
     painted = true;
     retryDelay = FIRST_RETRY_MS;
-    total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
-    drawSplit(split, sliceByInstance(entries));
+    lastEntries = entries;
+    paintFigures();
     pending = entries.filter(isPending);
     paintUnpushed();
     syncPushButton();
@@ -303,7 +355,12 @@ export function startRail(): void {
   // retry) is the one boot read timer-state.ts itself never makes on its
   // own — see its own comment for why that is the rail's job.
   onTimerChanged(paintTimer);
+  // A separate subscription rather than folded into paintTimer: that one owns
+  // #rail-timer's own line, this owns the total and the split, and the two
+  // repaint on independent conditions (paintFigures also runs from paint()).
+  onTimerChanged(paintFigures);
   paintTimer();
+  paintFigures();
   void refreshTimer();
 
   /**

@@ -530,3 +530,203 @@ test("a focused start/stop button keeps focus when a sort moves its row", async 
   await expect(button).toBeFocused();
   await expectTimerDrawn(page, "WORK-2", false);
 });
+
+/**
+ * #204 task 2: the rail's total and split count a running timer's elapsed
+ * time on Today. A rig of its own rather than stubTimer/stubToday above —
+ * those hardcode instanceId 1/"Work" on the running timer with no
+ * instanceName/instancePosition, and these tests need both to vary.
+ */
+interface TotalsEntry {
+  id: number;
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+  day: string;
+  startedAt: string;
+  seconds: number;
+  comment: string;
+  pushState: "unpushed" | "pushed" | "dirty";
+}
+
+interface TotalsRunning {
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+  startedAt: string;
+}
+
+async function stubTotalsRig(
+  page: Page,
+  entries: TotalsEntry[],
+  running: TotalsRunning | null,
+): Promise<void> {
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] },
+    }),
+  );
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: entries[0]?.day ?? "2026-09-21", entries } }),
+  );
+  await page.route("**/api/timer", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+
+    return route.fulfill({ status: 200, json: { running, stopped: null } });
+  });
+}
+
+const DAY = "2026-09-21";
+
+test("the rail total and the running instance's split figure add the timer's elapsed time and tick with it", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - (59 * 60 + 50) * 1000).toISOString(),
+    },
+  );
+
+  await page.goto("/today");
+
+  await expect(page.locator("#rail-total")).toHaveText("1h 59m");
+  await expect(page.locator("#rail-split")).toContainText("1h 59m");
+
+  await page.clock.runFor(10_000);
+
+  await expect(page.locator("#rail-total")).toHaveText("2h 00m");
+  await expect(page.locator("#rail-split")).toContainText("2h 00m");
+});
+
+test("the split's figures node keeps its identity across ticks within the same minute", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(page, [], {
+    instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+    startedAt: new Date(t0).toISOString(),
+  });
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-split")).toContainText("Work");
+
+  const figuresEl = page.locator("#rail-split > div").nth(1);
+  await figuresEl.evaluate((el) => el.setAttribute("data-marker", "kept"));
+
+  await page.clock.runFor(5_000);
+
+  await expect(figuresEl).toHaveAttribute("data-marker", "kept");
+});
+
+test("a running timer on an instance with no entries today still gets a named split slice", async ({
+  page,
+}) => {
+  await stubTotalsRig(page, [], {
+    instanceId: 2, instanceName: "Personal", instancePosition: 1, issueKey: "PERS-1",
+    startedAt: `${DAY}T09:59:00Z`,
+  });
+
+  await page.goto("/today");
+
+  await expect(page.locator("#rail-split")).toContainText("Personal");
+});
+
+test("switching to Week drops the timer's elapsed time from the rail total, and back to Today restores it", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - 1_800_000).toISOString(),
+    },
+  );
+  const weekDays = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"];
+  await page.route("**/api/week**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        start: DAY, end: "2026-09-27", prevStart: "2026-09-14", nextStart: "2026-09-28",
+        weekNumber: 39,
+        days: weekDays.map((day, index) => ({
+          day, seconds: index === 0 ? 3600 : 0, pushState: index === 0 ? "unpushed" : null,
+        })),
+        rows: [
+          {
+            instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1", url: "",
+            cells: weekDays.map((_, index) => ({
+              seconds: index === 0 ? 3600 : 0, pushState: index === 0 ? "unpushed" : null,
+            })),
+            seconds: 3600,
+          },
+        ],
+        seconds: 3600,
+      },
+    }),
+  );
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+
+  await page.getByRole("link", { name: "Week" }).click();
+  await expect(page).toHaveURL(/\/week$/);
+  await expect(page.locator("#rail-total")).toHaveText("1h 00m");
+  await expect(page.locator("tfoot td").last()).toHaveText("1h 00m");
+
+  await page.getByRole("link", { name: "Today" }).click();
+  await expect(page).toHaveURL(/\/today$/);
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+});
+
+test("the unpushed count and the push confirmation's total do not move while the timer runs", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0).toISOString(),
+    },
+  );
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-unpushed")).toHaveText("1 entry to push");
+
+  await page.clock.runFor(65_000);
+  await expect(page.locator("#rail-unpushed")).toHaveText("1 entry to push");
+
+  await page.getByRole("button", { name: "Push worklogs" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("1 entry totalling 1h 00m will be sent to 1 site.");
+});
