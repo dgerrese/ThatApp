@@ -453,6 +453,9 @@ that already fits. It opens on hover of the cut text itself and on focus of its 
 focusable element (the key link, where the row has one), adding no new stop to the tab order. Like
 every other tooltip here, it is never the accessible name.
 
+**A key that links to Jira carries a tooltip reading "open in Jira"** (#143), replacing the native
+title, centred like any other non-trailing control — owner, 2026-09-25.
+
 ## Decision 8 — the breakpoint scale, and one collision it walks into
 
 Tailwind v4's defaults are used unmodified — `sm` 40rem, `md` 48rem, `lg` 64rem, `xl` 80rem, `2xl`

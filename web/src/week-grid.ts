@@ -68,6 +68,11 @@ export function failuresIn(responses: PushResponse[]): Failures {
  */
 const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap align-middle";
 
+/** One id per row's key link, so its that-tooltip's `for` can resolve it on a
+ *  page holding many rows — the same reasoning weekCellSequence below gives
+ *  its own triggers (#143). */
+let weekKeyLinkSequence = 0;
+
 /**
  * A row's key, linked to the issue in Jira — the drawing's `.kk`, Chivo Mono
  * at 13px/700 via `.that-key`, ink-muted at rest and brightening to ink on
@@ -87,15 +92,25 @@ function keyLink(issueKey: string, url: string): HTMLElement {
   }
 
   const link = document.createElement("a");
+  link.id = `that-week-key-${String(++weekKeyLinkSequence)}`;
   link.href = url;
   link.target = "_blank";
   // Without noopener the opened page gets a window.opener handle back here.
   link.rel = "noopener";
   link.className = "that-key text-ink-muted";
-  link.title = `Open ${issueKey} in Jira`;
   link.textContent = issueKey;
 
   return link;
+}
+
+/** The key link's own that-tooltip (#143), replacing the native title it used
+ *  to carry — the same contract that-ticket-row's own keyTooltip gives. */
+function keyTooltip(forId: string): HTMLElement {
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", forId);
+  tooltip.textContent = "open in Jira";
+
+  return tooltip;
 }
 
 function gridTable(
@@ -142,8 +157,10 @@ function gridTable(
     // paintInstanceDot labels the dot with the instance name, so the row says
     // which Jira it came from without the hue having to carry it alone.
     paintInstanceDot(dot, row.instancePosition, row.instanceName);
-    holder.append(dot, keyLink(row.issueKey, row.url));
+    const key = keyLink(row.issueKey, row.url);
+    holder.append(dot, key);
     ticket.append(holder);
+    if (row.url !== "") ticket.append(keyTooltip(key.id));
     tr.append(ticket);
 
     row.cells.forEach((cell, index) => {

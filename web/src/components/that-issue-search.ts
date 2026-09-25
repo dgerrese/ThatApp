@@ -634,6 +634,8 @@ export class ThatIssueSearch extends HTMLElement {
     const key = this.keyLabel(hit, textId);
     const summary = this.summaryLabel(hit, textId);
     text.append(key, summary, this.summaryTooltip(hit, summary, key));
+    const keyTooltip = this.keyTooltip(key);
+    if (keyTooltip) text.append(keyTooltip);
     row.append(text);
 
     config.controls.forEach((control, index) => {
@@ -673,12 +675,24 @@ export class ThatIssueSearch extends HTMLElement {
     link.href = hit.url;
     link.target = "_blank";
     link.rel = "noopener";
-    link.title = `Open ${hit.key} in Jira`;
     link.className = "that-key that-tnum self-start text-ink-muted";
     link.textContent = hit.key;
     link.dataset.controlIndex = "key";
 
     return link;
+  }
+
+  /** The key link's own that-tooltip (#143), replacing the native title it
+   *  used to carry — the same contract that-ticket-row's own keyTooltip
+   *  gives. Omitted for a plain-span key (no site to open). */
+  private keyTooltip(key: HTMLElement): HTMLElement | null {
+    if (!(key instanceof HTMLAnchorElement)) return null;
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", key.id);
+    tooltip.textContent = "open in Jira";
+
+    return tooltip;
   }
 
   private summaryLabel(hit: IssueHit, textId: number): HTMLElement {

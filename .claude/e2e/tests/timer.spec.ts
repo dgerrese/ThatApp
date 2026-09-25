@@ -202,6 +202,25 @@ test("starting a timer on a row turns its control to stop, tints the Today figur
   await expect(railTimer(page).getByRole("button", { name: "stop timer" })).toBeVisible();
 });
 
+/** #143: the timer control carries the app's own that-tooltip, reading
+ *  "start timer" or "stop timer" — the same pair its aria-label already
+ *  gives, set together in that-timer's paint(). */
+test("the timer control's tooltip reads start timer, then stop timer once it is running", async ({
+  page,
+}) => {
+  await stubTimer(page);
+  await page.goto("/today");
+
+  const row = ticketRow(page, "WORK-1");
+  const tooltip = row.locator("that-tooltip:visible");
+
+  await row.getByRole("button", { name: "start timer" }).hover();
+  await expect(tooltip).toHaveText("start timer");
+
+  await row.getByRole("button", { name: "start timer" }).click();
+  await expect(tooltip).toHaveText("stop timer");
+});
+
 test("a reload keeps the timer running and its elapsed time carries on", async ({ page }) => {
   await stubTimer(page);
   await page.goto("/today");

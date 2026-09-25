@@ -140,9 +140,13 @@ function searchField(page: Page) {
  *  is fixed per IssueSearchControl and repeats across every row. Reaches the
  *  ancestor carrying `data-hit-key` rather than a fixed number of `..` hops
  *  (#143 nested the key inside its own text column), so it stays correct
- *  regardless of how deep the key sits. */
+ *  regardless of how deep the key sits. By role and exact name rather than
+ *  `getByTitle` (#143 dropped the key link's native title for the app's own
+ *  tooltip) — `exact` so e.g. "RIDGE-5000" does not also match "RIDGE-50001". */
 function resultRow(page: Page, key: string) {
-  return page.getByTitle(`Open ${key} in Jira`).locator("xpath=ancestor::*[@data-hit-key]");
+  return page
+    .getByRole("link", { name: key, exact: true })
+    .locator("xpath=ancestor::*[@data-hit-key]");
 }
 
 /** Enough hits under one instance to overflow any plausible viewport — task
@@ -294,6 +298,34 @@ test.describe("that-issue-search on Today", () => {
     const tooltip = page.locator("that-issue-search that-tooltip:popover-open");
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText("pin ticket");
+  });
+
+  // #143: the key link drops its native title for the app's own tooltip, the
+  // same treatment the pin control's tooltip above already gets.
+  test("the key link carries a tooltip reading exactly \"open in Jira\", not a native title", async ({
+    page,
+  }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+    const key = resultRow(page, "RIDGE-5140").getByRole("link", { name: "RIDGE-5140" });
+    await expect(key).not.toHaveAttribute("title");
+
+    // hasText, not :popover-open: the row's own summary carries a cut-text
+    // tooltip too (#143), and focusing the key link opens that one as well
+    // when the summary is cut — this scopes to the key's own tooltip by its
+    // fixed text regardless.
+    const tooltip = page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" });
+
+    await key.hover();
+    await expect(tooltip).toBeVisible();
+
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toBeHidden();
+
+    await key.focus();
+    await expect(tooltip).toBeVisible();
   });
 
   // Review finding 2: the missing screen-reader signal that typing opened a

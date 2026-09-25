@@ -124,6 +124,7 @@ export class ThatTicketRow extends HTMLElement {
     const keyCell = document.createElement("td");
     keyCell.className = "c-key";
     keyCell.append(this.keyContent(url));
+    if (url !== "") keyCell.append(this.keyTooltip());
 
     const sumCell = document.createElement("td");
     sumCell.className = "c-sum";
@@ -432,10 +433,20 @@ export class ThatTicketRow extends HTMLElement {
     // Without noopener the opened page gets a window.opener handle back here.
     link.rel = "noopener";
     link.className = "that-key that-tnum text-ink-muted";
-    link.title = `Open ${key} in Jira`;
     link.textContent = key;
 
     return link;
+  }
+
+  /** The key link's own that-tooltip (#143), replacing the native title it
+   *  used to carry — default (centred) anchor, since the key is not a
+   *  trailing control. */
+  private keyTooltip(): HTMLElement {
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", this.keyLinkId);
+    tooltip.textContent = "open in Jira";
+
+    return tooltip;
   }
 
   /**

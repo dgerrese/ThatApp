@@ -587,16 +587,29 @@ test("the loading line sits inside a that-card", async ({ page }) => {
   releaseIssues?.();
 });
 
-/** T12: every key carries the native title the prototype writes — "Open <KEY>
- *  in Jira" — verbatim, not merely a link. */
-test("a ticket key carries the native Jira title", async ({ page }) => {
+/** T12, updated by #143: the key link no longer carries a native title —
+ *  it carries the app's own that-tooltip instead, reading "open in Jira",
+ *  on hover and on focus. */
+test("a ticket key link carries the app's tooltip reading \"open in Jira\", not a native title", async ({
+  page,
+}) => {
   await stubIssues(page, [group(1, "Work", [workIssue])]);
   await page.goto("/today");
 
-  await expect(page.getByRole("link", { name: "WORK-412" })).toHaveAttribute(
-    "title",
-    "Open WORK-412 in Jira",
-  );
+  const key = page.getByRole("link", { name: "WORK-412" });
+  await expect(key).not.toHaveAttribute("title");
+
+  const tooltip = page.locator("that-tooltip", { hasText: "open in Jira" });
+  await expect(tooltip).toBeHidden();
+
+  await key.hover();
+  await expect(tooltip).toBeVisible();
+
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toBeHidden();
+
+  await key.focus();
+  await expect(tooltip).toBeVisible();
 });
 
 /** T10: `.grouph .n { opacity: .75 }` — the instance tally beside the name. */
