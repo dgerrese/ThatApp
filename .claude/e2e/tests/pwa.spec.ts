@@ -628,6 +628,14 @@ test("the assigned issues come back from cache, stamped, once the server is unre
   expect(offline.stamp).toMatch(ISO_UTC);
 });
 
+/** The stubbed ticket's own summary span — scoped to the tag, because #143
+ *  gave every summary a cut-text tooltip carrying the same text, which a
+ *  bare `getByText` would match too. The tooltip is a `that-tooltip`
+ *  element, never a `span`, so the tag alone excludes it. */
+function shipItSummary(page: Page): Locator {
+  return page.locator('span:text-is("Ship it")');
+}
+
 // Shared by every test below that needs Today already showing the stale
 // banner: goes live, then unreachable, and hands back a server switch plus a
 // count of every request that reached the route (aborted or fulfilled) —
@@ -673,7 +681,7 @@ async function openTodayStale(
   await page.reload();
   await waitForControllingWorker(page);
 
-  await expect(page.getByText("Ship it")).toBeVisible();
+  await expect(shipItSummary(page)).toBeVisible();
   const warning = page.getByText(/Showing what was here at \d{2}:\d{2} — no connection to the server\./);
   await expect(warning).toBeHidden();
 
@@ -686,7 +694,7 @@ async function openTodayStale(
 
   // The list itself must survive under the banner — the cached fallback, not
   // an empty screen, is what "stale" means.
-  await expect(page.getByText("Ship it")).toBeVisible();
+  await expect(shipItSummary(page)).toBeVisible();
 
   return {
     setServer: (state) => {
@@ -724,7 +732,7 @@ test("the assigned-issues warning names a time while the server is unreachable, 
   // wiped the list along with it. The list surviving is what pins this to the
   // success path specifically.
   await expect(stale.warning).toBeHidden();
-  await expect(page.getByText("Ship it")).toBeVisible();
+  await expect(shipItSummary(page)).toBeVisible();
 });
 
 // #71: "online" only fires when the network itself recovers, so a server that
@@ -743,7 +751,7 @@ for (const [trigger, dispatch] of [
     await page.evaluate(dispatch);
 
     await expect(stale.warning).toBeHidden();
-    await expect(page.getByText("Ship it")).toBeVisible();
+    await expect(shipItSummary(page)).toBeVisible();
   });
 }
 
