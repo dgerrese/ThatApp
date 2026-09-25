@@ -558,18 +558,32 @@ interface TotalsRunning {
   startedAt: string;
 }
 
+interface TotalsIssue {
+  key: string;
+  summary: string;
+  status: string;
+  url: string;
+}
+
 async function stubTotalsRig(
   page: Page,
   entries: TotalsEntry[],
   running: TotalsRunning | null,
+  // Task 3: defaults keep every existing caller's instance-less rig, while
+  // the instance-tally tests below pass real issues (and pins) to get a card
+  // to read a tally off.
+  instances: { id: number; name: string; issues: TotalsIssue[] }[] = [
+    { id: 1, name: "Work", issues: [] },
+  ],
+  pins: unknown[] = [],
 ): Promise<void> {
   await page.route("**/api/issues", (route) =>
     route.fulfill({
       status: 200,
-      json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] },
+      json: { instances: instances.map((instance) => ({ ...instance, error: null })) },
     }),
   );
-  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: pins }));
   await page.route("**/api/entries**", (route) =>
     route.fulfill({ status: 200, json: { today: entries[0]?.day ?? "2026-09-21", entries } }),
   );
@@ -856,4 +870,151 @@ test("the unpushed count and the push confirmation's total do not move while the
   await page.getByRole("button", { name: "Push worklogs" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("1 entry totalling 1h 00m will be sent to 1 site.");
+});
+
+/**
+ * #204 task 3: the instance card's own tally ("N issues · H:MM") counts the
+ * running timer's elapsed time too, the same figure paintFigures already adds
+ * to the rail's total and split (task 2).
+ */
+test("the running instance's card tally adds the timer's elapsed time and ticks with it", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - (59 * 60 + 50) * 1000).toISOString(),
+    },
+    [{ id: 1, name: "Work", issues: [{ key: "WORK-1", summary: "Fix it", status: "To Do", url: "" }] }],
+  );
+
+  await page.goto("/today");
+
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toHaveText("1 issue · 1h 59m");
+
+  await page.clock.runFor(10_000);
+
+  await expect(tally).toHaveText("1 issue · 2h 00m");
+});
+
+/**
+ * Review Focus item 3: a running ticket that is pinned moves its row into
+ * Pinned, out of its instance's own card — but the tally beside that card's
+ * name still counts the whole instance's day, elapsed time included, the same
+ * way it already counts a pinned issue's logged time (see today.spec.ts's
+ * "an instance's tally counts a pinned issue's time too", #117).
+ */
+test("the instance tally counts the running time even while its row is pinned", async ({ page }) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - (59 * 60 + 50) * 1000).toISOString(),
+    },
+    [
+      {
+        id: 1,
+        name: "Work",
+        issues: [
+          { key: "WORK-1", summary: "Fix it", status: "To Do", url: "" },
+          { key: "WORK-2", summary: "Also fix it", status: "To Do", url: "" },
+        ],
+      },
+    ],
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0,
+        key: "WORK-1", summary: "Fix it", status: "To Do", url: "", error: null,
+      },
+    ],
+  );
+
+  await page.goto("/today");
+
+  const workRegion = page.getByRole("region", { name: "Work", exact: true });
+  const pinnedRegion = page.getByRole("region", { name: "Pinned", exact: true });
+  await expect(pinnedRegion.locator("that-ticket-row", { hasText: "WORK-1" })).toBeVisible();
+  await expect(workRegion.locator("that-ticket-row", { hasText: "WORK-1" })).toHaveCount(0);
+  await expect(workRegion.locator("that-ticket-row", { hasText: "WORK-2" })).toBeVisible();
+
+  // "1 issue" — WORK-2 is the only row this card still shows — carrying both
+  // WORK-1's logged hour and its running time.
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toHaveText("1 issue · 1h 59m");
+
+  await page.clock.runFor(10_000);
+
+  await expect(tally).toHaveText("1 issue · 2h 00m");
+});
+
+/**
+ * Global constraint 4: a stop drops the elapsed time from the tally the
+ * instant the timer clears (the accepted one-request dip), then the tally
+ * settles on logged time plus the rounded entry once the entries re-read —
+ * fired by announceEntriesChanged() inside stopTimer() — lands.
+ */
+test("a stop settles the instance tally on logged time plus the rounded entry", async ({ page }) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+
+  const entries: TotalsEntry[] = [
+    {
+      id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+    },
+  ];
+  let running: TotalsRunning | null = {
+    instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+    startedAt: new Date(t0 - 5 * 60 * 1000).toISOString(),
+  };
+
+  await stubTotalsRig(page, entries, running, [
+    { id: 1, name: "Work", issues: [{ key: "WORK-1", summary: "Fix it", status: "To Do", url: "" }] },
+  ]);
+  // Overrides stubTotalsRig's own timer route (last registered wins) so GET
+  // reflects `running` after the stop below flips it, and adds the stop
+  // endpoint the rig has no opinion on.
+  await page.route("**/api/timer", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+
+    return route.fulfill({ status: 200, json: { running, stopped: null } });
+  });
+  await page.route("**/api/timer/stop", async (route) => {
+    const rounded: TotalsEntry = {
+      id: 2, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      day: DAY, startedAt: new Date(t0 - 5 * 60 * 1000).toISOString(),
+      seconds: 900, comment: "", pushState: "unpushed",
+    };
+    entries.push(rounded);
+    running = null;
+    await route.fulfill({ status: 200, json: { stopped: rounded, discarded: false } });
+  });
+
+  await page.goto("/today");
+
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toHaveText("1 issue · 1h 05m");
+
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Log 0:15" }).click();
+
+  await expect(tally).toHaveText("1 issue · 1h 15m");
 });
