@@ -14,6 +14,7 @@
  */
 export class ThatTooltip extends HTMLElement {
   private trigger: HTMLElement | null = null;
+  private focusTrigger: HTMLElement | null = null;
   private observer: MutationObserver | undefined;
   private readonly onShow = (): void => this.reveal();
   // Both halves of a pair can fire for one release, when a trigger is hovered
@@ -30,7 +31,8 @@ export class ThatTooltip extends HTMLElement {
   connectedCallback(): void {
     this.setAttribute("popover", "manual");
     this.className =
-      "bg-rail text-rail-ink shadow-popover rounded-xs px-2 py-1 text-sm whitespace-nowrap";
+      "bg-rail text-rail-ink shadow-popover rounded-xs px-2 py-1 text-sm " +
+      (this.hasAttribute("wrap") ? "max-w-[340px] whitespace-normal" : "whitespace-nowrap");
 
     const id = this.getAttribute("for");
     const trigger = id ? document.getElementById(id) : null;
@@ -41,6 +43,16 @@ export class ThatTooltip extends HTMLElement {
     trigger.addEventListener("pointerleave", this.onHide);
     trigger.addEventListener("focus", this.onShow);
     trigger.addEventListener("blur", this.onHide);
+
+    // Cut text is not focusable itself; its row's key link is, and it is
+    // already the row's first Tab stop, so no new Tab stop is added (#143).
+    const focusId = this.getAttribute("focus-for");
+    const focusTrigger = focusId ? document.getElementById(focusId) : null;
+    if (focusTrigger) {
+      this.focusTrigger = focusTrigger;
+      focusTrigger.addEventListener("focus", this.onShow);
+      focusTrigger.addEventListener("blur", this.onHide);
+    }
 
     // reveal() places the box once, at show time, from the trigger's rect and
     // this element's own width. A consumer can repaint this element's text —
@@ -63,6 +75,14 @@ export class ThatTooltip extends HTMLElement {
     this.observer?.disconnect();
     this.observer = undefined;
 
+    // A disconnected element can still be in the top layer — removing it from
+    // the document does not implicitly close its popover — so a caller that
+    // removes an open tooltip would otherwise leave it painting nothing behind.
+    if (this.matches(":popover-open")) this.hidePopover();
+    this.focusTrigger?.removeEventListener("focus", this.onShow);
+    this.focusTrigger?.removeEventListener("blur", this.onHide);
+    this.focusTrigger = null;
+
     const trigger = this.trigger;
     if (!trigger) return;
 
@@ -75,6 +95,9 @@ export class ThatTooltip extends HTMLElement {
   private reveal(): void {
     const trigger = this.trigger;
     if (!trigger) return;
+
+    // #143: a cut-text tooltip exists only to give back what the ellipsis took.
+    if (this.hasAttribute("when-cut") && trigger.scrollWidth <= trigger.clientWidth) return;
 
     // See onHide: neither call throws on a redundant transition in either
     // target browser, and this guard is the same insurance.
@@ -95,11 +118,21 @@ export class ThatTooltip extends HTMLElement {
     const top =
       box.top - this.offsetHeight - gap < 0 ? box.bottom + gap : box.top - this.offsetHeight - gap;
 
+    // Only a wrapping tooltip is clamped: it is the wide, cut-text case this
+    // is for (#143), sized to run into a window edge. An icon tooltip's
+    // anchor="end" pins its right edge to the trigger's on purpose, even past
+    // the window's own left edge for a trigger mounted flush against it —
+    // clamping that would pull it away from the trigger it is pinned to.
+    const edge = 8;
+    const clamped = this.hasAttribute("wrap")
+      ? Math.min(Math.max(left, edge), window.innerWidth - this.offsetWidth - edge)
+      : left;
+
     // All four longhands, not just top/left: the UA stylesheet gives an open
     // popover `inset: 0` for its default centred position, and leaving right
     // or bottom set would fight the explicit placement on some engines.
     this.style.top = `${top}px`;
-    this.style.left = `${left}px`;
+    this.style.left = `${clamped}px`;
     this.style.right = "auto";
     this.style.bottom = "auto";
     this.style.margin = "0";

@@ -466,3 +466,101 @@ test("the tooltip repositions when its text changes while open, keeping anchor=\
   const triggerRight = triggerBox!.x + triggerBox!.width;
   expect(Math.abs(tooltipRight - triggerRight)).toBeLessThanOrEqual(1);
 });
+
+async function mountCutText(
+  page: import("@playwright/test").Page,
+  text: string,
+  width: number,
+): Promise<void> {
+  await page.evaluate(
+    ({ text, width }) => {
+      const link = document.createElement("a");
+      link.id = "cut-link";
+      link.href = "#";
+      link.textContent = "KEY-1";
+
+      const span = document.createElement("span");
+      span.id = "cut-text";
+      span.className = "block truncate";
+      span.style.width = `${width}px`;
+      span.textContent = text;
+
+      const tooltip = document.createElement("that-tooltip");
+      tooltip.dataset["fixture"] = "";
+      tooltip.setAttribute("for", "cut-text");
+      tooltip.setAttribute("focus-for", "cut-link");
+      tooltip.setAttribute("wrap", "");
+      tooltip.setAttribute("when-cut", "");
+      tooltip.textContent = text;
+
+      document.body.prepend(link, span, tooltip);
+    },
+    { text, width },
+  );
+}
+
+const longText =
+  "A summary long enough that no reasonable column shows all of it, so the ellipsis engages";
+
+test("a when-cut tooltip opens on hover of cut text and wraps", async ({ page }) => {
+  await mountCutText(page, longText, 120);
+  const tip = page.locator("that-tooltip[data-fixture]");
+  await page.locator("#cut-text").hover();
+  await expect(tip).toBeVisible();
+  const box = await tip.boundingBox();
+  expect(box?.width ?? 0).toBeLessThanOrEqual(341);
+  expect(box?.height ?? 0).toBeGreaterThan(30); // more than one line: it wraps
+});
+
+test("a when-cut tooltip opens on focus of its focus-for element, and closes on blur", async ({
+  page,
+}) => {
+  await mountCutText(page, longText, 120);
+  const tip = page.locator("that-tooltip[data-fixture]");
+  await page.locator("#cut-link").focus();
+  await expect(tip).toBeVisible();
+  await page.locator("#cut-link").blur();
+  await expect(tip).toBeHidden();
+});
+
+test("a when-cut tooltip stays closed when the text is not cut, on hover and on focus", async ({
+  page,
+}) => {
+  await mountCutText(page, "Short", 400);
+  const tip = page.locator("that-tooltip[data-fixture]");
+  await page.locator("#cut-text").hover();
+  await expect(tip).toBeHidden();
+  await page.locator("#cut-link").focus();
+  await expect(tip).toBeHidden();
+});
+
+test("a tooltip removed while open leaves nothing in the top layer", async ({ page }) => {
+  await mountCutText(page, longText, 120);
+  await page.locator("#cut-link").focus();
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+  const open = await page.evaluate(() => {
+    document.querySelector("that-tooltip[data-fixture]")?.remove();
+    return document.querySelectorAll(":popover-open").length;
+  });
+  expect(open).toBe(0);
+});
+
+test("a tooltip near the left edge stays inside the window", async ({ page }) => {
+  await page.evaluate(() => {
+    const span = document.createElement("span");
+    span.id = "edge-text";
+    span.className = "block truncate";
+    span.style.cssText = "position:fixed;left:0;top:200px;width:40px";
+    span.textContent = "An instance name far too long for the rail";
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "edge-text");
+    tooltip.setAttribute("wrap", "");
+    tooltip.setAttribute("when-cut", "");
+    tooltip.textContent = span.textContent;
+    document.body.append(span, tooltip);
+  });
+  await page.locator("#edge-text").hover();
+  const box = await page.locator("that-tooltip[data-fixture]").boundingBox();
+  expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+});
