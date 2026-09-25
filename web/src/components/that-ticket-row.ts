@@ -493,8 +493,8 @@ export class ThatTicketRow extends HTMLElement {
   }
 
   /**
-   * Hover-only (#143): no `focus-for`, deliberately — the same rule the
-   * summary's own tooltip follows below since 2026-09-25.
+   * Hover-only (#143): the failure note itself is not focusable, and there is
+   * nothing else for this tooltip to follow — so no `focus-for`, deliberately.
    */
   private failureTooltip(message: string): HTMLElement {
     return cutTextTooltip(this.failureId, message);

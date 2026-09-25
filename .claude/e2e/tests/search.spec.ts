@@ -926,9 +926,7 @@ test.describe("that-issue-search on Today", () => {
   // case, since a pin action elsewhere on the page (a background Refresh,
   // another row's own pin) reaches this component's repaint() regardless of
   // which row's summary a keyboard user was reading.
-  test("pinning from a row whose summary had focus restores focus to that summary", async ({
-    page,
-  }) => {
+  test("a repaint restores focus to a focused summary", async ({ page }) => {
     await stubSearch(page, [ridge5140]);
     await stubPins(page, []);
 
@@ -1644,5 +1642,41 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
     await expect(
       page.getByRole("button", { name: "Add RIDGE-6001 to this week", exact: true }),
     ).toBeFocused();
+  });
+
+  // Review round: Up/Down used to preserve the raw column index, but a
+  // no-URL row has no key (see keyLabel), so its summary and controls each
+  // sit one column earlier than a linked row's — a positional Down from a
+  // linked row's summary (column 1) landed on the no-URL row's first control
+  // (also column 1) rather than its summary (column 0). moveFocus now
+  // prefers the target row's element carrying the same data-control-index
+  // value as the one focus is leaving, falling back to the clamped column
+  // only when the target row carries no matching kind.
+  test("down from a summary lands on the row below's own summary, even when that row has no key", async ({
+    page,
+  }) => {
+    const rowD = hit(1, "Ridgeline", 0, "RIDGE-6004", "Row D summary");
+    const noUrlRowE = { ...hit(1, "Ridgeline", 0, "RIDGE-6005", "Row E summary"), url: "" };
+    await stubSearch(page, [rowD, noUrlRowE]);
+    await page.goto("/today");
+
+    await searchField(page).fill("row");
+    await expect(page.getByText("RIDGE-6004")).toBeVisible();
+
+    const firstRow = resultRow(page, "RIDGE-6004");
+    // Not resultRow(): a no-URL hit's key is a plain span, not a link — the
+    // helper's own getByRole("link", ...) has nothing to find. The summary
+    // text is unique enough to stand in for it.
+    const secondSummary = page.getByText(noUrlRowE.summary, { exact: true }).first();
+
+    await firstRow.getByText(rowD.summary, { exact: true }).first().focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(secondSummary).toBeFocused();
+
+    // The key's own Down is unaffected: the row below has no key of its own,
+    // so its first element already is its summary regardless of matching.
+    await firstRow.getByRole("link", { name: "RIDGE-6004" }).focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(secondSummary).toBeFocused();
   });
 });

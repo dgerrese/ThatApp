@@ -322,7 +322,7 @@ export class ThatIssueSearch extends HTMLElement {
       const controls = [...row.querySelectorAll<HTMLElement>("[data-control-index]")];
       const column = controls.indexOf(target);
       if (rowIndex === -1 || column === -1) return;
-      this.moveFocus({ row: rowIndex, column }, event);
+      this.moveFocus({ row: rowIndex, column, value: target.dataset.controlIndex }, event);
     });
     const fixedBottomEl = document.createElement("div");
     fixedBottomEl.className = "shrink-0";
@@ -549,12 +549,30 @@ export class ThatIssueSearch extends HTMLElement {
     control?.focus();
   }
 
-  /** Resolves one arrow or Escape press to where focus should land next
-   *  (`nextSearchFocus`, #143 point 3) and moves it there. `null` leaves the
-   *  key for the browser's own handling (Tab, and anything typed while a
-   *  control has focus), which is also why `preventDefault` only runs once an
-   *  answer is known. */
-  private moveFocus(from: { row: number; column: number } | "input", event: KeyboardEvent): void {
+  /**
+   * Resolves one arrow or Escape press to where focus should land next
+   * (`nextSearchFocus`, #143 point 3) and moves it there. `null` leaves the
+   * key for the browser's own handling (Tab, and anything typed while a
+   * control has focus), which is also why `preventDefault` only runs once an
+   * answer is known.
+   *
+   * `nextSearchFocus` only ever sees counts, so its own answer for an
+   * ArrowDown/ArrowUp is a column clamped by raw position — right within one
+   * row's own shape, but two rows are not always the same shape: a no-URL
+   * hit's row carries no key (see keyLabel), so its summary and controls
+   * each sit one column earlier than a linked row's. Review round (#143):
+   * moving vertically now prefers the target row's element carrying the same
+   * `data-control-index` value as the one focus is leaving — a summary
+   * lands on a summary regardless of which column either row's happens to
+   * be — and falls back to `nextSearchFocus`'s clamped column only when the
+   * target row carries no matching kind at all. Left/Right and Escape stay
+   * purely positional: they move within, or return from, one row's own
+   * shape, where position is exactly what should carry over.
+   */
+  private moveFocus(
+    from: { row: number; column: number; value?: string } | "input",
+    event: KeyboardEvent,
+  ): void {
     if (!this.rowsAreaEl) return;
     const rowEls = [...this.rowsAreaEl.querySelectorAll<HTMLElement>("[data-hit-key]")];
     const rows = rowEls.map((row) => row.querySelectorAll("[data-control-index]").length);
@@ -567,8 +585,18 @@ export class ThatIssueSearch extends HTMLElement {
 
       return;
     }
-    const controls = rowEls[answer.row]?.querySelectorAll<HTMLElement>("[data-control-index]");
-    controls?.[answer.column]?.focus();
+
+    const controls = [
+      ...(rowEls[answer.row]?.querySelectorAll<HTMLElement>("[data-control-index]") ?? []),
+    ];
+    const vertical = event.key === "ArrowDown" || event.key === "ArrowUp";
+    const sourceValue = vertical && from !== "input" ? from.value : undefined;
+    const matched =
+      sourceValue === undefined
+        ? undefined
+        : controls.find((control) => control.dataset.controlIndex === sourceValue);
+
+    (matched ?? controls[answer.column])?.focus();
   }
 
   /** Grouped by instance in first-seen order, since the search endpoint fans
