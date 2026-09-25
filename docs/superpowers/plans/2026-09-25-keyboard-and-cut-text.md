@@ -615,3 +615,53 @@ Jira", replacing the native title (owner, 2026-09-25).
   (`getByRole("link", { name: "X" })`), keeping what each test asserts. List every change.
 - [ ] **Step 5:** `make verify` and the FULL `make test-e2e`; paste both summaries. Commit:
   `The timer control and the key links carry the app's tooltip (#143)`.
+
+### Task 9: focusable keys and summaries, each with its own tooltip (owner, 2026-09-25)
+
+The owner, later in the review of PR #229: "Make the ticket key focusable and split both tooltips.
+Also, make ticket summaries focusable and apply the same split." This replaces the rule "no new Tab
+stop" for these texts. It also folds in #235 (the rail stop button's tooltip).
+
+**Files:**
+- Modify: `web/src/rail.ts` (`runningTimerLine`), `web/src/components/that-ticket-row.ts`
+  (`summarySpan`, `summaryTooltip`), `web/src/components/that-issue-search.ts` (`summaryLabel`,
+  `summaryTooltip`, `captureFocus`/`restoreFocus` if needed),
+  `docs/superpowers/specs/2026-09-03-visual-language-design.md` (Decision 7)
+- Test: `.claude/e2e/tests/cut-text.spec.ts`, `timer.spec.ts`, `search.spec.ts`, and any spec whose Tab
+  counts or arrow-key orders change
+
+**Rail.** The running key span gets `tabindex="0"` and a visible focus ring (the same `focus-visible`
+treatment the key links use). Its cut-text tooltip keeps `for` = the key and **drops `focus-for`**:
+that-tooltip already opens on its `for` element's own focus. The stop button gains a `that-tooltip`
+reading "stop timer", `anchor="end"`, `for` = the stop button (prototype line ~395 draws it). The stop
+button's focus opens only "stop timer".
+
+**Today's rows.** The summary span gets `tabindex="0"` and the focus ring. Its tooltip keeps `for` =
+the summary (no `focus-for`), so it opens on hover and on the summary's own focus. Key focus opens only
+"open in Jira" (already true).
+
+**Search panel.** The summary gets `tabindex="0"`, the focus ring and `data-control-index="summary"`,
+so it joins the arrow-key order in DOM order: key, summary, then the controls. Its tooltip drops
+`focus-for` and keeps `below`. `captureFocus`/`restoreFocus` must restore focus to a focused summary
+after a repaint. A no-URL hit's row starts at the summary.
+
+**Only when cut:** the tooltip still opens only when the text is cut (`when-cut`). A focusable
+summary that is not cut shows no tooltip on focus.
+
+**Spec.** Decision 7's cut-text paragraph now says: cut text is focusable and opens its tooltip on its
+own focus; a key or control focus opens only that control's tooltip (owner, 2026-09-25). Replace the
+earlier sentence about Today's rows being hover-only.
+
+- [ ] Step 1: failing e2e tests, both browsers:
+  1. Rail, timer running on a long key: Tab reaches the key; its full-key tooltip is visible and
+     "stop timer" is not. Tab to the stop button: "stop timer" is visible and the full-key tooltip is not.
+  2. Today: Tab from the key link reaches the cut summary; its tooltip is visible and "open in Jira" is
+     hidden. Key focus: "open in Jira" only.
+  3. Search panel: ArrowDown to the key, ArrowRight to the summary: summary tooltip visible (below the
+     summary), "open in Jira" hidden; ArrowRight again reaches the first control. A no-URL hit's first
+     control is its summary. Pinning from a row whose summary had focus restores focus to that summary.
+  4. A not-cut focusable summary shows no tooltip on focus.
+- [ ] Step 2: run; FAIL; paste it.
+- [ ] Step 3: implement; update every test whose Tab count or arrow order changed, and list them.
+- [ ] Step 4: `make verify` and the FULL `make test-e2e`; paste both. Commit:
+  `Keys and summaries take focus and open only their own tooltip (#143)`.
