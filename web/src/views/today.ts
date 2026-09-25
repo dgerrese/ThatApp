@@ -797,17 +797,60 @@ function instancePositionOf(regions: Regions, instanceId: number): number | unde
   return regions.pins.find((pin) => pin.instanceId === instanceId)?.instancePosition;
 }
 
+/**
+ * The ticket a row's own pin control holds focus for, read before a pin or
+ * unpin repaints anything — the control's own id is rebuilt fresh on every
+ * repaint (pinTriggerSequence), so identity has to travel as the ticket
+ * instead. `null` whenever focus is on anything else, which is what keeps
+ * this from ever redirecting a press that landed somewhere unrelated.
+ */
+function focusedPinTicket(): { instanceId: number; key: string } | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !active.id.startsWith("that-pin-")) return null;
+
+  const row = active.closest("that-ticket-row");
+  if (!row) return null;
+
+  return {
+    instanceId: Number(row.getAttribute("instance-id") ?? "0"),
+    key: row.getAttribute("key") ?? "",
+  };
+}
+
+/**
+ * Pinning or unpinning moves a ticket's row between the Pinned table, an
+ * instance card and the off-list table — renderPinnedList, renderResponse and
+ * renderOffListSection all rebuild their rows from scratch rather than reuse
+ * them (unlike settings.ts's reconcileList), so the pin control the keyboard
+ * was just on is a different element by the time any of them return, and the
+ * browser drops focus to <body>. This finds wherever the ticket's row landed
+ * and puts focus back on its own pin control — a no-op once focus is
+ * anywhere real, so it never steals a press that moved on in the meantime.
+ */
+function restorePinFocus(target: { instanceId: number; key: string } | null): void {
+  if (!target || document.activeElement !== document.body) return;
+
+  const selector =
+    `that-ticket-row[instance-id="${CSS.escape(String(target.instanceId))}"]` +
+    `[key="${CSS.escape(target.key)}"]`;
+  const row = document.querySelector(selector);
+  row?.querySelector<HTMLElement>('button[id^="that-pin-"]')?.focus();
+}
+
 /** Pins the ticket a row's own control just marked as pinned. */
 async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
+  const toRestore = focusedPinTicket();
   try {
     await createPin(ticket.instanceId, ticket.issueKey);
   } catch (error) {
     undoOptimisticMark(regions, ticket, error);
+    restorePinFocus(toRestore);
 
     return;
   }
 
   await refreshPins(regions);
+  restorePinFocus(toRestore);
 }
 
 /**
@@ -818,6 +861,7 @@ async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
  * if the request does not land.
  */
 async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
+  const toRestore = focusedPinTicket();
   const pin = currentPins(regions).find(
     (candidate) => candidate.instanceId === ticket.instanceId && candidate.key === ticket.issueKey,
   );
@@ -826,6 +870,7 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
   // repair and the whole of it.
   if (!pin) {
     renderPinnedList(regions, regions.pins);
+    restorePinFocus(toRestore);
 
     return;
   }
@@ -834,11 +879,13 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
     await deletePin(pin.id);
   } catch (error) {
     undoOptimisticMark(regions, ticket, error);
+    restorePinFocus(toRestore);
 
     return;
   }
 
   await refreshPins(regions);
+  restorePinFocus(toRestore);
 }
 
 /**

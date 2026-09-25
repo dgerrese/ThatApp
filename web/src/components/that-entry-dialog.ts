@@ -106,6 +106,7 @@ export class ThatEntryDialog extends HTMLElement {
   private comment: HTMLInputElement | undefined;
   private submit: HTMLElement | undefined;
   private cancel: HTMLElement | undefined;
+  private closeControl: HTMLElement | undefined;
 
   private entries: Entry[] = [];
   private editing: Entry | undefined;
@@ -288,8 +289,27 @@ export class ThatEntryDialog extends HTMLElement {
     close.addEventListener("click", () => {
       this.dialog?.close();
     });
+    this.closeControl = close;
 
     return close;
+  }
+
+  /**
+   * Deleting an entry removes the very row — and its own Delete button — the
+   * keyboard was just on: renderEntries() rebuilds the list wholesale, the
+   * same reason today.ts's pin controls needed this. Left alone, focus falls
+   * out of the dialog entirely (the confirm dialog's own close already
+   * restored it to the now-gone button). Close is the one control this
+   * dialog always has, deleted-to-empty or not, so it is the fallback. A
+   * no-op once focus already landed somewhere inside the dialog — startEditing
+   * moves it to the comment field itself, which this must not override.
+   */
+  private refocusIfLostFromDialog(): void {
+    const dialog = this.dialog;
+    const active = document.activeElement;
+    if (!dialog || (active && dialog.contains(active))) return;
+
+    this.closeControl?.focus();
   }
 
   private entryList(): HTMLElement {
@@ -655,6 +675,7 @@ export class ThatEntryDialog extends HTMLElement {
       // to a row that no longer exists, and Save would 404.
       if (this.editing?.id === entry.id) this.stopEditing();
       await this.afterMutation();
+      this.refocusIfLostFromDialog();
     } catch (error) {
       this.showFailure(error, "Could not delete the entry.");
     }

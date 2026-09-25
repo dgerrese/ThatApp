@@ -295,10 +295,30 @@ async function removeInstance(
     if (regions.formCard.querySelector(`[data-editing-id="${instance.id}"]`)) {
       showForm(regions, undefined);
     }
+    refocusAfterRemoval(regions);
   } catch (error) {
     status.replaceChildren(alertFor("error", messageOf(error)));
     trigger.removeAttribute("disabled");
   }
+}
+
+/**
+ * `refresh()` above just rebuilt the list, which for a Remove press deletes
+ * the very row — and its own Remove button — the keyboard is still on. The
+ * browser resolves a focused element vanishing by dropping focus to <body>,
+ * which is reachable but announces nothing; this sends it on to the next
+ * thing worth pressing instead — another instance's own first control, or
+ * the add-instance form once none is left. A no-op whenever focus is
+ * anywhere else, so it never steals it from something the confirm dialog's
+ * own close (or a later click) already put it on.
+ */
+function refocusAfterRemoval(regions: Regions): void {
+  if (document.activeElement !== document.body) return;
+
+  const next =
+    regions.listCard.querySelector<HTMLElement>("button, a, input") ??
+    regions.formCard.querySelector<HTMLElement>("button, a, input");
+  next?.focus();
 }
 
 function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElement {
