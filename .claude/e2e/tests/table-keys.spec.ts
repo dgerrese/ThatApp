@@ -261,3 +261,119 @@ test("after a pin, Down still moves by the new order", async ({ page }) => {
   await page.keyboard.press("ArrowDown");
   await expect(summaryOf(page, "RIDGE-1")).toBeFocused();
 });
+
+/**
+ * #227 task 2: Up/Down move focus between Week's grid rows. A trimmed
+ * stand-in for week.spec.ts's own StubRollup shape — only what these tests
+ * need to paint a grid with two linked rows.
+ */
+interface WeekStubCell {
+  seconds: number;
+  pushState: "unpushed" | "pushed" | "dirty" | null;
+}
+
+interface WeekStubRow {
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+  url: string;
+  cells: WeekStubCell[];
+  seconds: number;
+}
+
+const WEEK_START = "2026-09-07";
+const WEEK_DAYS = [
+  "2026-09-07",
+  "2026-09-08",
+  "2026-09-09",
+  "2026-09-10",
+  "2026-09-11",
+  "2026-09-12",
+  "2026-09-13",
+];
+
+function weekRow(issueKey: string): WeekStubRow {
+  return {
+    instanceId: 1,
+    instanceName: "Ridgeline",
+    instancePosition: 0,
+    issueKey,
+    url: `https://ridgeline.atlassian.net/browse/${issueKey}`,
+    cells: Array.from({ length: 7 }, () => ({ seconds: 0, pushState: null })),
+    seconds: 0,
+  };
+}
+
+function weekRollup(rows: WeekStubRow[]) {
+  return {
+    start: WEEK_START,
+    end: WEEK_DAYS[6],
+    prevStart: "2026-08-31",
+    nextStart: "2026-09-14",
+    weekNumber: 37,
+    days: WEEK_DAYS.map((day) => ({ day, seconds: 0, pushState: null })),
+    rows,
+    seconds: 0,
+  };
+}
+
+async function gotoWeek(page: Page, rows: WeekStubRow[]): Promise<void> {
+  await page.route("**/api/week**", (route) =>
+    route.fulfill({ status: 200, json: weekRollup(rows) }),
+  );
+  await page.goto("/week");
+  await expect(page.locator("table")).toBeVisible();
+}
+
+function weekTicketRow(page: Page, issueKey: string): Locator {
+  return page.locator("tbody tr", { hasText: issueKey });
+}
+
+/** The day cell's own control, by weekday position (0 = Monday) — every day
+ *  cell is a button regardless of whether anything is logged in it. */
+function weekDayCell(page: Page, issueKey: string, dayIndex: number): Locator {
+  return weekTicketRow(page, issueKey).locator("td button").nth(dayIndex);
+}
+
+function weekKeyLink(page: Page, issueKey: string): Locator {
+  return weekTicketRow(page, issueKey).locator('[id^="that-week-key-"]');
+}
+
+test("Down from a ticket's Wednesday cell focuses the next ticket's Wednesday cell", async ({
+  page,
+}) => {
+  await gotoWeek(page, [weekRow("RIDGE-1"), weekRow("RIDGE-2")]);
+
+  await weekDayCell(page, "RIDGE-1", 2).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(weekDayCell(page, "RIDGE-2", 2)).toBeFocused();
+});
+
+test("Down from a key link focuses the next key link", async ({ page }) => {
+  await gotoWeek(page, [weekRow("RIDGE-1"), weekRow("RIDGE-2")]);
+
+  await weekKeyLink(page, "RIDGE-1").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(weekKeyLink(page, "RIDGE-2")).toBeFocused();
+});
+
+test("at the last ticket row, Down leaves focus alone — the footer is never reached", async ({
+  page,
+}) => {
+  await gotoWeek(page, [weekRow("RIDGE-1"), weekRow("RIDGE-2")]);
+
+  const cell = weekDayCell(page, "RIDGE-2", 0);
+  await cell.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(cell).toBeFocused();
+});
+
+test("Up from the first row does nothing", async ({ page }) => {
+  await gotoWeek(page, [weekRow("RIDGE-1"), weekRow("RIDGE-2")]);
+
+  const cell = weekDayCell(page, "RIDGE-1", 0);
+  await cell.focus();
+  await page.keyboard.press("ArrowUp");
+  await expect(cell).toBeFocused();
+});
