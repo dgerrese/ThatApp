@@ -18,18 +18,24 @@ func validRound(round store.Rounding) bool {
 }
 
 // timerDTO is the timer in progress, if any. The browser computes elapsed time
-// from startedAt itself, so there is no server tick to render.
+// from startedAt itself, so there is no server tick to render. InstanceName and
+// InstancePosition are joined in exactly as entryDTOFrom does, so the rail can
+// draw a split slice for the running instance without a second fetch.
 type timerDTO struct {
-	InstanceID int64  `json:"instanceId"`
-	IssueKey   string `json:"issueKey"`
-	StartedAt  string `json:"startedAt"`
+	InstanceID       int64  `json:"instanceId"`
+	InstanceName     string `json:"instanceName"`
+	InstancePosition int    `json:"instancePosition"`
+	IssueKey         string `json:"issueKey"`
+	StartedAt        string `json:"startedAt"`
 }
 
-func (s *Server) timerDTOFrom(timer store.Timer) timerDTO {
+func (s *Server) timerDTOFrom(timer store.Timer, inst store.Instance, position int) timerDTO {
 	return timerDTO{
-		InstanceID: timer.InstanceID,
-		IssueKey:   timer.IssueKey,
-		StartedAt:  timer.StartedAt.In(s.cfg.Location).Format(time.RFC3339),
+		InstanceID:       timer.InstanceID,
+		InstanceName:     inst.Name,
+		InstancePosition: position,
+		IssueKey:         timer.IssueKey,
+		StartedAt:        timer.StartedAt.In(s.cfg.Location).Format(time.RFC3339),
 	}
 }
 
@@ -66,16 +72,19 @@ func (s *Server) handleGetTimer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var resp timerStateResponse
-	if running != nil {
-		dto := s.timerDTOFrom(*running)
-		resp.Running = &dto
-	}
-	if closed != nil {
-		dto, ok := s.entryDTOForClosedTimer(w, r, closed)
+	if running != nil || closed != nil {
+		instances, positions, ok := s.instanceIndex(w, r)
 		if !ok {
 			return
 		}
-		resp.Stopped = &dto
+		if running != nil {
+			dto := s.timerDTOFrom(*running, instances[running.InstanceID], positions[running.InstanceID])
+			resp.Running = &dto
+		}
+		if closed != nil {
+			dto := s.entryDTOFrom(*closed, instances[closed.InstanceID], positions[closed.InstanceID])
+			resp.Stopped = &dto
+		}
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -144,7 +153,7 @@ func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runningDTO := s.timerDTOFrom(*running)
+	runningDTO := s.timerDTOFrom(*running, inst, positions[inst.ID])
 	resp := startTimerResponse{Running: &runningDTO, Discarded: wasRunning && stopped == nil}
 	if stopped != nil {
 		// instances and positions were already read above for req.InstanceID; the

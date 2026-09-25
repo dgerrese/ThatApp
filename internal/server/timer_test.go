@@ -371,6 +371,48 @@ func TestStartTimerRejectsAnUnknownRound(t *testing.T) {
 	assertRejected(t, rec, http.StatusBadRequest, "invalid_request")
 }
 
+// TestTimerReportsTheRunningInstancesNameAndPosition pins that the rail can
+// draw a split slice for the running instance's colour without a second
+// fetch: both the start response and GET /api/timer answer its name and
+// 0-based position, joined the same way entryDTO joins them.
+func TestTimerReportsTheRunningInstancesNameAndPosition(t *testing.T) {
+	s, db, sealer := newServerWithStore(t)
+	loc, err := time.LoadLocation("Europe/Amsterdam")
+	if err != nil {
+		t.Fatalf("loading zone: %v", err)
+	}
+	s.cfg.Location = loc
+	s.now = func() time.Time { return time.Date(2026, 8, 21, 12, 5, 0, 0, time.UTC) }
+
+	seedInstance(t, db, sealer, "First", "", "https://api.example")
+	second := seedInstance(t, db, sealer, "Second", "", "https://api.example")
+
+	rec := callEntries(t, s, http.MethodPost, "/api/timer/start",
+		`{"instanceId":`+strconv.FormatInt(second.ID, 10)+`,"issueKey":"RIDGE-4929"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("start status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	started := decodeTimerState(t, rec)
+	if started.Running == nil {
+		t.Fatalf("running = nil, want the started timer")
+	}
+	if started.Running.InstanceName != "Second" || started.Running.InstancePosition != 1 {
+		t.Errorf("start running = %+v, want name Second, position 1", started.Running)
+	}
+
+	rec = callEntries(t, s, http.MethodGet, "/api/timer", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	got := decodeTimerState(t, rec)
+	if got.Running == nil {
+		t.Fatalf("running = nil, want the started timer")
+	}
+	if got.Running.InstanceName != "Second" || got.Running.InstancePosition != 1 {
+		t.Errorf("get running = %+v, want name Second, position 1", got.Running)
+	}
+}
+
 // TestGetTimerClosesAnOvernightTimer pins decision 6: a read that finds a
 // timer whose start day has passed closes it at its start day's local
 // midnight and reports the entry it earned as "stopped", with nothing running.
