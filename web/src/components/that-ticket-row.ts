@@ -19,6 +19,10 @@ export const UNPIN = "that-unpin";
  *  page holding many rows in several cards. */
 let pinTriggerSequence = 0;
 
+/** Same reasoning as pinTriggerSequence, for the summary's own cut-text
+ *  tooltip and the key link its focus-for follows (#143). */
+let summaryTriggerSequence = 0;
+
 /**
  * One issue: its key, its summary and its status. Light DOM, so #7 and #8 can
  * append a timer and a duration field to it without a slot.
@@ -61,6 +65,11 @@ export class ThatTicketRow extends HTMLElement {
   private pinTrigger: HTMLButtonElement | undefined;
   private pinTooltip: HTMLElement | undefined;
   private readonly pinTriggerId = `that-pin-${++pinTriggerSequence}`;
+  // Same sequence value for all three (#143): one row, one number, three
+  // prefixes, so nothing here collides across a page holding many rows.
+  private readonly summaryId = `that-sum-${++summaryTriggerSequence}`;
+  private readonly keyLinkId = `that-key-${summaryTriggerSequence}`;
+  private readonly failureId = `that-fail-${summaryTriggerSequence}`;
   private stopTimerListening: (() => void) | undefined;
 
   connectedCallback(): void {
@@ -117,10 +126,10 @@ export class ThatTicketRow extends HTMLElement {
 
     const sumCell = document.createElement("td");
     sumCell.className = "c-sum";
-    sumCell.append(this.summarySpan());
+    sumCell.append(this.summarySpan(), this.summaryTooltip(url !== ""));
     const failure = this.getAttribute("error");
     if (failure !== null && failure !== "") {
-      sumCell.append(this.failureNote(failure));
+      sumCell.append(this.failureNote(failure), this.failureTooltip(failure));
     }
 
     const statusCell = document.createElement("td");
@@ -412,6 +421,11 @@ export class ThatTicketRow extends HTMLElement {
     }
 
     const link = document.createElement("a");
+    // The summary's tooltip follows this element's focus (#143) — only when
+    // it exists, which is why the plain-span branch above sets no id: a
+    // that-tooltip's focus-for is nothing to follow when there is nothing
+    // focusable to give it.
+    link.id = this.keyLinkId;
     link.href = url;
     link.target = "_blank";
     // Without noopener the opened page gets a window.opener handle back here.
@@ -457,6 +471,7 @@ export class ThatTicketRow extends HTMLElement {
    */
   private failureNote(message: string): HTMLElement {
     const note = document.createElement("span");
+    note.id = this.failureId;
     note.setAttribute("role", "status");
     note.className = "text-failed block truncate text-xs";
     note.textContent = message;
@@ -464,12 +479,47 @@ export class ThatTicketRow extends HTMLElement {
     return note;
   }
 
+  /**
+   * Hover-only (#143): no `focus-for`, deliberately. The key link's focus
+   * already opens the summary's own tooltip above this one, and a failed row
+   * showing both at once would stack them over each other — the owner may
+   * reverse this once a failed row is seen for real.
+   */
+  private failureTooltip(message: string): HTMLElement {
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", this.failureId);
+    tooltip.setAttribute("wrap", "");
+    tooltip.setAttribute("when-cut", "");
+    tooltip.textContent = message;
+
+    return tooltip;
+  }
+
   private summarySpan(): HTMLElement {
     const summary = document.createElement("span");
+    summary.id = this.summaryId;
     summary.className = "block truncate text-lg";
     summary.textContent = this.getAttribute("summary") ?? "";
 
     return summary;
+  }
+
+  /**
+   * that-tooltip's first cut-text consumer (#143): `for` gives back the
+   * summary's own hover, `focus-for` follows the key link so a keyboard user
+   * reaches it too — the row's own first Tab stop, so this adds none.
+   * `linked` is false for a row with no site URL, whose key is a plain span
+   * with nothing to focus.
+   */
+  private summaryTooltip(linked: boolean): HTMLElement {
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", this.summaryId);
+    if (linked) tooltip.setAttribute("focus-for", this.keyLinkId);
+    tooltip.setAttribute("wrap", "");
+    tooltip.setAttribute("when-cut", "");
+    tooltip.textContent = this.getAttribute("summary") ?? "";
+
+    return tooltip;
   }
 }
 

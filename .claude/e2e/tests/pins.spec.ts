@@ -104,7 +104,9 @@ test("pinned issues render above the assigned cards", async ({ page }) => {
 
   const card = page.getByRole("region", { name: "Pinned" });
   await expect(card.getByText("SHARED-12")).toBeVisible();
-  await expect(card.getByText("Weekly standup")).toBeVisible();
+  // .first(): #143 gave every summary a that-tooltip carrying the same text,
+  // so an unscoped match now finds two elements — the summary and its tooltip.
+  await expect(card.getByText("Weekly standup").first()).toBeVisible();
   // A pinned row names its instance by dot alone (accessible via role="img"),
   // not as visible row text — the restyle decision this branch shipped without.
   await expect(card.getByRole("img", { name: "Ridgeline" })).toBeVisible();
@@ -303,7 +305,8 @@ test("searching finds issues across instances and pinning one adds it to Pinned"
   await page.getByRole("button", { name: "Pin SHARED-40", exact: true }).click();
 
   const pinnedCard = page.getByRole("region", { name: "Pinned" });
-  await expect(pinnedCard.getByText("Vendor security review")).toBeVisible();
+  // .first(): see the same note above — the tooltip repeats this text too.
+  await expect(pinnedCard.getByText("Vendor security review").first()).toBeVisible();
 });
 
 test("unpinning removes the row without a reload", async ({ page }) => {
@@ -345,11 +348,12 @@ test("refresh updates the pinned card as well as the assigned one", async ({ pag
   await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
 
   await page.goto("/today");
-  await expect(page.getByText("Weekly standup")).toBeVisible();
+  // .first(): see the note above pinned issues render above the assigned cards.
+  await expect(page.getByText("Weekly standup").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Refresh" }).click();
 
-  await expect(page.getByText("Renamed standup")).toBeVisible();
+  await expect(page.getByText("Renamed standup").first()).toBeVisible();
 });
 
 // A test that only watches one request would pass against a button that
@@ -397,7 +401,7 @@ test("Refresh disables the button until both the pins and the assigned calls set
   });
 
   await page.goto("/today");
-  await expect(page.getByText("Weekly standup")).toBeVisible();
+  await expect(page.getByText("Weekly standup").first()).toBeVisible();
 
   const refresh = page.getByRole("button", { name: "Refresh" });
   await refresh.click();
@@ -411,7 +415,7 @@ test("Refresh disables the button until both the pins and the assigned calls set
 
   releasePins?.();
 
-  await expect(page.getByText("Renamed standup")).toBeVisible();
+  await expect(page.getByText("Renamed standup").first()).toBeVisible();
   await expect(refresh).toBeEnabled();
   expect(pinsRefreshCalls).toBe(1);
   // 2, not 1: one for the initial mount's independent fetch, one for Refresh's.
@@ -430,8 +434,9 @@ test("a pin whose refresh failed keeps its cached values", async ({ page }) => {
   await page.goto("/today");
   await page.getByRole("button", { name: "Refresh" }).click();
 
-  await expect(page.getByText("Weekly standup")).toBeVisible();
-  await expect(page.getByText("the Jira site could not be reached")).toBeVisible();
+  await expect(page.getByText("Weekly standup").first()).toBeVisible();
+  // .first(): #143 gave the failure note its own hover-only that-tooltip.
+  await expect(page.getByText("the Jira site could not be reached").first()).toBeVisible();
 });
 
 /**
@@ -512,9 +517,10 @@ test.describe("the ticket row's own pin control", () => {
 
     await page.getByRole("button", { name: "Pin RIDGE-5301", exact: true }).hover();
 
-    // Scoped to the row's card: Today's own Refresh carries a tooltip too, and
-    // an unscoped locator would match both.
-    const tooltip = page.locator("that-table that-tooltip");
+    // Scoped to the row's card and to the one actually shown: Today's own
+    // Refresh carries a tooltip too, and #143 gave the row's summary a
+    // hidden one of its own — an unscoped locator would match all three.
+    const tooltip = page.locator("that-table that-tooltip:visible");
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText("pin ticket");
   });
@@ -531,9 +537,9 @@ test.describe("the ticket row's own pin control", () => {
     await expect(unpinControl).toBeVisible();
 
     await unpinControl.hover();
-    // Scoped to the row's card: Today's own Refresh carries a tooltip too, and
-    // an unscoped locator would match both.
-    const tooltip = page.locator("that-table that-tooltip");
+    // Scoped to the row's card and to the one actually shown — see the note
+    // in the previous test.
+    const tooltip = page.locator("that-table that-tooltip:visible");
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText("unpin ticket");
   });
@@ -586,9 +592,9 @@ test.describe("the ticket row's own pin control", () => {
 
     await page.getByRole("button", { name: "Pin RIDGE-5301", exact: true }).hover();
 
-    // Scoped to the row's card: Today's own Refresh carries a tooltip too, and
-    // an unscoped locator would match both.
-    const tooltip = page.locator("that-table that-tooltip");
+    // Scoped to the row's card and to the one actually shown — see the note
+    // two tests up.
+    const tooltip = page.locator("that-table that-tooltip:visible");
     await expect(tooltip).toBeVisible();
 
     const card = page.locator("that-table");
@@ -757,7 +763,7 @@ test.describe("a failed pin reports beside its row", () => {
     await failPinRequests(page);
 
     await page.goto("/today");
-    await expect(offList(page).getByText("Vendor security review")).toBeVisible();
+    await expect(offList(page).getByText("Vendor security review").first()).toBeVisible();
     await page.getByRole("button", { name: "Pin SHARED-40", exact: true }).click();
 
     await expect(offList(page).locator("that-alert + that-table")).toHaveCount(1);

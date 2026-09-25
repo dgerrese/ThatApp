@@ -94,7 +94,9 @@ test("a that-tooltip that never upgrades stays invisible, not printed into the p
   });
 
   await page.reload();
-  await expect(page.getByText("Fix the thing")).toBeVisible();
+  // .first(): #143 gave the summary its own cut-text that-tooltip, which
+  // repeats this same text — un-upgraded, so it is the second match here too.
+  await expect(page.getByText("Fix the thing").first()).toBeVisible();
 
   // Proves the block actually worked — the element never upgraded — so the
   // assertions below are proving the CSS rule in styles.css, not a
