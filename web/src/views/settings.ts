@@ -156,6 +156,15 @@ function emptyNotice(): HTMLElement {
 // Keyed by the row element (not module-level) so it is collected with the row.
 const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
 
+// A second Edit on an instance whose save has not answered would open on
+// pre-save values and overwrite that save (#200).
+const savingIds = new Set<number>();
+
+function setRowEditDisabled(regions: Regions, instanceId: number, disabled: boolean): void {
+  const row = regions.listCard.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
+  row?.querySelector("[data-row-edit]")?.toggleAttribute("disabled", disabled);
+}
+
 function instanceRow(regions: Regions, instance: Instance): HTMLElement {
   const row = document.createElement("li");
   row.className = "py-3";
@@ -180,6 +189,7 @@ function instanceRow(regions: Regions, instance: Instance): HTMLElement {
   actions.className = "flex gap-2";
   const test = button("Test", "secondary");
   const edit = button("Edit", "secondary");
+  edit.dataset["rowEdit"] = "";
   const remove = button("Remove", "danger");
   actions.append(test, edit, remove);
 
@@ -237,6 +247,8 @@ function patchRow(row: HTMLElement, instance: Instance): void {
   } else {
     warning?.remove();
   }
+
+  row.querySelector("[data-row-edit]")?.toggleAttribute("disabled", savingIds.has(instance.id));
 }
 
 // A saved token is never echoed back by the API (Instance carries no token
@@ -358,6 +370,11 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     submit.setAttribute("disabled", "");
     status.replaceChildren();
 
+    if (editing) {
+      savingIds.add(editing.id);
+      setRowEditDisabled(regions, editing.id, true);
+    }
+
     const draft = {
       name: name.input.value,
       siteUrl: siteUrl.input.value,
@@ -366,7 +383,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     };
 
     try {
-      const saved = editing ? await updateInstance(editing.id, draft) : await createInstance(draft);
+      await (editing ? updateInstance(editing.id, draft) : createInstance(draft));
       await refresh(regions);
       if (editing) {
         clearRowStatus(regions, editing.id);
@@ -375,8 +392,6 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
       // form they opened on this same instance was filled from pre-save values.
       if (regions.formCard.contains(card)) {
         showForm(regions, undefined);
-      } else if (regions.formCard.querySelector(`[data-editing-id="${saved.id}"]`)) {
-        showForm(regions, saved);
       }
     } catch (error) {
       if (regions.formCard.contains(card)) {
@@ -387,6 +402,11 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
         regions.errorSlot.replaceChildren(
           alertFor("error", `Could not save ${label}: ${messageOf(error)}`),
         );
+      }
+    } finally {
+      if (editing) {
+        savingIds.delete(editing.id);
+        setRowEditDisabled(regions, editing.id, false);
       }
     }
   }

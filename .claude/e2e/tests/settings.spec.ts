@@ -619,23 +619,81 @@ test("a save failing with its form still shown reports in the form", async ({ pa
   await expect(page.getByRole("heading", { name: "Edit Work" })).toBeVisible();
 });
 
-test("an Edit form opened on the instance being saved shows the saved values", async ({ page }) => {
+// #200: a second Edit on an instance whose save has not answered would open
+// on pre-save values and overwrite that save, so Edit is disabled until its
+// own save answers — for that row only.
+test("while a save is held, that row's Edit is disabled and other rows' are not", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+  await addSecondInstance(page);
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  const work = page.locator("li[data-instance-id]", { hasText: "Work" });
+  const personal = page.locator("li[data-instance-id]", { hasText: "Personal" });
+  await work.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  await expect(work.getByRole("button", { name: "Edit" })).toBeDisabled();
+  await expect(personal.getByRole("button", { name: "Edit" })).toBeEnabled();
+  held.release();
+});
+
+test("when the held save succeeds, Edit is enabled again and opens on the saved values", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
   await page.goto("/settings");
   await addInstance(page);
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
   const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  const row = page.locator("li[data-instance-id]", { hasText: "Work" });
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Name").fill("Work Renamed");
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
-  await page.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByLabel("Name")).toHaveValue("Work");
-
+  await expect(row.getByRole("button", { name: "Edit" })).toBeDisabled();
   held.release();
+
+  await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
+  await row.getByRole("button", { name: "Edit" }).click();
 
   await expect(page.getByRole("heading", { name: "Edit Work Renamed" })).toBeVisible();
   await expect(page.getByLabel("Name")).toHaveValue("Work Renamed");
+});
+
+test("when the held save fails, Edit is enabled again and the failure reports where #161 put it", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await page.goto("/settings");
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const row = page.locator("li[data-instance-id]", { hasText: "Work" });
+
+  const heldShown = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await heldShown.arrived;
+
+  heldShown.release(saveFailure);
+
+  await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
+  await expect(page.locator("form").getByText("could not save the instance", { exact: true })).toBeVisible();
+
+  // A second case: the form is replaced (Add instead) while the save is held.
+  const heldReplaced = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await row.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name").fill("Work Renamed Again");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await heldReplaced.arrived;
+
+  await page.getByRole("button", { name: "Cancel changes" }).click();
+  heldReplaced.release(saveFailure);
+
+  await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
+  await expect(page.getByText("Could not save Work: could not save the instance")).toBeVisible();
 });
