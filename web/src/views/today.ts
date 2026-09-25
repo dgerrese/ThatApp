@@ -802,7 +802,7 @@ async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
   try {
     await createPin(ticket.instanceId, ticket.issueKey);
   } catch (error) {
-    undoOptimisticMark(regions, error);
+    undoOptimisticMark(regions, ticket, error);
 
     return;
   }
@@ -833,7 +833,7 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
   try {
     await deletePin(pin.id);
   } catch (error) {
-    undoOptimisticMark(regions, error);
+    undoOptimisticMark(regions, ticket, error);
 
     return;
   }
@@ -844,10 +844,13 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
 /**
  * Redraws both lists from what the server last said, so a row whose pin
  * control flipped optimistically stops claiming a change that never happened,
- * and names the failure above them. The alert is prepended after the redraw
- * because the redraw is what would otherwise wipe it.
+ * then names the failure above the table holding the ticket's row. The redraw
+ * is server truth, so that is wherever the failed action left the row. A
+ * ticket with no row on the page (a pin pressed in the search panel) reports
+ * in Pinned. The alert goes in after the redraw because the redraw is what
+ * would otherwise wipe it.
  */
-function undoOptimisticMark(regions: Regions, error: unknown): void {
+function undoOptimisticMark(regions: Regions, ticket: EntryTicket, error: unknown): void {
   renderPinnedList(regions, regions.pins);
   if (regions.lastIssues) {
     renderResponse(regions, regions.lastIssues);
@@ -857,7 +860,30 @@ function undoOptimisticMark(regions: Regions, error: unknown): void {
     // before the assigned response has ever arrived.
     renderOffListSection(regions);
   }
-  regions.pinnedList.prepend(alertFor("error", messageOf(error)));
+
+  const alert = alertFor("error", messageOf(error));
+  const table = ticketRowOf(regions, ticket)?.closest("that-table");
+  if (table) {
+    table.before(alert);
+  } else {
+    regions.pinnedList.prepend(alert);
+  }
+}
+
+/** The ticket's row in Pinned, the off-list section or an instance card. The
+ *  search panel's results are not that-ticket-rows and live outside both
+ *  regions, so they never match. */
+function ticketRowOf(regions: Regions, ticket: EntryTicket): Element | undefined {
+  const rows = [
+    ...regions.layoutGrid.querySelectorAll("that-ticket-row"),
+    ...regions.results.querySelectorAll("that-ticket-row"),
+  ];
+
+  return rows.find(
+    (row) =>
+      row.getAttribute("instance-id") === String(ticket.instanceId) &&
+      row.getAttribute("key") === ticket.issueKey,
+  );
 }
 
 /** The pinned (instanceId, key) pairs, keyed the same way offListIssues'
