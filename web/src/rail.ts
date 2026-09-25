@@ -101,10 +101,9 @@ export function startRail(): void {
   let pending: Entry[] = [];
   let pushing = false;
 
-  // What paint() last painted, and what paintFigures() last drew from it plus
-  // the running timer — the two DOM writes paintFigures guards separately
-  // (decision: total.textContent only on change, split only on a slice-shape
-  // change), so a 1-second tick that moves neither leaves both untouched.
+  // What paint() last painted (lastEntries), and the signature paintFigures()
+  // last drew the split from (lastSplitSignature) — each guards its own DOM
+  // write, so a 1-second tick that moves neither leaves both untouched.
   let lastEntries: Entry[] = [];
   let lastSplitSignature: string | undefined;
 
@@ -147,23 +146,18 @@ export function startRail(): void {
   };
 
   /**
-   * The total and the split, from `lastEntries` plus — on Today alone — the
-   * running timer's elapsed time. Also the tick handler: onTimerChanged fires
-   * every second a timer runs, so both DOM writes below are guarded to fire
-   * only when what they show actually changed, which in practice is once a
-   * minute (#204's constraint on rebuild frequency).
-   *
-   * `pending`/unpushed/push stay out of this on purpose — see Task 2's
-   * global constraint that a run must not move the push count or its total.
-   *
-   * Guarded on `painted`: setRailPeriod flips `currentPeriod` synchronously,
-   * inside the destination view's own mount, but `lastEntries` only catches up
-   * once that period's own read lands in paint() — an async gap a real
-   * 1-second tick can land inside. Without this guard a tick in that gap
+   * Also the timer tick handler (onTimerChanged fires every second one runs),
+   * so it is guarded on `painted`: setRailPeriod flips `currentPeriod`
+   * synchronously, inside the destination view's own mount, but `lastEntries`
+   * only catches up once that period's own read lands in paint() — an async
+   * gap a real tick can land inside. Without this guard a tick in that gap
    * combines the old period's stale `lastEntries` with the new period's
    * TODAY_PERIOD-ness (or lack of it): Today's entries suddenly lose their
    * elapsed time, or Week's stale entries suddenly gain the timer's. `paint()`
    * sets `painted` back to true; `applyPeriod` is what dropped it.
+   *
+   * `pending`/unpushed/push are computed only in paint(), from entries alone:
+   * a run must never move the push count or its total.
    */
   const paintFigures = (): void => {
     if (!painted) return;
@@ -176,11 +170,12 @@ export function startRail(): void {
       if (running) {
         const elapsed = elapsedSeconds();
         seconds += elapsed;
-        const slice = slices.find((candidate) => candidate.position === running.instancePosition);
+        const slice = slices.find((candidate) => candidate.instanceId === running.instanceId);
         if (slice) {
           slice.seconds += elapsed;
         } else {
           slices.push({
+            instanceId: running.instanceId,
             name: running.instanceName,
             position: running.instancePosition,
             seconds: elapsed,
@@ -193,8 +188,15 @@ export function startRail(): void {
     const totalText = totalFigure(seconds);
     if (total.textContent !== totalText) total.textContent = totalText;
 
+    // Name and instanceId matter here, not just position and the figure: a
+    // renamed instance (same position, same seconds) must redraw the split at
+    // once rather than wait for a figure to cross a minute — the only other
+    // thing that would otherwise change this string.
     const signature = slices
-      .map((slice) => `${String(slice.position)}:${totalFigure(slice.seconds)}`)
+      .map(
+        (slice) =>
+          `${String(slice.instanceId)}:${String(slice.position)}:${slice.name}:${totalFigure(slice.seconds)}`,
+      )
       .join("|");
     if (signature !== lastSplitSignature) {
       lastSplitSignature = signature;
@@ -499,6 +501,7 @@ export function startRail(): void {
 
 /** One instance's share of the day. */
 interface Slice {
+  instanceId: number;
   name: string;
   position: number;
   seconds: number;
@@ -519,6 +522,7 @@ function sliceByInstance(entries: Entry[]): Slice[] {
       continue;
     }
     slices.set(entry.instanceId, {
+      instanceId: entry.instanceId,
       name: entry.instanceName,
       position: entry.instancePosition,
       seconds: entry.seconds,

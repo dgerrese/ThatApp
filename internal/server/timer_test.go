@@ -413,6 +413,44 @@ func TestTimerReportsTheRunningInstancesNameAndPosition(t *testing.T) {
 	}
 }
 
+// TestRunningTimerDTOReportsNothingForAMissingInstance pins the fix for the
+// race handleGetTimer's two separate store reads leave open: a delete landing
+// between reading the timer and reading the instance index must not hand back
+// a DTO with its instance blanked to the zero value a missing map key would
+// otherwise silently give — nothing running is the truth the store's own
+// cascade makes real a moment later, so that is what this reports instead.
+func TestRunningTimerDTOReportsNothingForAMissingInstance(t *testing.T) {
+	srv, _, inst := serverInZone(t, "Europe/Amsterdam", time.Date(2026, 8, 21, 12, 5, 0, 0, time.UTC))
+	running := &store.Timer{
+		InstanceID: inst.ID, IssueKey: "RIDGE-1",
+		StartedAt: time.Date(2026, 8, 21, 9, 0, 0, 0, time.UTC),
+	}
+	found := map[int64]store.Instance{inst.ID: *inst}
+	positions := map[int64]int{inst.ID: 0}
+
+	tests := map[string]struct {
+		running   *store.Timer
+		instances map[int64]store.Instance
+		wantNil   bool
+	}{
+		"nothing running":  {running: nil, instances: found, wantNil: true},
+		"instance found":   {running: running, instances: found, wantNil: false},
+		"instance missing": {running: running, instances: map[int64]store.Instance{}, wantNil: true},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := srv.runningTimerDTO(tc.running, tc.instances, positions)
+			if tc.wantNil && got != nil {
+				t.Errorf("runningTimerDTO() = %+v, want nil", got)
+			}
+			if !tc.wantNil && got == nil {
+				t.Errorf("runningTimerDTO() = nil, want a DTO for instance %d", tc.running.InstanceID)
+			}
+		})
+	}
+}
+
 // TestGetTimerClosesAnOvernightTimer pins decision 6: a read that finds a
 // timer whose start day has passed closes it at its start day's local
 // midnight and reports the entry it earned as "stopped", with nothing running.

@@ -626,6 +626,40 @@ test("the rail total and the running instance's split figure add the timer's ela
   await expect(page.locator("#rail-split")).toContainText("2h 00m");
 });
 
+/**
+ * Settings borrows Today's period (setRailPeriod's reference-equality guard,
+ * TODAY_PERIOD) rather than getting one of its own, so the elapsed time the
+ * spec asks Today's rail to carry must still show there too.
+ */
+test("the rail total includes the running timer's elapsed time on Settings too", async ({ page }) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - (59 * 60 + 50) * 1000).toISOString(),
+    },
+  );
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-total")).toHaveText("1h 59m");
+
+  await page.getByRole("link", { name: "Settings" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.locator("#rail-total")).toHaveText("1h 59m");
+
+  await page.clock.runFor(10_000);
+  await expect(page.locator("#rail-total")).toHaveText("2h 00m");
+});
+
 test("the split's figures node keeps its identity across ticks within the same minute", async ({
   page,
 }) => {
@@ -1012,9 +1046,14 @@ test("a stop settles the instance tally on logged time plus the rounded entry", 
 
   const tally = page.locator("[data-instance-tally]").first();
   await expect(tally).toHaveText("1 issue · 1h 05m");
+  // The criterion covers the rail too: it reads the same settled value.
+  await expect(page.locator("#rail-total")).toHaveText("1h 05m");
+  await expect(page.locator("#rail-split")).toContainText("1h 05m");
 
   await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Log 0:15" }).click();
 
   await expect(tally).toHaveText("1 issue · 1h 15m");
+  await expect(page.locator("#rail-total")).toHaveText("1h 15m");
+  await expect(page.locator("#rail-split")).toContainText("1h 15m");
 });

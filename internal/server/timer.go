@@ -39,6 +39,28 @@ func (s *Server) timerDTOFrom(timer store.Timer, inst store.Instance, position i
 	}
 }
 
+// runningTimerDTO builds the DTO for a running timer, or nil when its
+// instance cannot be found in a since-read instance index. handleGetTimer
+// reads the timer and the instance index as two separate store calls, so a
+// delete landing between them is a real (if narrow) race — and the store
+// cascades a timer away with its instance, so nil here is what the truth
+// catches up to a moment later, not a DTO with its name and position blanked
+// out to the zero value a missing map key would otherwise silently hand back.
+func (s *Server) runningTimerDTO(
+	running *store.Timer, instances map[int64]store.Instance, positions map[int64]int,
+) *timerDTO {
+	if running == nil {
+		return nil
+	}
+	inst, found := instances[running.InstanceID]
+	if !found {
+		return nil
+	}
+	dto := s.timerDTOFrom(*running, inst, positions[running.InstanceID])
+
+	return &dto
+}
+
 // timerStateResponse is what GET /api/timer answers with: the timer now
 // running, if any, and the entry a midnight close just created, if any.
 type timerStateResponse struct {
@@ -77,10 +99,7 @@ func (s *Server) handleGetTimer(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		if running != nil {
-			dto := s.timerDTOFrom(*running, instances[running.InstanceID], positions[running.InstanceID])
-			resp.Running = &dto
-		}
+		resp.Running = s.runningTimerDTO(running, instances, positions)
 		if closed != nil {
 			dto := s.entryDTOFrom(*closed, instances[closed.InstanceID], positions[closed.InstanceID])
 			resp.Stopped = &dto
