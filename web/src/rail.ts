@@ -570,6 +570,7 @@ function runningTimerLine(
   const keyId = `that-rail-key-${String(++railCutTextSequence)}`;
   const key = document.createElement("span");
   key.id = keyId;
+  key.tabIndex = 0;
   key.className = "text-rail-ink text-base min-w-0 flex-1 truncate";
   key.textContent = running.issueKey;
 
@@ -588,8 +589,17 @@ function runningTimerLine(
   stop.setAttribute("aria-label", "stop timer");
   stop.addEventListener("click", onStop);
 
+  const stopTooltip = document.createElement("that-tooltip");
+  stopTooltip.setAttribute("for", stopId);
+  stopTooltip.setAttribute("anchor", "end");
+  stopTooltip.textContent = "stop timer";
+
   return {
-    nodes: [dot, key, elapsed, stop, cutTextTooltip(keyId, running.issueKey, stopId)],
+    // No `focus-for` on the key's own tooltip (#143 task 9): that-tooltip
+    // already opens on its `for` element's own focus, now that the key
+    // itself is focusable, and the stop button gets its own tooltip below
+    // rather than sharing the key's.
+    nodes: [dot, key, elapsed, stop, cutTextTooltip(keyId, running.issueKey), stopTooltip],
     elapsed,
   };
 }

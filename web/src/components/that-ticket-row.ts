@@ -21,7 +21,7 @@ export const UNPIN = "that-unpin";
 let pinTriggerSequence = 0;
 
 /** Same reasoning as pinTriggerSequence, for the summary's own cut-text
- *  tooltip and the key link its focus-for follows (#143). */
+ *  tooltip and the key link's own "open in Jira" one (#143). */
 let summaryTriggerSequence = 0;
 
 /**
@@ -500,9 +500,13 @@ export class ThatTicketRow extends HTMLElement {
     return cutTextTooltip(this.failureId, message);
   }
 
+  /** Focusable (#143 task 9, owner): its own tab stop rather than borrowing
+   *  the key link's, so its tooltip can open on its own focus instead of a
+   *  neighbour's. */
   private summarySpan(): HTMLElement {
     const summary = document.createElement("span");
     summary.id = this.summaryId;
+    summary.tabIndex = 0;
     summary.className = "block truncate text-lg";
     summary.textContent = this.getAttribute("summary") ?? "";
 
@@ -511,13 +515,10 @@ export class ThatTicketRow extends HTMLElement {
 
   /**
    * that-tooltip's first cut-text consumer (#143): `for` gives back the
-   * summary's own hover. No `focus-for` (owner, 2026-09-25): it used to
-   * follow the key link so a keyboard user reached it too, but that meant
-   * focusing the key opened both this tooltip and the key's own "open in
-   * Jira" one (keyTooltip above) at once, and below ~900px the summary's own
-   * tooltip covered the key's. The search panel's copy of this pairing
-   * (that-issue-search.ts's own summaryTooltip) keeps `focus-for` and
-   * `below`, unchanged — it does not collide the same way.
+   * summary's own hover and, since task 9, its own focus too — no
+   * `focus-for`, because the summary is its own tab stop now rather than
+   * borrowing the key link's, so a key focus opens only the key's own "open
+   * in Jira" tooltip (keyTooltip above), never this one.
    */
   private summaryTooltip(): HTMLElement {
     return cutTextTooltip(this.summaryId, this.getAttribute("summary") ?? "");

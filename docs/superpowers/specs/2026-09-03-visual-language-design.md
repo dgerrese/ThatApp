@@ -449,11 +449,12 @@ top edge, so a trigger near the top of the content column has nowhere to open up
 
 **A text cut by an ellipsis gives its full wording back in the same tooltip** (#143), in a wrapping
 variant about 340px wide, shown only when the text is actually cut — never for a summary or a key
-that already fits. It opens on hover of the cut text itself and on focus of its row's existing
-focusable element (the key link, where the row has one), adding no new stop to the tab order. Like
-every other tooltip here, it is never the accessible name. **Exception: on Today's own rows the cut
-summary's tooltip opens on hover only** — key focus opens only the key's own tooltip below, not this
-one (owner, 2026-09-25). The search panel's identical pairing is unaffected.
+that already fits. **The cut text itself is focusable and opens its tooltip on its own focus; a key
+or control's focus opens only that control's own tooltip, never a neighbour's** (owner, 2026-09-25).
+This replaced the earlier rule, where a cut summary borrowed a neighbouring key link's focus instead
+of taking its own — a shape that broke the moment a row carried more than one cut text, since one
+focus then had to open two tooltips at once. Like every other tooltip here, it is never the
+accessible name.
 
 **A key that links to Jira carries a tooltip reading "open in Jira"** (#143), replacing the native
 title, centred like any other non-trailing control — owner, 2026-09-25.

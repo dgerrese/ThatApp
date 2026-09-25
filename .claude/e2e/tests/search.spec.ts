@@ -313,9 +313,8 @@ test.describe("that-issue-search on Today", () => {
     await expect(key).not.toHaveAttribute("title");
 
     // hasText, not :popover-open: the row's own summary carries a cut-text
-    // tooltip too (#143), and focusing the key link opens that one as well
-    // when the summary is cut — this scopes to the key's own tooltip by its
-    // fixed text regardless.
+    // tooltip too (#143) — hidden here regardless, since task 9 dropped
+    // `focus-for` and a key focus no longer opens a neighbour's tooltip.
     const tooltip = page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" });
 
     await key.hover();
@@ -920,6 +919,37 @@ test.describe("that-issue-search on Today", () => {
 
     await expect(keyLink).toBeFocused();
   });
+
+  // Task 9 (#143): the summary joined data-control-index too, so it must
+  // survive a repaint the same way the key link above does — proof that
+  // captureFocus/restoreFocus generalise to it rather than needing their own
+  // case, since a pin action elsewhere on the page (a background Refresh,
+  // another row's own pin) reaches this component's repaint() regardless of
+  // which row's summary a keyboard user was reading.
+  test("pinning from a row whose summary had focus restores focus to that summary", async ({
+    page,
+  }) => {
+    await stubSearch(page, [ridge5140]);
+    await stubPins(page, []);
+
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+
+    const summary = resultRow(page, "RIDGE-5140")
+      .getByText(ridge5140.summary, { exact: true })
+      .first();
+    await summary.focus();
+    await expect(summary).toBeFocused();
+
+    await page.evaluate(() => {
+      const search = document.querySelector("that-issue-search") as unknown as {
+        repaint: () => void;
+      };
+      search.repaint();
+    });
+
+    await expect(summary).toBeFocused();
+  });
 });
 
 // Task 10, added 2026-09-16 after the plan and the fix wave: the panel grew
@@ -1232,9 +1262,13 @@ test.describe("the search results row stacks key over summary (#143)", () => {
 });
 
 // #143: the summary's own cut-text tooltip, the same contract that-ticket-row
-// already gives its summary — on hover of the text and on focus of the row's
-// key link, never as the accessible name. Proved on both hosts of
+// already gives its summary — on hover of the text and on the summary's own
+// focus, never as the accessible name. Proved on both hosts of
 // that-issue-search, since neither owns the tooltip wiring itself.
+//
+// Task 9 (owner, 2026-09-25): the summary is its own tab stop now, and its
+// tooltip dropped `focus-for` — a key focus opens only the key's own "open in
+// Jira" tooltip, never the summary's.
 test.describe("a cut summary in the search panel comes back in a tooltip (#143)", () => {
   const longSummary =
     "Reconcile the capacity forecast against every team's actual booked hours, including " +
@@ -1247,7 +1281,7 @@ test.describe("a cut summary in the search panel comes back in a tooltip (#143)"
   }
 
   for (const path of ["/today", "/week"] as const) {
-    test(`shows the full text on key focus and on hover of the text, on ${path}`, async ({
+    test(`shows the full text on its own focus and on hover, hidden on key focus, on ${path}`, async ({
       page,
     }) => {
       const longHit = hit(1, "Ridgeline", 0, "RIDGE-9100", longSummary);
@@ -1291,9 +1325,13 @@ test.describe("a cut summary in the search panel comes back in a tooltip (#143)"
 
       const row = resultRow(page, "RIDGE-9100");
       const keyLink = row.getByRole("link", { name: "RIDGE-9100" });
+      const summary = row.getByText(longSummary, { exact: true }).first();
       const tooltip = page.locator("that-issue-search that-tooltip", { hasText: longSummary });
 
       await keyLink.focus();
+      await expect(tooltip).toBeHidden();
+
+      await summary.focus();
       await expect(tooltip).toBeVisible();
 
       // Back to the field rather than a bare blur: this component closes the
@@ -1304,7 +1342,7 @@ test.describe("a cut summary in the search panel comes back in a tooltip (#143)"
       await field.focus();
       await expect(tooltip).toBeHidden();
 
-      await row.getByText(longSummary, { exact: true }).first().hover();
+      await summary.hover();
       await expect(tooltip).toBeVisible();
     });
   }
@@ -1313,6 +1351,9 @@ test.describe("a cut summary in the search panel comes back in a tooltip (#143)"
   // above-opening covering the key link that keyboard focus had just moved
   // to — the row stacks the key directly above the summary (#143's own
   // refinement). `below` is the search panel's opt-in for this row shape.
+  //
+  // Task 9: reaching the summary is now a second ArrowRight, not the key's
+  // own focus — the key's focus no longer opens this tooltip at all.
   test("the summary tooltip opens below the summary, clear of the focused key link", async ({
     page,
   }) => {
@@ -1327,14 +1368,18 @@ test.describe("a cut summary in the search panel comes back in a tooltip (#143)"
     const row = resultRow(page, "RIDGE-9200");
     await expect(row).toBeVisible();
 
+    const tooltip = page.locator("that-issue-search that-tooltip", { hasText: longSummary });
+
     await searchField(page).press("ArrowDown");
     const keyLink = row.getByRole("link", { name: "RIDGE-9200" });
     await expect(keyLink).toBeFocused();
+    await expect(tooltip).toBeHidden();
 
-    const tooltip = page.locator("that-issue-search that-tooltip", { hasText: longSummary });
+    await page.keyboard.press("ArrowRight");
+    const summary = row.getByText(longSummary, { exact: true }).first();
+    await expect(summary).toBeFocused();
     await expect(tooltip).toBeVisible();
 
-    const summary = row.getByText(longSummary, { exact: true }).first();
     const tooltipBox = await tooltip.boundingBox();
     const keyBox = await keyLink.boundingBox();
     const summaryBox = await summary.boundingBox();
@@ -1384,7 +1429,10 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
     ).toBeFocused();
   });
 
-  test("down again moves to the second row's key link, and right then moves to its Log control", async ({
+  // Task 9 (#143): the summary joined the arrow-key order between the key and
+  // the host's own controls, so reaching the Log control now takes a second
+  // ArrowRight.
+  test("down again moves to the second row's key link, right moves to its summary, then right again to its Log control", async ({
     page,
   }) => {
     await stubSearch(page, [rowA, rowB, rowC]);
@@ -1397,6 +1445,11 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
     await page.keyboard.press("ArrowDown");
     await expect(
       resultRow(page, "RIDGE-6002").getByRole("link", { name: "RIDGE-6002" }),
+    ).toBeFocused();
+
+    await page.keyboard.press("ArrowRight");
+    await expect(
+      resultRow(page, "RIDGE-6002").getByText(rowB.summary, { exact: true }).first(),
     ).toBeFocused();
 
     await page.keyboard.press("ArrowRight");
@@ -1572,9 +1625,9 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
       }),
     );
     // No url: keyLabel draws a plain, unfocusable span for the key, so
-    // column 0 is the add-to-week button rather than a link — proving the
-    // rule reads "the row's first focusable element", not the key link every
-    // other case above happens to have there.
+    // column 0 is the summary now (#143 task 9) rather than a link — proving
+    // the rule reads "the row's first focusable element", not the key link
+    // every other case above happens to have there.
     const noUrlHit = { ...rowA, url: "" };
     await stubSearch(page, [noUrlHit]);
     await page.goto("/week");
@@ -1584,6 +1637,10 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
     await expect(page.getByText("RIDGE-6001")).toBeVisible();
 
     await field.press("ArrowDown");
+    const summary = page.getByText(noUrlHit.summary, { exact: true }).first();
+    await expect(summary).toBeFocused();
+
+    await page.keyboard.press("ArrowRight");
     await expect(
       page.getByRole("button", { name: "Add RIDGE-6001 to this week", exact: true }),
     ).toBeFocused();

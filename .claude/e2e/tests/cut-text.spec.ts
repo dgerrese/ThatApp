@@ -115,13 +115,35 @@ test("at 900px, focusing a cut-summary row's key shows exactly one tooltip: open
   await expect(visible).toHaveText("open in Jira");
 });
 
+// Task 9 (#143): the summary is its own tab stop now, reached by tabbing off
+// the key link, and opens only its own tooltip — never the key's "open in
+// Jira" one, which the test above already proves the reverse of.
+test("tabbing from a Today row's key link reaches the cut summary and shows its own tooltip only", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [issue("WORK-1", longSummary)])]);
+  await page.goto("/today");
+  await page.getByRole("link", { name: "WORK-1" }).focus();
+  await page.keyboard.press("Tab");
+  const summary = page.getByText(longSummary, { exact: true }).first();
+  await expect(summary).toBeFocused();
+  await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeVisible();
+  await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeHidden();
+});
+
 test("a Today summary that is not cut shows no tooltip on hover or focus", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [issue("WORK-2", "Short one")])]);
   await page.goto("/today");
   // .first(): the tooltip carries the same text too, even while hidden.
-  await page.getByText("Short one", { exact: true }).first().hover();
+  const summary = page.getByText("Short one", { exact: true }).first();
+  await summary.hover();
   await expect(page.locator("that-tooltip", { hasText: "Short one" })).toBeHidden();
   await page.getByRole("link", { name: "WORK-2" }).focus();
+  await expect(page.locator("that-tooltip", { hasText: "Short one" })).toBeHidden();
+  // The summary is focusable regardless of whether it is cut (#143 task 9);
+  // `when-cut` is what keeps its tooltip from opening here, not its absence
+  // from the tab order.
+  await summary.focus();
   await expect(page.locator("that-tooltip", { hasText: "Short one" })).toBeHidden();
 });
 
@@ -197,7 +219,12 @@ test("a cut rail instance name shows its full text on hover", async ({ page }) =
 // once the dot, the elapsed figure and the stop button take their share):
 // even a realistic Jira key like this one already overflows it, so this is
 // not a hypothetical case worth skipping.
-test("a cut rail running key shows its full text when the stop button is focused", async ({
+//
+// Task 9 (#143), folding in #235: the key span is its own tab stop now
+// (`focus-for` dropped from its tooltip), and the stop button carries its
+// own "stop timer" tooltip rather than sharing the key's — so each control's
+// focus opens only its own tooltip, never a neighbour's.
+test("the rail's running key and stop button each open only their own tooltip on focus", async ({
   page,
 }) => {
   await stubIssues(page, [group(1, "Work", [])]);
@@ -216,8 +243,16 @@ test("a cut rail running key shows its full text when the stop button is focused
     }),
   );
   await page.goto("/today");
-  await page.locator("#rail-timer").getByRole("button", { name: "stop timer" }).focus();
+
+  const railTimer = page.locator("#rail-timer");
+  // .first(): the key's own tooltip carries the same text too, hidden.
+  await railTimer.getByText("RIDGELINE-4929", { exact: true }).first().focus();
   await expect(page.locator("that-tooltip", { hasText: "RIDGELINE-4929" })).toBeVisible();
+  await expect(page.locator("that-tooltip", { hasText: "stop timer" })).toBeHidden();
+
+  await railTimer.getByRole("button", { name: "stop timer" }).focus();
+  await expect(page.locator("that-tooltip", { hasText: "stop timer" })).toBeVisible();
+  await expect(page.locator("that-tooltip", { hasText: "RIDGELINE-4929" })).toBeHidden();
 });
 
 function openDialog(page: Page): Promise<void> {

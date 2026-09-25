@@ -44,8 +44,11 @@ export class ThatTooltip extends HTMLElement {
     trigger.addEventListener("focus", this.onShow);
     trigger.addEventListener("blur", this.onHide);
 
-    // Cut text is not focusable itself; its row's key link is, and it is
-    // already the row's first Tab stop, so no new Tab stop is added (#143).
+    // A second focus target, for a tooltip whose own trigger is not
+    // focusable but sits beside something that is (#143) — the entry
+    // dialog's comment tooltip follows its row's edit button this way.
+    // Cut text used to lean on this for a key link's focus before task 9
+    // made every cut text a tab stop in its own right.
     const focusId = this.getAttribute("focus-for");
     const focusTrigger = focusId ? document.getElementById(focusId) : null;
     if (focusTrigger) {

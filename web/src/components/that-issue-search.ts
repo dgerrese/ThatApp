@@ -85,8 +85,8 @@ function hitKey(hit: IssueHit): string {
 let iconControlSequence = 0;
 
 /** One id per row's key link and summary, so the summary's own cut-text
- *  tooltip (#143) can `for`/`focus-for` resolve them on a page holding many
- *  rows — the same reasoning iconControlSequence gives, and the same shape
+ *  tooltip (#143) can `for` resolve them on a page holding many rows — the
+ *  same reasoning iconControlSequence gives, and the same shape
  *  that-ticket-row's own summaryTriggerSequence uses for the identical
  *  pairing. */
 let resultTextSequence = 0;
@@ -633,7 +633,7 @@ export class ThatIssueSearch extends HTMLElement {
     text.className = "flex min-w-0 flex-1 flex-col";
     const key = this.keyLabel(hit, textId);
     const summary = this.summaryLabel(hit, textId);
-    text.append(key, summary, this.summaryTooltip(hit, summary, key));
+    text.append(key, summary, this.summaryTooltip(hit, summary));
     const keyTooltip = this.keyTooltip(key);
     if (keyTooltip) text.append(keyTooltip);
     row.append(text);
@@ -696,9 +696,20 @@ export class ThatIssueSearch extends HTMLElement {
     return tooltip;
   }
 
+  /**
+   * Focusable and joins the arrow-key order (#143 task 9, owner): a plain
+   * `data-control-index="summary"` between the key's own `"key"` sentinel and
+   * `config.controls`' numeric indices, in DOM order — the same generic
+   * mechanism `moveFocus`, `captureFocus` and `restoreFocus` already give
+   * every other focusable thing in a row, so none of the three needed to
+   * learn a new case for it. A no-URL hit's key is an unfocusable plain span
+   * (see keyLabel), so the summary is that row's first control instead.
+   */
   private summaryLabel(hit: IssueHit, textId: number): HTMLElement {
     const summary = document.createElement("span");
     summary.id = `that-search-summary-${String(textId)}`;
+    summary.tabIndex = 0;
+    summary.dataset.controlIndex = "summary";
     summary.className = "truncate text-base";
     summary.textContent = hit.summary;
 
@@ -707,17 +718,16 @@ export class ThatIssueSearch extends HTMLElement {
 
   /**
    * The summary's own cut-text tooltip (#143): `for` gives back the
-   * summary's hover, `focus-for` follows the key link so a keyboard user
-   * reaches it too — the same contract that-ticket-row's own summaryTooltip
-   * gives, and its first consumer outside that component. `focus-for` is
-   * omitted when the key carries no link (no site to open), the same
-   * condition that-ticket-row's `linked` flag guards. `below`: task 7's own
-   * fix — the row stacks the key directly above the summary, so the
-   * tooltip's default above-opening would cover the key link the
-   * `focus-for` pairing just moved focus to.
+   * summary's hover and, since task 9, its own focus too — no `focus-for`,
+   * because the summary is its own tab stop now rather than borrowing the
+   * key link's, so a key focus opens only the key's own "open in Jira"
+   * tooltip, never this one — the same contract that-ticket-row's own
+   * summaryTooltip gives. `below`: task 7's own fix, unchanged by task 9 —
+   * the row stacks the key directly above the summary, so the tooltip's
+   * default above-opening would still cover the key.
    */
-  private summaryTooltip(hit: IssueHit, summary: HTMLElement, key: HTMLElement): HTMLElement {
-    return cutTextTooltip(summary.id, hit.summary, key.id, true);
+  private summaryTooltip(hit: IssueHit, summary: HTMLElement): HTMLElement {
+    return cutTextTooltip(summary.id, hit.summary, undefined, true);
   }
 
   /** An icon control — pin, and later Week's own return-into-week mark —
