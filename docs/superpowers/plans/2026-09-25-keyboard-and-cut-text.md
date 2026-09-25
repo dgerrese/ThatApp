@@ -565,3 +565,53 @@ or a throwaway spec that logs `document.activeElement` per Tab press). For each 
 Not dispatched. After the whole-branch review: capture the stacked search panel and a summary tooltip
 shown by keyboard focus, each in dark and light, attach with `.claude/tools/pr-attach.sh`, paste the
 audit, file the slow-path intake tickets, and open the pull request with `Closes #143`.
+
+---
+
+## Additions asked for by the owner on 2026-09-25, while reviewing PR #229
+
+### Task 8: the timer control and the key links carry the app's tooltip
+
+**Files:**
+- Modify: `web/src/components/that-timer.ts` (`connectedCallback`/`paint`)
+- Modify: `web/src/components/that-ticket-row.ts` (`keyLabel`), `web/src/components/that-issue-search.ts`
+  (`keyLabel`), `web/src/week-grid.ts` (the key link near line 95)
+- Modify: `docs/superpowers/prototypes/2026-09-03-app-prototype.html` (key links `.c-key a`, `.grid .kk`,
+  `.rrow .rk`), `docs/superpowers/specs/2026-09-03-visual-language-design.md` (Decision 7)
+- Test: `.claude/e2e/tests/tooltip.spec.ts` or a view spec, and every spec that finds a key by its
+  `title` (`grep -rn "getByTitle\|Open .* in Jira" .claude/e2e/tests`)
+
+**Timer.** The prototype already draws it: every row timer control carries `<span class="tip end">start
+timer</span>`, or `stop timer` while it runs. `that-timer` gains a `that-tooltip` with `for` = its
+button's id (a module-level sequence, as `pinTriggerSequence` in that-ticket-row.ts), `anchor="end"`,
+and text "start timer" / "stop timer", set in `paint()` next to the `aria-label`. The tooltip's own
+MutationObserver already repositions it when its text changes while open. Follow the pin control's
+button-plus-tooltip pattern in that-ticket-row.ts (`appendPinControl`).
+
+**Key links.** A key that is an `<a>` loses its `title` attribute and gains a `that-tooltip` reading
+**"open in Jira"** (lowercase, like every other tooltip), default (centred) anchor, `for` = the link's
+id. The link's existing id stays: in the ticket row and the search panel it is also the cut-summary
+tooltip's `focus-for`, so focusing a key opens both tooltips — the key's above the key, the summary's
+above (Today) or below (search panel) the summary. A key with no URL (a plain `<span>`) is out of
+scope: leave it exactly as it is. Week's key link gets an id from a module-level sequence.
+
+**Prototype.** Replace the `title` on each drawn key link with a `<span class="tip">open in Jira</span>`
+inside it, and add the key links to the CSS rule that reveals `.tip` on hover and focus-visible
+(prototype line 167: `.iconbtn:hover .tip, …`). The prototype stays a fragment — never add a doctype.
+**Spec.** Decision 7 gains one sentence: a key that links to Jira carries a tooltip reading "open in
+Jira", replacing the native title (owner, 2026-09-25).
+
+- [ ] **Step 1: failing e2e tests** (both browsers):
+  1. On Today, hovering a row's timer control shows a `that-tooltip` reading exactly "start timer";
+     after starting the timer (stub the timer API the way `timer.spec.ts` does), the same control's
+     tooltip reads "stop timer".
+  2. On Today, a row's key link has no `title` attribute; hovering it shows a tooltip reading exactly
+     "open in Jira"; focusing it shows it too.
+  3. The same for a search-panel result's key link, and for a Week grid key link.
+- [ ] **Step 2:** run; FAIL; paste it.
+- [ ] **Step 3:** implement, prototype and spec edits included.
+- [ ] **Step 4:** update every test that located a key by its title (`getByTitle("Open X in Jira")`,
+  e.g. `resultRow` in search.spec.ts) to locate it by role and name instead
+  (`getByRole("link", { name: "X" })`), keeping what each test asserts. List every change.
+- [ ] **Step 5:** `make verify` and the FULL `make test-e2e`; paste both summaries. Commit:
+  `The timer control and the key links carry the app's tooltip (#143)`.
