@@ -1,3 +1,4 @@
+import { cutTextTooltip } from "../cut-text-tooltip";
 import { fieldFigure } from "../duration";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
@@ -486,13 +487,7 @@ export class ThatTicketRow extends HTMLElement {
    * reverse this once a failed row is seen for real.
    */
   private failureTooltip(message: string): HTMLElement {
-    const tooltip = document.createElement("that-tooltip");
-    tooltip.setAttribute("for", this.failureId);
-    tooltip.setAttribute("wrap", "");
-    tooltip.setAttribute("when-cut", "");
-    tooltip.textContent = message;
-
-    return tooltip;
+    return cutTextTooltip(this.failureId, message);
   }
 
   private summarySpan(): HTMLElement {
@@ -512,14 +507,11 @@ export class ThatTicketRow extends HTMLElement {
    * with nothing to focus.
    */
   private summaryTooltip(linked: boolean): HTMLElement {
-    const tooltip = document.createElement("that-tooltip");
-    tooltip.setAttribute("for", this.summaryId);
-    if (linked) tooltip.setAttribute("focus-for", this.keyLinkId);
-    tooltip.setAttribute("wrap", "");
-    tooltip.setAttribute("when-cut", "");
-    tooltip.textContent = this.getAttribute("summary") ?? "";
-
-    return tooltip;
+    return cutTextTooltip(
+      this.summaryId,
+      this.getAttribute("summary") ?? "",
+      linked ? this.keyLinkId : undefined,
+    );
   }
 }
 

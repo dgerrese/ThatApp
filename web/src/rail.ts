@@ -1,4 +1,5 @@
 import { listEntries, pushDay } from "./api";
+import { cutTextTooltip } from "./cut-text-tooltip";
 import { announceEntriesChanged, onEntriesChanged } from "./entries-changed";
 import { elapsedFigure, totalFigure } from "./format";
 import { iconMarkup } from "./icons";
@@ -476,22 +477,6 @@ function drawSplit(split: HTMLElement, slices: Slice[]): void {
   }
 
   split.replaceChildren(bar(slices), figures(slices));
-}
-
-/**
- * Gives back one element's cut text (#143). `focusFor` is omitted for the
- * split's instance names — nothing in that line is focusable — and given for
- * the running key, whose stop button is the line's only focusable element.
- */
-function cutTextTooltip(forId: string, text: string, focusFor?: string): HTMLElement {
-  const tooltip = document.createElement("that-tooltip");
-  tooltip.setAttribute("for", forId);
-  if (focusFor !== undefined) tooltip.setAttribute("focus-for", focusFor);
-  tooltip.setAttribute("wrap", "");
-  tooltip.setAttribute("when-cut", "");
-  tooltip.textContent = text;
-
-  return tooltip;
 }
 
 function restingLine(): HTMLElement {

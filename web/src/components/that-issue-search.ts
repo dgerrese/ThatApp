@@ -1,4 +1,5 @@
 import { ApiError, searchIssues } from "../api";
+import { cutTextTooltip } from "../cut-text-tooltip";
 import { fieldFigure } from "../duration";
 import type { IconName } from "../icons";
 import { iconMarkup } from "../icons";
@@ -698,14 +699,7 @@ export class ThatIssueSearch extends HTMLElement {
    * condition that-ticket-row's `linked` flag guards.
    */
   private summaryTooltip(hit: IssueHit, summary: HTMLElement, key: HTMLElement): HTMLElement {
-    const tooltip = document.createElement("that-tooltip");
-    tooltip.setAttribute("for", summary.id);
-    if (key.id !== "") tooltip.setAttribute("focus-for", key.id);
-    tooltip.setAttribute("wrap", "");
-    tooltip.setAttribute("when-cut", "");
-    tooltip.textContent = hit.summary;
-
-    return tooltip;
+    return cutTextTooltip(summary.id, hit.summary, key.id);
   }
 
   /** An icon control — pin, and later Week's own return-into-week mark —

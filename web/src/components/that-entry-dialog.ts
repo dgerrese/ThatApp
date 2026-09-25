@@ -5,6 +5,7 @@ import "./that-duration";
 
 import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "../api";
 import { COMMENT_FIELD_CLASS, confirmDestructive } from "./that-confirm";
+import { cutTextTooltip } from "../cut-text-tooltip";
 import { announceEntriesChanged } from "../entries-changed";
 import { longDay, totalFigure } from "../format";
 import { iconMarkup } from "../icons";
@@ -271,13 +272,7 @@ export class ThatEntryDialog extends HTMLElement {
    * no sensible focus-for to give it.
    */
   private instanceTooltip(name: string): HTMLElement {
-    const tooltip = document.createElement("that-tooltip");
-    tooltip.setAttribute("for", this.instanceId);
-    tooltip.setAttribute("wrap", "");
-    tooltip.setAttribute("when-cut", "");
-    tooltip.textContent = name;
-
-    return tooltip;
+    return cutTextTooltip(this.instanceId, name);
   }
 
   private closeButton(): HTMLElement {
@@ -558,14 +553,7 @@ export class ThatEntryDialog extends HTMLElement {
    * *action*, and the brief names it specifically; see the task report.
    */
   private commentTooltip(forId: string, comment: string, editId: string): HTMLElement {
-    const tooltip = document.createElement("that-tooltip");
-    tooltip.setAttribute("for", forId);
-    tooltip.setAttribute("focus-for", editId);
-    tooltip.setAttribute("wrap", "");
-    tooltip.setAttribute("when-cut", "");
-    tooltip.textContent = comment === "" ? "No comment" : comment;
-
-    return tooltip;
+    return cutTextTooltip(forId, comment === "" ? "No comment" : comment, editId);
   }
 
   /**
