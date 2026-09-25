@@ -58,6 +58,11 @@ export const TODAY_PERIOD: RailPeriod = {
 // filters below drifted from it because each was written by hand — #121.
 const isPending = (entry: Entry): boolean => entry.pushState !== "pushed";
 
+// One counter for every cut-text id the rail hands out (#143): the split's
+// instance names and the running timer's key, each rebuilt often enough that
+// a per-render id would collide with whatever a previous render left behind.
+let railCutTextSequence = 0;
+
 let currentPeriod: RailPeriod = TODAY_PERIOD;
 let applyPeriod: ((period: RailPeriod) => void) | undefined;
 
@@ -473,6 +478,22 @@ function drawSplit(split: HTMLElement, slices: Slice[]): void {
   split.replaceChildren(bar(slices), figures(slices));
 }
 
+/**
+ * Gives back one element's cut text (#143). `focusFor` is omitted for the
+ * split's instance names — nothing in that line is focusable — and given for
+ * the running key, whose stop button is the line's only focusable element.
+ */
+function cutTextTooltip(forId: string, text: string, focusFor?: string): HTMLElement {
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", forId);
+  if (focusFor !== undefined) tooltip.setAttribute("focus-for", focusFor);
+  tooltip.setAttribute("wrap", "");
+  tooltip.setAttribute("when-cut", "");
+  tooltip.textContent = text;
+
+  return tooltip;
+}
+
 function restingLine(): HTMLElement {
   const line = document.createElement("span");
   line.className = "text-rail-muted text-base";
@@ -519,7 +540,9 @@ function figures(slices: Slice[]): HTMLElement {
     // screen reader say every instance twice.
     dot.setAttribute("aria-hidden", "true");
 
+    const nameId = `that-rail-name-${String(++railCutTextSequence)}`;
     const name = document.createElement("span");
+    name.id = nameId;
     name.className = "text-rail-muted min-w-0 flex-1 truncate";
     name.textContent = slice.name;
 
@@ -527,7 +550,7 @@ function figures(slices: Slice[]): HTMLElement {
     figure.className = "that-tnum text-rail-ink font-mono font-bold";
     figure.textContent = totalFigure(slice.seconds);
 
-    row.append(dot, name, figure);
+    row.append(dot, name, figure, cutTextTooltip(nameId, slice.name));
     list.append(row);
   }
 
@@ -556,7 +579,12 @@ function runningTimerLine(
   const dot = document.createElement("span");
   dot.className = "bg-running-rail size-[7px] shrink-0 rounded-full";
 
+  // This line is rebuilt only when what is running changes, never on a tick
+  // (see paintTimer) — otherwise the tooltip appended below would go with it
+  // every second and Task 1's disconnect-hides-it fix would make it flicker.
+  const keyId = `that-rail-key-${String(++railCutTextSequence)}`;
   const key = document.createElement("span");
+  key.id = keyId;
   key.className = "text-rail-ink text-base min-w-0 flex-1 truncate";
   key.textContent = running.issueKey;
 
@@ -564,7 +592,9 @@ function runningTimerLine(
   elapsed.className = "that-tnum text-running-rail shrink-0 font-mono text-base";
   elapsed.textContent = elapsedFigure(elapsedSeconds());
 
+  const stopId = `that-rail-stop-${String(railCutTextSequence)}`;
   const stop = document.createElement("button");
+  stop.id = stopId;
   stop.type = "button";
   stop.className =
     "text-running-rail hover:bg-hover-rail flex h-[26px] w-[26px] shrink-0 cursor-pointer " +
@@ -573,5 +603,8 @@ function runningTimerLine(
   stop.setAttribute("aria-label", "stop timer");
   stop.addEventListener("click", onStop);
 
-  return { nodes: [dot, key, elapsed, stop], elapsed };
+  return {
+    nodes: [dot, key, elapsed, stop, cutTextTooltip(keyId, running.issueKey, stopId)],
+    elapsed,
+  };
 }

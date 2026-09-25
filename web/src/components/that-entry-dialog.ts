@@ -150,6 +150,10 @@ export class ThatEntryDialog extends HTMLElement {
     return `that-entry-dialog-heading-${String(this.sequence)}`;
   }
 
+  private get instanceId(): string {
+    return `that-entry-dialog-instance-${String(this.sequence)}`;
+  }
+
   /**
    * The instance dot, the instance and the key on one line, with the total and
    * Close pushed right by the total's own auto margin. The day sits on the
@@ -173,6 +177,7 @@ export class ThatEntryDialog extends HTMLElement {
     heading.className = "flex min-w-0 items-center gap-[9px]";
 
     const instance = document.createElement("span");
+    instance.id = this.instanceId;
     instance.className = "text-ink-muted truncate text-xs font-bold tracking-[0.16em] uppercase";
     instance.textContent = ticket.instanceName;
 
@@ -209,7 +214,7 @@ export class ThatEntryDialog extends HTMLElement {
       identity.append(dot);
     }
     identity.append(heading, total, this.closeButton());
-    header.append(identity);
+    header.append(identity, this.instanceTooltip(ticket.instanceName));
 
     // Hidden until updateDayLine has a day to show: a scoped ticket's day is
     // known synchronously, but an unscoped one waits on reload() to learn
@@ -257,6 +262,21 @@ export class ThatEntryDialog extends HTMLElement {
     }
     line.textContent = longDay(day);
     line.hidden = false;
+  }
+
+  /**
+   * Hover-only (#143's decision, reversible): the row's only focusable
+   * element is Close, and Close names nothing about the instance, so there is
+   * no sensible focus-for to give it.
+   */
+  private instanceTooltip(name: string): HTMLElement {
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", this.instanceId);
+    tooltip.setAttribute("wrap", "");
+    tooltip.setAttribute("when-cut", "");
+    tooltip.textContent = name;
+
+    return tooltip;
   }
 
   private closeButton(): HTMLElement {
@@ -454,7 +474,9 @@ export class ThatEntryDialog extends HTMLElement {
     duration.className = "that-tnum font-mono w-[68px] shrink-0 font-bold";
     duration.textContent = totalFigure(entry.seconds);
 
+    const commentId = `that-entry-comment-${this.sequence}-${entry.id}`;
     const comment = document.createElement("span");
+    comment.id = commentId;
     comment.className = "min-w-0 flex-1 truncate text-base";
     comment.textContent = entry.comment;
     if (entry.comment === "") {
@@ -464,6 +486,8 @@ export class ThatEntryDialog extends HTMLElement {
       comment.textContent = "No comment";
     }
 
+    const editId = `that-entry-edit-${this.sequence}-${entry.id}`;
+
     const actions = document.createElement("div");
     actions.className = "flex shrink-0 items-center gap-1.5";
     actions.append(
@@ -472,7 +496,7 @@ export class ThatEntryDialog extends HTMLElement {
         `Edit the ${clockTime(entry.startedAt)} entry`,
         "edit entry",
         false,
-        `that-entry-edit-${this.sequence}-${entry.id}`,
+        editId,
         () => {
           this.startEditing(entry);
         },
@@ -492,9 +516,36 @@ export class ThatEntryDialog extends HTMLElement {
     // The popover rides inside the row rather than beside it. It is closed —
     // and so `display: none` — until it is shown, and open it is in the top
     // layer, out of this flex line either way.
-    row.append(duration, comment, ...this.pushMark(entry), actions);
+    row.append(
+      duration,
+      comment,
+      this.commentTooltip(commentId, entry.comment, editId),
+      ...this.pushMark(entry),
+      actions,
+    );
 
     return row;
+  }
+
+  /**
+   * `focus-for` follows the edit button, per the brief, so a keyboard user
+   * reaches a cut comment the same way a mouse does. Always appended, like the
+   * summary's own equivalent: `when-cut` decides whether it ever has anything
+   * to reveal.
+   *
+   * Not literally the row's first Tab stop — the push mark beside it (below)
+   * carries `tabIndex = 0` and sits earlier in the DOM — but it is the first
+   * *action*, and the brief names it specifically; see the task report.
+   */
+  private commentTooltip(forId: string, comment: string, editId: string): HTMLElement {
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", forId);
+    tooltip.setAttribute("focus-for", editId);
+    tooltip.setAttribute("wrap", "");
+    tooltip.setAttribute("when-cut", "");
+    tooltip.textContent = comment === "" ? "No comment" : comment;
+
+    return tooltip;
   }
 
   /**

@@ -135,3 +135,120 @@ test("focusing a pinned row's key link shows the summary tooltip but not the fai
   await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeVisible();
   await expect(page.locator("that-tooltip", { hasText: longFailure })).toBeHidden();
 });
+
+// Task 5: the rail and the entry dialog give their cut text back too.
+
+const longInstanceName =
+  "Ridgeline Analytics and Reporting Platform for the Quarterly Capacity and Utilisation Programme";
+
+function stubEntries(page: Page, entries: Record<string, unknown>[]): Promise<void> {
+  return page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: "2026-09-09", entries } }),
+  );
+}
+
+function railEntry(instanceName: string): Record<string, unknown> {
+  return {
+    id: 1,
+    instanceId: 1,
+    instanceName,
+    instancePosition: 0,
+    issueKey: "WORK-1",
+    day: "2026-09-09",
+    startedAt: "2026-09-09T09:00:00+02:00",
+    seconds: 3600,
+    comment: "",
+    pushState: "unpushed",
+  };
+}
+
+test("a cut rail instance name shows its full text on hover", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubEntries(page, [railEntry(longInstanceName)]);
+  await page.goto("/today");
+  await page.getByText(longInstanceName, { exact: true }).first().hover();
+  await expect(page.locator("that-tooltip", { hasText: longInstanceName })).toBeVisible();
+});
+
+// Measured against the real rail width (216px column, 100px left for the key
+// once the dot, the elapsed figure and the stop button take their share):
+// even a realistic Jira key like this one already overflows it, so this is
+// not a hypothetical case worth skipping.
+test("a cut rail running key shows its full text when the stop button is focused", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/timer", (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        running: {
+          instanceId: 1,
+          issueKey: "RIDGELINE-4929",
+          startedAt: new Date(Date.now() - 60_000).toISOString(),
+        },
+        stopped: null,
+      },
+    }),
+  );
+  await page.goto("/today");
+  await page.locator("#rail-timer").getByRole("button", { name: "stop timer" }).focus();
+  await expect(page.locator("that-tooltip", { hasText: "RIDGELINE-4929" })).toBeVisible();
+});
+
+function openDialog(page: Page): Promise<void> {
+  return page.getByRole("button", { name: /Log time against WORK-1/ }).click();
+}
+
+test("a cut dialog instance name shows its full text on hover", async ({ page }) => {
+  await stubIssues(page, [group(1, longInstanceName, [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, []);
+  await page.goto("/today");
+  await openDialog(page);
+  // Scoped to the dialog: Today's own card heading carries the same instance
+  // name behind the modal overlay, and a bare getByText would resolve there.
+  await page
+    .locator("that-entry-dialog")
+    .getByText(longInstanceName, { exact: true })
+    .first()
+    .hover();
+  await expect(page.locator("that-tooltip", { hasText: longInstanceName })).toBeVisible();
+});
+
+const longComment =
+  "Rewrote the ingestion pipeline's retry logic so a transient Jira timeout no longer drops " +
+  "the whole day's sync silently, and added a metrics counter so an operator watching the " +
+  "dashboard can see a retry happening in real time instead of guessing from the logs alone";
+
+function dialogEntry(id: number, comment: string): Record<string, unknown> {
+  return {
+    id,
+    instanceId: 1,
+    instanceName: "Work",
+    instancePosition: 0,
+    issueKey: "WORK-1",
+    day: "2026-09-09",
+    startedAt: "2026-09-09T09:15:00+02:00",
+    seconds: 3600,
+    comment,
+    pushState: "unpushed",
+  };
+}
+
+test("a cut entry comment in the dialog shows its full text when the edit button is focused, and a short one shows none", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, [dialogEntry(1, longComment), dialogEntry(2, "Quick fix")]);
+  await page.goto("/today");
+  await openDialog(page);
+
+  const rows = page.locator("that-entry-dialog li");
+  await rows.nth(0).getByRole("button", { name: /Edit the/ }).focus();
+  await expect(page.locator("that-tooltip", { hasText: longComment })).toBeVisible();
+
+  await rows.nth(1).getByRole("button", { name: /Edit the/ }).focus();
+  await expect(page.locator("that-tooltip", { hasText: longComment })).toBeHidden();
+  await expect(page.locator("that-tooltip", { hasText: "Quick fix" })).toBeHidden();
+});

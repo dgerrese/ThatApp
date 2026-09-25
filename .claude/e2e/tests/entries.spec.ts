@@ -510,7 +510,9 @@ test("the dialog shows only the ticket it was opened from", async ({ page }) => 
 
   await trigger(page, "WORK-412").click();
 
-  await expect(dialog(page).getByText("mine")).toBeVisible();
+  // .first(): #143 gave the comment its own cut-text that-tooltip, hidden but
+  // carrying the same text.
+  await expect(dialog(page).getByText("mine").first()).toBeVisible();
   await expect(dialog(page).getByText("someone else's row")).toHaveCount(0);
   // The rail still totals the whole day, which is the difference being tested.
   await expect(page.locator("#rail-total")).toHaveText("1h 30m");
@@ -540,7 +542,9 @@ test("a day-scoped dialog lists only that day's entries", async ({ page }) => {
     day: PAST_DAY,
   });
 
-  await expect(dialog(page).getByText("past work")).toBeVisible();
+  // .first(): #143 gave the comment its own cut-text that-tooltip, hidden but
+  // carrying the same text.
+  await expect(dialog(page).getByText("past work").first()).toBeVisible();
   await expect(dialog(page).getByText("today's work")).toHaveCount(0);
   await expect(dialogTotal(page)).toHaveText("0h 30m");
   // The exact contract, not just its effect: a ranged read, not the bare one.
@@ -898,8 +902,9 @@ test("the row's edit and delete controls carry a tooltip, like cancel beside the
   await trigger(page, "WORK-412").click();
 
   const row = entryRows(page).nth(0);
-  const editTip = row.locator("that-tooltip").nth(1);
-  const deleteTip = row.locator("that-tooltip").nth(2);
+  // 0 is the comment's own cut-text tooltip (#143), 1 is the push mark's.
+  const editTip = row.locator("that-tooltip").nth(2);
+  const deleteTip = row.locator("that-tooltip").nth(3);
 
   await expect(editTip).toBeHidden();
   await dialog(page).getByRole("button", { name: "Edit the 09:15 entry" }).hover();
@@ -982,7 +987,9 @@ test("an entry with no comment reads No comment in the muted tone", async ({ pag
 
   await trigger(page, "WORK-412").click();
 
-  const none = dialog(page).getByText("No comment");
+  // .first(): #143 gave the comment its own cut-text that-tooltip, hidden but
+  // carrying the same text.
+  const none = dialog(page).getByText("No comment").first();
   await expect(none).toBeVisible();
   await expect(none).toHaveCSS("color", INK_MUTED_LIGHT);
 });
@@ -1060,10 +1067,11 @@ test("each entry carries a push-state mark naming its state", async ({ page }) =
     "pushed",
   );
 
-  // Scoped to this row and to the first of its three tooltips: Today and Week
-  // both put tooltips on the page already, and edit and delete now carry their
-  // own beside this one — D2 of #117 task 11.
-  const popover = entryRows(page).nth(0).locator("that-tooltip").first();
+  // Scoped to this row and to its push mark's tooltip specifically: Today and
+  // Week both put tooltips on the page already, edit and delete carry their
+  // own beside this one (D2 of #117 task 11), and the comment now carries its
+  // own cut-text one ahead of it in the DOM (#143).
+  const popover = entryRows(page).nth(0).locator("that-tooltip").nth(1);
   await expect(popover).toBeHidden();
   await entryRows(page).nth(0).getByRole("img").hover();
   await expect(popover).toBeVisible();
