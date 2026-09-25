@@ -152,19 +152,68 @@ test("Down from a key onto a row with no URL focuses that row's summary", async 
   await expect(summaryOf(page, "RIDGE-2")).toBeFocused();
 });
 
-test("at the view's last data row, Down leaves focus alone and does not scroll the page", async ({
+/**
+ * `window.scrollY` never moves in this layout — `#content` is the app's own
+ * scrolling region (index.html's overflow-y-auto, exercised by smoke.spec.ts's
+ * "the content region owns the scroll, not the page") — so this needs enough
+ * rows to make *that* element overflow.
+ *
+ * Scrolled short of its own maximum, deliberately: pinned to the true bottom,
+ * a further Down has nowhere left to scroll to and the assertion would pass
+ * whether or not `preventDefault` ran. `focus({ preventScroll: true })` puts
+ * focus on the last row without the focus call itself scrolling it into view
+ * and erasing that headroom — Firefox's own default action otherwise nudges
+ * `#content` a few pixels further on an unprevented Down, which is exactly
+ * what this guards against.
+ */
+test("at the view's last data row, Down leaves focus alone and does not scroll #content", async ({
   page,
 }) => {
-  await gotoToday(page);
+  const manyIssues: StubIssue[] = Array.from({ length: 40 }, (_, index) => ({
+    key: `WORK-${1000 + index}`,
+    summary: `Row ${index}`,
+    status: "To Do",
+    url: `https://work.atlassian.net/browse/WORK-${1000 + index}`,
+  }));
+  await stubIssues(page, [group(1, "Work", manyIssues)]);
+  await stubPins(page);
+  await page.goto("/today");
 
-  const summary = summaryOf(page, "NW-1");
-  await summary.focus();
-  const scrollBefore = await page.evaluate(() => window.scrollY);
+  const lastKey = "WORK-1039";
+  await expect(row(page, lastKey)).toBeAttached();
+
+  const content = page.locator("#content");
+  await content.evaluate((element) => {
+    element.scrollTop = element.scrollHeight - element.clientHeight - 300;
+  });
+  await expect.poll(() => content.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  const summary = summaryOf(page, lastKey);
+  await summary.evaluate((element) => (element as HTMLElement).focus({ preventScroll: true }));
+  await expect(summary).toBeFocused();
+  const scrollBefore = await content.evaluate((element) => element.scrollTop);
 
   await page.keyboard.press("ArrowDown");
 
   await expect(summary).toBeFocused();
-  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+  expect(await content.evaluate((element) => element.scrollTop)).toBe(scrollBefore);
+});
+
+/** Review Focus 4: an empty section between two populated ones has no data row of
+ *  its own to land on, so Down must skip straight past it. */
+test("Down skips an empty instance section between two populated ones", async ({ page }) => {
+  await stubIssues(page, [
+    group(1, "Ridgeline", [ridgeIssues[0]!]),
+    group(2, "EmptyCo", []),
+    group(3, "Northwind", northwindIssues),
+  ]);
+  await stubPins(page);
+  await page.goto("/today");
+  await expect(page.getByText("No issues assigned.")).toBeVisible();
+
+  await summaryOf(page, "RIDGE-1").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(summaryOf(page, "NW-1")).toBeFocused();
 });
 
 test("Down from a sort header does nothing — no header behaviour, no focus move", async ({

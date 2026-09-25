@@ -50,7 +50,7 @@ void test("rowStepTarget", async (t) => {
       source: { cell: SUMMARY, index: 0 },
       target: [
         { cell: KEY, index: 0 },
-        { cell: TODAY, index: 0 },
+        { cell: 2, index: 0 },
       ],
       want: 0,
     },
