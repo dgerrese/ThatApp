@@ -1350,13 +1350,37 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
   });
 
   // Controller ruling: "Tab leaves the panel, as today" means Tab keeps its
-  // native order and no arrow handler intercepts it — proved here by the one
-  // signal an interception would leave behind, since this component's own
-  // Tab-driven close runs through the same aria-expanded flag every other
-  // close does.
+  // native order and no arrow handler intercepts it. aria-expanded alone
+  // proves nothing here — a Tab whose keydown handler called preventDefault
+  // would leave focus on the field and aria-expanded untouched, and this
+  // test would still pass. So this checks where focus actually lands: the
+  // first row's key link on the first Tab (native order, not an arrow-key
+  // jump), and that tabbing out of the last row's last control leaves the
+  // component entirely and closes the panel, the same as any other focusout
+  // this component does not contain.
   test("tab from the field leaves the panel as today, with no arrow handler interfering", async ({
     page,
   }) => {
+    // A real assigned row, linked, so tabbing off the panel's own last
+    // control has somewhere native to land — without one, tabbing off the
+    // last focusable element on the page is a browser-chrome affair
+    // Playwright cannot observe consistently across engines, which would
+    // make this half of the test about that quirk rather than about Tab.
+    await stubIssues(page, [
+      {
+        id: 1,
+        name: "Ridgeline",
+        error: null,
+        issues: [
+          {
+            key: "WORK-1",
+            summary: "An assigned ticket",
+            status: "To Do",
+            url: "https://example.atlassian.net/browse/WORK-1",
+          },
+        ],
+      },
+    ]);
     await stubSearch(page, [rowA, rowB, rowC]);
     await page.goto("/today");
 
@@ -1365,7 +1389,22 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
     await expect(page.getByText("RIDGE-6001")).toBeVisible();
 
     await field.press("Tab");
+    await expect(
+      resultRow(page, "RIDGE-6001").getByRole("link", { name: "RIDGE-6001" }),
+    ).toBeFocused();
     await expect(field).toHaveAttribute("aria-expanded", "true");
+
+    const lastRowPin = resultRow(page, "RIDGE-6003").getByRole("button", {
+      name: "Pin RIDGE-6003",
+      exact: true,
+    });
+    await lastRowPin.focus();
+    await lastRowPin.press("Tab");
+    // The assigned table's own first control, immediately after the search
+    // panel in DOM order — proof focus actually left the panel via native
+    // order, not merely that some flag flipped.
+    await expect(page.getByRole("button", { name: "Sort by Key" })).toBeFocused();
+    await expect(field).toHaveAttribute("aria-expanded", "false");
   });
 
   test("pressing pin with Enter, then Down, moves to the next row's pin control across the repaint", async ({
