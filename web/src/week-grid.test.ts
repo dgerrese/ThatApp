@@ -103,8 +103,8 @@ test("the header names every column by weekday and date", () => {
 
 test("each push state draws its own marker, and pushed draws none", async (t) => {
   const cases: { state: WeekCell["pushState"]; marker: string | null; words: string }[] = [
-    { state: "unpushed", marker: "bg-pending", words: "not pushed" },
-    { state: "dirty", marker: "border-dirty", words: "edited since it was pushed" },
+    { state: "unpushed", marker: "text-pending", words: "not pushed" },
+    { state: "dirty", marker: "text-dirty", words: "edited since it was pushed" },
     { state: "pushed", marker: null, words: "pushed" },
   ];
 
@@ -122,6 +122,7 @@ test("each push state draws its own marker, and pushed draws none", async (t) =>
         assert.equal(mark === null, true, "pushed cell drew a marker");
       } else {
         assert.ok(mark?.classList.contains(marker), `marker lacks ${marker}`);
+        assert.ok(mark?.classList.contains("size-[7px]"), `${String(state)} marker is not 7px`);
       }
       assert.equal(
         button.getAttribute("aria-label"),
@@ -146,6 +147,10 @@ test("a day total wears its day's marker, named for a reader who cannot see it",
     "not pushed",
   );
   assert.equal(monday?.querySelector(".sr-only")?.textContent, "not pushed, ");
+  assert.ok(
+    monday?.querySelector("span[aria-hidden='true']")?.classList.contains("size-[7px]"),
+    "day total's marker is not 7px",
+  );
 });
 
 test("a failed push marks its own cell and day, outranking the rollup's state", () => {
@@ -169,14 +174,14 @@ test("a failed push marks its own cell and day, outranking the rollup's state", 
 
   const failed = cellButton(grid, 0, 1);
   assert.ok(
-    failed.querySelector("span[aria-hidden='true']")?.classList.contains("border-b-failed"),
+    failed.querySelector("span[aria-hidden='true']")?.classList.contains("text-failed"),
     "failed cell lacks its failed marker",
   );
   assert.match(failed.getAttribute("aria-label") ?? "", /push failed/);
 
   const pushed = cellButton(grid, 1, 1);
   assert.ok(
-    pushed.querySelector("span[aria-hidden='true']")?.classList.contains("bg-pending"),
+    pushed.querySelector("span[aria-hidden='true']")?.classList.contains("text-pending"),
     "unfailed cell lacks its unpushed marker",
   );
 

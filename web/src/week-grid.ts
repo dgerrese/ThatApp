@@ -2,6 +2,7 @@ import { CARD_SURFACE_CLASSES } from "./card-surface.ts";
 import type { EntryTicket } from "./components/that-entry-dialog.ts";
 import { totalFigure } from "./format.ts";
 import { paintInstanceDot } from "./instance-hue.ts";
+import { PUSH_MARKS, knownPushState } from "./push-marks.ts";
 import type { PushResponse, WeekCell, WeekDay, WeekRollup, WeekRow } from "./types.ts";
 import { dayHeading, weekLabel } from "./week-label.ts";
 
@@ -196,54 +197,38 @@ function gridCard(table: HTMLTableElement): HTMLElement {
 
 const MARKER_BASE = "mr-1.5 inline-block align-[1px]";
 
-/**
- * How each state marks a cell: one silhouette each, so no pair of them is told
- * apart by hue. The visual language is explicit that amber and red "never rest
- * on colour alone", and a grid has no room for the triangle-and-words an alert
- * carries — so the shape has to do it here.
- *
- * Disc for unpushed, ring for dirty, triangle for failed. The triangle is the
- * shape this document already associates with failure, drawn out of borders
- * so its size is the grid's rather than the font's.
- *
- * Both colours are the palette's own — red 25 and amber 85 — rather than a
- * second name for a state it already has.
- *
- * The words are not decoration either. They are what a reader who cannot see
- * the marker hears, and — through the marker's title — what a reader who can
- * see it has instead of a legend the grid does not have room for.
- */
-const MARKERS: Record<string, { className: string; words: string }> = {
-  unpushed: { className: "size-1.5 rounded-full bg-pending", words: "not pushed" },
-  dirty: {
-    className: "size-1.5 rounded-full border-[1.5px] border-dirty",
-    words: "edited since it was pushed",
-  },
-  failed: {
-    // 9×8 — grown from 6×5, which read as a smudge rather than a triangle.
-    className: "size-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-failed",
-    words: "push failed",
-  },
-};
-
 type PushState = WeekCell["pushState"];
 
-/** The marker a state draws, or undefined for `pushed` — the ordinary state a
- *  grid this dense has no business decorating. `failed` outranks whatever the
- *  rollup said, because it is newer than the rollup: it comes off the push
- *  that just happened, and a re-read reports those entries as unpushed again
- *  — true, but not the thing the reader needs in the seconds after Push. */
+/**
+ * The mark a cell or day draws, or undefined for `pushed` — the ordinary
+ * state a grid this dense has no business decorating. `failed` outranks
+ * whatever the rollup said, because it is newer than the rollup: it comes
+ * off the push that just happened, and a re-read reports those entries as
+ * unpushed again — true, but not the thing the reader needs in the seconds
+ * after Push.
+ *
+ * The visual language is explicit that amber and red never rest on colour
+ * alone, and a grid has no room for the triangle-and-words an alert carries
+ * — so the shape has to do it here. The words are not decoration either:
+ * they are what a reader who cannot see the marker hears, and — through the
+ * marker's title — what a reader who can see it has instead of a legend the
+ * grid does not have room for.
+ */
 function markerFor(
   pushState: PushState,
   failed: boolean,
 ): { className: string; words: string } | undefined {
-  return MARKERS[failed ? "failed" : (pushState ?? "pushed")];
+  const state = knownPushState(failed ? "failed" : (pushState ?? "pushed"));
+  if (state === "pushed") return undefined;
+  const mark = PUSH_MARKS[state];
+
+  return { className: `${mark.tone} ${mark.shape}`, words: mark.words };
 }
 
 /** Every state's own words, `pushed` included: it draws no marker, but a
  *  cell's popover still has to name it. */
 function pushWords(pushState: PushState, failed: boolean): string {
-  return markerFor(pushState, failed)?.words ?? "pushed";
+  return PUSH_MARKS[knownPushState(failed ? "failed" : (pushState ?? "pushed"))].words;
 }
 
 let weekCellSequence = 0;
