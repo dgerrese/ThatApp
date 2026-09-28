@@ -258,6 +258,10 @@ const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
  */
 type Verdict = { ok: true; at: Date } | { ok: false; at: Date; message: string };
 const verdicts = new Map<number, Verdict>();
+// The test each instance is waiting on. Forgetting a verdict drops its entry, so
+// an answer arriving after a save or a removal is discarded rather than written
+// back — onto a changed token, or onto whichever instance is given the freed id.
+const pendingTests = new Map<number, symbol>();
 
 const HEALTH_CLASS = "inline-flex shrink-0 items-center gap-1.5 text-sm";
 
@@ -447,6 +451,7 @@ function hostLine(instance: Instance): string {
 // and never touches a sibling row's own test in flight.
 function forgetVerdict(regions: Regions, instanceId: number): void {
   verdicts.delete(instanceId);
+  pendingTests.delete(instanceId);
   const row = regions.listSlot.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
   if (row) {
     paintVerdict(row, instanceId);
@@ -458,21 +463,31 @@ async function runConnectionTest(
   trigger: HTMLButtonElement,
   row: HTMLElement,
 ): Promise<void> {
+  const pending = Symbol();
+  pendingTests.set(instance.id, pending);
   trigger.disabled = true;
   row
     .querySelector<HTMLElement>("[data-row-status]")
     ?.replaceChildren(alertFor("warning", "Testing…"));
 
+  let verdict: Verdict;
   try {
     await testInstance(instance.id);
-    verdicts.set(instance.id, { ok: true, at: new Date() });
+    verdict = { ok: true, at: new Date() };
   } catch (error) {
-    verdicts.set(instance.id, { ok: false, at: new Date(), message: messageOf(error) });
+    verdict = { ok: false, at: new Date(), message: messageOf(error) };
   } finally {
     trigger.disabled = false;
   }
 
-  paintVerdict(row, instance.id);
+  if (pendingTests.get(instance.id) !== pending) return;
+  pendingTests.delete(instance.id);
+  verdicts.set(instance.id, verdict);
+  // Settings may have been closed and reopened meanwhile, which built a new row.
+  const live = document.querySelector<HTMLElement>(`li[data-instance-id="${instance.id}"]`);
+  if (live) {
+    paintVerdict(live, instance.id);
+  }
 }
 
 async function removeInstance(
@@ -494,7 +509,7 @@ async function removeInstance(
     await deleteInstance(instance.id);
     regions.changed = true;
     // SQLite gives a freed id to the next instance created (no AUTOINCREMENT).
-    verdicts.delete(instance.id);
+    forgetVerdict(regions, instance.id);
     await refresh(regions);
 
     // The list persists beside the form now, so Remove is reachable while that

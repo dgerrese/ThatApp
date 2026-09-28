@@ -920,6 +920,59 @@ test.describe("instance rows", () => {
     await expect(settings.locator("[data-row-health]")).toHaveText(/^Connected · /);
   });
 
+  test("a test answered after Settings was reopened lands on the reopened row", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    let answer: () => void = () => {};
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    let arrive: () => void = () => {};
+    const arrived = new Promise<void>((resolve) => {
+      arrive = resolve;
+    });
+    await page.route("**/api/instances/*/test", async (route) => {
+      arrive();
+      await answered;
+      await route.fulfill({ status: 200, json: { accountId: "a", displayName: "Dion" } });
+    });
+    const settings = await openSettings(page);
+
+    await settings.getByRole("button", { name: "Test Ridgeline" }).click();
+    await arrived;
+    await settings.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText("Not tested");
+
+    answer();
+    await expect(settings.locator("[data-row-health]")).toHaveText(/^Connected · /);
+  });
+
+  test("a test answered after its instance was removed never lands on the next one given its id", async ({
+    page,
+  }) => {
+    await stubInstancesApi(page, { testStatus: 200 });
+    const settings = await openSettings(page);
+    await addInstance(page);
+
+    const held = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+    await settings.getByRole("button", { name: "Test Work" }).click();
+    await held.arrived;
+
+    await settings.getByRole("button", { name: "Remove Work" }).click();
+    await confirmDialog(page).getByRole("button", { name: "Remove instance" }).click();
+    await expect(settings.getByText("No instances yet. Add one below.")).toBeVisible();
+
+    const tested = page.waitForResponse("**/api/instances/*/test");
+    held.release();
+    await tested;
+    // One more round trip, so the app's own promise chain has settled the late answer.
+    await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+
+    // The stub numbers by list length, so this one is given id 1 again — as SQLite would.
+    await addInstance(page);
+    await expect(settings.locator("[data-row-health]")).toHaveText("Not tested");
+  });
+
   test("a removed instance's verdict never lands on the next instance given its id", async ({ page }) => {
     await stubInstancesApi(page, { testStatus: 200 });
     const settings = await openSettings(page);
