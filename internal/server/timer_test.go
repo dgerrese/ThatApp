@@ -371,6 +371,86 @@ func TestStartTimerRejectsAnUnknownRound(t *testing.T) {
 	assertRejected(t, rec, http.StatusBadRequest, "invalid_request")
 }
 
+// TestTimerReportsTheRunningInstancesNameAndPosition pins that the rail can
+// draw a split slice for the running instance's colour without a second
+// fetch: both the start response and GET /api/timer answer its name and
+// 0-based position, joined the same way entryDTO joins them.
+func TestTimerReportsTheRunningInstancesNameAndPosition(t *testing.T) {
+	s, db, sealer := newServerWithStore(t)
+	loc, err := time.LoadLocation("Europe/Amsterdam")
+	if err != nil {
+		t.Fatalf("loading zone: %v", err)
+	}
+	s.cfg.Location = loc
+	s.now = func() time.Time { return time.Date(2026, 8, 21, 12, 5, 0, 0, time.UTC) }
+
+	seedInstance(t, db, sealer, "First", "", "https://api.example")
+	second := seedInstance(t, db, sealer, "Second", "", "https://api.example")
+
+	rec := callEntries(t, s, http.MethodPost, "/api/timer/start",
+		`{"instanceId":`+strconv.FormatInt(second.ID, 10)+`,"issueKey":"RIDGE-4929"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("start status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	started := decodeTimerState(t, rec)
+	if started.Running == nil {
+		t.Fatalf("running = nil, want the started timer")
+	}
+	if started.Running.InstanceName != "Second" || started.Running.InstancePosition != 1 {
+		t.Errorf("start running = %+v, want name Second, position 1", started.Running)
+	}
+
+	rec = callEntries(t, s, http.MethodGet, "/api/timer", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	got := decodeTimerState(t, rec)
+	if got.Running == nil {
+		t.Fatalf("running = nil, want the started timer")
+	}
+	if got.Running.InstanceName != "Second" || got.Running.InstancePosition != 1 {
+		t.Errorf("get running = %+v, want name Second, position 1", got.Running)
+	}
+}
+
+// TestRunningTimerDTOReportsNothingForAMissingInstance pins the fix for the
+// race handleGetTimer's two separate store reads leave open: a delete landing
+// between reading the timer and reading the instance index must not hand back
+// a DTO with its instance blanked to the zero value a missing map key would
+// otherwise silently give — nothing running is the truth the store's own
+// cascade makes real a moment later, so that is what this reports instead.
+func TestRunningTimerDTOReportsNothingForAMissingInstance(t *testing.T) {
+	srv, _, inst := serverInZone(t, "Europe/Amsterdam", time.Date(2026, 8, 21, 12, 5, 0, 0, time.UTC))
+	running := &store.Timer{
+		InstanceID: inst.ID, IssueKey: "RIDGE-1",
+		StartedAt: time.Date(2026, 8, 21, 9, 0, 0, 0, time.UTC),
+	}
+	found := map[int64]store.Instance{inst.ID: *inst}
+	positions := map[int64]int{inst.ID: 0}
+
+	tests := map[string]struct {
+		running   *store.Timer
+		instances map[int64]store.Instance
+		wantNil   bool
+	}{
+		"nothing running":  {running: nil, instances: found, wantNil: true},
+		"instance found":   {running: running, instances: found, wantNil: false},
+		"instance missing": {running: running, instances: map[int64]store.Instance{}, wantNil: true},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := srv.runningTimerDTO(tc.running, tc.instances, positions)
+			if tc.wantNil && got != nil {
+				t.Errorf("runningTimerDTO() = %+v, want nil", got)
+			}
+			if !tc.wantNil && got == nil {
+				t.Errorf("runningTimerDTO() = nil, want a DTO for instance %d", tc.running.InstanceID)
+			}
+		})
+	}
+}
+
 // TestGetTimerClosesAnOvernightTimer pins decision 6: a read that finds a
 // timer whose start day has passed closes it at its start day's local
 // midnight and reports the entry it earned as "stopped", with nothing running.

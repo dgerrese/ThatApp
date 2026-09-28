@@ -101,6 +101,12 @@ export function startRail(): void {
   let pending: Entry[] = [];
   let pushing = false;
 
+  // What paint() last painted (lastEntries), and the signature paintFigures()
+  // last drew the split from (lastSplitSignature) — each guards its own DOM
+  // write, so a 1-second tick that moves neither leaves both untouched.
+  let lastEntries: Entry[] = [];
+  let lastSplitSignature: string | undefined;
+
   const syncPushButton = (): void => {
     push.disabled = pushing || pending.length === 0;
   };
@@ -139,13 +145,72 @@ export function startRail(): void {
     unpushed.textContent = message;
   };
 
+  /**
+   * Also the timer tick handler (onTimerChanged fires every second one runs),
+   * so it is guarded on `painted`: setRailPeriod flips `currentPeriod`
+   * synchronously, inside the destination view's own mount, but `lastEntries`
+   * only catches up once that period's own read lands in paint() — an async
+   * gap a real tick can land inside. Without this guard a tick in that gap
+   * combines the old period's stale `lastEntries` with the new period's
+   * TODAY_PERIOD-ness (or lack of it): Today's entries suddenly lose their
+   * elapsed time, or Week's stale entries suddenly gain the timer's. `paint()`
+   * sets `painted` back to true; `applyPeriod` is what dropped it.
+   *
+   * `pending`/unpushed/push are computed only in paint(), from entries alone:
+   * a run must never move the push count or its total.
+   */
+  const paintFigures = (): void => {
+    if (!painted) return;
+
+    const slices = sliceByInstance(lastEntries);
+    let seconds = lastEntries.reduce((sum, entry) => sum + entry.seconds, 0);
+
+    if (currentPeriod === TODAY_PERIOD) {
+      const running = currentTimer();
+      if (running) {
+        const elapsed = elapsedSeconds();
+        seconds += elapsed;
+        const slice = slices.find((candidate) => candidate.instanceId === running.instanceId);
+        if (slice) {
+          slice.seconds += elapsed;
+        } else {
+          slices.push({
+            instanceId: running.instanceId,
+            name: running.instanceName,
+            position: running.instancePosition,
+            seconds: elapsed,
+          });
+          slices.sort((a, b) => a.position - b.position);
+        }
+      }
+    }
+
+    const totalText = totalFigure(seconds);
+    if (total.textContent !== totalText) total.textContent = totalText;
+
+    // Name and instanceId matter here, not just position and the figure: a
+    // renamed instance (same position, same seconds) must redraw the split at
+    // once rather than wait for a figure to cross a minute — the only other
+    // thing that would otherwise change this string.
+    const signature = slices
+      .map(
+        (slice) =>
+          `${String(slice.instanceId)}:${String(slice.position)}:${slice.name}:${totalFigure(slice.seconds)}`,
+      )
+      .join("|");
+    if (signature !== lastSplitSignature) {
+      lastSplitSignature = signature;
+      drawSplit(split, slices);
+    }
+  };
+
   const paint = (entries: Entry[]): void => {
     period.textContent = currentPeriod.label;
     push.textContent = currentPeriod.pushLabel;
     painted = true;
     retryDelay = FIRST_RETRY_MS;
-    total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
-    drawSplit(split, sliceByInstance(entries));
+    lastEntries = entries;
+    paintFigures();
     pending = entries.filter(isPending);
     paintUnpushed();
     syncPushButton();
@@ -303,6 +368,10 @@ export function startRail(): void {
   // retry) is the one boot read timer-state.ts itself never makes on its
   // own — see its own comment for why that is the rail's job.
   onTimerChanged(paintTimer);
+  // A separate subscription rather than folded into paintTimer: that one owns
+  // #rail-timer's own line, this owns the total and the split, and the two
+  // repaint on independent conditions (paintFigures also runs from paint()).
+  onTimerChanged(paintFigures);
   paintTimer();
   void refreshTimer();
 
@@ -432,6 +501,7 @@ export function startRail(): void {
 
 /** One instance's share of the day. */
 interface Slice {
+  instanceId: number;
   name: string;
   position: number;
   seconds: number;
@@ -452,6 +522,7 @@ function sliceByInstance(entries: Entry[]): Slice[] {
       continue;
     }
     slices.set(entry.instanceId, {
+      instanceId: entry.instanceId,
       name: entry.instanceName,
       position: entry.instancePosition,
       seconds: entry.seconds,

@@ -803,6 +803,41 @@ test("the split names every instance with time against it", async ({ page }) => 
 });
 
 /**
+ * Review finding on #204: the split's rebuild-once-a-minute signature used to
+ * carry only a slice's position and its figure, so a read that renamed an
+ * instance (same position, same seconds) left the old name on screen until a
+ * figure happened to cross a minute — a regression, since paint() used to
+ * redraw the split on every read regardless. Editing an entry is what fires a
+ * real re-announce with a fresh server response, the same path a rename
+ * reaching this instance's row would take.
+ */
+test("a renamed instance redraws the split at once, not on the next minute crossing", async ({
+  page,
+}) => {
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+
+  let instanceName = "Ridgeline";
+  await page.route("**/api/entries**", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+
+    await route.fulfill({
+      status: 200,
+      json: { today: DAY, entries: [entry(1, "WORK-412", 3600, { instanceName })] },
+    });
+  });
+
+  await expect(page.locator("#rail-split")).toContainText("Ridgeline");
+
+  instanceName = "Basecamp";
+  await trigger(page, "WORK-412").click();
+  await dialog(page).getByRole("button", { name: "Edit the 09:15 entry" }).click();
+  await dialog(page).getByRole("button", { name: "Save" }).click();
+
+  await expect(page.locator("#rail-split")).toContainText("Basecamp");
+  await expect(page.locator("#rail-split")).not.toContainText("Ridgeline");
+});
+
+/**
  * Trap 4 of the design, and the one this ticket exists to nail down. A native
  * <dialog> is in the top layer and the user-agent stylesheet gives it
  * `color: CanvasText` — a declaration, which beats inheritance — so a dialog
