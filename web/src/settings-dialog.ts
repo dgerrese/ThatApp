@@ -26,6 +26,9 @@ interface Regions {
   // Set by a save or a removal: the view beneath was drawn from the instances
   // as they were, and a removal also deleted entries the rail is counting.
   changed: boolean;
+  closed: boolean;
+  // What pressed open the form showing now, so closing it can hand focus back.
+  formOpener: HTMLElement;
 }
 
 const HEADING_ID = "that-settings-heading";
@@ -51,7 +54,7 @@ export function showSettings(): void {
   if (document.getElementById(HEADING_ID)) return;
 
   const addButton = addInstanceButton(() => {
-    showForm(regions, undefined);
+    showForm(regions, undefined, addButton);
   });
   const regions: Regions = {
     errorSlot: document.createElement("div"),
@@ -60,6 +63,8 @@ export function showSettings(): void {
     addButton,
     latestListRead: 0,
     changed: false,
+    closed: false,
+    formOpener: addButton,
   };
   regions.formSection.className = SECTION_CLASS;
   regions.formSection.hidden = true;
@@ -82,15 +87,32 @@ export function showSettings(): void {
 
   dialog.addEventListener("close", () => {
     dialog.remove();
-    if (!regions.changed) return;
-    void navigate(window.location.pathname + window.location.search);
-    announceEntriesChanged();
+    regions.closed = true;
+    if (regions.changed) void redrawBeneath();
   });
 
   document.body.append(dialog);
   dialog.showModal();
 
   void refresh(regions);
+}
+
+/** A change answered after the dialog closed missed the close's redraw, so it
+ *  redraws on its own. */
+function markChanged(regions: Regions): void {
+  regions.changed = true;
+  if (regions.closed) void redrawBeneath();
+}
+
+async function redrawBeneath(): Promise<void> {
+  const redrawn = navigate(window.location.pathname + window.location.search);
+  announceEntriesChanged();
+  await redrawn;
+  // Today's "Open Settings" is the opener the dialog hands focus back to, and
+  // the redraw just replaced it, which drops focus to <body>.
+  if (document.activeElement === null || document.activeElement === document.body) {
+    document.getElementById("settings-cog")?.focus();
+  }
 }
 
 function header(dialog: HTMLDialogElement): HTMLElement {
@@ -198,7 +220,8 @@ function reconcileList(regions: Regions, instances: Instance[]): void {
   }
 }
 
-function showForm(regions: Regions, editing: Instance | undefined): void {
+function showForm(regions: Regions, editing: Instance | undefined, opener: HTMLElement): void {
+  regions.formOpener = opener;
   regions.formSection.replaceChildren(instanceForm(regions, editing));
   regions.formSection.hidden = false;
   // Focusing scrolls the dialog to it, which is what the drawing's script does.
@@ -206,11 +229,15 @@ function showForm(regions: Regions, editing: Instance | undefined): void {
 }
 
 function hideForm(regions: Regions): void {
-  const hadFocus = regions.formSection.contains(document.activeElement);
+  // Save disables its own focused button while in flight, which drops focus to
+  // <body>: that focus was the form's too.
+  const hadFocus =
+    regions.formSection.contains(document.activeElement) ||
+    document.activeElement === document.body;
   regions.formSection.replaceChildren();
   regions.formSection.hidden = true;
   if (hadFocus) {
-    regions.addButton.focus();
+    (regions.formOpener.isConnected ? regions.formOpener : regions.addButton).focus();
   }
 }
 
@@ -329,7 +356,7 @@ function instanceRow(regions: Regions, instance: Instance, position: number): HT
     void runConnectionTest(state.instance, test, row);
   });
   edit.addEventListener("click", () => {
-    showForm(regions, state.instance);
+    showForm(regions, state.instance, edit);
   });
   remove.addEventListener("click", () => {
     void removeInstance(regions, state.instance, remove, status);
@@ -507,7 +534,7 @@ async function removeInstance(
 
   try {
     await deleteInstance(instance.id);
-    regions.changed = true;
+    markChanged(regions);
     // SQLite gives a freed id to the next instance created (no AUTOINCREMENT).
     forgetVerdict(regions, instance.id);
     await refresh(regions);
@@ -636,7 +663,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
 
     try {
       const saved = editing ? await updateInstance(editing.id, draft) : await createInstance(draft);
-      regions.changed = true;
+      markChanged(regions);
       await refresh(regions);
       if (editing) {
         forgetVerdict(regions, editing.id);
@@ -646,7 +673,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
       if (regions.formSection.contains(holder)) {
         hideForm(regions);
       } else if (regions.formSection.querySelector(`[data-editing-id="${saved.id}"]`)) {
-        showForm(regions, saved);
+        showForm(regions, saved, regions.formOpener);
       }
     } catch (error) {
       if (regions.formSection.contains(holder)) {

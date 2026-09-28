@@ -357,8 +357,22 @@ test("editing can be cancelled", async ({ page }) => {
   await page.getByRole("button", { name: "Cancel" }).click();
 
   await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Add an instance" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Edit Work", exact: true })).toBeFocused();
   await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
+});
+
+test("saving an edit returns focus to that row's Edit button", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await openSettings(page);
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit Work", exact: true }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit Work Renamed", exact: true })).toBeFocused();
 });
 
 // #56: the initial list read is answered after a save has already redrawn the
@@ -829,6 +843,80 @@ test.describe("the dialog", () => {
     // A duplicate re-read would arrive after the first; give it the chance to.
     await page.waitForTimeout(300);
     expect(issueReads).toBe(1);
+  });
+
+  test("an add answered after Settings closed still redraws the view beneath, once", async ({ page }) => {
+    await stubInstancesApi(page, { testStatus: 200 });
+    const settings = await openSettings(page);
+    await expect(page.locator("#view").getByText("No Jira instances yet.")).toHaveCount(1);
+
+    let issueReads = 0;
+    await page.route("**/api/issues", (route) => {
+      issueReads += 1;
+      return route.fulfill({
+        status: 200,
+        json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] },
+      });
+    });
+
+    const held = await holdNextRequest(page, "**/api/instances", "POST");
+    await addInstance(page);
+    await held.arrived;
+    await settings.getByRole("button", { name: "Close" }).click();
+    await expect(settings).toHaveCount(0);
+
+    held.release();
+    await expect.poll(() => issueReads).toBe(1);
+    await page.waitForTimeout(300);
+    expect(issueReads).toBe(1);
+    await expect(page.locator("#view").getByText("No Jira instances yet.")).toHaveCount(0);
+  });
+
+  test("a removal answered after Settings closed still redraws the view beneath, once", async ({
+    page,
+  }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    await page.route("**/api/instances/*", (route) =>
+      route.request().method() === "DELETE"
+        ? route.fulfill({ status: 204, body: "" })
+        : route.fallback(),
+    );
+    const settings = await openSettings(page);
+
+    let issueReads = 0;
+    await page.route("**/api/issues", (route) => {
+      issueReads += 1;
+      return route.fulfill({ status: 200, json: { instances: [] } });
+    });
+
+    const held = await holdNextRequest(page, "**/api/instances/*", "DELETE");
+    await settings.getByRole("button", { name: "Remove Ridgeline" }).click();
+    await confirmDialog(page).getByRole("button", { name: "Remove instance" }).click();
+    await held.arrived;
+    await page.keyboard.press("Escape");
+    await expect(settings).toHaveCount(0);
+
+    held.release();
+    await expect.poll(() => issueReads).toBe(1);
+    await page.waitForTimeout(300);
+    expect(issueReads).toBe(1);
+  });
+
+  test("closing after a change made from Today's Open Settings puts focus on the cog", async ({
+    page,
+  }) => {
+    await stubInstancesApi(page, { testStatus: 200 });
+    await stubToday(page);
+    await page.goto("/today");
+
+    await page.locator("#view").getByRole("button", { name: "Open Settings" }).click();
+    const settings = page.getByRole("dialog", { name: "Settings" });
+    await addInstance(page);
+    await expect(settings.getByText("Work", { exact: true })).toBeVisible();
+    await settings.getByRole("button", { name: "Close" }).click();
+
+    await expect(settings).toHaveCount(0);
+    await expect(page.locator("#settings-cog")).toBeFocused();
   });
 });
 

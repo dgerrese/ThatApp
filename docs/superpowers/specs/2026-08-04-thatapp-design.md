@@ -263,11 +263,13 @@ web/
     api.ts              typed fetch wrappers
     types.ts            hand-written mirror of the Go response structs
     router.ts
+    open-settings.ts    lazy-loads settings-dialog.ts via import()
+    settings-dialog.ts  the Settings dialog, opened by the rail's cog
     components/
       that-card.ts  that-button.ts  that-alert.ts
       that-ticket-row.ts  that-time-entry.ts  that-timer.ts
     views/
-      today.ts  week.ts  settings.ts      lazy-loaded via import()
+      today.ts  week.ts                   lazy-loaded via import()
   sw.ts
   manifest.json
 ```
@@ -292,7 +294,8 @@ the budget matters most on a cold start.
   Shows the day's total and a push button, with per-entry push state visible.
 - **Week** — a grid of tickets against Monday–Sunday. Each cell sums that ticket's entries for
   that day. Per-day and per-ticket totals, and push status per day.
-- **Settings** — instance CRUD with a test-connection button.
+- **Settings** — not a view but a dialog over whichever view is mounted, opened by the cog beside
+  the wordmark: instance CRUD with a test-connection button, and the theme.
 
 ## Testing
 
