@@ -6,9 +6,12 @@ import { alertFor, messageOf } from "./alert";
 import { createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "./api";
 import { confirmDestructive } from "./components/that-confirm";
 import { announceEntriesChanged } from "./entries-changed";
+import { clockTime } from "./format";
 import { iconMarkup } from "./icons";
+import { paintInstanceDot } from "./instance-hue";
 import { navigate } from "./router";
 import { setThemePreference, themePreference } from "./theme";
+import type { IconName } from "./icons";
 import type { Instance } from "./types";
 import type { ThemePreference } from "./theme";
 
@@ -173,15 +176,15 @@ function reconcileList(regions: Regions, instances: Instance[]): void {
 
   // Appending a node that is already a child moves it, so this also enforces
   // the server's ordering without a separate pass.
-  for (const instance of instances) {
+  for (const [position, instance] of instances.entries()) {
     const key = String(instance.id);
     const row = existing.get(key);
     if (row) {
       existing.delete(key);
-      patchRow(row, instance);
+      patchRow(row, instance, position);
       list.append(row);
     } else {
-      list.append(instanceRow(regions, instance));
+      list.append(instanceRow(regions, instance, position));
     }
   }
 
@@ -195,10 +198,7 @@ function showForm(regions: Regions, editing: Instance | undefined): void {
 }
 
 function newList(): HTMLUListElement {
-  const list = document.createElement("ul");
-  list.className = "divide-y divide-edge";
-
-  return list;
+  return document.createElement("ul");
 }
 
 function emptyNotice(): HTMLElement {
@@ -216,43 +216,79 @@ function emptyNotice(): HTMLElement {
 // Keyed by the row element (not module-level) so it is collected with the row.
 const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
 
-function instanceRow(regions: Regions, instance: Instance): HTMLElement {
+/**
+ * What the last connection test said, per instance id, for the life of the
+ * page: closing Settings keeps it, a reload forgets it, and nothing stores it —
+ * a stored verdict is a claim about credentials that can be revoked outside
+ * this app (#89).
+ */
+type Verdict = { ok: true; at: Date } | { ok: false; at: Date; message: string };
+const verdicts = new Map<number, Verdict>();
+
+const HEALTH_CLASS = "inline-flex shrink-0 items-center gap-1.5 text-sm";
+
+/** The prototype's `.iconbtn` in `ul.inst` (lines 141–161): the wash on hover
+ *  and focus, and the primary on hover — the failed tone, for remove. */
+const ROW_BUTTON_CLASS =
+  "text-ink-muted hover:bg-hover focus-visible:bg-hover focus-visible:text-ink -mr-2 flex " +
+  "size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-sm " +
+  "disabled:cursor-default disabled:opacity-60";
+
+const ROW_ACTIONS = {
+  test: { icon: "plug", verb: "Test", words: "test connection", hover: "hover:text-primary" },
+  edit: { icon: "edit", verb: "Edit", words: "edit instance", hover: "hover:text-primary" },
+  remove: { icon: "trash", verb: "Remove", words: "remove instance", hover: "hover:text-failed" },
+} as const satisfies Record<string, { icon: IconName; verb: string; words: string; hover: string }>;
+
+type RowAction = keyof typeof ROW_ACTIONS;
+
+function instanceRow(regions: Regions, instance: Instance, position: number): HTMLElement {
   const row = document.createElement("li");
-  row.className = "py-3";
+  row.className = "bg-surface mb-[7px] rounded-sm px-3 py-2.5";
   row.dataset["instanceId"] = String(instance.id);
 
   const state = { instance };
   rowState.set(row, state);
 
-  const heading = document.createElement("div");
-  heading.className = "flex items-center justify-between gap-3";
+  const line = document.createElement("div");
+  line.className = "flex items-center gap-3";
 
-  const labels = document.createElement("div");
-  const name = document.createElement("p");
+  // 8px is this row's own drawn size (prototype line 464). .that-dot's 7px is
+  // unlayered CSS, which no utility can override; an inline style can.
+  const dot = document.createElement("span");
+  dot.dataset["rowDot"] = "";
+  dot.style.width = "8px";
+  dot.style.height = "8px";
+
+  const identity = document.createElement("div");
+  identity.className = "flex min-w-0 flex-1 flex-col gap-0.5";
+  const name = document.createElement("span");
   name.dataset["rowName"] = "";
-  name.className = "font-medium";
-  const detail = document.createElement("p");
-  detail.dataset["rowDetail"] = "";
-  detail.className = "text-sm text-ink-muted";
-  labels.append(name, detail);
+  name.className = "text-ink text-lg font-medium";
+  const host = document.createElement("span");
+  host.dataset["rowHost"] = "";
+  host.className = "text-ink-muted font-mono text-sm";
+  identity.append(name, host);
+
+  const health = document.createElement("span");
+  health.dataset["rowHealth"] = "";
 
   const actions = document.createElement("div");
-  actions.className = "flex gap-2";
-  const test = button("Test", "secondary");
-  const edit = button("Edit", "secondary");
-  const remove = button("Remove", "danger");
-  actions.append(test, edit, remove);
+  actions.className = "flex shrink-0 gap-1";
+  const [test, testTip] = rowButton("test", instance.id);
+  const [edit, editTip] = rowButton("edit", instance.id);
+  const [remove, removeTip] = rowButton("remove", instance.id);
+  actions.append(test, testTip, edit, editTip, remove, removeTip);
 
-  heading.append(labels, actions);
-  row.append(heading);
+  line.append(dot, identity, health, actions);
 
   const status = document.createElement("div");
   status.className = "mt-2 empty:mt-0";
   status.dataset["rowStatus"] = "";
-  row.append(status);
+  row.append(line, status);
 
   test.addEventListener("click", () => {
-    void runConnectionTest(state.instance, test, status);
+    void runConnectionTest(state.instance, test, row);
   });
   edit.addEventListener("click", () => {
     showForm(regions, state.instance);
@@ -261,24 +297,55 @@ function instanceRow(regions: Regions, instance: Instance): HTMLElement {
     void removeInstance(regions, state.instance, remove, status);
   });
 
-  patchRow(row, instance);
+  patchRow(row, instance, position);
+  paintVerdict(row, instance.id);
 
   return row;
 }
 
-function patchRow(row: HTMLElement, instance: Instance): void {
+function rowButton(action: RowAction, instanceId: number): [HTMLButtonElement, HTMLElement] {
+  const { icon, verb, words, hover } = ROW_ACTIONS[action];
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.id = `that-instance-${action}-${String(instanceId)}`;
+  button.dataset["rowAction"] = action;
+  // patchRow names the instance, and renames it after an edit.
+  button.setAttribute("aria-label", verb);
+  button.className = `${ROW_BUTTON_CLASS} ${hover}`;
+  button.innerHTML = iconMarkup(icon, 17);
+
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", button.id);
+  tooltip.setAttribute("anchor", "end");
+  tooltip.textContent = words;
+
+  return [button, tooltip];
+}
+
+function patchRow(row: HTMLElement, instance: Instance, position: number): void {
   const state = rowState.get(row);
   if (state) {
     state.instance = instance;
   }
 
+  const dot = row.querySelector<HTMLElement>("[data-row-dot]");
+  if (dot) {
+    paintInstanceDot(dot, position, instance.name);
+  }
   const name = row.querySelector<HTMLElement>("[data-row-name]");
-  const detail = row.querySelector<HTMLElement>("[data-row-detail]");
   if (name) {
     name.textContent = instance.name;
   }
-  if (detail) {
-    detail.textContent = `${instance.email} · ${instance.siteUrl || "no site URL"}`;
+  const host = row.querySelector<HTMLElement>("[data-row-host]");
+  if (host) {
+    host.textContent = hostLine(instance);
+  }
+  for (const button of row.querySelectorAll<HTMLElement>("[data-row-action]")) {
+    const action = button.dataset["rowAction"];
+    if (action === "test" || action === "edit" || action === "remove") {
+      button.setAttribute("aria-label", `${ROW_ACTIONS[action].verb} ${instance.name}`);
+    }
   }
 
   // A migrated row that held a gateway URL: REST calls still work, but #5 has no
@@ -299,40 +366,85 @@ function patchRow(row: HTMLElement, instance: Instance): void {
   }
 }
 
-// A saved token is never echoed back by the API (Instance carries no token
-// field), so a token-only edit is invisible to any comparison of the
-// reconciled Instance against its prior state — patchRow cannot detect it.
-// Clearing here instead, scoped to the one row that was just saved, reaches
-// that case too and — because it is scoped to that id — never touches a
-// sibling row's own in-flight "Testing…" the way an unconditional clear in
-// patchRow's per-row reconcile pass would.
-function clearRowStatus(regions: Regions, instanceId: number): void {
+/**
+ * The drawing's two health states. A failed verdict is not drawn yet, so the
+ * server's own message stays in the alert beneath the row, as it did before.
+ */
+function paintVerdict(row: HTMLElement, instanceId: number): void {
+  const health = row.querySelector<HTMLElement>("[data-row-health]");
+  const status = row.querySelector<HTMLElement>("[data-row-status]");
+  if (!health || !status) return;
+
+  const verdict = verdicts.get(instanceId);
+  status.replaceChildren();
+  if (!verdict) {
+    health.className = `${HEALTH_CLASS} text-ink-muted`;
+    health.textContent = "Not tested";
+  } else if (verdict.ok) {
+    health.className = `${HEALTH_CLASS} text-running`;
+    // No aria-label: the check is decoration beside the words that name the state.
+    health.innerHTML = iconMarkup("check", 15);
+    health.append(`Connected · ${clockTime(verdict.at)}`);
+  } else {
+    health.className = HEALTH_CLASS;
+    health.replaceChildren();
+    status.append(alertFor("error", verdict.message));
+  }
+}
+
+/** The drawing's `.ihost`. A migrated instance has no site URL and so no host;
+ *  the warning beneath its row says why. */
+function hostLine(instance: Instance): string {
+  if (instance.siteUrl === "") return instance.email;
+
+  let host: string;
+  try {
+    host = new URL(instance.siteUrl).host;
+  } catch {
+    host = instance.siteUrl;
+  }
+
+  return `${host} · ${instance.email}`;
+}
+
+// A saved token is never echoed back by the API, so a token-only edit is
+// invisible to any comparison of the reconciled Instance — patchRow cannot see
+// it. Forgetting here, scoped to the one instance just saved, reaches that case
+// and never touches a sibling row's own test in flight.
+function forgetVerdict(regions: Regions, instanceId: number): void {
+  verdicts.delete(instanceId);
   const row = regions.listSlot.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
-  row?.querySelector<HTMLElement>("[data-row-status]")?.replaceChildren();
+  if (row) {
+    paintVerdict(row, instanceId);
+  }
 }
 
 async function runConnectionTest(
   instance: Instance,
-  trigger: HTMLElement,
-  status: HTMLElement,
+  trigger: HTMLButtonElement,
+  row: HTMLElement,
 ): Promise<void> {
-  trigger.setAttribute("disabled", "");
-  status.replaceChildren(alertFor("warning", "Testing…"));
+  trigger.disabled = true;
+  row
+    .querySelector<HTMLElement>("[data-row-status]")
+    ?.replaceChildren(alertFor("warning", "Testing…"));
 
   try {
-    const result = await testInstance(instance.id);
-    status.replaceChildren(alertFor("success", `Connected as ${result.displayName}.`));
+    await testInstance(instance.id);
+    verdicts.set(instance.id, { ok: true, at: new Date() });
   } catch (error) {
-    status.replaceChildren(alertFor("error", messageOf(error)));
+    verdicts.set(instance.id, { ok: false, at: new Date(), message: messageOf(error) });
   } finally {
-    trigger.removeAttribute("disabled");
+    trigger.disabled = false;
   }
+
+  paintVerdict(row, instance.id);
 }
 
 async function removeInstance(
   regions: Regions,
   instance: Instance,
-  trigger: HTMLElement,
+  trigger: HTMLButtonElement,
   status: HTMLElement,
 ): Promise<void> {
   const confirmed = await confirmDestructive({
@@ -342,11 +454,13 @@ async function removeInstance(
   });
   if (!confirmed) return;
 
-  trigger.setAttribute("disabled", "");
+  trigger.disabled = true;
 
   try {
     await deleteInstance(instance.id);
     regions.changed = true;
+    // SQLite gives a freed id to the next instance created (no AUTOINCREMENT).
+    verdicts.delete(instance.id);
     await refresh(regions);
 
     // The list persists beside the form now, so Remove is reachable while that
@@ -359,7 +473,7 @@ async function removeInstance(
     refocusAfterRemoval(regions);
   } catch (error) {
     status.replaceChildren(alertFor("error", messageOf(error)));
-    trigger.removeAttribute("disabled");
+    trigger.disabled = false;
   }
 }
 
@@ -455,7 +569,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
       regions.changed = true;
       await refresh(regions);
       if (editing) {
-        clearRowStatus(regions, editing.id);
+        forgetVerdict(regions, editing.id);
       }
       // The user may have moved on while this save was in flight (#161). An Edit
       // form they opened on this same instance was filled from pre-save values.

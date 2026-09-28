@@ -96,3 +96,12 @@ test("info is not warning turned upside down by colour alone", () => {
   assert.notEqual(shape("info"), shape("warning"));
   assert.notEqual(shape("info"), shape("failed"));
 });
+
+test("plug and check are transcribed from the prototype's #p-plug and #p-check", () => {
+  // Pasted verbatim from docs/superpowers/prototypes/2026-09-03-app-prototype.html's <defs>.
+  assert.match(
+    iconMarkup("plug"),
+    /<path d="M9 3\.5v5M15 3\.5v5M6\.5 8\.5h11v3a5\.5 5\.5 0 0 1-5\.5 5\.5A5\.5 5\.5 0 0 1 6\.5 11\.5Z"\/><path d="M12 17v3\.5"\/>/,
+  );
+  assert.match(iconMarkup("check"), /<path d="M4\.5 12\.6 9\.6 17\.7 19\.5 6\.9"\/>/);
+});

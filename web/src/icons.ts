@@ -35,6 +35,8 @@ export const ICON_NAMES = [
   "stop",
   "info",
   "external",
+  "plug",
+  "check",
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];
@@ -99,6 +101,11 @@ const PATHS: Record<IconName, string> = {
   // text. Issue keys are outbound too and stay bare, by the owner's choice.
   external:
     '<path d="M14 5h5v5M19 5l-8 8M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
+  // #89's row controls and health mark, transcribed from #p-plug and #p-check.
+  // The drawing strokes the check at 2.2; the set's 1.9 holds here, and the
+  // difference went to the owner.
+  plug: '<path d="M9 3.5v5M15 3.5v5M6.5 8.5h11v3a5.5 5.5 0 0 1-5.5 5.5A5.5 5.5 0 0 1 6.5 11.5Z"/><path d="M12 17v3.5"/>',
+  check: '<path d="M4.5 12.6 9.6 17.7 19.5 6.9"/>',
 };
 
 /**

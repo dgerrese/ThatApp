@@ -137,7 +137,7 @@ async function panelBox(settings: Locator): Promise<{ top: number; height: numbe
 const confirmDialog = (page: Page) => page.getByRole("dialog", { name: /^Remove / });
 
 async function addInstance(page: Page): Promise<void> {
-  await page.getByLabel("Name").fill("Work");
+  await page.getByLabel("Name", { exact: true }).fill("Work");
   await page.getByLabel("Site URL").fill("https://example.atlassian.net");
   await page.getByLabel("Account email").fill("me@example.com");
   await page.getByLabel("API token", { exact: true }).fill("secret");
@@ -155,7 +155,7 @@ test("an instance can be added and appears in the list", async ({ page }) => {
   // exact: true disambiguates from the shell's persistent "ThatApp"
   // heading, which the default substring match would otherwise also resolve.
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
-  await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
+  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
 });
 
 /**
@@ -175,27 +175,44 @@ test("the Add instance button carries the app-wide drawn 38px height", async ({ 
   expect(height).toBe(38);
 });
 
-test("a successful connection test names the account", async ({ page }) => {
+test("an untested instance reads Not tested, in muted ink with no mark", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await stubListed(page, [listed(1, "Ridgeline")]);
+  const settings = await openSettings(page);
+
+  const health = settings.getByRole("listitem").filter({ hasText: "Ridgeline" }).locator("[data-row-health]");
+  await expect(health).toHaveText("Not tested");
+  await expect(health).toHaveCSS("color", "oklch(0.725 0.012 55)");
+  await expect(health.locator("svg")).toHaveCount(0);
+});
+
+test("a successful connection test states Connected and the time it was taken", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
   await stubInstancesApi(page, { testStatus: 200 });
-  await openSettings(page);
+  const settings = await openSettings(page);
   await addInstance(page);
 
-  await page.getByRole("button", { name: "Test" }).click();
+  const row = settings.getByRole("listitem").filter({ hasText: "Work" });
+  await row.getByRole("button", { name: "Test Work" }).click();
 
-  await expect(page.getByText("Connected as Dion.")).toBeVisible();
+  const health = row.locator("[data-row-health]");
+  await expect(health).toHaveText(/^Connected · \d{2}:\d{2}$/);
+  await expect(health).toHaveCSS("color", "oklch(0.75 0.15 150)");
+  await expect(health.locator("svg")).toHaveAttribute("width", "15");
 });
 
 // Success and failure must be distinguishable, which is the whole point of a
 // test button that asserts identity rather than a 2xx.
 test("a rejected connection test reports the failure", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 401 });
-  await openSettings(page);
+  const settings = await openSettings(page);
   await addInstance(page);
 
-  await page.getByRole("button", { name: "Test" }).click();
+  await settings.getByRole("button", { name: "Test Work" }).click();
 
-  await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
-  await expect(page.getByText("Connected as")).toBeHidden();
+  await expect(settings.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
+  await expect(settings.getByText(/Connected ·/)).toBeHidden();
+  await expect(settings.getByText("Not tested")).toBeHidden();
 });
 
 test("removing an instance asks first, and cancelling changes nothing", async ({ page }) => {
@@ -213,7 +230,7 @@ test("removing an instance asks first, and cancelling changes nothing", async ({
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
   await expect(dialog).toBeHidden();
-  await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
+  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
   expect(stub.deleteCount()).toBe(0);
 });
 
@@ -242,12 +259,12 @@ test("pressing Escape cancels the removal", async ({ page }) => {
 
   await expect(confirmDialog(page)).toBeHidden();
   await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
-  await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
+  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
   expect(stub.deleteCount()).toBe(0);
 });
 
 async function addSecondInstance(page: Page): Promise<void> {
-  await page.getByLabel("Name").fill("Personal");
+  await page.getByLabel("Name", { exact: true }).fill("Personal");
   await page.getByLabel("Site URL").fill("https://personal.atlassian.net");
   await page.getByLabel("Account email").fill("me@personal.com");
   await page.getByLabel("API token", { exact: true }).fill("secret2");
@@ -311,7 +328,7 @@ test("typed input survives removing another instance", async ({ page }) => {
 
   await addSecondInstance(page);
 
-  await page.getByLabel("Name").fill("Half-typed");
+  await page.getByLabel("Name", { exact: true }).fill("Half-typed");
 
   await page
     .getByRole("listitem")
@@ -322,7 +339,7 @@ test("typed input survives removing another instance", async ({ page }) => {
 
   await expect(page.getByText("Work", { exact: true })).toBeHidden();
   await expect(page.getByText("Personal", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Name")).toHaveValue("Half-typed");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Half-typed");
 });
 
 test("editing can be cancelled", async ({ page }) => {
@@ -331,13 +348,13 @@ test("editing can be cancelled", async ({ page }) => {
   await addInstance(page);
 
   await page.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByLabel("Name")).toHaveValue("Work");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Work");
 
   await page.getByRole("button", { name: "Cancel changes" }).click();
 
   await expect(page.getByRole("button", { name: "Add instance" })).toBeVisible();
-  await expect(page.getByLabel("Name")).toHaveValue("");
-  await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
+  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
 });
 
 // #56: the initial list read is answered after a save has already redrawn the
@@ -413,11 +430,11 @@ test("an in-flight connection test survives another row being saved", async ({ p
   await expect(workRow.getByText("Testing…")).toBeVisible();
 
   await personalRow.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Name").fill("Personal Renamed");
+  await page.getByLabel("Name", { exact: true }).fill("Personal Renamed");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByText("Personal Renamed", { exact: true })).toBeVisible();
 
-  await expect(workRow.getByText("Connected as Dion.")).toBeVisible({ timeout: 5000 });
+  await expect(workRow.locator("[data-row-health]")).toHaveText(/^Connected · /, { timeout: 5000 });
 });
 
 // A reused row's handlers must read the current instance, not the one the row
@@ -429,7 +446,7 @@ test("removing a renamed instance names the confirm dialog correctly", async ({ 
   await addInstance(page);
 
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Name").fill("Renamed");
+  await page.getByLabel("Name", { exact: true }).fill("Renamed");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByText("Renamed", { exact: true })).toBeVisible();
 
@@ -447,7 +464,7 @@ test("editing an instance to add its site URL clears the missing-URL warning", a
   await stubInstancesApi(page, { testStatus: 200 });
   await openSettings(page);
 
-  await page.getByLabel("Name").fill("No Site");
+  await page.getByLabel("Name", { exact: true }).fill("No Site");
   await page.getByLabel("Account email").fill("me@example.com");
   await page.getByLabel("API token", { exact: true }).fill("secret");
   await page.getByRole("button", { name: "Add instance" }).click();
@@ -483,6 +500,7 @@ test("saving over a failed connection test clears the stale result", async ({ pa
   await page.getByRole("button", { name: "Save changes" }).click();
 
   await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeHidden();
+  await expect(page.getByText("Not tested")).toBeVisible();
 });
 
 // Before this branch, entering edit mode destroyed the list, so no Remove
@@ -495,13 +513,13 @@ test("removing the instance you are editing clears the form", async ({ page }) =
   await addInstance(page);
 
   await page.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByLabel("Name")).toHaveValue("Work");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Work");
 
   await page.getByRole("button", { name: "Remove" }).click();
   await confirmDialog(page).getByRole("button", { name: "Remove instance" }).click();
 
   await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
-  await expect(page.getByLabel("Name")).toHaveValue("");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
 });
 
 test("a failed initial load still renders the Add form", async ({ page }) => {
@@ -555,18 +573,18 @@ test("a save finishing after Edit on another row leaves that edit form alone", a
 
   const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
   await page.getByRole("listitem").filter({ hasText: "Work" }).getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
   await page.getByRole("listitem").filter({ hasText: "Personal" }).getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Name").fill("Personal typed");
+  await page.getByLabel("Name", { exact: true }).fill("Personal typed");
 
   held.release();
   await expect(page.getByText("Work Renamed", { exact: true })).toBeVisible();
 
   await expect(page.getByRole("heading", { name: "Edit Personal" })).toBeVisible();
-  await expect(page.getByLabel("Name")).toHaveValue("Personal typed");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Personal typed");
 });
 
 test("a save finishing after Cancel leaves the new Add form alone", async ({ page }) => {
@@ -577,18 +595,18 @@ test("a save finishing after Cancel leaves the new Add form alone", async ({ pag
 
   const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
   await page.getByRole("button", { name: "Cancel changes" }).click();
-  await page.getByLabel("Name").fill("Half-typed");
+  await page.getByLabel("Name", { exact: true }).fill("Half-typed");
 
   held.release();
   await expect(page.getByText("Work Renamed", { exact: true })).toBeVisible();
 
   await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
-  await expect(page.getByLabel("Name")).toHaveValue("Half-typed");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Half-typed");
 });
 
 test("a save finishing with its own form still shown resets to Add an instance", async ({ page }) => {
@@ -599,7 +617,7 @@ test("a save finishing with its own form still shown resets to Add an instance",
 
   const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
@@ -607,7 +625,7 @@ test("a save finishing with its own form still shown resets to Add an instance",
   await expect(page.getByText("Work Renamed", { exact: true })).toBeVisible();
 
   await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
-  await expect(page.getByLabel("Name")).toHaveValue("");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
 });
 
 const saveFailure = { status: 500, json: { code: "store_failed", message: "could not save the instance" } };
@@ -620,7 +638,7 @@ test("a save failing after its form was replaced reports in the page error slot"
 
   const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
@@ -639,7 +657,7 @@ test("a save failing with its form still shown reports in the form", async ({ pa
 
   const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
@@ -657,17 +675,17 @@ test("an Edit form opened on the instance being saved shows the saved values", a
 
   const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Name").fill("Work Renamed");
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
   await page.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByLabel("Name")).toHaveValue("Work");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Work");
 
   held.release();
 
   await expect(page.getByRole("heading", { name: "Edit Work Renamed" })).toBeVisible();
-  await expect(page.getByLabel("Name")).toHaveValue("Work Renamed");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Work Renamed");
 });
 
 test.describe("the dialog", () => {
@@ -762,6 +780,7 @@ test.describe("the dialog", () => {
     await page.keyboard.press("Escape");
 
     await expect(settings).toHaveCount(0);
+    await expect(page.locator("#settings-cog")).toBeFocused();
   });
 
   test("a second press while Settings loads opens one dialog, not two", async ({ page }) => {
@@ -791,6 +810,7 @@ test.describe("the dialog", () => {
 
     await settings.getByRole("button", { name: "Close" }).click();
     await expect(settings).toHaveCount(0);
+    await expect(page.locator("#settings-cog")).toBeFocused();
     await page.waitForTimeout(300);
     expect(issueReads).toBe(0);
 
@@ -800,5 +820,114 @@ test.describe("the dialog", () => {
     await settings.getByRole("button", { name: "Close" }).click();
 
     await expect.poll(() => issueReads).toBe(1);
+    // A duplicate re-read would arrive after the first; give it the chance to.
+    await page.waitForTimeout(300);
+    expect(issueReads).toBe(1);
+  });
+});
+
+test.describe("instance rows", () => {
+  test("each row carries its 8px instance-hue dot and host · email in mono", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline"), listed(2, "Northwind")]);
+    const settings = await openSettings(page);
+
+    const first = settings.getByRole("listitem").filter({ hasText: "Ridgeline" });
+    const second = settings.getByRole("listitem").filter({ hasText: "Northwind" });
+    await expect(first.locator("[data-row-dot]")).toHaveCSS("width", "8px");
+    await expect(first.locator("[data-row-dot]")).toHaveCSS("height", "8px");
+    await expect(first.getByRole("img", { name: "Ridgeline" })).toBeVisible();
+    expect(await first.locator("[data-row-dot]").evaluate((dot) => dot.style.getPropertyValue("--h"))).toBe("265");
+    expect(await second.locator("[data-row-dot]").evaluate((dot) => dot.style.getPropertyValue("--h"))).toBe("175");
+
+    const host = first.locator("[data-row-host]");
+    await expect(host).toHaveText("ridgeline.atlassian.net · dion@this.nl");
+    await expect(host).toHaveCSS("font-family", /Chivo Mono/);
+  });
+
+  test("the row controls are icon buttons with their tooltips, primary on hover, remove failed", async ({ page }) => {
+    await page.emulateMedia({ colorScheme: "dark" });
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    const settings = await openSettings(page);
+    const row = settings.getByRole("listitem").filter({ hasText: "Ridgeline" });
+
+    for (const [name, words, hover] of [
+      ["Test Ridgeline", "test connection", "oklch(0.72 0.19 330)"],
+      ["Edit Ridgeline", "edit instance", "oklch(0.72 0.19 330)"],
+      ["Remove Ridgeline", "remove instance", "oklch(0.72 0.17 25)"],
+    ] as const) {
+      const control = row.getByRole("button", { name, exact: true });
+      await expect(control.locator("svg")).toHaveAttribute("width", "17");
+      await control.hover();
+      await expect(control).toHaveCSS("color", hover);
+      const id = await control.getAttribute("id");
+      await expect(page.locator(`that-tooltip[for="${String(id)}"]`)).toHaveText(words);
+      await expect(page.locator(`that-tooltip[for="${String(id)}"]`)).toBeVisible();
+    }
+  });
+
+  test("a verdict survives closing and reopening, and a reload forgets it", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    await page.route("**/api/instances/*/test", (route) =>
+      route.fulfill({ status: 200, json: { accountId: "a", displayName: "Dion" } }),
+    );
+    const settings = await openSettings(page);
+
+    await settings.getByRole("button", { name: "Test Ridgeline" }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText(/^Connected · /);
+
+    await settings.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText(/^Connected · /);
+
+    await page.reload();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText("Not tested");
+  });
+
+  test("a test still running when Settings closes shows its verdict on reopen", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    let answer: () => void = () => {};
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    let arrive: () => void = () => {};
+    const arrived = new Promise<void>((resolve) => {
+      arrive = resolve;
+    });
+    await page.route("**/api/instances/*/test", async (route) => {
+      arrive();
+      await answered;
+      await route.fulfill({ status: 200, json: { accountId: "a", displayName: "Dion" } });
+    });
+    const settings = await openSettings(page);
+
+    await settings.getByRole("button", { name: "Test Ridgeline" }).click();
+    await arrived;
+    await settings.getByRole("button", { name: "Close" }).click();
+    const tested = page.waitForResponse("**/api/instances/*/test");
+    answer();
+    await tested;
+    // One more round trip, so the app's own promise chain has settled the verdict.
+    await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText(/^Connected · /);
+  });
+
+  test("a removed instance's verdict never lands on the next instance given its id", async ({ page }) => {
+    await stubInstancesApi(page, { testStatus: 200 });
+    const settings = await openSettings(page);
+    await addInstance(page);
+
+    await settings.getByRole("button", { name: "Test Work" }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText(/^Connected · /);
+
+    await settings.getByRole("button", { name: "Remove Work" }).click();
+    await confirmDialog(page).getByRole("button", { name: "Remove instance" }).click();
+    await expect(settings.getByText("No instances yet. Add one below.")).toBeVisible();
+
+    // The stub numbers by list length, so this one is given id 1 again — as SQLite would.
+    await addInstance(page);
+    await expect(settings.locator("[data-row-health]")).toHaveText("Not tested");
   });
 });

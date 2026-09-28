@@ -89,14 +89,14 @@ test.describe("Settings: Remove does not drop focus to <body> (#143)", () => {
     await openSettingsOverToday(page);
     await expect(page.getByText("Ridgeline", { exact: true })).toBeVisible();
 
-    await page.getByRole("button", { name: "Remove", exact: true }).first().focus();
+    await page.getByRole("button", { name: "Remove Ridgeline" }).focus();
     await page.keyboard.press("Enter");
     await page.getByRole("button", { name: "Remove instance" }).focus();
     await page.keyboard.press("Enter");
 
     await expect(page.getByText("Northwind", { exact: true })).toBeVisible();
     await expect(page.locator("body")).not.toBeFocused();
-    await expect(page.getByRole("button", { name: "Test", exact: true })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Test Northwind", exact: true })).toBeFocused();
   });
 
   test("removing the last instance refocuses the add-instance form", async ({ page }) => {
@@ -126,7 +126,7 @@ test.describe("Settings: Remove does not drop focus to <body> (#143)", () => {
     await openSettingsOverToday(page);
     await expect(page.getByText("Ridgeline", { exact: true })).toBeVisible();
 
-    await page.getByRole("button", { name: "Remove", exact: true }).focus();
+    await page.getByRole("button", { name: "Remove Ridgeline" }).focus();
     await page.keyboard.press("Enter");
     await page.getByRole("button", { name: "Remove instance" }).focus();
     await page.keyboard.press("Enter");
