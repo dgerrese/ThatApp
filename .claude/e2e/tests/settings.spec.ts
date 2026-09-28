@@ -687,9 +687,121 @@ test("a save failing with its form still shown reports in the form", async ({ pa
   await expect(page.getByRole("heading", { name: "Edit Work" })).toBeVisible();
 });
 
-test("an Edit form opened on the instance being saved shows the saved values", async ({ page }) => {
+// #200: a second Edit on an instance whose save has not answered would open
+// on pre-save values and overwrite that save, so Edit is disabled until its
+// own save answers — for that row only.
+test("while a save is held, that row's Edit is disabled and other rows' are not", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
   await openSettings(page);
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+  await addSecondInstance(page);
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  const work = page.locator("li[data-instance-id]", { hasText: "Work" });
+  const personal = page.locator("li[data-instance-id]", { hasText: "Personal" });
+  await work.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  await expect(work.getByRole("button", { name: "Edit" })).toBeDisabled();
+  await expect(personal.getByRole("button", { name: "Edit" })).toBeEnabled();
+  held.release();
+});
+
+test("when the held save succeeds, Edit is enabled again, focused, and opens on the saved values", async ({
+  page,
+}) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await openSettings(page);
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  const row = page.locator("li[data-instance-id]", { hasText: "Work" });
+  await row.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  await expect(row.getByRole("button", { name: "Edit" })).toBeDisabled();
+  held.release();
+
+  await expect(row.getByRole("button", { name: "Edit Work Renamed", exact: true })).toBeEnabled();
+  await expect(row.getByRole("button", { name: "Edit Work Renamed", exact: true })).toBeFocused();
+  await row.getByRole("button", { name: "Edit" }).click();
+
+  await expect(page.getByRole("heading", { name: "Edit Work Renamed" })).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Work Renamed");
+});
+
+test("when the held save fails, Edit is enabled again and the failure reports where #161 put it", async ({
+  page,
+}) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await openSettings(page);
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const row = page.locator("li[data-instance-id]", { hasText: "Work" });
+
+  const heldShown = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await row.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await heldShown.arrived;
+
+  heldShown.release(saveFailure);
+
+  await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
+  await expect(page.locator("form").getByText("could not save the instance", { exact: true })).toBeVisible();
+
+  // A second case: Cancel closes the form while the save is held, and the row
+  // is patched by nothing until the failure answers.
+  const heldReplaced = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed Again");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await heldReplaced.arrived;
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(row.getByRole("button", { name: "Edit" })).toBeDisabled();
+  heldReplaced.release(saveFailure);
+
+  await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
+  await expect(page.getByText("Could not save Work: could not save the instance")).toBeVisible();
+});
+
+test("a list patch while a save is held keeps that row's Edit disabled", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await openSettings(page);
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  const work = page.locator("li[data-instance-id]", { hasText: "Work" });
+  await work.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+
+  // Adding another instance re-reads the list, which patches the held row.
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await addSecondInstance(page);
+
+  await expect(work.getByRole("button", { name: "Edit" })).toBeDisabled();
+  held.release();
+  await expect(page.getByRole("button", { name: "Edit Work Renamed", exact: true })).toBeEnabled();
+});
+
+// savingIds is module-level and outlives the dialog, but each dialog owns its
+// own rows. A finally that re-enabled through the dialog that started the save
+// would write into its detached list, leaving the reopened row's Edit disabled.
+test("closing and reopening Settings while a save is held still re-enables that row's Edit", async ({
+  page,
+}) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  const settings = await openSettings(page);
   await addInstance(page);
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
@@ -699,13 +811,15 @@ test("an Edit form opened on the instance being saved shows the saved values", a
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
-  await page.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Work");
+  await page.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const row = page.locator("li[data-instance-id]", { hasText: "Work" });
+  await expect(row.getByRole("button", { name: "Edit" })).toBeDisabled();
 
   held.release();
 
-  await expect(page.getByRole("heading", { name: "Edit Work Renamed" })).toBeVisible();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Work Renamed");
+  await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
 });
 
 test.describe("the dialog", () => {

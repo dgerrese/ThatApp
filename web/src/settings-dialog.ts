@@ -277,6 +277,18 @@ function emptyNotice(): HTMLElement {
 // Keyed by the row element (not module-level) so it is collected with the row.
 const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
 
+// A second Edit on an instance whose save has not answered would open on
+// pre-save values and overwrite that save (#200).
+const savingIds = new Set<number>();
+
+// Queries the live document: a save outlives the dialog that started it, and
+// its finally must reach the row a reopened dialog shows, not its own detached one.
+function setRowEditDisabled(instanceId: number, disabled: boolean): void {
+  document
+    .querySelector(`li[data-instance-id="${String(instanceId)}"] [data-row-action="edit"]`)
+    ?.toggleAttribute("disabled", disabled);
+}
+
 /**
  * What the last connection test said, per instance id, for the life of the
  * page: closing Settings keeps it, a reload forgets it, and nothing stores it —
@@ -410,6 +422,9 @@ function patchRow(row: HTMLElement, instance: Instance, position: number): void 
     const action = button.dataset["rowAction"];
     if (action === "test" || action === "edit" || action === "remove") {
       button.setAttribute("aria-label", `${ROW_ACTIONS[action].verb} ${instance.name}`);
+    }
+    if (action === "edit") {
+      button.toggleAttribute("disabled", savingIds.has(instance.id));
     }
   }
 
@@ -661,20 +676,15 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
       ...(token.input.value === "" ? {} : { token: token.input.value }),
     };
 
+    if (editing) {
+      savingIds.add(editing.id);
+      setRowEditDisabled(editing.id, true);
+    }
+
     try {
-      const saved = editing ? await updateInstance(editing.id, draft) : await createInstance(draft);
+      await (editing ? updateInstance(editing.id, draft) : createInstance(draft));
       markChanged(regions);
       await refresh(regions);
-      if (editing) {
-        forgetVerdict(regions, editing.id);
-      }
-      // The user may have moved on while this save was in flight (#161). An Edit
-      // form they opened on this same instance was filled from pre-save values.
-      if (regions.formSection.contains(holder)) {
-        hideForm(regions);
-      } else if (regions.formSection.querySelector(`[data-editing-id="${saved.id}"]`)) {
-        showForm(regions, saved, regions.formOpener);
-      }
     } catch (error) {
       if (regions.formSection.contains(holder)) {
         status.replaceChildren(alertFor("error", messageOf(error)));
@@ -685,6 +695,23 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
           alertFor("error", `Could not save ${label}: ${messageOf(error)}`),
         );
       }
+
+      return;
+    } finally {
+      if (editing) {
+        savingIds.delete(editing.id);
+        setRowEditDisabled(editing.id, false);
+      }
+    }
+
+    if (editing) {
+      forgetVerdict(regions, editing.id);
+    }
+    // After the finally: hideForm hands focus to the Edit that opened this form,
+    // and a disabled button cannot take it. Reset only the form this save came
+    // from; the user may have moved on while it was in flight (#161).
+    if (regions.formSection.contains(holder)) {
+      hideForm(regions);
     }
   }
 
