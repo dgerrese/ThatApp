@@ -521,9 +521,11 @@ exception: it already carries a real border, which is the same hairline by anoth
 eye. The drop shadow around the prototype's own window frame is scaffolding for the mock and is not a
 surface in the app.
 
-**Still open — the scrim.** The half-opaque black behind an open dialog is unchanged in both themes.
-Darkening a white page by that much is a decision about modality rather than about depth, and it was not
-settled on 2026-09-04.
+**The scrim is one token, `--color-scrim`, and it differs by theme: 25% black on light, 60% on dark** —
+`oklch(0 0 0 / 0.25)` and `oklch(0 0 0 / 0.6)`. One value in both themes would dim a light page and a
+dark one by the same number but not by the same felt amount, since a dark page is already close to
+black; two values are what makes the dimming read as the same weight of modality in both. Settled by
+the owner on 2026-09-23, over the prototype's 50% in both themes and the browser's UA-default 10%.
 
 ## Decision 12 — a toolbar button carries words, an inline control carries a glyph
 

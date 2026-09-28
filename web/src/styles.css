@@ -124,6 +124,12 @@
      another mechanism, so it takes no ring of its own. */
   --shadow-dialog: 0 12px 36px -12px light-dark(oklch(0 0 0 / 0.16), oklch(0 0 0 / 0.75));
 
+  /* One value in both themes would dim a light page and a dark one by the
+     same number but not by the same felt amount — a dark page is already
+     close to black. 25%/60% was settled by the owner on 2026-09-23 over the
+     prototype's 50% in both themes and the browser's UA default of 10%. */
+  --color-scrim: light-dark(oklch(0 0 0 / 0.25), oklch(0 0 0 / 0.6));
+
   /* The owner's screen is 2560px wide and every Tailwind default stops far
      short of it. Beware: max-w-3xl is the container scale's 48rem and has
      nothing to do with this — capping a column needs an explicit value. */
@@ -138,6 +144,17 @@
 }
 [data-theme="dark"] {
   color-scheme: dark;
+}
+
+/* Every native <dialog> dims the page behind it with the one scrim, so
+   that-confirm, the entries dialog and the stop dialog take it with no
+   per-component style. The Settings dialog fills the viewport and paints the
+   same token as its own background instead (settings-dialog.ts), so it is
+   excluded by id here — a rule written outside any @layer always beats a
+   Tailwind utility regardless of specificity, so `backdrop:bg-transparent`
+   on #that-settings-dialog could not have overridden this rule otherwise. */
+dialog:not(#that-settings-dialog)::backdrop {
+  background: var(--color-scrim);
 }
 
 /* Instance identity. Lightness and chroma are fixed and only the hue moves, so

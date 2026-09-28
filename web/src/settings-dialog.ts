@@ -32,6 +32,10 @@ interface Regions {
 }
 
 const HEADING_ID = "that-settings-heading";
+// Named in web/src/styles.css's dialog::backdrop rule, which excludes this
+// dialog by id: it paints the scrim as its own background instead (below),
+// and the rule would otherwise double it.
+const SETTINGS_DIALOG_ID = "that-settings-dialog";
 
 /**
  * The top-layer element fills the viewport and is the scroller; the panel is an
@@ -43,7 +47,7 @@ const HEADING_ID = "that-settings-heading";
  */
 const DIALOG_CLASS =
   "text-ink fixed inset-0 m-0 size-full max-h-none max-w-none overflow-y-auto border-0 " +
-  "bg-[oklch(0_0_0/0.5)] p-7 backdrop:bg-transparent open:flex open:flex-col";
+  "bg-scrim p-7 backdrop:bg-transparent open:flex open:flex-col";
 const PANEL_CLASS =
   "bg-raised border-edge shadow-dialog m-auto w-[620px] max-w-full shrink-0 rounded-md border";
 const SECTION_CLASS = "border-edge border-b px-5 py-[15px] last:border-b-0";
@@ -76,6 +80,7 @@ export function showSettings(): void {
   appearance.append(themeControl());
 
   const dialog = document.createElement("dialog");
+  dialog.id = SETTINGS_DIALOG_ID;
   dialog.className = DIALOG_CLASS;
   dialog.setAttribute("aria-labelledby", HEADING_ID);
 
