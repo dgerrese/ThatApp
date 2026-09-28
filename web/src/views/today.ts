@@ -22,6 +22,7 @@ import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import type { RegisterTeardown } from "../router";
+import { currentTimer, elapsedSeconds, onTimerChanged } from "../timer-state";
 import { toolbarButton } from "../toolbar-button";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
@@ -395,6 +396,15 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   });
   registerTeardown(stopPushListening);
 
+  // The rail repaints its own total/split off every tick via the same event
+  // (rail.ts's paintFigures); the instance tallies need the same treatment,
+  // since paintTotals otherwise only runs off an entries read and a tick is
+  // neither a start, a stop nor a switch.
+  const stopTimerListening = onTimerChanged(() => {
+    paintInstanceTallies(regions);
+  });
+  registerTeardown(stopTimerListening);
+
   // Independent on purpose: the Pinned card paints from the store alone and
   // must not wait on a fan-out that may be slow or failing.
   void refreshPins(regions);
@@ -466,9 +476,17 @@ function paintTotals(regions: Regions): void {
  * because it is still the instance's day, even once its row moves elsewhere.
  *
  * Called from paintTotals because the totals it reads are what paintTotals
- * has just written.
+ * has just written, and from the onTimerChanged subscription at mount, which
+ * is what keeps it current on a tick alone — a running timer's row can sit in
+ * Pinned rather than this card, but its instance's whole day still counts
+ * here, so the elapsed time is added by instance id regardless of where the
+ * row is. `tally.textContent` is only written on change, the same guard
+ * rail.ts's own paintFigures uses, so a tick that does not cross a minute
+ * touches no DOM.
  */
 function paintInstanceTallies(regions: Regions): void {
+  const running = currentTimer();
+
   for (const tally of document.querySelectorAll<HTMLElement>("[data-instance-tally]")) {
     const section = tally.closest("section");
     if (!section) continue;
@@ -482,10 +500,12 @@ function paintInstanceTallies(regions: Regions): void {
     for (const [key, value] of regions.totals) {
       if (instanceIdOfTotalKey(key) === instanceId) seconds += value;
     }
+    if (running?.instanceId === instanceId) seconds += elapsedSeconds();
 
     // A middot between two facts is typography, not an icon — the one place
     // the language says a typed character stays a typed character.
-    tally.textContent = `${String(rows.length)} ${rows.length === 1 ? "issue" : "issues"} · ${totalFigure(seconds)}`;
+    const text = `${String(rows.length)} ${rows.length === 1 ? "issue" : "issues"} · ${totalFigure(seconds)}`;
+    if (tally.textContent !== text) tally.textContent = text;
   }
 }
 

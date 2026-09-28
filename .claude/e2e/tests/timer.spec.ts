@@ -558,3 +558,530 @@ test("a focused start/stop button keeps focus when a sort moves its row", async 
   await expect(button).toBeFocused();
   await expectTimerDrawn(page, "WORK-2", false);
 });
+
+/**
+ * #204 task 2: the rail's total and split count a running timer's elapsed
+ * time on Today. A rig of its own rather than stubTimer/stubToday above —
+ * those hardcode instanceId 1/"Work" on the running timer with no
+ * instanceName/instancePosition, and these tests need both to vary.
+ */
+interface TotalsEntry {
+  id: number;
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+  day: string;
+  startedAt: string;
+  seconds: number;
+  comment: string;
+  pushState: "unpushed" | "pushed" | "dirty";
+}
+
+interface TotalsRunning {
+  instanceId: number;
+  instanceName: string;
+  instancePosition: number;
+  issueKey: string;
+  startedAt: string;
+}
+
+interface TotalsIssue {
+  key: string;
+  summary: string;
+  status: string;
+  url: string;
+}
+
+async function stubTotalsRig(
+  page: Page,
+  entries: TotalsEntry[],
+  running: TotalsRunning | null,
+  // Task 3: defaults keep every existing caller's instance-less rig, while
+  // the instance-tally tests below pass real issues (and pins) to get a card
+  // to read a tally off.
+  instances: { id: number; name: string; issues: TotalsIssue[] }[] = [
+    { id: 1, name: "Work", issues: [] },
+  ],
+  pins: unknown[] = [],
+): Promise<void> {
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { instances: instances.map((instance) => ({ ...instance, error: null })) },
+    }),
+  );
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: pins }));
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: entries[0]?.day ?? "2026-09-21", entries } }),
+  );
+  await page.route("**/api/timer", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+
+    return route.fulfill({ status: 200, json: { running, stopped: null } });
+  });
+}
+
+const DAY = "2026-09-21";
+
+test("the rail total and the running instance's split figure add the timer's elapsed time and tick with it", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - (59 * 60 + 50) * 1000).toISOString(),
+    },
+  );
+
+  await page.goto("/today");
+
+  await expect(page.locator("#rail-total")).toHaveText("1h 59m");
+  await expect(page.locator("#rail-split")).toContainText("1h 59m");
+
+  await page.clock.runFor(10_000);
+
+  await expect(page.locator("#rail-total")).toHaveText("2h 00m");
+  await expect(page.locator("#rail-split")).toContainText("2h 00m");
+});
+
+/**
+ * Settings borrows Today's period (setRailPeriod's reference-equality guard,
+ * TODAY_PERIOD) rather than getting one of its own, so the elapsed time the
+ * spec asks Today's rail to carry must still show there too.
+ */
+test("the rail total includes the running timer's elapsed time on Settings too", async ({ page }) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - (59 * 60 + 50) * 1000).toISOString(),
+    },
+  );
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-total")).toHaveText("1h 59m");
+
+  await page.getByRole("link", { name: "Settings" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.locator("#rail-total")).toHaveText("1h 59m");
+
+  await page.clock.runFor(10_000);
+  await expect(page.locator("#rail-total")).toHaveText("2h 00m");
+});
+
+test("the split's figures node keeps its identity across ticks within the same minute", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(page, [], {
+    instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+    startedAt: new Date(t0).toISOString(),
+  });
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-split")).toContainText("Work");
+
+  const figuresEl = page.locator("#rail-split > div").nth(1);
+  await figuresEl.evaluate((el) => el.setAttribute("data-marker", "kept"));
+
+  await page.clock.runFor(5_000);
+
+  await expect(figuresEl).toHaveAttribute("data-marker", "kept");
+});
+
+test("a running timer on an instance with no entries today still gets a named split slice", async ({
+  page,
+}) => {
+  await stubTotalsRig(page, [], {
+    instanceId: 2, instanceName: "Personal", instancePosition: 1, issueKey: "PERS-1",
+    startedAt: `${DAY}T09:59:00Z`,
+  });
+
+  await page.goto("/today");
+
+  await expect(page.locator("#rail-split")).toContainText("Personal");
+});
+
+test("switching to Week drops the timer's elapsed time from the rail total, and back to Today restores it", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - 1_800_000).toISOString(),
+    },
+  );
+  const weekDays = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"];
+  await page.route("**/api/week**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        start: DAY, end: "2026-09-27", prevStart: "2026-09-14", nextStart: "2026-09-28",
+        weekNumber: 39,
+        days: weekDays.map((day, index) => ({
+          day, seconds: index === 0 ? 3600 : 0, pushState: index === 0 ? "unpushed" : null,
+        })),
+        rows: [
+          {
+            instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1", url: "",
+            cells: weekDays.map((_, index) => ({
+              seconds: index === 0 ? 3600 : 0, pushState: index === 0 ? "unpushed" : null,
+            })),
+            seconds: 3600,
+          },
+        ],
+        seconds: 3600,
+      },
+    }),
+  );
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+
+  await page.getByRole("link", { name: "Week" }).click();
+  await expect(page).toHaveURL(/\/week$/);
+  await expect(page.locator("#rail-total")).toHaveText("1h 00m");
+  await expect(page.locator("tfoot td").last()).toHaveText("1h 00m");
+
+  await page.getByRole("link", { name: "Today" }).click();
+  await expect(page).toHaveURL(/\/today$/);
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+});
+
+/**
+ * Review finding on #204 task 2: setRailPeriod flips `currentPeriod`
+ * synchronously (inside the destination view's own mount), but `lastEntries`
+ * only catches up once that period's own listEntries() read lands — an async
+ * gap a real 1-second tick can land inside. paintFigures() must sit out that
+ * gap entirely rather than combine the old period's entries with the new
+ * period's TODAY_PERIOD-ness (or lack of it); this holds each direction's
+ * read open long enough for `clock.runFor` to prove a tick changes nothing
+ * until the read for the period actually on screen lands.
+ */
+test("a tick during a period switch paints neither period's entries under the other's label", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] },
+    }),
+  );
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.route("**/api/timer", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+
+    return route.fulfill({
+      status: 200,
+      json: {
+        running: {
+          instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+          startedAt: new Date(t0 - 1_800_000).toISOString(),
+        },
+        stopped: null,
+      },
+    });
+  });
+
+  // Both flags start false: the boot reads (Today's own and the rail's own)
+  // must resolve at once. Each holds a queue rather than one resolver — Today's
+  // mount fires two bare listEntries() calls of its own (its row totals and
+  // the rail's), and losing one to an overwritten resolver would hang it.
+  let holdToday = false;
+  let holdWeek = false;
+  const todayReleases: (() => void)[] = [];
+  const weekReleases: (() => void)[] = [];
+
+  await page.route("**/api/entries**", async (route) => {
+    const ranged = new URL(route.request().url()).searchParams.has("from");
+    if (ranged && holdWeek) {
+      await new Promise<void>((resolve) => weekReleases.push(resolve));
+    } else if (!ranged && holdToday) {
+      await new Promise<void>((resolve) => todayReleases.push(resolve));
+    }
+
+    return route.fulfill({
+      status: 200,
+      json: {
+        today: DAY,
+        entries: [
+          {
+            id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+            day: DAY, startedAt: `${DAY}T08:00:00Z`,
+            seconds: ranged ? 7200 : 3600, comment: "", pushState: "unpushed",
+          },
+        ],
+      },
+    });
+  });
+
+  const weekDays = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"];
+  await page.route("**/api/week**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        start: DAY, end: "2026-09-27", prevStart: "2026-09-14", nextStart: "2026-09-28",
+        weekNumber: 39,
+        days: weekDays.map((day, index) => ({
+          day, seconds: index === 0 ? 7200 : 0, pushState: index === 0 ? "unpushed" : null,
+        })),
+        rows: [
+          {
+            instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1", url: "",
+            cells: weekDays.map((_, index) => ({
+              seconds: index === 0 ? 7200 : 0, pushState: index === 0 ? "unpushed" : null,
+            })),
+            seconds: 7200,
+          },
+        ],
+        seconds: 7200,
+      },
+    }),
+  );
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+
+  // Today -> Week: hold the rail's own ranged re-read. A tick landing before
+  // it does must leave the Today figure exactly alone, not drop its elapsed
+  // time because the period is now Week's.
+  holdWeek = true;
+  await page.getByRole("link", { name: "Week" }).click();
+  await expect(page).toHaveURL(/\/week$/);
+
+  await page.clock.runFor(65_000);
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+
+  holdWeek = false;
+  weekReleases.splice(0).forEach((release) => release());
+  await expect(page.locator("#rail-total")).toHaveText("2h 00m");
+  await expect(page.locator("tfoot td").last()).toHaveText("2h 00m");
+
+  // Week -> Today: hold the bare re-read. A tick landing before it does must
+  // leave Week's figure exactly alone, not add the timer's elapsed time to
+  // Week's stale entries because the period is now Today's.
+  holdToday = true;
+  await page.getByRole("link", { name: "Today" }).click();
+  await expect(page).toHaveURL(/\/today$/);
+
+  await page.clock.runFor(65_000);
+  await expect(page.locator("#rail-total")).toHaveText("2h 00m");
+
+  holdToday = false;
+  todayReleases.splice(0).forEach((release) => release());
+  await expect(page.locator("#rail-total")).toHaveText("1h 32m");
+});
+
+test("the unpushed count and the push confirmation's total do not move while the timer runs", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0).toISOString(),
+    },
+  );
+
+  await page.goto("/today");
+  await expect(page.locator("#rail-unpushed")).toHaveText("1 entry to push");
+
+  await page.clock.runFor(65_000);
+  await expect(page.locator("#rail-unpushed")).toHaveText("1 entry to push");
+
+  await page.getByRole("button", { name: "Push worklogs" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("1 entry totalling 1h 00m will be sent to 1 site.");
+});
+
+/**
+ * #204 task 3: the instance card's own tally ("N issues · H:MM") counts the
+ * running timer's elapsed time too, the same figure paintFigures already adds
+ * to the rail's total and split (task 2).
+ */
+test("the running instance's card tally adds the timer's elapsed time and ticks with it", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - (59 * 60 + 50) * 1000).toISOString(),
+    },
+    [{ id: 1, name: "Work", issues: [{ key: "WORK-1", summary: "Fix it", status: "To Do", url: "" }] }],
+  );
+
+  await page.goto("/today");
+
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toHaveText("1 issue · 1h 59m");
+
+  await page.clock.runFor(10_000);
+
+  await expect(tally).toHaveText("1 issue · 2h 00m");
+});
+
+/**
+ * Review Focus item 3: a running ticket that is pinned moves its row into
+ * Pinned, out of its instance's own card — but the tally beside that card's
+ * name still counts the whole instance's day, elapsed time included, the same
+ * way it already counts a pinned issue's logged time (see today.spec.ts's
+ * "an instance's tally counts a pinned issue's time too", #117).
+ */
+test("the instance tally counts the running time even while its row is pinned", async ({ page }) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(
+    page,
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+        day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+      },
+    ],
+    {
+      instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      startedAt: new Date(t0 - (59 * 60 + 50) * 1000).toISOString(),
+    },
+    [
+      {
+        id: 1,
+        name: "Work",
+        issues: [
+          { key: "WORK-1", summary: "Fix it", status: "To Do", url: "" },
+          { key: "WORK-2", summary: "Also fix it", status: "To Do", url: "" },
+        ],
+      },
+    ],
+    [
+      {
+        id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0,
+        key: "WORK-1", summary: "Fix it", status: "To Do", url: "", error: null,
+      },
+    ],
+  );
+
+  await page.goto("/today");
+
+  const workRegion = page.getByRole("region", { name: "Work", exact: true });
+  const pinnedRegion = page.getByRole("region", { name: "Pinned", exact: true });
+  await expect(pinnedRegion.locator("that-ticket-row", { hasText: "WORK-1" })).toBeVisible();
+  await expect(workRegion.locator("that-ticket-row", { hasText: "WORK-1" })).toHaveCount(0);
+  await expect(workRegion.locator("that-ticket-row", { hasText: "WORK-2" })).toBeVisible();
+
+  // "1 issue" — WORK-2 is the only row this card still shows — carrying both
+  // WORK-1's logged hour and its running time.
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toHaveText("1 issue · 1h 59m");
+
+  await page.clock.runFor(10_000);
+
+  await expect(tally).toHaveText("1 issue · 2h 00m");
+});
+
+/**
+ * Global constraint 4: a stop drops the elapsed time from the tally the
+ * instant the timer clears (the accepted one-request dip), then the tally
+ * settles on logged time plus the rounded entry once the entries re-read —
+ * fired by announceEntriesChanged() inside stopTimer() — lands.
+ */
+test("a stop settles the instance tally on logged time plus the rounded entry", async ({ page }) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+
+  const entries: TotalsEntry[] = [
+    {
+      id: 1, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      day: DAY, startedAt: `${DAY}T08:00:00Z`, seconds: 3600, comment: "", pushState: "unpushed",
+    },
+  ];
+  let running: TotalsRunning | null = {
+    instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+    startedAt: new Date(t0 - 5 * 60 * 1000).toISOString(),
+  };
+
+  await stubTotalsRig(page, entries, running, [
+    { id: 1, name: "Work", issues: [{ key: "WORK-1", summary: "Fix it", status: "To Do", url: "" }] },
+  ]);
+  // Overrides stubTotalsRig's own timer route (last registered wins) so GET
+  // reflects `running` after the stop below flips it, and adds the stop
+  // endpoint the rig has no opinion on.
+  await page.route("**/api/timer", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+
+    return route.fulfill({ status: 200, json: { running, stopped: null } });
+  });
+  await page.route("**/api/timer/stop", async (route) => {
+    const rounded: TotalsEntry = {
+      id: 2, instanceId: 1, instanceName: "Work", instancePosition: 0, issueKey: "WORK-1",
+      day: DAY, startedAt: new Date(t0 - 5 * 60 * 1000).toISOString(),
+      seconds: 900, comment: "", pushState: "unpushed",
+    };
+    entries.push(rounded);
+    running = null;
+    await route.fulfill({ status: 200, json: { stopped: rounded, discarded: false } });
+  });
+
+  await page.goto("/today");
+
+  const tally = page.locator("[data-instance-tally]").first();
+  await expect(tally).toHaveText("1 issue · 1h 05m");
+  // The criterion covers the rail too: it reads the same settled value.
+  await expect(page.locator("#rail-total")).toHaveText("1h 05m");
+  await expect(page.locator("#rail-split")).toContainText("1h 05m");
+
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Log 0:15" }).click();
+
+  await expect(tally).toHaveText("1 issue · 1h 15m");
+  await expect(page.locator("#rail-total")).toHaveText("1h 15m");
+  await expect(page.locator("#rail-split")).toContainText("1h 15m");
+});
