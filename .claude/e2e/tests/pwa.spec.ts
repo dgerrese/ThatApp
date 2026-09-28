@@ -296,9 +296,10 @@ test("a cold navigation to an address with no view renders the shell while offli
   // is invisible to page.route on both engines and to context.route on Firefox,
   // where setOffline does not reach it either. It would go out live, to a server
   // sharing the dev database, and fan out to the owner's real Jira instances.
-  // /week has no view in this build, so the router renders its placeholder and
-  // fetches nothing, while still being a second real navigation to an address
-  // nothing has ever requested — which is all this test needs of it.
+  // /week has a real view, and its own fetch (GET /api/week) fails harmlessly
+  // offline — caught by the view's own try/catch, not by this test — while
+  // still being a second real navigation to an address nothing has ever
+  // requested, which is all this test needs of it.
   const cold = await context.newPage();
   await cold.goto(NO_VIEW);
   await expectShellRendered(cold);

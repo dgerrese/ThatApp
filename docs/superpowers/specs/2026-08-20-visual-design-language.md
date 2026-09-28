@@ -229,12 +229,17 @@ done. Disabled, it is outlined rather than filled — `--color-rail-active` bord
 
 ### Nav
 
-Three destinations, below a divider under Push, with no bottom-pinning: **Today**, **Week**,
-**Settings**. #117 restored that divider — `height: 2px`, `--color-rail-active`, `rounded-xs`
-(`--radius-xs`, `2px` — a 2px corner on a 2px-tall bar clamps to a 1px curve, which is why it reads
-as one), `4px` of margin either side — after it shipped without one; this line said "no divider"
-until then. Each is a 38px row, `9px` radius, `2px` apart, with a 16px stroked icon `11px` from its
-label.
+Two destinations and a control. The nav carries the two periods, **Today** and **Week**, below a
+divider under Push, with no bottom-pinning. #117 restored that divider — `height: 2px`,
+`--color-rail-active`, `rounded-xs` (`--radius-xs`, `2px` — a 2px corner on a 2px-tall bar clamps to
+a 1px curve, which is why it reads as one), `4px` of margin either side — after it shipped without
+one; this line said "no divider" until then. Each is a 38px row, `9px` radius, `2px` apart, with a
+16px stroked icon `11px` from its label.
+
+**Settings is a control, not a destination** (#89). A destination is a period, with time in it and a
+total the rail can describe; Settings has neither. It is a cog beside the wordmark at the rail's top
+right — a 34px box whose hover wash ends on the rail's content edge — and it opens Settings as a
+modal dialog over whichever view is mounted, so the rail keeps describing a real period underneath.
 
 | State | Fill | Ink | Weight |
 | --- | --- | --- | --- |
