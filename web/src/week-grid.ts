@@ -197,7 +197,9 @@ function gridCard(table: HTMLTableElement): HTMLElement {
   return card;
 }
 
-const MARKER_BASE = "mr-1.5 inline-block align-[1px]";
+/** The footer's own rule for a day total's mark — the prototype's `.dmark`.
+ *  A cell's own mark does not use this: see ticketCell. */
+const FOOT_MARKER = "mr-1.5 inline-block align-[1px]";
 
 type PushState = WeekCell["pushState"];
 
@@ -286,7 +288,7 @@ function ticketCell(
   // figure rather than spanning the column, which stays the td's job alone.
   trigger.className =
     "hover:bg-hover focus-visible:bg-hover -mx-[13px] -my-[9px] inline-flex cursor-pointer " +
-    "items-baseline rounded-sm px-[13px] py-[9px]";
+    "items-center gap-[7px] rounded-sm px-[13px] py-[9px]";
   // Independent of the popover below, which reaches neither a keyboard nor a
   // screen reader on its own.
   trigger.setAttribute(
@@ -327,7 +329,7 @@ function ticketCell(
     const marker = markerFor(cell.pushState, failed);
     if (marker) {
       const mark = document.createElement("span");
-      mark.className = `${MARKER_BASE} ${marker.className}`;
+      mark.className = `shrink-0 ${marker.className}`;
       mark.setAttribute("aria-hidden", "true");
       trigger.append(mark);
     }
@@ -370,7 +372,7 @@ function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCell
   const marker = markerFor(day.pushState, failed);
   if (marker) {
     const mark = document.createElement("span");
-    mark.className = `${MARKER_BASE} ${marker.className}`;
+    mark.className = `${FOOT_MARKER} ${marker.className}`;
     mark.setAttribute("aria-hidden", "true");
     mark.title = marker.words;
     td.append(mark);
