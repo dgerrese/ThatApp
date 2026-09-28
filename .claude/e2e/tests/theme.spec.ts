@@ -176,6 +176,7 @@ test("cards and buttons take the dark palette too", async ({ page }) => {
   await expect(card).toHaveCSS("background-color", "oklch(0.228 0.014 40)");
   await expect(card).not.toHaveCSS("box-shadow", "none");
 
+  await page.getByRole("button", { name: "Add an instance" }).click();
   const addButton = page.getByRole("button", { name: "Add instance" });
   await expect(addButton).toHaveCSS("background-color", "oklch(0.72 0.19 330)");
   await expect(addButton).toHaveCSS("color", "oklch(0.16 0.02 330)");

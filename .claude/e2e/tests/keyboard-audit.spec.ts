@@ -99,7 +99,7 @@ test.describe("Settings: Remove does not drop focus to <body> (#143)", () => {
     await expect(page.getByRole("button", { name: "Test Northwind", exact: true })).toBeFocused();
   });
 
-  test("removing the last instance refocuses the add-instance form", async ({ page }) => {
+  test("removing the last instance refocuses Add an instance", async ({ page }) => {
     let instances = [
       {
         id: 1,
@@ -132,9 +132,7 @@ test.describe("Settings: Remove does not drop focus to <body> (#143)", () => {
     await page.keyboard.press("Enter");
 
     await expect(page.getByText("No instances yet. Add one below.")).toBeVisible();
-    await expect(page.locator("body")).not.toBeFocused();
-    await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
-    await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Add an instance" })).toBeFocused();
   });
 });
 

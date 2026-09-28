@@ -137,6 +137,7 @@ async function panelBox(settings: Locator): Promise<{ top: number; height: numbe
 const confirmDialog = (page: Page) => page.getByRole("dialog", { name: /^Remove / });
 
 async function addInstance(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Add an instance" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Work");
   await page.getByLabel("Site URL").fill("https://example.atlassian.net");
   await page.getByLabel("Account email").fill("me@example.com");
@@ -167,6 +168,7 @@ test("an instance can be added and appears in the list", async ({ page }) => {
 test("the Add instance button carries the app-wide drawn 38px height", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
   await openSettings(page);
+  await page.getByRole("button", { name: "Add an instance" }).click();
 
   const height = await page
     .getByRole("button", { name: "Add instance" })
@@ -264,6 +266,7 @@ test("pressing Escape cancels the removal", async ({ page }) => {
 });
 
 async function addSecondInstance(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Add an instance" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Personal");
   await page.getByLabel("Site URL").fill("https://personal.atlassian.net");
   await page.getByLabel("Account email").fill("me@personal.com");
@@ -328,6 +331,7 @@ test("typed input survives removing another instance", async ({ page }) => {
 
   await addSecondInstance(page);
 
+  await page.getByRole("button", { name: "Add an instance" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Half-typed");
 
   await page
@@ -350,10 +354,10 @@ test("editing can be cancelled", async ({ page }) => {
   await page.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Work");
 
-  await page.getByRole("button", { name: "Cancel changes" }).click();
+  await page.getByRole("button", { name: "Cancel" }).click();
 
-  await expect(page.getByRole("button", { name: "Add instance" })).toBeVisible();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add an instance" })).toBeFocused();
   await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
 });
 
@@ -464,6 +468,7 @@ test("editing an instance to add its site URL clears the missing-URL warning", a
   await stubInstancesApi(page, { testStatus: 200 });
   await openSettings(page);
 
+  await page.getByRole("button", { name: "Add an instance" }).click();
   await page.getByLabel("Name", { exact: true }).fill("No Site");
   await page.getByLabel("Account email").fill("me@example.com");
   await page.getByLabel("API token", { exact: true }).fill("secret");
@@ -496,7 +501,7 @@ test("saving over a failed connection test clears the stale result", async ({ pa
   await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
 
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("API token (leave blank to keep the stored one)").fill("corrected-secret");
+  await page.getByLabel("API token", { exact: true }).fill("corrected-secret");
   await page.getByRole("button", { name: "Save changes" }).click();
 
   await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeHidden();
@@ -518,15 +523,15 @@ test("removing the instance you are editing clears the form", async ({ page }) =
   await page.getByRole("button", { name: "Remove" }).click();
   await confirmDialog(page).getByRole("button", { name: "Remove instance" }).click();
 
-  await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add an instance" })).toBeVisible();
 });
 
-test("a failed initial load still renders the Add form", async ({ page }) => {
+test("a failed initial load still offers to add an instance", async ({ page }) => {
   await page.route("**/api/instances", (route) => route.abort());
   await openSettings(page);
 
-  await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add an instance" })).toBeVisible();
   await expect(page.getByRole("status")).toBeVisible();
 });
 
@@ -555,6 +560,7 @@ test("the add and edit forms say what a token needs before it can push", async (
   await stubInstancesApi(page, { testStatus: 200 });
   await openSettings(page);
 
+  await page.getByRole("button", { name: "Add an instance" }).click();
   await expectTokenNote(page, "[data-instance-form]:not([data-editing-id])");
 
   await addInstance(page);
@@ -599,7 +605,8 @@ test("a save finishing after Cancel leaves the new Add form alone", async ({ pag
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
-  await page.getByRole("button", { name: "Cancel changes" }).click();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Add an instance" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Half-typed");
 
   held.release();
@@ -609,7 +616,7 @@ test("a save finishing after Cancel leaves the new Add form alone", async ({ pag
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Half-typed");
 });
 
-test("a save finishing with its own form still shown resets to Add an instance", async ({ page }) => {
+test("a save finishing with its own form still shown closes the form", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
   await openSettings(page);
   await addInstance(page);
@@ -624,8 +631,7 @@ test("a save finishing with its own form still shown resets to Add an instance",
   held.release();
   await expect(page.getByText("Work Renamed", { exact: true })).toBeVisible();
 
-  await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
 });
 
 const saveFailure = { status: 500, json: { code: "store_failed", message: "could not save the instance" } };
@@ -642,7 +648,7 @@ test("a save failing after its form was replaced reports in the page error slot"
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
-  await page.getByRole("button", { name: "Cancel changes" }).click();
+  await page.getByRole("button", { name: "Cancel" }).click();
   held.release(saveFailure);
 
   await expect(page.getByText("Could not save Work: could not save the instance")).toBeVisible();
@@ -929,5 +935,58 @@ test.describe("instance rows", () => {
     // The stub numbers by list length, so this one is given id 1 again — as SQLite would.
     await addInstance(page);
     await expect(settings.locator("[data-row-health]")).toHaveText("Not tested");
+  });
+});
+
+test.describe("the instance form", () => {
+  test("is an action: hidden at rest, opened by Add an instance, closed by Cancel", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    const settings = await openSettings(page);
+
+    await expect(settings.getByLabel("Name", { exact: true })).toHaveCount(0);
+    await settings.getByRole("button", { name: "Add an instance" }).click();
+    await expect(settings.getByRole("heading", { name: "Add an instance" })).toBeVisible();
+    await expect(settings.getByLabel("Name", { exact: true })).toBeFocused();
+
+    await settings.getByRole("button", { name: "Cancel" }).click();
+    await expect(settings.getByLabel("Name", { exact: true })).toHaveCount(0);
+    await expect(settings.getByRole("button", { name: "Add an instance" })).toBeFocused();
+  });
+
+  test("the token's helper line says what happens to it, by mode", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    const settings = await openSettings(page);
+
+    await settings.getByRole("button", { name: "Add an instance" }).click();
+    await expect(settings.getByLabel("API token", { exact: true })).toHaveAccessibleDescription(
+      "Stored encrypted. It is never shown again.",
+    );
+
+    await settings.getByRole("button", { name: "Edit Ridgeline" }).click();
+    await expect(settings.getByRole("heading", { name: "Edit Ridgeline" })).toBeVisible();
+    await expect(settings.getByLabel("API token", { exact: true })).toHaveAccessibleDescription(
+      "Leave blank to keep the stored one",
+    );
+  });
+
+  test("inputs sit at the bottom of their row, so a helper lifts only its own label", async ({ page }) => {
+    await stubListed(page, []);
+    const settings = await openSettings(page);
+    await settings.getByRole("button", { name: "Add an instance" }).click();
+
+    const bottom = async (label: string) => {
+      const box = await settings.getByLabel(label, { exact: true }).boundingBox();
+      if (!box) throw new Error(`${label} did not lay out`);
+      return box.y + box.height;
+    };
+    const top = async (text: string) => {
+      const box = await settings.locator("label", { hasText: text }).boundingBox();
+      if (!box) throw new Error(`${text} label did not lay out`);
+      return box.y;
+    };
+
+    expect(Math.abs((await bottom("Account email")) - (await bottom("API token")))).toBeLessThanOrEqual(1);
+    expect(await top("API token")).toBeLessThan(await top("Account email"));
+    expect(Math.abs((await bottom("Name")) - (await bottom("Site URL")))).toBeLessThanOrEqual(1);
   });
 });

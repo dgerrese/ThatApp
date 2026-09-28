@@ -19,6 +19,7 @@ interface Regions {
   errorSlot: HTMLElement;
   listSlot: HTMLElement;
   formSection: HTMLElement;
+  addButton: HTMLButtonElement;
   // Numbers every list read this dialog starts, so refresh() can tell the
   // answer it is holding from one a later read has already superseded (#56).
   latestListRead: number;
@@ -49,17 +50,22 @@ export function showSettings(): void {
   // A second press that arrived while the first one's chunk was loading.
   if (document.getElementById(HEADING_ID)) return;
 
+  const addButton = addInstanceButton(() => {
+    showForm(regions, undefined);
+  });
   const regions: Regions = {
     errorSlot: document.createElement("div"),
     listSlot: document.createElement("div"),
     formSection: document.createElement("section"),
+    addButton,
     latestListRead: 0,
     changed: false,
   };
   regions.formSection.className = SECTION_CLASS;
+  regions.formSection.hidden = true;
 
   const instances = section("Jira instances");
-  instances.append(regions.errorSlot, regions.listSlot);
+  instances.append(regions.errorSlot, regions.listSlot, addButton);
 
   const appearance = section("Appearance");
   appearance.append(themeControl());
@@ -84,7 +90,6 @@ export function showSettings(): void {
   document.body.append(dialog);
   dialog.showModal();
 
-  showForm(regions, undefined);
   void refresh(regions);
 }
 
@@ -195,6 +200,35 @@ function reconcileList(regions: Regions, instances: Instance[]): void {
 
 function showForm(regions: Regions, editing: Instance | undefined): void {
   regions.formSection.replaceChildren(instanceForm(regions, editing));
+  regions.formSection.hidden = false;
+  // Focusing scrolls the dialog to it, which is what the drawing's script does.
+  regions.formSection.querySelector("input")?.focus();
+}
+
+function hideForm(regions: Regions): void {
+  const hadFocus = regions.formSection.contains(document.activeElement);
+  regions.formSection.replaceChildren();
+  regions.formSection.hidden = true;
+  if (hadFocus) {
+    regions.addButton.focus();
+  }
+}
+
+function addInstanceButton(onPress: () => void): HTMLButtonElement {
+  const add = document.createElement("button");
+  add.type = "button";
+  // Its words are its name; the label repeats them, as toolbarButton's does.
+  add.setAttribute("aria-label", "Add an instance");
+  // 12px of padding matches the rows' own, so the two hover boxes share a left
+  // edge inside the dialog's gutter (prototype lines 262–265).
+  add.className =
+    "text-primary hover:bg-hover mt-1.5 inline-flex cursor-pointer items-center gap-3 " +
+    "rounded-sm px-3 py-2.5 text-base font-bold";
+  add.innerHTML = iconMarkup("plus", 17);
+  add.append("Add an instance");
+  add.addEventListener("click", onPress);
+
+  return add;
 }
 
 function newList(): HTMLUListElement {
@@ -468,7 +502,7 @@ async function removeInstance(
     // "Edit <name>" and PATCH an id SQLite is free to hand to whatever
     // instance is created next (no AUTOINCREMENT on instances.id).
     if (regions.formSection.querySelector(`[data-editing-id="${instance.id}"]`)) {
-      showForm(regions, undefined);
+      hideForm(regions);
     }
     refocusAfterRemoval(regions);
   } catch (error) {
@@ -483,24 +517,21 @@ async function removeInstance(
  * browser resolves a focused element vanishing by dropping focus to <body>,
  * which is reachable but announces nothing; this sends it on to the next
  * thing worth pressing instead — another instance's own first control, or
- * the add-instance form once none is left. A no-op whenever focus is
+ * Add an instance once none is left. A no-op whenever focus is
  * anywhere else, so it never steals it from something the confirm dialog's
  * own close (or a later click) already put it on.
  */
 function refocusAfterRemoval(regions: Regions): void {
   if (document.activeElement !== document.body) return;
 
-  const next =
-    regions.listSlot.querySelector<HTMLElement>("button, a, input") ??
-    regions.formSection.querySelector<HTMLElement>("button, a, input");
-  next?.focus();
+  (regions.listSlot.querySelector<HTMLElement>("button") ?? regions.addButton).focus();
 }
 
 function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElement {
-  const card = document.createElement("div");
-  card.dataset["instanceForm"] = "";
+  const holder = document.createElement("div");
+  holder.dataset["instanceForm"] = "";
   if (editing) {
-    card.dataset["editingId"] = String(editing.id);
+    holder.dataset["editingId"] = String(editing.id);
   }
 
   const heading = document.createElement("h3");
@@ -508,44 +539,68 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
   heading.textContent = editing ? `Edit ${editing.name}` : "Add an instance";
 
   const form = document.createElement("form");
-  form.className = "space-y-3";
   form.noValidate = true;
 
-  const name = field("name", "Name", "text", editing?.name ?? "");
-  const siteUrl = field("siteUrl", "Site URL", "url", editing?.siteUrl ?? "");
-  const email = field("email", "Account email", "email", editing?.email ?? "");
-  const token = field(
-    "token",
-    editing ? "API token (leave blank to keep the stored one)" : "API token",
-    "password",
-    "",
-  );
+  // align-items: end — every input sits at the bottom of its row, so a longer
+  // helper lifts its own label rather than pushing its input out of line.
+  const fields = document.createElement("div");
+  fields.className = "grid grid-cols-2 items-end gap-3.5";
+
+  const name = field({
+    name: "name",
+    label: "Name",
+    type: "text",
+    mono: false,
+    value: editing?.name ?? "",
+    placeholder: "Ridgeline",
+  });
+  const siteUrl = field({
+    name: "siteUrl",
+    label: "Site URL",
+    type: "url",
+    mono: true,
+    value: editing?.siteUrl ?? "",
+    placeholder: "https://…atlassian.net",
+  });
+  const email = field({
+    name: "email",
+    label: "Account email",
+    type: "email",
+    mono: false,
+    value: editing?.email ?? "",
+    placeholder: "you@example.com",
+  });
+  const token = field({
+    name: "token",
+    label: "API token",
+    type: "password",
+    mono: true,
+    value: "",
+    placeholder: "••••••••••••",
+    help: editing
+      ? "Leave blank to keep the stored one"
+      : "Stored encrypted. It is never shown again.",
+  });
+  fields.append(name.wrapper, siteUrl.wrapper, email.wrapper, token.wrapper);
+
+  const note = tokenNote();
+  note.classList.add("mt-3");
 
   const status = document.createElement("div");
+  status.className = "mt-3 empty:hidden";
+
   const submit = button(editing ? "Save changes" : "Add instance", "primary");
+  const cancel = button("Cancel", "secondary");
+  cancel.addEventListener("click", () => {
+    hideForm(regions);
+  });
 
   const actions = document.createElement("div");
-  actions.className = "flex gap-2";
-  actions.append(submit);
+  actions.className = "mt-4 flex gap-2";
+  actions.append(submit, cancel);
 
-  if (editing) {
-    const cancel = button("Cancel changes", "secondary");
-    cancel.addEventListener("click", () => {
-      showForm(regions, undefined);
-    });
-    actions.append(cancel);
-  }
-
-  form.append(
-    name.wrapper,
-    siteUrl.wrapper,
-    email.wrapper,
-    token.wrapper,
-    tokenNote(),
-    status,
-    actions,
-  );
-  card.append(heading, form);
+  form.append(fields, note, status, actions);
+  holder.append(heading, form);
 
   // that-button renders a real <button type="button">, so it does not submit the
   // form on its own; this click handler is the only path into save().
@@ -573,13 +628,13 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
       }
       // The user may have moved on while this save was in flight (#161). An Edit
       // form they opened on this same instance was filled from pre-save values.
-      if (regions.formSection.contains(card)) {
-        showForm(regions, undefined);
+      if (regions.formSection.contains(holder)) {
+        hideForm(regions);
       } else if (regions.formSection.querySelector(`[data-editing-id="${saved.id}"]`)) {
         showForm(regions, saved);
       }
     } catch (error) {
-      if (regions.formSection.contains(card)) {
+      if (regions.formSection.contains(holder)) {
         status.replaceChildren(alertFor("error", messageOf(error)));
         submit.removeAttribute("disabled");
       } else {
@@ -591,7 +646,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     }
   }
 
-  return card;
+  return holder;
 }
 
 const TOKEN_PAGE = "https://id.atlassian.com/manage-profile/security/api-tokens";
@@ -657,23 +712,51 @@ interface Field {
   input: HTMLInputElement;
 }
 
-function field(name: string, label: string, type: string, value: string): Field {
-  const wrapper = document.createElement("label");
-  wrapper.className = "block";
+interface FieldSpec {
+  name: string;
+  label: string;
+  type: string;
+  value: string;
+  placeholder: string;
+  /** The drawing sets URLs and secrets in mono, words in the sans (`.plain`). */
+  mono: boolean;
+  help?: string;
+}
 
-  const caption = document.createElement("span");
-  caption.className = "mb-1 block text-sm font-medium text-ink";
-  caption.textContent = label;
+/** The prototype's `.fld` (lines 336–343): label, an optional muted helper, input. */
+function field(spec: FieldSpec): Field {
+  const id = `that-settings-${spec.name}`;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "flex min-w-0 flex-col gap-[5px]";
+
+  const label = document.createElement("label");
+  label.htmlFor = id;
+  label.className = "text-ink-muted text-xs font-bold tracking-[0.06em] uppercase";
+  label.textContent = spec.label;
+  wrapper.append(label);
 
   const input = document.createElement("input");
-  input.name = name;
-  input.type = type;
-  input.value = value;
+  input.id = id;
+  input.name = spec.name;
+  input.type = spec.type;
+  input.value = spec.value;
+  input.placeholder = spec.placeholder;
   input.className =
-    "w-full rounded-sm border border-edge px-3 py-1.5 text-sm " +
-    "focus:border-ink focus:outline-none";
+    "bg-surface border-edge text-ink placeholder:text-ink-muted w-full rounded-sm border " +
+    "px-3 py-[9px] text-lg placeholder:opacity-80 focus:border-primary focus:outline-none " +
+    (spec.mono ? "font-mono" : "font-sans");
 
-  wrapper.append(caption, input);
+  if (spec.help) {
+    const help = document.createElement("span");
+    help.id = `${id}-help`;
+    help.className = "text-ink-muted mb-px text-xs leading-[1.4] opacity-80";
+    help.textContent = spec.help;
+    input.setAttribute("aria-describedby", help.id);
+    wrapper.append(help);
+  }
+
+  wrapper.append(input);
 
   return { wrapper, input };
 }
