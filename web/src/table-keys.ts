@@ -11,10 +11,7 @@ const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), [tabindex="0"]';
 /**
  * Where focus goes in a target row, given the source slot and the target row's focusables as
  * slots (in DOM order). Returns an index into `target`, or null when `target` is empty.
- *
- * The three rules collapse into one search: an exact match is distance zero in the same cell:
- * once a target has any slot in the source's own cell, that cell is always the nearest (distance
- * 0), and clamping to its last focusable already reduces to the exact match when one exists.
+ * One nearest-slot search covers exact match, clamp-to-last and nearest-cell alike.
  */
 export function rowStepTarget(source: CellSlot, target: CellSlot[]): number | null {
   if (target.length === 0) return null;
@@ -38,9 +35,7 @@ export function rowStepTarget(source: CellSlot, target: CellSlot[]): number | nu
       .index;
   }
 
-  // Same cell as the source: the nearest index in it is the exact match when one exists, and the
-  // last focusable otherwise — indices below the source's own can never be nearer than one above
-  // it that's still short of the source's index, so "nearest" and "clamped to the last" agree.
+  // Nearest index is the exact match if present, else the last one: clamping for free.
   return inCell.reduce((nearest, entry) =>
     Math.abs(entry.slot.index - source.index) < Math.abs(nearest.slot.index - source.index)
       ? entry

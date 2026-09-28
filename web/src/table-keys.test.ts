@@ -81,7 +81,9 @@ void test("Review Focus 1: rows of different shape", async (t) => {
   await t.test("Down from a key onto a row with no URL lands on that row's summary", () => {
     const target = rowStepTarget({ cell: KEY, index: 0 }, rowWithNoKeyLink);
     assert.equal(target, 0);
-    assert.deepEqual(rowWithNoKeyLink[target as number], { cell: SUMMARY, index: 0 });
+    assert.notEqual(target, null);
+    if (target === null) return;
+    assert.deepEqual(rowWithNoKeyLink[target], { cell: SUMMARY, index: 0 });
   });
 
   await t.test("Down again from there onto a linked row lands on its summary, not its key", () => {
@@ -93,7 +95,9 @@ void test("Review Focus 1: rows of different shape", async (t) => {
 
     const target = rowStepTarget({ cell: SUMMARY, index: 0 }, linkedRow);
     assert.equal(target, 1);
-    assert.deepEqual(linkedRow[target as number], { cell: SUMMARY, index: 0 });
+    assert.notEqual(target, null);
+    if (target === null) return;
+    assert.deepEqual(linkedRow[target], { cell: SUMMARY, index: 0 });
   });
 });
 
@@ -106,5 +110,7 @@ void test("Review Focus 3: the actions cell's two focusables (timer, pin)", () =
 
   const target = rowStepTarget({ cell: ACTIONS, index: 1 }, nextRowActions);
   assert.equal(target, 2);
-  assert.deepEqual(nextRowActions[target as number], { cell: ACTIONS, index: 1 });
+  assert.notEqual(target, null);
+  if (target === null) return;
+  assert.deepEqual(nextRowActions[target], { cell: ACTIONS, index: 1 });
 });

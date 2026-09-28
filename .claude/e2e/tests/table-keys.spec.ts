@@ -30,13 +30,21 @@ function group(id: number, name: string, issues: StubIssue[]): StubGroup {
 }
 
 /** GET returns whatever has been pinned so far; POST appends and answers with
- *  the created pin — the shape Today's own optimistic pin control needs to
- *  repaint into the Pinned table (keyboard-audit.spec.ts's own pattern). */
+ *  the created pin, DELETE removes it — the shape Today's own optimistic pin
+ *  control needs to repaint (keyboard-audit.spec.ts's own pattern). */
 async function stubPins(page: Page): Promise<void> {
-  const pinned: Record<string, unknown>[] = [];
+  let pinned: Record<string, unknown>[] = [];
   let nextId = 900;
 
   await page.route("**/api/pins**", async (route) => {
+    if (route.request().method() === "DELETE") {
+      const id = Number(new URL(route.request().url()).pathname.split("/").pop());
+      pinned = pinned.filter((pin) => pin.id !== id);
+      await route.fulfill({ status: 204 });
+
+      return;
+    }
+
     if (route.request().method() === "POST") {
       const body = route.request().postDataJSON() as { instanceId: number; issueKey: string };
       const issue = ridgeIssues.find((candidate) => candidate.key === body.issueKey);
@@ -194,6 +202,10 @@ test("at the view's last data row, Down leaves focus alone and does not scroll #
   const scrollBefore = await content.evaluate((element) => element.scrollTop);
 
   await page.keyboard.press("ArrowDown");
+  // Smooth scrolling lands over later frames, so an unprevented Down would not show yet.
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
 
   await expect(summary).toBeFocused();
   expect(await content.evaluate((element) => element.scrollTop)).toBe(scrollBefore);
@@ -260,6 +272,30 @@ test("after a pin, Down still moves by the new order", async ({ page }) => {
   await summaryOf(page, "RIDGE-2").focus();
   await page.keyboard.press("ArrowDown");
   await expect(summaryOf(page, "RIDGE-1")).toBeFocused();
+});
+
+test("after an unpin, Down still moves by the new order", async ({ page }) => {
+  await gotoToday(page);
+  const pinnedRow = page.locator('that-table[sort-id="pinned"] that-ticket-row[key="RIDGE-2"]');
+
+  await pinOf(page, "RIDGE-2").click();
+  await expect(pinnedRow).toBeVisible();
+  await pinOf(page, "RIDGE-2").click();
+  await expect(pinnedRow).toHaveCount(0);
+
+  // RIDGE-2 is back in Ridgeline's own card, after RIDGE-1.
+  await summaryOf(page, "RIDGE-1").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(summaryOf(page, "RIDGE-2")).toBeFocused();
+});
+
+test("Up from the first data row of the first table does nothing", async ({ page }) => {
+  await gotoToday(page);
+
+  const summary = summaryOf(page, "RIDGE-1");
+  await summary.focus();
+  await page.keyboard.press("ArrowUp");
+  await expect(summary).toBeFocused();
 });
 
 /**
