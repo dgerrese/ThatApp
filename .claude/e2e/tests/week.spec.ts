@@ -1378,6 +1378,188 @@ test("a body row is 46px, a cell's trigger carries the drawn padding, and tfoot 
 });
 
 /**
+ * #215: the drawing's `.cell` centres its mark on the figure, 7px away —
+ * measured edge to edge with `getBoundingClientRect`, not the flex `gap`
+ * read back from CSS, which a stray margin on the mark could satisfy while
+ * still missing the drawing. RIDGE-3's failed mark comes from a push failure
+ * layered on top of an otherwise-unpushed cell, not from its own pushState —
+ * markerFor's rule, per #117.
+ */
+test(
+  "a cell's push mark sits 7px from its figure, centred on it — unpushed, dirty and failed",
+  async ({ page }) => {
+    await openWeek(
+      page,
+      {
+        [THIS_WEEK]: rollup(THIS_WEEK, [
+          row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+          row("RIDGE-2", [{ at: 1, seconds: 1800, pushState: "dirty" }]),
+          row("RIDGE-3", [{ at: 2, seconds: 2700, pushState: "unpushed" }]),
+        ]),
+      },
+      [
+        entry(1, "RIDGE-1", "2026-09-07", 3600, "unpushed"),
+        entry(2, "RIDGE-2", "2026-09-08", 1800, "dirty"),
+        entry(3, "RIDGE-3", "2026-09-09", 2700, "unpushed"),
+      ],
+    );
+
+    await page.route("**/api/push**", (route) => {
+      const day = new URL(route.request().url()).searchParams.get("day") ?? "";
+      const result =
+        day === "2026-09-07"
+          ? pushed(1, "RIDGE-1")
+          : day === "2026-09-08"
+            ? pushed(2, "RIDGE-2")
+            : unreachable(3, "RIDGE-3");
+
+      return route.fulfill({ status: 200, json: { day, results: [result] } });
+    });
+
+    await pushEverything(page);
+
+    // pushEverything only clicks the two confirm buttons; it does not wait
+    // for the push to land. Without this, expect.poll below can succeed on
+    // its very first read — against the pre-push grid, where RIDGE-3 still
+    // shows its unpushed dot, not the failed triangle a push failure draws —
+    // because that read is already non-null. Same wait as the shape test
+    // above (~line 522), scoped to RIDGE-3's own trigger.
+    await expect(
+      ticketRow(page, "RIDGE-3").locator("td").nth(2).locator("button"),
+    ).toHaveAttribute("aria-label", /push failed/);
+
+    const cases: [issueKey: string, column: number][] = [
+      ["RIDGE-1", 0],
+      ["RIDGE-2", 1],
+      ["RIDGE-3", 2],
+    ];
+
+    for (const [issueKey, column] of cases) {
+      const trigger = ticketRow(page, issueKey).locator("td").nth(column).locator("button");
+
+      // pushEverything's trailing re-read (see onPushReported in
+      // views/week.ts) repaints the whole grid asynchronously, after the
+      // push report text but on no signal a locator assertion can wait on.
+      // A one-shot evaluate can land between the old row's removal and the
+      // new one's insertion — the handle resolves but the node is detached,
+      // so getBoundingClientRect reads all zero — so the read is polled
+      // until it lands on a connected node. Locator.boundingBox() is not
+      // this poll's tool: it reports null for these spans in Firefox even
+      // when they are laid out and visible.
+      let result: { gap: number; markCentre: number; figCentre: number } | null = null;
+      await expect
+        .poll(async () => {
+          result = await trigger.evaluate((element) => {
+            const mark = element.querySelector("span[aria-hidden='true']");
+            const fig = element.querySelector("span.font-mono");
+            if (!mark?.isConnected || !fig?.isConnected) return null;
+            const markRect = mark.getBoundingClientRect();
+            const figRect = fig.getBoundingClientRect();
+
+            return {
+              gap: figRect.left - markRect.right,
+              markCentre: markRect.top + markRect.height / 2,
+              figCentre: figRect.top + figRect.height / 2,
+            };
+          });
+
+          return result;
+        }, `${issueKey} settle`)
+        .not.toBeNull();
+      // The value the poll last settled on, not a fresh read: a second
+      // evaluate here would reopen the same detach race the poll exists to
+      // wait out.
+      if (!result) throw new Error(`${issueKey}: mark or figure not rendered`);
+
+      expect(Math.abs(result.gap - 7), `${issueKey} gap`).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(result.markCentre - result.figCentre), `${issueKey} centre offset`).toBeLessThanOrEqual(
+        0.5,
+      );
+    }
+  },
+);
+
+/**
+ * #215's own change reaches only a marked cell — `items-center` on the
+ * trigger and `shrink-0` on the mark must not move an em-dash cell (no mark
+ * to centre against) or a pushed one (no mark at all). Checked relative to
+ * the td itself, not against fixture pixel values pinned per browser: a
+ * cell's content sits flush with its td's own content-box right edge and
+ * shares its vertical centre, whatever the viewport or font rendering does
+ * around it.
+ */
+test("an empty cell and a pushed cell keep their place", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const emptyTd = ticketRow(page, "RIDGE-1").locator("td").nth(1);
+  const pushedTd = ticketRow(page, "RIDGE-1").locator("td").first();
+
+  // Placement relative to the td that draws it, not an absolute page
+  // position: a content element's own padding/border (the trigger carries
+  // 13px/9px, cancelled back out by its negative margin — see ticketCell's
+  // own comment) is read from computed style rather than assumed away, so
+  // this holds regardless of which element (button or span) is measured.
+  const placementOf = (td: Locator, contentSelector: string) =>
+    td.evaluate((tdEl, selector) => {
+      const content = tdEl.querySelector(selector);
+      if (!content) throw new Error(`${selector} not found`);
+
+      const box = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const pr = parseFloat(cs.paddingRight) || 0;
+        const pt = parseFloat(cs.paddingTop) || 0;
+        const pb = parseFloat(cs.paddingBottom) || 0;
+        const br = parseFloat(cs.borderRightWidth) || 0;
+        const bt = parseFloat(cs.borderTopWidth) || 0;
+        const bb = parseFloat(cs.borderBottomWidth) || 0;
+
+        return {
+          contentRight: r.right - pr - br,
+          contentCentreY: r.top + bt + pt + (r.height - bt - bb - pt - pb) / 2,
+        };
+      };
+      const tdBox = box(tdEl);
+      const contentBox = box(content);
+
+      return {
+        rightGap: tdBox.contentRight - contentBox.contentRight,
+        centreGap: tdBox.contentCentreY - contentBox.contentCentreY,
+      };
+    }, contentSelector);
+
+  const empty = await placementOf(emptyTd, "button");
+  const pushed = await placementOf(pushedTd, "span.font-mono");
+
+  expect(Math.abs(empty.rightGap), "empty cell right edge").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(empty.centreGap), "empty cell vertical centre").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(pushed.rightGap), "pushed cell right edge").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(pushed.centreGap), "pushed cell vertical centre").toBeLessThanOrEqual(0.5);
+});
+
+/**
+ * The footer's own rule (`.dmark`) is out of this ticket's scope — 6px
+ * margin-right and a 1px vertical-align, unlike the cell's mark, which drops
+ * both for `items-center` and an explicit 7px gap instead.
+ */
+test("the footer's day-total mark keeps its own rule", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+    ]),
+  });
+
+  const mark = page.locator("tfoot td").first().locator("span[aria-hidden='true']");
+  await expect(mark).toBeVisible();
+  await expect(mark).toHaveCSS("margin-right", "6px");
+  await expect(mark).toHaveCSS("vertical-align", "1px");
+});
+
+/**
  * #127: `.grid tbody td, .grid tbody th` and `.grid tfoot th, .grid tfoot td`
  * set 15px, and the figures inherit it. The line box stays the drawing's 1.5
  * rather than Tailwind's text-lg default, which the totals row's drawn 47px
