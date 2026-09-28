@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-24 at end of day**, against the Codeberg API rather than against local git — see
+**Verified on 2026-09-25 at end of day**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -31,39 +31,86 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### The state at the end of 2026-09-24 — read this first
+### The state at the end of 2026-09-25 — read this first
 
 **This block supersedes everything below it in this section where the two disagree.** The day is in
-[`handoff/2026-09-24.md`](handoff/2026-09-24.md).
+[`handoff/2026-09-25.md`](handoff/2026-09-25.md).
 
-**`main` is at `9d552f0`** (the merge of PR #214, #74). **Merged on 2026-09-24:** #185 (PR #210),
-#66 (PR #213), #74 (PR #214) and the handoff PR #222. Local `main` was brought level with
-`git fetch codeberg main:main`, not by a merge.
+**`main` is at `432dbd7`** (the merge of PR #223, #127). **Merged on 2026-09-25:** the 2026-09-24
+handoff (PR #225), #106 (PR #216), #109 (PR #219), the format fix (PR #224) and #127 (PR #223).
 
-**Four pull requests are open, all waiting on the owner:**
+**The owner started an autopilot run on v1 on 2026-09-25 and was present for most of it.** Three pull
+requests are open, all waiting on the owner:
 
 | PR | Ticket | Notes |
 |---|---|---|
-| #216 | #106 one definition of the push marks | Cut before #214; may fail the prettier gate once it meets `main` |
-| #219 | #109 a failed pin reports beside its row | Same as #216 |
-| #223 | #127 table body cells take the drawn 15px | Rebased onto `9d552f0` at the owner's request and force-pushed with lease. Both gates green after the rebase |
-| #224 | follows #74: formats two files | `main` fails `npm run lint`'s prettier check on `web/src/duration.test.ts` and `web/src/views/settings.ts`, which #185 brought in beside #214. Whitespace only |
+| #229 | #143 cut text and keyboard reach; also #230 and #235, folded in by the owner | Head `38ca840`. Both gates green (686 passed). The body still needs its last section, see below |
+| #233 | #200 Edit waits for its own save | Head `a99f639`. Both gates green (614 passed) |
+| #237 | #204 running time counts in Today's totals | Head `ab6050b`. Both gates green (630 passed). Merges with #229 without conflicts, but see its body: whichever merges second must update the split's figures in place |
 
-**Blocked: #107**, by its own tripwire — after the entries dialog closes, `:focus-visible` differs
-between Firefox and Chromium. The question for the owner, with the measurement, is on the ticket.
+**#229's body is not finished.** It lacks the section for the owner's last change (focusable rail key
+and summaries, "stop timer" on the rail, the search summary joining the arrow order), `Closes #230`
+and `Closes #235`, and the Task 9 screenshot pair. The images exist only in the session's scratchpad,
+which does not survive the session; recapture them from `issue-143-keyboard-and-cut-text` (rail key focus, rail stop
+focus, Today summary focus; dark and light). Codeberg returned 504 on every upload attempt.
 
-**Left in v1 at `status/todo`:** #143 (normal), then #119, #108, #97 and #89 (`priority/low`).
+**#237's body still reads `SHOTS` where its screenshot pair belongs** — the uploads kept failing
+with 504. Recapture from `issue-204-running-time-in-totals` (a timer running on an instance with no
+entries, beside one with an hour logged; dark and light), attach with `.claude/tools/pr-attach.sh 237`,
+and replace the placeholder.
 
-**At `status/needs-refinement` in v1:** #220 (CI on a self-hosted runner on an always-on host). Its
-first open question is whether Codeberg runs a fork's workflow on a self-hosted runner without
-approval — it must be answered before any runner is registered. #198 (nothing cleans `web/dist`) is
-v2.
+**#227 is in progress, stacked on #229:** branch `issue-227-table-arrow-keys` at `369d517`, on Codeberg
+(pushed on the third attempt; Codeberg refused the first two), no pull request yet. Tasks 1 (Today) and 2 (Week) committed and green — Task 2's gate was 712 passed. Still to do:
+Task 2's task review, the whole-branch review, screenshots, and the pull request with **base
+`issue-143-keyboard-and-cut-text`**, not `main`. Plan: `docs/superpowers/plans/2026-09-25-table-arrow-keys.md`.
+It lives in the worktree `../ThatApp-review-229` (see *Environment notes* below).
 
-**At `status/intake`, the session's own findings, for the owner's next cycle:** #200–#209, #211, #212,
-#215, #217, #218 and #221.
+**Blocked: #107**, unchanged — the `:focus-visible` question for the owner is on the ticket.
 
-**Label anomalies, left for the owner:** #185, #74 and #66 are closed and still carry
-`status/in-progress`. The strip after a merge is still structural, not a lapse.
+**Left in v1 at `status/todo`, in the autopilot order:** #209, #215, #221 (bugs), then #89, #205,
+#217, then #97, #108, #119 (`priority/low`). #89 lost its `priority/low` on 2026-09-25.
+
+**At `status/needs-refinement` in v1:** #220, #207, #208.
+
+**At `status/intake`, for the owner's next cycle:** v1 — #226, #228 (folded into #227; close as a
+duplicate), #231, #232 (a duplicate of #231 made by a Codeberg time-out; close it), #234, #236. v2 —
+#110, #126, #137, #173, #176, #201–#203, #206, #211, #212.
+
+**#123 is at `status/in-progress` from another session**, with a worktree at
+`/tmp/claude-1001/-home-dion-Projects-personal-ThatApp/93ab9698-…/scratchpad/wt-123`. This session
+did not touch it.
+
+**Label anomalies, left for the owner:** #185, #127, #109, #106, #74 and #66 are closed and still
+carry `status/in-progress`.
+
+**Decisions the owner took on 2026-09-25 — do not reopen:**
+- **Tooltips on keys and cut text.** A linked Jira key carries "open in Jira" in place of the native
+  `title`; an unlinked key carries neither. The row timer control carries "start timer"/"stop timer",
+  and the rail's stop button "stop timer". The rail's running key and every ticket summary (Today's rows,
+  the search panel) are focusable, and each opens only its own tooltip on its own focus. Other cut texts
+  keep the earlier rule until #236 is decided.
+- **The search panel's summary tooltip opens below the summary**, so it never covers the focused key.
+- **Up/Down move between table rows** (#227): across Today's tables in document order, within Week's
+  grid; data rows only; a missing cell lands on the nearest focusable in the target row.
+- **Extra Tab stops are acceptable**; the arrow keys are the answer to the Tab walk, not fewer stops.
+
+**A review build of an open PR runs from a worktree.** `../ThatApp-review-229` has its own `.env`
+(`THAT_PORT=8082`, `COMPOSE_PROJECT_NAME=thatapp-review`) and a copy of the real database, so `make`
+there never collides with the main checkout and Push there would write real worklogs. The owner chose
+the database copy. Stop it with `docker compose -p thatapp-review down` in that directory (no `-v`
+needed: its database is a bind mount), then `git worktree remove ../ThatApp-review-229`.
+
+**`.claude/e2e/tests` is neither type-checked nor linted** — it has no `tsconfig.json` or eslint config,
+so `make tsc` and `make lint` never see it. Only a Playwright run proves a spec compiles. Found 2026-09-25.
+
+**A hidden `that-tooltip` repeats its trigger's text**, so a bare `getByText(summary)` in an e2e spec
+matches two elements. Scope such locators to the visible element (`span:text-is(…)`, a row, a role).
+A change that adds hidden duplicate text breaks specs across the whole suite: run the full `make
+test-e2e` before the whole-branch review, not only the specs a task touched. Found 2026-09-25.
+
+**Codeberg failed on and off through the afternoon of 2026-09-25:** pushes were refused with
+"pre-receive hook declined / Internal Server Connection Error", and the API and attachment uploads
+returned 504. Retrying later worked every time. A 504 on `POST /issues` can still create the issue.
 
 **Rules the owner set on 2026-09-23 — do not reopen:**
 - **A finding of the session's own is filed at `status/intake` at once, never asked about.** Asking
