@@ -156,6 +156,20 @@ function emptyNotice(): HTMLElement {
 // Keyed by the row element (not module-level) so it is collected with the row.
 const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
 
+// A second Edit on an instance whose save has not answered would open on
+// pre-save values and overwrite that save (#200).
+const savingIds = new Set<number>();
+
+// Queries the live document rather than a regions.listCard: savingIds is
+// module-level and survives the router reusing this module across
+// navigations, but each render owns its own (eventually detached) regions.
+// A save's finally must reach the row on screen now, not the one its own
+// render started with (#200 review).
+function setRowEditDisabled(instanceId: number, disabled: boolean): void {
+  const row = document.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
+  row?.querySelector("[data-row-edit]")?.toggleAttribute("disabled", disabled);
+}
+
 function instanceRow(regions: Regions, instance: Instance): HTMLElement {
   const row = document.createElement("li");
   row.className = "py-3";
@@ -180,6 +194,7 @@ function instanceRow(regions: Regions, instance: Instance): HTMLElement {
   actions.className = "flex gap-2";
   const test = button("Test", "secondary");
   const edit = button("Edit", "secondary");
+  edit.dataset["rowEdit"] = "";
   const remove = button("Remove", "danger");
   actions.append(test, edit, remove);
 
@@ -237,6 +252,8 @@ function patchRow(row: HTMLElement, instance: Instance): void {
   } else {
     warning?.remove();
   }
+
+  row.querySelector("[data-row-edit]")?.toggleAttribute("disabled", savingIds.has(instance.id));
 }
 
 // A saved token is never echoed back by the API (Instance carries no token
@@ -358,6 +375,11 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     submit.setAttribute("disabled", "");
     status.replaceChildren();
 
+    if (editing) {
+      savingIds.add(editing.id);
+      setRowEditDisabled(editing.id, true);
+    }
+
     const draft = {
       name: name.input.value,
       siteUrl: siteUrl.input.value,
@@ -366,17 +388,15 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     };
 
     try {
-      const saved = editing ? await updateInstance(editing.id, draft) : await createInstance(draft);
+      await (editing ? updateInstance(editing.id, draft) : createInstance(draft));
       await refresh(regions);
       if (editing) {
         clearRowStatus(regions, editing.id);
       }
-      // The user may have moved on while this save was in flight (#161). An Edit
-      // form they opened on this same instance was filled from pre-save values.
+      // Reset only the form this save came from; the user may have moved on
+      // while it was in flight (#161).
       if (regions.formCard.contains(card)) {
         showForm(regions, undefined);
-      } else if (regions.formCard.querySelector(`[data-editing-id="${saved.id}"]`)) {
-        showForm(regions, saved);
       }
     } catch (error) {
       if (regions.formCard.contains(card)) {
@@ -387,6 +407,11 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
         regions.errorSlot.replaceChildren(
           alertFor("error", `Could not save ${label}: ${messageOf(error)}`),
         );
+      }
+    } finally {
+      if (editing) {
+        savingIds.delete(editing.id);
+        setRowEditDisabled(editing.id, false);
       }
     }
   }
