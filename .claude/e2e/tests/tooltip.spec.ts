@@ -269,12 +269,24 @@ test("a below tooltip falls back above when there is no room below", async ({ pa
 
 test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) => {
   await mountTrigger(page);
+  const trigger = page.locator("#trigger");
+  const before = page.locator("#before");
   const tooltip = page.locator("that-tooltip[data-fixture]");
 
-  await page.locator("#trigger").focus();
+  await trigger.evaluate((t) =>
+    t.before(
+      Object.assign(document.createElement("button"), { id: "before", textContent: "before" }),
+    ),
+  );
+
+  await before.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(trigger).toBeFocused();
   await expect(tooltip).toBeVisible();
 
-  await page.locator("#trigger").blur();
+  await page.keyboard.press("Shift+Tab");
+  await expect(before).toBeFocused();
   await expect(tooltip).toBeHidden();
 });
 
