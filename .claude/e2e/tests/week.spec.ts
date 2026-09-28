@@ -817,6 +817,9 @@ test("the fetch control sits beside the label, and the week controls do not move
 
   const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
   await expect(fetchControl).toBeVisible();
+  // #119: the visible words are the accessible name; no aria-label repeats them.
+  await expect(fetchControl).not.toHaveAttribute("aria-label");
+  await expect(page.getByRole("button", { name: "Fetch worklogs", exact: true })).toHaveCount(1);
 
   const label = page.getByRole("heading", { level: 2 });
   const thisWeek = page.getByRole("button", { name: "This week", exact: true });
@@ -855,7 +858,7 @@ test("Refresh sits between the rule and Fetch worklogs, and re-reads /api/week w
   const order = await page.evaluate(() => {
     const byLabel = (label: string) =>
       Array.from(document.querySelectorAll("button")).find(
-        (button) => button.getAttribute("aria-label") === label,
+        (button) => button.textContent?.trim() === label,
       ) ?? null;
     const rule = document.querySelector(".bg-edge");
     const refresh = byLabel("Refresh");
