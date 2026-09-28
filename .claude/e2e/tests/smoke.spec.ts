@@ -274,11 +274,20 @@ test.describe("the content region owns the scroll, not the page", () => {
     return page.locator("#content");
   }
 
+  /** The last row's own summary span — scoped to the tag, because #143 gave
+   *  every summary a cut-text tooltip carrying the same text, which a bare
+   *  `getByText` would match too (it is off-screen, not absent from the DOM,
+   *  so `toBeAttached()` sees it regardless of visibility). The tooltip is a
+   *  `that-tooltip` element, never a `span`, so the tag alone excludes it. */
+  function lastRowSummary(page: Page): Locator {
+    return page.locator('span:text-is("Row 39")');
+  }
+
   test("the window stays put while the content region scrolls, and the rail does not move", async ({
     page,
   }) => {
     await page.goto("/today");
-    await expect(page.getByText("Row 39")).toBeAttached();
+    await expect(lastRowSummary(page)).toBeAttached();
 
     const rail = page.locator("aside.that-rail");
     const before = await rail.boundingBox();
@@ -297,7 +306,7 @@ test.describe("the content region owns the scroll, not the page", () => {
     page,
   }) => {
     await page.goto("/today");
-    await expect(page.getByText("Row 39")).toBeAttached();
+    await expect(lastRowSummary(page)).toBeAttached();
 
     await content(page).evaluate((element) => {
       element.scrollTop = element.scrollHeight;
@@ -316,7 +325,7 @@ test.describe("the content region owns the scroll, not the page", () => {
 
     await page.getByRole("link", { name: "Today", exact: true }).click();
     await expect(page).toHaveURL(/\/today$/);
-    await expect(page.getByText("Row 39")).toBeAttached();
+    await expect(lastRowSummary(page)).toBeAttached();
     expect(await content(page).evaluate((element) => element.scrollTop)).toBe(0);
   });
 
@@ -330,7 +339,7 @@ test.describe("the content region owns the scroll, not the page", () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/today");
-    await expect(page.getByText("Row 39")).toBeAttached();
+    await expect(lastRowSummary(page)).toBeAttached();
 
     const rail = page.locator("aside.that-rail");
     const before = await rail.boundingBox();
@@ -360,7 +369,7 @@ test.describe("the content region owns the scroll, not the page", () => {
   test("below md:, navigating Today to Week resets the window's scroll", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/today");
-    await expect(page.getByText("Row 39")).toBeAttached();
+    await expect(lastRowSummary(page)).toBeAttached();
 
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);

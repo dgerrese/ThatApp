@@ -1246,6 +1246,34 @@ test("the ticket key opens the issue in Jira, ink-muted at rest and full ink on 
   await expect(key).toHaveCSS("color", INK_LIGHT);
 });
 
+/** #143: the grid's own key link drops its native title for the app's own
+ *  tooltip, the same treatment the week arrows already get (see "the week
+ *  arrows carry the drawn popover rather than a native title" above). */
+test("the ticket key carries a tooltip reading exactly \"open in Jira\", not a native title", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const key = ticketRow(page, "RIDGE-1").locator(".that-key");
+  await expect(key).not.toHaveAttribute("title");
+
+  const tooltip = page.locator("that-tooltip", { hasText: "open in Jira" });
+  await expect(tooltip).toBeHidden();
+
+  await key.hover();
+  await expect(tooltip).toBeVisible();
+
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toBeHidden();
+
+  await key.focus();
+  await expect(tooltip).toBeVisible();
+});
+
 /**
  * #117 task 10, W4: an instance migrated from a gateway URL carries no site to
  * link to, so its row's key stays plain text rather than a dead anchor —
@@ -1262,6 +1290,12 @@ test("a key from an instance with no site URL renders as plain text", async ({ p
   await expect(key).toHaveText("RIDGE-1");
   const tagName = await key.evaluate((element) => element.tagName);
   expect(tagName).toBe("SPAN");
+
+  // Owner, 2026-09-25: an unlinked key gets no tooltip at all, native or
+  // drawn — there is nowhere for it to send anyone.
+  await expect(key).not.toHaveAttribute("title");
+  await key.hover();
+  await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeHidden();
 });
 
 /**
@@ -1840,9 +1874,15 @@ function weekSearchField(page: Page) {
 /** The result row for `key`, scoped from the key's own link — the only
  *  element in a row that names its ticket, the same reasoning search.spec.ts's
  *  own resultRow gives: every control's accessible name is fixed per
- *  IssueSearchControl and repeats across rows. */
+ *  IssueSearchControl and repeats across rows. Reaches the ancestor carrying
+ *  `data-hit-key` rather than a fixed number of `..` hops (#143 nested the
+ *  key inside its own text column), matching search.spec.ts's own fix. By
+ *  role and exact name rather than `getByTitle` (#143 dropped the key link's
+ *  native title for the app's own tooltip), also matching search.spec.ts. */
 function weekSearchResultRow(page: Page, key: string) {
-  return page.getByTitle(`Open ${key} in Jira`).locator("..");
+  return page
+    .getByRole("link", { name: key, exact: true })
+    .locator("xpath=ancestor::*[@data-hit-key]");
 }
 
 test.describe("Week's own search", () => {
@@ -1900,6 +1940,41 @@ test.describe("Week's own search", () => {
         "Searching all instances. Choosing a result adds it to this week; click a day to log time.",
       ),
     ).toBeVisible();
+  });
+
+  // #143: the search panel's own key link drops its native title for the
+  // app's own tooltip, the same treatment search.spec.ts's own test gives
+  // Today's copy of this component.
+  test("the search result's key link carries a tooltip reading exactly \"open in Jira\", not a native title", async ({
+    page,
+  }) => {
+    await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
+    await page.route("**/api/issues/search**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: { results: [searchHit("RIDGE-9001", "Draft the onboarding checklist")], errors: [] },
+      }),
+    );
+
+    await page.goto("/week");
+    await weekSearchField(page).fill("ridge");
+
+    const key = weekSearchResultRow(page, "RIDGE-9001").getByRole("link", { name: "RIDGE-9001" });
+    await expect(key).not.toHaveAttribute("title");
+
+    // hasText, not :popover-open: the row's own summary carries a cut-text
+    // tooltip too (#143) — this scopes to the key's own tooltip by its fixed
+    // text regardless of whether the summary is also cut.
+    const tooltip = page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" });
+
+    await key.hover();
+    await expect(tooltip).toBeVisible();
+
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toBeHidden();
+
+    await key.focus();
+    await expect(tooltip).toBeVisible();
   });
 
   test("a row added by search survives once logged, and disappears once abandoned", async ({ page }) => {

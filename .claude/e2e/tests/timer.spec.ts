@@ -202,6 +202,34 @@ test("starting a timer on a row turns its control to stop, tints the Today figur
   await expect(railTimer(page).getByRole("button", { name: "stop timer" })).toBeVisible();
 });
 
+/** #143: the timer control carries the app's own that-tooltip, reading
+ *  "start timer" or "stop timer" — the same pair its aria-label already
+ *  gives, set together in that-timer's paint(). */
+test("the timer control's tooltip reads start timer, then stop timer once it is running", async ({
+  page,
+}) => {
+  await stubTimer(page);
+  await page.goto("/today");
+
+  const row = ticketRow(page, "WORK-1");
+  const tooltip = row.locator("that-tooltip:visible");
+
+  await row.getByRole("button", { name: "start timer" }).hover();
+  await expect(tooltip).toHaveText("start timer");
+
+  await row.getByRole("button", { name: "start timer" }).click();
+  await expect(tooltip).toHaveText("stop timer");
+
+  // Stopped from elsewhere entirely — the rail's own stop button, not the
+  // row — proving paint() reacts to onTimerChanged regardless of what
+  // stopped it, not only a click on this control itself.
+  await railTimer(page).getByRole("button", { name: "stop timer" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Log 0:15" }).click();
+
+  await row.getByRole("button", { name: "start timer" }).hover();
+  await expect(tooltip).toHaveText("start timer");
+});
+
 test("a reload keeps the timer running and its elapsed time carries on", async ({ page }) => {
   await stubTimer(page);
   await page.goto("/today");
@@ -679,6 +707,44 @@ test("the split's figures node keeps its identity across ticks within the same m
   await page.clock.runFor(5_000);
 
   await expect(figuresEl).toHaveAttribute("data-marker", "kept");
+});
+
+// #143 gave a cut split name its own that-tooltip; #204 made the split redraw
+// on a minute tick. Removing an open popover closes it, so a full rebuild of
+// the split on every minute tick closed a name's tooltip mid-hover — this is
+// the regression test for the in-place update that fixes it.
+const longSplitName =
+  "Ridgeline Analytics and Reporting Platform for the Quarterly Capacity and Utilisation Programme";
+
+test("the split's name node — and its open tooltip — survive a minute tick that changes the figure", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(page, [], {
+    instanceId: 1,
+    instanceName: longSplitName,
+    instancePosition: 0,
+    issueKey: "WORK-1",
+    startedAt: new Date(t0 - 50_000).toISOString(),
+  });
+
+  await page.goto("/today");
+
+  // .first(): the name's own that-tooltip carries the same text too, hidden.
+  const nameEl = page.locator("#rail-split").getByText(longSplitName, { exact: true }).first();
+  await expect(nameEl).toBeVisible();
+  await nameEl.evaluate((el) => el.setAttribute("data-marker", "kept"));
+  await nameEl.hover();
+  await expect(page.locator("that-tooltip", { hasText: longSplitName })).toBeVisible();
+
+  await expect(page.locator("#rail-split")).toContainText("0h 00m");
+  await page.clock.runFor(15_000);
+  await expect(page.locator("#rail-split")).toContainText("0h 01m");
+
+  await expect(nameEl).toHaveAttribute("data-marker", "kept");
+  await expect(nameEl).toBeAttached();
+  await expect(page.locator("that-tooltip", { hasText: longSplitName })).toBeVisible();
 });
 
 test("a running timer on an instance with no entries today still gets a named split slice", async ({

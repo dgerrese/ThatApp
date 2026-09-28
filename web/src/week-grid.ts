@@ -68,6 +68,11 @@ export function failuresIn(responses: PushResponse[]): Failures {
  */
 const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap align-middle";
 
+/** One id per row's key link, so its that-tooltip's `for` can resolve it on a
+ *  page holding many rows — the same reasoning weekCellSequence below gives
+ *  its own triggers (#143). */
+let weekKeyLinkSequence = 0;
+
 /**
  * A row's key, linked to the issue in Jira — the drawing's `.kk`, Chivo Mono
  * at 13px/700 via `.that-key`, ink-muted at rest and brightening to ink on
@@ -78,24 +83,41 @@ const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap ali
  */
 function keyLink(issueKey: string, url: string): HTMLElement {
   if (url === "") {
+    // No title either (owner, 2026-09-25): a key with no site to open gets
+    // no tooltip at all, not even the native one it used to carry.
     const span = document.createElement("span");
     span.className = "that-key text-ink-muted";
-    span.title = `Open ${issueKey} in Jira`;
     span.textContent = issueKey;
 
     return span;
   }
 
   const link = document.createElement("a");
+  link.id = `that-week-key-${String(++weekKeyLinkSequence)}`;
   link.href = url;
   link.target = "_blank";
   // Without noopener the opened page gets a window.opener handle back here.
   link.rel = "noopener";
   link.className = "that-key text-ink-muted";
-  link.title = `Open ${issueKey} in Jira`;
   link.textContent = issueKey;
 
   return link;
+}
+
+/** The key link's own that-tooltip (#143), replacing the native title it used
+ *  to carry — the same contract that-ticket-row's own keyTooltip gives.
+ *  `instanceof`, not a second `url !== ""` check (matching
+ *  that-issue-search.ts's own keyTooltip): keyLink above is the one place
+ *  that decides link-or-span, so this reads its answer off the element
+ *  rather than re-deciding it. */
+function keyTooltip(key: HTMLElement): HTMLElement | null {
+  if (!(key instanceof HTMLAnchorElement)) return null;
+
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", key.id);
+  tooltip.textContent = "open in Jira";
+
+  return tooltip;
 }
 
 function gridTable(
@@ -144,8 +166,11 @@ function gridTable(
     // paintInstanceDot labels the dot with the instance name, so the row says
     // which Jira it came from without the hue having to carry it alone.
     paintInstanceDot(dot, row.instancePosition, row.instanceName);
-    holder.append(dot, keyLink(row.issueKey, row.url));
+    const key = keyLink(row.issueKey, row.url);
+    holder.append(dot, key);
     ticket.append(holder);
+    const tooltip = keyTooltip(key);
+    if (tooltip) ticket.append(tooltip);
     tr.append(ticket);
 
     row.cells.forEach((cell, index) => {

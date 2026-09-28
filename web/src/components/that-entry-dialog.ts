@@ -5,6 +5,7 @@ import "./that-duration";
 
 import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "../api";
 import { COMMENT_FIELD_CLASS, confirmDestructive } from "./that-confirm";
+import { cutTextTooltip } from "../cut-text-tooltip";
 import { announceEntriesChanged } from "../entries-changed";
 import { longDay, totalFigure } from "../format";
 import { iconMarkup } from "../icons";
@@ -106,6 +107,7 @@ export class ThatEntryDialog extends HTMLElement {
   private comment: HTMLInputElement | undefined;
   private submit: HTMLElement | undefined;
   private cancel: HTMLElement | undefined;
+  private closeControl: HTMLElement | undefined;
 
   private entries: Entry[] = [];
   private editing: Entry | undefined;
@@ -150,6 +152,10 @@ export class ThatEntryDialog extends HTMLElement {
     return `that-entry-dialog-heading-${String(this.sequence)}`;
   }
 
+  private get instanceId(): string {
+    return `that-entry-dialog-instance-${String(this.sequence)}`;
+  }
+
   /**
    * The instance dot, the instance and the key on one line, with the total and
    * Close pushed right by the total's own auto margin. The day sits on the
@@ -173,6 +179,7 @@ export class ThatEntryDialog extends HTMLElement {
     heading.className = "flex min-w-0 items-center gap-[9px]";
 
     const instance = document.createElement("span");
+    instance.id = this.instanceId;
     instance.className = "text-ink-muted truncate text-xs font-bold tracking-[0.16em] uppercase";
     instance.textContent = ticket.instanceName;
 
@@ -209,7 +216,7 @@ export class ThatEntryDialog extends HTMLElement {
       identity.append(dot);
     }
     identity.append(heading, total, this.closeButton());
-    header.append(identity);
+    header.append(identity, this.instanceTooltip(ticket.instanceName));
 
     // Hidden until updateDayLine has a day to show: a scoped ticket's day is
     // known synchronously, but an unscoped one waits on reload() to learn
@@ -259,6 +266,15 @@ export class ThatEntryDialog extends HTMLElement {
     line.hidden = false;
   }
 
+  /**
+   * Hover-only (#143's decision, reversible): the row's only focusable
+   * element is Close, and Close names nothing about the instance, so there is
+   * no sensible focus-for to give it.
+   */
+  private instanceTooltip(name: string): HTMLElement {
+    return cutTextTooltip(this.instanceId, name);
+  }
+
   private closeButton(): HTMLElement {
     const close = document.createElement("button");
     close.type = "button";
@@ -268,8 +284,27 @@ export class ThatEntryDialog extends HTMLElement {
     close.addEventListener("click", () => {
       this.dialog?.close();
     });
+    this.closeControl = close;
 
     return close;
+  }
+
+  /**
+   * Deleting an entry removes the very row — and its own Delete button — the
+   * keyboard was just on: renderEntries() rebuilds the list wholesale, the
+   * same reason today.ts's pin controls needed this. Left alone, focus falls
+   * out of the dialog entirely (the confirm dialog's own close already
+   * restored it to the now-gone button). Close is the one control this
+   * dialog always has, deleted-to-empty or not, so it is the fallback. A
+   * no-op once focus already landed somewhere inside the dialog — startEditing
+   * moves it to the comment field itself, which this must not override.
+   */
+  private refocusIfLostFromDialog(): void {
+    const dialog = this.dialog;
+    const active = document.activeElement;
+    if (!dialog || (active && dialog.contains(active))) return;
+
+    this.closeControl?.focus();
   }
 
   private entryList(): HTMLElement {
@@ -454,7 +489,9 @@ export class ThatEntryDialog extends HTMLElement {
     duration.className = "that-tnum font-mono w-[68px] shrink-0 font-bold";
     duration.textContent = totalFigure(entry.seconds);
 
+    const commentId = `that-entry-comment-${this.sequence}-${entry.id}`;
     const comment = document.createElement("span");
+    comment.id = commentId;
     comment.className = "min-w-0 flex-1 truncate text-base";
     comment.textContent = entry.comment;
     if (entry.comment === "") {
@@ -464,6 +501,8 @@ export class ThatEntryDialog extends HTMLElement {
       comment.textContent = "No comment";
     }
 
+    const editId = `that-entry-edit-${this.sequence}-${entry.id}`;
+
     const actions = document.createElement("div");
     actions.className = "flex shrink-0 items-center gap-1.5";
     actions.append(
@@ -472,7 +511,7 @@ export class ThatEntryDialog extends HTMLElement {
         `Edit the ${clockTime(entry.startedAt)} entry`,
         "edit entry",
         false,
-        `that-entry-edit-${this.sequence}-${entry.id}`,
+        editId,
         () => {
           this.startEditing(entry);
         },
@@ -492,9 +531,29 @@ export class ThatEntryDialog extends HTMLElement {
     // The popover rides inside the row rather than beside it. It is closed —
     // and so `display: none` — until it is shown, and open it is in the top
     // layer, out of this flex line either way.
-    row.append(duration, comment, ...this.pushMark(entry), actions);
+    row.append(
+      duration,
+      comment,
+      this.commentTooltip(commentId, entry.comment, editId),
+      ...this.pushMark(entry),
+      actions,
+    );
 
     return row;
+  }
+
+  /**
+   * `focus-for` follows the edit button, per the brief, so a keyboard user
+   * reaches a cut comment the same way a mouse does. Always appended, like the
+   * summary's own equivalent: `when-cut` decides whether it ever has anything
+   * to reveal.
+   *
+   * Not literally the row's first Tab stop — the push mark beside it (below)
+   * carries `tabIndex = 0` and sits earlier in the DOM — but it is the first
+   * *action*, and the brief names it specifically; see the task report.
+   */
+  private commentTooltip(forId: string, comment: string, editId: string): HTMLElement {
+    return cutTextTooltip(forId, comment === "" ? "No comment" : comment, editId);
   }
 
   /**
@@ -604,6 +663,7 @@ export class ThatEntryDialog extends HTMLElement {
       // to a row that no longer exists, and Save would 404.
       if (this.editing?.id === entry.id) this.stopEditing();
       await this.afterMutation();
+      this.refocusIfLostFromDialog();
     } catch (error) {
       this.showFailure(error, "Could not delete the entry.");
     }

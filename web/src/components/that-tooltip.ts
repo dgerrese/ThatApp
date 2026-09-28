@@ -14,6 +14,7 @@
  */
 export class ThatTooltip extends HTMLElement {
   private trigger: HTMLElement | null = null;
+  private focusTrigger: HTMLElement | null = null;
   private observer: MutationObserver | undefined;
   private readonly onShow = (): void => this.reveal();
   // Both halves of a pair can fire for one release, when a trigger is hovered
@@ -30,7 +31,8 @@ export class ThatTooltip extends HTMLElement {
   connectedCallback(): void {
     this.setAttribute("popover", "manual");
     this.className =
-      "bg-rail text-rail-ink shadow-popover rounded-xs px-2 py-1 text-sm whitespace-nowrap";
+      "bg-rail text-rail-ink shadow-popover rounded-xs px-2 py-1 text-sm " +
+      (this.hasAttribute("wrap") ? "max-w-[340px] whitespace-normal" : "whitespace-nowrap");
 
     const id = this.getAttribute("for");
     const trigger = id ? document.getElementById(id) : null;
@@ -41,6 +43,19 @@ export class ThatTooltip extends HTMLElement {
     trigger.addEventListener("pointerleave", this.onHide);
     trigger.addEventListener("focus", this.onShow);
     trigger.addEventListener("blur", this.onHide);
+
+    // A second focus target, for a tooltip whose own trigger is not
+    // focusable but sits beside something that is (#143) — the entry
+    // dialog's comment tooltip follows its row's edit button this way.
+    // Cut text used to lean on this for a key link's focus before task 9
+    // made every cut text a tab stop in its own right.
+    const focusId = this.getAttribute("focus-for");
+    const focusTrigger = focusId ? document.getElementById(focusId) : null;
+    if (focusTrigger) {
+      this.focusTrigger = focusTrigger;
+      focusTrigger.addEventListener("focus", this.onShow);
+      focusTrigger.addEventListener("blur", this.onHide);
+    }
 
     // reveal() places the box once, at show time, from the trigger's rect and
     // this element's own width. A consumer can repaint this element's text —
@@ -63,6 +78,10 @@ export class ThatTooltip extends HTMLElement {
     this.observer?.disconnect();
     this.observer = undefined;
 
+    this.focusTrigger?.removeEventListener("focus", this.onShow);
+    this.focusTrigger?.removeEventListener("blur", this.onHide);
+    this.focusTrigger = null;
+
     const trigger = this.trigger;
     if (!trigger) return;
 
@@ -75,6 +94,9 @@ export class ThatTooltip extends HTMLElement {
   private reveal(): void {
     const trigger = this.trigger;
     if (!trigger) return;
+
+    // #143: a cut-text tooltip exists only to give back what the ellipsis took.
+    if (this.hasAttribute("when-cut") && trigger.scrollWidth <= trigger.clientWidth) return;
 
     // See onHide: neither call throws on a redundant transition in either
     // target browser, and this guard is the same insurance.
@@ -92,14 +114,36 @@ export class ThatTooltip extends HTMLElement {
     // #content starts flush against the window's top edge (#3's), so a
     // trigger at the top of the content column, or Week's own header arrows,
     // would otherwise open partly off-screen.
-    const top =
-      box.top - this.offsetHeight - gap < 0 ? box.bottom + gap : box.top - this.offsetHeight - gap;
+    //
+    // `below` is the opt-in for the drawing's other variant, `.tip.below`
+    // (prototype line 166): open under the trigger instead, falling back
+    // above when the box would run past the window's bottom edge. Task 7's
+    // own case — the search panel stacks a row's key link over its summary,
+    // so the summary's tooltip must open away from the key link above it,
+    // not over it.
+    const top = this.hasAttribute("below")
+      ? box.bottom + gap + this.offsetHeight > window.innerHeight
+        ? box.top - this.offsetHeight - gap
+        : box.bottom + gap
+      : box.top - this.offsetHeight - gap < 0
+        ? box.bottom + gap
+        : box.top - this.offsetHeight - gap;
+
+    // Only a wrapping tooltip is clamped: it is the wide, cut-text case this
+    // is for (#143), sized to run into a window edge. An icon tooltip's
+    // anchor="end" pins its right edge to the trigger's on purpose, even past
+    // the window's own left edge for a trigger mounted flush against it —
+    // clamping that would pull it away from the trigger it is pinned to.
+    const edge = 8;
+    const clamped = this.hasAttribute("wrap")
+      ? Math.min(Math.max(left, edge), window.innerWidth - this.offsetWidth - edge)
+      : left;
 
     // All four longhands, not just top/left: the UA stylesheet gives an open
     // popover `inset: 0` for its default centred position, and leaving right
     // or bottom set would fight the explicit placement on some engines.
     this.style.top = `${top}px`;
-    this.style.left = `${left}px`;
+    this.style.left = `${clamped}px`;
     this.style.right = "auto";
     this.style.bottom = "auto";
     this.style.margin = "0";

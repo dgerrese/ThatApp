@@ -419,7 +419,10 @@ and the right one depends on what sits next to it:
 - **Reserve.** The hint always occupies its width and fades in. Nothing moves. Correct in a table,
   where the neighbour is a status column that would otherwise jump on every hover.
 - **Reveal.** The hint has no width until wanted, and expands. Correct in a narrow panel such as the
-  search results, where reserved width is taken straight out of the summary being read.
+  search results, where reserved width is taken straight out of the summary being read. There, the
+  key sits above the summary rather than beside it, and the row's controls sit to their right (#143,
+  2026-09-23 refinement) — so the summary reads at the row's own full text width instead of whatever
+  the key's width would otherwise leave it.
 
 **This reverses a decision recorded in the first edition.** That document says the owner chose the
 shifting arrangement on 2026-08-21 over three that hold the row still, and that reserving the width
@@ -443,6 +446,21 @@ centring on it, or it hangs past the card.
 **It opens above its trigger, the drawing's `.tip`, and falls back below — the drawing's own
 `.tip.below` — when there is not enough room above.** #content starts flush against the window's
 top edge, so a trigger near the top of the content column has nowhere to open upward into.
+
+**A text cut by an ellipsis gives its full wording back in the same tooltip** (#143), in a wrapping
+variant about 340px wide, shown only when the text is actually cut — never for a summary or a key
+that already fits. **The rail's running key and a ticket summary — Today's own row and the search
+panel's result row alike — are each focusable and open their tooltip on their own focus; the key's
+tooltip and the rail's stop button tooltip each open only their own, never the summary's** (owner,
+2026-09-25). This replaced the earlier rule, where a cut summary borrowed a neighbouring key link's
+focus instead of taking its own — a shape that broke the moment a row carried more than one cut
+text, since one focus then had to open two tooltips at once. Every other cut text in the app (the
+entry dialog's comment and instance name, the rail's own instance-name slices, a pinned row's
+failure note) keeps the earlier rule: hover-only, or following a neighbouring control's focus,
+never a tab stop of its own. Like every other tooltip here, it is never the accessible name.
+
+**A key that links to Jira carries a tooltip reading "open in Jira"** (#143), replacing the native
+title, centred like any other non-trailing control — owner, 2026-09-25.
 
 ## Decision 8 — the breakpoint scale, and one collision it walks into
 

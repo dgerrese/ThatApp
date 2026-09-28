@@ -1,4 +1,5 @@
 import { listEntries, pushDay } from "./api";
+import { cutTextTooltip } from "./cut-text-tooltip";
 import { announceEntriesChanged, onEntriesChanged } from "./entries-changed";
 import { elapsedFigure, totalFigure } from "./format";
 import { iconMarkup } from "./icons";
@@ -58,6 +59,11 @@ export const TODAY_PERIOD: RailPeriod = {
 // filters below drifted from it because each was written by hand — #121.
 const isPending = (entry: Entry): boolean => entry.pushState !== "pushed";
 
+// One counter for every cut-text id the rail hands out (#143): the split's
+// instance names and the running timer's key, each rebuilt often enough that
+// a per-render id would collide with whatever a previous render left behind.
+let railCutTextSequence = 0;
+
 let currentPeriod: RailPeriod = TODAY_PERIOD;
 let applyPeriod: ((period: RailPeriod) => void) | undefined;
 
@@ -106,6 +112,7 @@ export function startRail(): void {
   // write, so a 1-second tick that moves neither leaves both untouched.
   let lastEntries: Entry[] = [];
   let lastSplitSignature: string | undefined;
+  let lastSplitShape: string | undefined;
 
   const syncPushButton = (): void => {
     push.disabled = pushing || pending.length === 0;
@@ -188,19 +195,28 @@ export function startRail(): void {
     const totalText = totalFigure(seconds);
     if (total.textContent !== totalText) total.textContent = totalText;
 
-    // Name and instanceId matter here, not just position and the figure: a
-    // renamed instance (same position, same seconds) must redraw the split at
-    // once rather than wait for a figure to cross a minute — the only other
-    // thing that would otherwise change this string.
-    const signature = slices
-      .map(
-        (slice) =>
-          `${String(slice.instanceId)}:${String(slice.position)}:${slice.name}:${totalFigure(slice.seconds)}`,
-      )
+    // Name and instanceId matter here, not just position, so a renamed
+    // instance (same position, same seconds) redraws the split at once
+    // rather than wait for a figure to cross a minute — the only other thing
+    // that would otherwise change the shape.
+    const shape = slices
+      .map((slice) => `${String(slice.instanceId)}:${String(slice.position)}:${slice.name}`)
       .join("|");
+    const signature = `${shape}|${slices.map((slice) => totalFigure(slice.seconds)).join(",")}`;
     if (signature !== lastSplitSignature) {
       lastSplitSignature = signature;
-      drawSplit(split, slices);
+      // A tick that only moves a figure — the common case once a minute,
+      // while the same instances are still running — updates the existing
+      // bar segments and figure text in place instead of rebuilding the row.
+      // Rebuilding removes and recreates each name's that-tooltip, and
+      // removing an open popover closes it (#143): a rebuild every minute
+      // closed a name's tooltip mid-hover.
+      if (shape === lastSplitShape && slices.length > 0) {
+        updateSplitFigures(split, slices);
+      } else {
+        lastSplitShape = shape;
+        drawSplit(split, slices);
+      }
     }
   };
 
@@ -544,6 +560,27 @@ function drawSplit(split: HTMLElement, slices: Slice[]): void {
   split.replaceChildren(bar(slices), figures(slices));
 }
 
+/**
+ * The in-place counterpart to drawSplit, for a signature change that moves
+ * only figures — same instances, same order, same names. Both selections
+ * are positional rather than keyed, which is safe only because the shape
+ * (and so the slice order) is what the caller already confirmed is
+ * unchanged.
+ */
+function updateSplitFigures(split: HTMLElement, slices: Slice[]): void {
+  const segments = [...split.querySelectorAll<HTMLElement>(".that-split-bar > *")];
+  const figureEls = [...split.querySelectorAll<HTMLElement>("[data-split-figure]")];
+
+  slices.forEach((slice, index) => {
+    const segment = segments[index];
+    if (segment) segment.style.flex = String(slice.seconds);
+
+    const figure = figureEls[index];
+    const text = totalFigure(slice.seconds);
+    if (figure && figure.textContent !== text) figure.textContent = text;
+  });
+}
+
 function restingLine(): HTMLElement {
   const line = document.createElement("span");
   line.className = "text-rail-muted text-base";
@@ -590,15 +627,18 @@ function figures(slices: Slice[]): HTMLElement {
     // screen reader say every instance twice.
     dot.setAttribute("aria-hidden", "true");
 
+    const nameId = `that-rail-name-${String(++railCutTextSequence)}`;
     const name = document.createElement("span");
+    name.id = nameId;
     name.className = "text-rail-muted min-w-0 flex-1 truncate";
     name.textContent = slice.name;
 
     const figure = document.createElement("span");
     figure.className = "that-tnum text-rail-ink font-mono font-bold";
+    figure.setAttribute("data-split-figure", "");
     figure.textContent = totalFigure(slice.seconds);
 
-    row.append(dot, name, figure);
+    row.append(dot, name, figure, cutTextTooltip(nameId, slice.name));
     list.append(row);
   }
 
@@ -627,7 +667,13 @@ function runningTimerLine(
   const dot = document.createElement("span");
   dot.className = "bg-running-rail size-[7px] shrink-0 rounded-full";
 
+  // This line is rebuilt only when what is running changes, never on a tick
+  // (see paintTimer) — otherwise the tooltip appended below would go with it
+  // every second, and removing an open popover closes it, so it would flicker.
+  const keyId = `that-rail-key-${String(++railCutTextSequence)}`;
   const key = document.createElement("span");
+  key.id = keyId;
+  key.tabIndex = 0;
   key.className = "text-rail-ink text-base min-w-0 flex-1 truncate";
   key.textContent = running.issueKey;
 
@@ -635,7 +681,9 @@ function runningTimerLine(
   elapsed.className = "that-tnum text-running-rail shrink-0 font-mono text-base";
   elapsed.textContent = elapsedFigure(elapsedSeconds());
 
+  const stopId = `that-rail-stop-${String(railCutTextSequence)}`;
   const stop = document.createElement("button");
+  stop.id = stopId;
   stop.type = "button";
   stop.className =
     "text-running-rail hover:bg-hover-rail flex h-[26px] w-[26px] shrink-0 cursor-pointer " +
@@ -644,5 +692,17 @@ function runningTimerLine(
   stop.setAttribute("aria-label", "stop timer");
   stop.addEventListener("click", onStop);
 
-  return { nodes: [dot, key, elapsed, stop], elapsed };
+  const stopTooltip = document.createElement("that-tooltip");
+  stopTooltip.setAttribute("for", stopId);
+  stopTooltip.setAttribute("anchor", "end");
+  stopTooltip.textContent = "stop timer";
+
+  return {
+    // No `focus-for` on the key's own tooltip (#143 task 9): that-tooltip
+    // already opens on its `for` element's own focus, now that the key
+    // itself is focusable, and the stop button gets its own tooltip below
+    // rather than sharing the key's.
+    nodes: [dot, key, elapsed, stop, cutTextTooltip(keyId, running.issueKey), stopTooltip],
+    elapsed,
+  };
 }
