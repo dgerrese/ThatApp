@@ -9,7 +9,7 @@ import { expect, test, type Page } from "@playwright/test";
  * instance card and the off-list table, all three rebuilt from scratch —
  * see today.ts's renderPinnedList/renderResponse/renderOffListSection).
  * Both are fixed here; see today.ts's focusedPinTicket/restorePinFocus and
- * settings.ts's refocusAfterRemoval.
+ * settings-dialog.ts's refocusAfterRemoval.
  */
 
 async function stubIssues(page: Page, groups: unknown[]): Promise<void> {
@@ -28,6 +28,15 @@ async function stubSearchEmpty(page: Page): Promise<void> {
   await page.route("**/api/issues/search**", async (route) => {
     await route.fulfill({ status: 200, json: { results: [], errors: [] } });
   });
+}
+
+async function openSettingsOverToday(page: Page): Promise<void> {
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
 }
 
 async function stubTimerIdle(page: Page): Promise<void> {
@@ -77,7 +86,7 @@ test.describe("Settings: Remove does not drop focus to <body> (#143)", () => {
     });
     await stubTimerIdle(page);
 
-    await page.goto("/settings");
+    await openSettingsOverToday(page);
     await expect(page.getByText("Ridgeline", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Remove", exact: true }).first().focus();
@@ -114,7 +123,7 @@ test.describe("Settings: Remove does not drop focus to <body> (#143)", () => {
     });
     await stubTimerIdle(page);
 
-    await page.goto("/settings");
+    await openSettingsOverToday(page);
     await expect(page.getByText("Ridgeline", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Remove", exact: true }).focus();

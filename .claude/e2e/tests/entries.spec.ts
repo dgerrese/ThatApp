@@ -391,7 +391,7 @@ test("the dialog opens from a pinned row as well as an assigned one", async ({ p
  * Today view. It lives in the shell precisely so Settings — and #11's Week —
  * keep showing the right figure without knowing it exists.
  */
-test("the rail keeps the total after navigating to Settings", async ({ page }) => {
+test("the rail keeps the total while Settings is open over Today", async ({ page }) => {
   await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
   await openToday(page);
 
@@ -404,9 +404,10 @@ test("the rail keeps the total after navigating to Settings", async ({ page }) =
   // clickable — which is the platform behaviour this ticket relies on.
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);
-  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
 
-  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await expect(page).toHaveURL(/\/today$/);
   await expect(page.locator("#rail-total")).toHaveText("0h 45m");
 });
 

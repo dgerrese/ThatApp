@@ -1,4 +1,5 @@
 import { startRail } from "./rail";
+import { openSettings } from "./open-settings";
 import { startRouter } from "./router";
 
 // Before the router, and independent of it: the rail is the shell's own
@@ -18,6 +19,10 @@ const root = document.querySelector<HTMLElement>("#view");
 if (root) {
   startRouter(root);
 }
+
+document.querySelector("#settings-cog")?.addEventListener("click", () => {
+  void openSettings();
+});
 
 // Guarded because a Firefox private window has no navigator.serviceWorker.
 // Registered after load so it never competes with the app's own bundle for

@@ -198,8 +198,12 @@ test("install rejects a precache entry that answers HTML under a .js name, leavi
   expect(remainingCaches).toEqual([]);
 });
 
+// An address the router has no view for: it renders its placeholder and reads
+// nothing, which is all the tests below need of a page.
+const NO_VIEW = "/no-view-here";
+
 // The rail is static shell markup and the view container gets at least one
-// child synchronously — both today.ts and settings.ts append their DOM
+// child synchronously — both today.ts and the router's placeholder append their DOM
 // before awaiting any fetch — so checking for content here does not depend
 // on /api/* succeeding, which task 4 deliberately leaves uncached.
 async function expectShellRendered(page: Page): Promise<void> {
@@ -247,13 +251,14 @@ test("a same-page reload with the server unreachable re-serves the cached shell"
   await page.goto("/today");
   await waitForActivatedWorker(page);
 
-  // Routed client-side to Settings before the server goes away: the address
-  // changes but nothing fetches /settings, so there is no HTTP cache entry for
-  // the reload below to be answered from and the worker is the only thing that
-  // can serve it. exact: true disambiguates from Today's own "Open Settings"
-  // link, on screen in the no-instances state stubIssues produces.
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  // Routed client-side before the server goes away: the address changes but
+  // nothing fetches it, so there is no HTTP cache entry for the reload below
+  // to be answered from and the worker is the only thing that can serve it.
+  await page.evaluate((path) => {
+    history.pushState({}, "", path);
+    dispatchEvent(new PopStateEvent("popstate"));
+  }, NO_VIEW);
+  await expect(page).toHaveURL(/\/no-view-here$/);
 
   await context.route("**/*", (route) => route.abort("failed"));
   await page.reload();
@@ -261,7 +266,7 @@ test("a same-page reload with the server unreachable re-serves the cached shell"
   await expectShellRendered(page);
 });
 
-test("a cold navigation to settings renders the shell while offline", async ({
+test("a cold navigation to an address with no view renders the shell while offline", async ({
   page,
   context,
   browserName,
@@ -269,8 +274,7 @@ test("a cold navigation to settings renders the shell while offline", async ({
   // Firefox's worker keeps reaching the live server under setOffline, so the
   // shell would come back off the network there and this test's green would say
   // nothing about the cache — coverage its name claims. Cold navigation to
-  // /settings and /week over a reachable server is settings.spec.ts's and
-  // smoke.spec.ts's job, on both engines.
+  // /week over a reachable server is smoke.spec.ts's job, on both engines.
   test.skip(browserName !== "chromium", "only Chromium honours setOffline for the worker's own fetch — see above");
 
   await stubIssues(page);
@@ -279,9 +283,9 @@ test("a cold navigation to settings renders the shell while offline", async ({
 
   await context.setOffline(true);
 
-  // Settings first, on a page that has never been to it and in a context where
+  // NO_VIEW first, on a page that has never been to it and in a context where
   // nothing has fetched it — deliberately the order an earlier revision of this
-  // test avoided. Nothing but the worker can answer /settings here: there is no
+  // test avoided. Nothing but the worker can answer NO_VIEW here: there is no
   // HTTP cache entry for it and no network. Real navigations, not client-side
   // routing, so this exercises the worker for two distinct URLs and proves the
   // one cached /index.html stands in for either address.
@@ -296,7 +300,7 @@ test("a cold navigation to settings renders the shell while offline", async ({
   // fetches nothing, while still being a second real navigation to an address
   // nothing has ever requested — which is all this test needs of it.
   const cold = await context.newPage();
-  await cold.goto("/settings");
+  await cold.goto(NO_VIEW);
   await expectShellRendered(cold);
 
   await cold.goto("/week");
@@ -457,7 +461,7 @@ test("a plain fetch of index.html leaves the shell cache usable for navigations"
   await context.route("**/*", (route) => route.abort("failed"));
 
   const cold = await context.newPage();
-  await cold.goto("/settings");
+  await cold.goto(NO_VIEW);
   await expectShellRendered(cold);
 });
 
@@ -550,9 +554,8 @@ test("the pinned issues come back from cache, stamped with when they were stored
     },
   );
 
-  // Settings, not Today: Settings reads only /api/instances, so nothing here
-  // needs the assigned-issues list stubbed.
-  await page.goto("/settings");
+  // An address with no view reads nothing, so nothing here needs a list stubbed.
+  await page.goto(NO_VIEW);
   await waitForActivatedWorker(page);
   await waitForControllingWorker(page);
 
@@ -606,7 +609,7 @@ test("the assigned issues come back from cache, stamped, once the server is unre
     await route.fulfill({ status: 200, json: { instances: [{ instanceId: 1, issues: [] }] } });
   });
 
-  await page.goto("/settings");
+  await page.goto(NO_VIEW);
   await waitForActivatedWorker(page);
   await waitForControllingWorker(page);
 
@@ -782,7 +785,7 @@ test("the stale warning stays when coming back finds the server still gone, and 
 });
 
 test("an /api/ read outside the two Jira lists is never answered from cache", async ({ page, context }) => {
-  await page.goto("/settings");
+  await page.goto(NO_VIEW);
   await waitForActivatedWorker(page);
   await waitForControllingWorker(page);
 
@@ -815,7 +818,7 @@ test("a write attempted with the server unreachable fails and is never replayed 
   page,
   context,
 }) => {
-  await page.goto("/settings");
+  await page.goto(NO_VIEW);
   await waitForActivatedWorker(page);
   await waitForControllingWorker(page);
 

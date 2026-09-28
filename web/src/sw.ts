@@ -119,7 +119,7 @@ function isFontOrIcon(pathname: string): boolean {
   return pathname.startsWith("/fonts/") || pathname.startsWith("/icons/");
 }
 
-// /today, /settings, / and any unknown path — the addresses handleAsset
+// /today, /week, / and any unknown path — the addresses handleAsset
 // answers with the app shell. Every file this build ships carries an
 // extension (.html, .css, .js, .woff2, .png, .svg, .json, and sw.js), and no
 // view's address has one, so naming a file is what separates "a navigation to

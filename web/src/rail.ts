@@ -15,7 +15,7 @@ import type { Entry, PushResponse, RunningTimer } from "./types";
  *
  * It lives in the shell rather than in Today, and that is the whole point. The
  * rail is the instrument — the same figure in the same place whatever view you
- * are on — so it has to stay right on Settings, and on #11's Week view, without
+ * are on — so it has to stay right on #11's Week view, and under the Settings dialog, without
  * either of them knowing it exists. Push belongs here for the same reason: it
  * sits beside the day total it sends, reachable from every view rather than
  * only from Today.
@@ -73,7 +73,7 @@ let applyPeriod: ((period: RailPeriod) => void) | undefined;
  *
  * A no-op when the period is already current: startRail in fact always runs
  * before any view mounts (see main.ts), so every mount of a view that shares
- * today's period — Today itself, and Settings borrowing it — would otherwise
+ * today's period — Today remounting — would otherwise
  * fire a live re-read of a period the rail is already showing. Reference
  * equality is enough because every period a view hands in is a shared
  * constant (TODAY_PERIOD) or freshly built for a genuine change.

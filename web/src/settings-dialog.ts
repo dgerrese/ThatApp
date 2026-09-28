@@ -1,59 +1,131 @@
-import "../components/that-alert";
-import "../components/that-button";
-import "../components/that-card";
-import "../components/that-confirm";
+import "./components/that-alert";
+import "./components/that-button";
+import "./components/that-confirm";
 
-import { alertFor, messageOf } from "../alert";
-import {
-  createInstance,
-  deleteInstance,
-  listInstances,
-  testInstance,
-  updateInstance,
-} from "../api";
-import { confirmDestructive } from "../components/that-confirm";
-import { iconMarkup } from "../icons";
-import { setRailPeriod, TODAY_PERIOD } from "../rail";
-import { setThemePreference, themePreference } from "../theme";
-import type { Instance } from "../types";
-import type { ThemePreference } from "../theme";
+import { alertFor, messageOf } from "./alert";
+import { createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "./api";
+import { confirmDestructive } from "./components/that-confirm";
+import { announceEntriesChanged } from "./entries-changed";
+import { iconMarkup } from "./icons";
+import { navigate } from "./router";
+import { setThemePreference, themePreference } from "./theme";
+import type { Instance } from "./types";
+import type { ThemePreference } from "./theme";
 
 interface Regions {
   errorSlot: HTMLElement;
-  listCard: HTMLElement;
-  formCard: HTMLElement;
-  // Numbers every list read this render starts, so refresh() can tell the
+  listSlot: HTMLElement;
+  formSection: HTMLElement;
+  // Numbers every list read this dialog starts, so refresh() can tell the
   // answer it is holding from one a later read has already superseded (#56).
   latestListRead: number;
+  // Set by a save or a removal: the view beneath was drawn from the instances
+  // as they were, and a removal also deleted entries the rail is counting.
+  changed: boolean;
 }
 
-export async function render(root: HTMLElement): Promise<void> {
-  setRailPeriod(TODAY_PERIOD);
+const HEADING_ID = "that-settings-heading";
+
+/**
+ * The top-layer element fills the viewport and is the scroller; the panel is an
+ * ordinary child centred by its own auto margins (prototype lines 245–247).
+ * Never centre it with align-items or justify-content instead: content centred
+ * in a scroll container overflows both edges, and nothing can scroll to what
+ * lies above the start edge, so a tall panel silently loses its top. The margin
+ * is stated because Preflight's `* { margin: 0 }` beats the UA's own.
+ */
+const DIALOG_CLASS =
+  "text-ink fixed inset-0 m-0 size-full max-h-none max-w-none overflow-y-auto border-0 " +
+  "bg-[oklch(0_0_0/0.5)] p-7 backdrop:bg-transparent open:flex open:flex-col";
+const PANEL_CLASS =
+  "bg-raised border-edge shadow-dialog m-auto w-[620px] max-w-full shrink-0 rounded-md border";
+const SECTION_CLASS = "border-edge border-b px-5 py-[15px] last:border-b-0";
+const SECTION_HEADING_CLASS = "text-ink-muted mb-2.5 text-xs font-bold tracking-[0.16em] uppercase";
+
+export function showSettings(): void {
+  // A second press that arrived while the first one's chunk was loading.
+  if (document.getElementById(HEADING_ID)) return;
 
   const regions: Regions = {
     errorSlot: document.createElement("div"),
-    listCard: document.createElement("div"),
-    formCard: document.createElement("div"),
+    listSlot: document.createElement("div"),
+    formSection: document.createElement("section"),
     latestListRead: 0,
+    changed: false,
   };
-  regions.formCard.className = "mt-6";
+  regions.formSection.className = SECTION_CLASS;
 
-  // that-card overwrites its own className on connect, so the spacing lives on a
-  // wrapper. Appearance sits outside the regions refresh() touches.
-  const appearance = document.createElement("div");
-  appearance.className = "mt-6";
-  appearance.append(appearanceCard());
+  const instances = section("Jira instances");
+  instances.append(regions.errorSlot, regions.listSlot);
 
-  root.append(regions.errorSlot, regions.listCard, regions.formCard, appearance);
+  const appearance = section("Appearance");
+  appearance.append(themeControl());
+
+  const dialog = document.createElement("dialog");
+  dialog.className = DIALOG_CLASS;
+  dialog.setAttribute("aria-labelledby", HEADING_ID);
+
+  const panel = document.createElement("div");
+  panel.dataset["settingsPanel"] = "";
+  panel.className = PANEL_CLASS;
+  panel.append(header(dialog), instances, regions.formSection, appearance);
+  dialog.append(panel);
+
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    if (!regions.changed) return;
+    void navigate(window.location.pathname + window.location.search);
+    announceEntriesChanged();
+  });
+
+  document.body.append(dialog);
+  dialog.showModal();
 
   showForm(regions, undefined);
-  await refresh(regions);
+  void refresh(regions);
 }
 
-// regions is captured by every closure this function and its callees create
-// (button handlers, save()), so a render() superseded by a later navigation
-// still writes into its own detached elements when it resolves late, never
-// into whatever is now on screen.
+function header(dialog: HTMLDialogElement): HTMLElement {
+  const bar = document.createElement("div");
+  bar.className = "border-edge flex items-center gap-3 border-b px-5 py-3.5";
+
+  const heading = document.createElement("h2");
+  heading.id = HEADING_ID;
+  heading.className = "text-xl font-bold tracking-[-0.015em]";
+  heading.textContent = "Settings";
+
+  // Chrome, not an action on data: a glyph, per the language's decision 12.
+  const close = document.createElement("button");
+  close.type = "button";
+  close.setAttribute("aria-label", "Close");
+  close.className =
+    "text-ink-muted hover:bg-hover hover:text-ink focus-visible:bg-hover focus-visible:text-ink " +
+    "ml-auto flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-sm";
+  close.innerHTML = iconMarkup("close");
+  close.addEventListener("click", () => {
+    dialog.close();
+  });
+
+  bar.append(heading, close);
+
+  return bar;
+}
+
+function section(heading: string): HTMLElement {
+  const element = document.createElement("section");
+  element.className = SECTION_CLASS;
+
+  const title = document.createElement("h3");
+  title.className = SECTION_HEADING_CLASS;
+  title.textContent = heading;
+  element.append(title);
+
+  return element;
+}
+
+// regions is captured by every closure this dialog creates (button handlers,
+// save()), so a read that resolves after the dialog closed writes into its own
+// detached elements, never into a later dialog.
 async function refresh(regions: Regions): Promise<void> {
   const thisRead = ++regions.latestListRead;
   let instances: Instance[];
@@ -72,18 +144,14 @@ async function refresh(regions: Regions): Promise<void> {
 }
 
 function reconcileList(regions: Regions, instances: Instance[]): void {
-  const card = regions.listCard.querySelector<HTMLElement>("that-card") ?? newListCard(regions);
-
-  // Never replaceChildren() on the card itself: that-card injects its heading once,
-  // in connectedCallback, so wiping its children deletes the heading with no way
-  // to get it back.
-  const notice = card.querySelector("[data-empty-notice]");
-  let list = card.querySelector("ul");
+  const slot = regions.listSlot;
+  const notice = slot.querySelector("[data-empty-notice]");
+  let list = slot.querySelector("ul");
 
   if (instances.length === 0) {
     list?.remove();
     if (!notice) {
-      card.append(emptyNotice());
+      slot.append(emptyNotice());
     }
 
     return;
@@ -92,7 +160,7 @@ function reconcileList(regions: Regions, instances: Instance[]): void {
   notice?.remove();
   if (!list) {
     list = newList();
-    card.append(list);
+    slot.append(list);
   }
 
   const existing = new Map<string, HTMLElement>();
@@ -123,15 +191,7 @@ function reconcileList(regions: Regions, instances: Instance[]): void {
 }
 
 function showForm(regions: Regions, editing: Instance | undefined): void {
-  regions.formCard.replaceChildren(instanceForm(regions, editing));
-}
-
-function newListCard(regions: Regions): HTMLElement {
-  const card = document.createElement("that-card");
-  card.setAttribute("heading", "Jira instances");
-  regions.listCard.replaceChildren(card);
-
-  return card;
+  regions.formSection.replaceChildren(instanceForm(regions, editing));
 }
 
 function newList(): HTMLUListElement {
@@ -247,7 +307,7 @@ function patchRow(row: HTMLElement, instance: Instance): void {
 // sibling row's own in-flight "Testing…" the way an unconditional clear in
 // patchRow's per-row reconcile pass would.
 function clearRowStatus(regions: Regions, instanceId: number): void {
-  const row = regions.listCard.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
+  const row = regions.listSlot.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
   row?.querySelector<HTMLElement>("[data-row-status]")?.replaceChildren();
 }
 
@@ -286,13 +346,14 @@ async function removeInstance(
 
   try {
     await deleteInstance(instance.id);
+    regions.changed = true;
     await refresh(regions);
 
     // The list persists beside the form now, so Remove is reachable while that
     // same instance is being edited. Left alone, the form would still read
     // "Edit <name>" and PATCH an id SQLite is free to hand to whatever
     // instance is created next (no AUTOINCREMENT on instances.id).
-    if (regions.formCard.querySelector(`[data-editing-id="${instance.id}"]`)) {
+    if (regions.formSection.querySelector(`[data-editing-id="${instance.id}"]`)) {
       showForm(regions, undefined);
     }
     refocusAfterRemoval(regions);
@@ -316,17 +377,21 @@ function refocusAfterRemoval(regions: Regions): void {
   if (document.activeElement !== document.body) return;
 
   const next =
-    regions.listCard.querySelector<HTMLElement>("button, a, input") ??
-    regions.formCard.querySelector<HTMLElement>("button, a, input");
+    regions.listSlot.querySelector<HTMLElement>("button, a, input") ??
+    regions.formSection.querySelector<HTMLElement>("button, a, input");
   next?.focus();
 }
 
 function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElement {
-  const card = document.createElement("that-card");
-  card.setAttribute("heading", editing ? `Edit ${editing.name}` : "Add an instance");
+  const card = document.createElement("div");
+  card.dataset["instanceForm"] = "";
   if (editing) {
     card.dataset["editingId"] = String(editing.id);
   }
+
+  const heading = document.createElement("h3");
+  heading.className = SECTION_HEADING_CLASS;
+  heading.textContent = editing ? `Edit ${editing.name}` : "Add an instance";
 
   const form = document.createElement("form");
   form.className = "space-y-3";
@@ -366,7 +431,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     status,
     actions,
   );
-  card.append(form);
+  card.append(heading, form);
 
   // that-button renders a real <button type="button">, so it does not submit the
   // form on its own; this click handler is the only path into save().
@@ -387,19 +452,20 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
 
     try {
       const saved = editing ? await updateInstance(editing.id, draft) : await createInstance(draft);
+      regions.changed = true;
       await refresh(regions);
       if (editing) {
         clearRowStatus(regions, editing.id);
       }
       // The user may have moved on while this save was in flight (#161). An Edit
       // form they opened on this same instance was filled from pre-save values.
-      if (regions.formCard.contains(card)) {
+      if (regions.formSection.contains(card)) {
         showForm(regions, undefined);
-      } else if (regions.formCard.querySelector(`[data-editing-id="${saved.id}"]`)) {
+      } else if (regions.formSection.querySelector(`[data-editing-id="${saved.id}"]`)) {
         showForm(regions, saved);
       }
     } catch (error) {
-      if (regions.formCard.contains(card)) {
+      if (regions.formSection.contains(card)) {
         status.replaceChildren(alertFor("error", messageOf(error)));
         submit.removeAttribute("disabled");
       } else {
@@ -513,14 +579,12 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = 
 ];
 
 /**
- * Plain markup rather than a that-* component: this has exactly one call site,
- * and the settings form already builds its controls from local helpers. Native
- * radios also inherit color-scheme themeing without any extra work.
+ * The theme fieldset, in plain markup rather than a that-* component: this has
+ * exactly one call site, and the settings form already builds its controls from
+ * local helpers. Native radios also inherit color-scheme themeing without any
+ * extra work.
  */
-function appearanceCard(): HTMLElement {
-  const card = document.createElement("that-card");
-  card.setAttribute("heading", "Appearance");
-
+function themeControl(): HTMLElement {
   const fieldset = document.createElement("fieldset");
   const legend = document.createElement("legend");
   legend.className = "mb-2 text-sm font-medium";
@@ -548,7 +612,5 @@ function appearanceCard(): HTMLElement {
     fieldset.append(wrapper);
   }
 
-  card.append(fieldset);
-
-  return card;
+  return fieldset;
 }

@@ -92,9 +92,9 @@ test("unreadable storage still themes from the OS", async ({ page }) => {
 });
 
 // The inline script only proves storage-that-throws survives at "/", which
-// never imports settings.ts. appearanceCard() calls themePreference()
-// synchronously inside render(); if that throw were left uncaught it would
-// reject the awaited render() in router.ts and blank the whole Settings view.
+// never imports settings-dialog.ts. themeControl() calls themePreference()
+// synchronously; if that throw were left uncaught it would
+// reject showSettings() and leave no dialog.
 test("unreadable storage still renders Settings, defaulting to Auto", async ({ page }) => {
   await page.addInitScript(() => {
     Storage.prototype.getItem = () => {
@@ -109,7 +109,10 @@ test("unreadable storage still renders Settings, defaulting to Auto", async ({ p
 
 async function openSettings(page: Page): Promise<void> {
   await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
-  await page.goto("/settings");
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+  await stubIssues(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
 }
 
 test("choosing Light themes the page and survives a reload", async ({ page }) => {
@@ -125,6 +128,7 @@ test("choosing Light themes the page and survives a reload", async ({ page }) =>
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   expect(await bodyBackground(page)).toBe(LIGHT_GROUND);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("radio", { name: "Light" })).toBeChecked();
 });
 
@@ -141,6 +145,7 @@ test("choosing Dark themes the page and survives a reload", async ({ page }) => 
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect(await bodyBackground(page)).toBe(DARK_GROUND);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("radio", { name: "Dark" })).toBeChecked();
 });
 
@@ -155,6 +160,7 @@ test("choosing Auto after Dark follows the OS again", async ({ page }) => {
   expect(await bodyBackground(page)).toBe(LIGHT_GROUND);
 
   await page.reload();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
 
   await expect(page.getByRole("radio", { name: "Auto" })).toBeChecked();
 });

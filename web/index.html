@@ -68,7 +68,38 @@
       <aside
         class="that-rail bg-rail text-rail-ink flex flex-col gap-[26px] px-3.5 py-[22px] md:overflow-y-auto"
       >
-        <h1 class="text-primary-rail text-xs font-bold tracking-[0.16em] uppercase">ThatApp</h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-primary-rail flex-1 text-xs font-bold tracking-[0.16em] uppercase">
+            ThatApp
+          </h1>
+          <!-- #89: Settings is a control, not a destination. The gear is the
+               prototype's #p-gear at 1.7 stroke, not the set's 1.9 — at 1.9 its
+               teeth close up at this size. The one stroke exception in the set. -->
+          <button
+            id="settings-cog"
+            type="button"
+            aria-label="Settings"
+            class="text-rail-muted hover:bg-hover-rail hover:text-rail-ink focus-visible:text-rail-ink flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-sm"
+          >
+            <svg
+              width="17"
+              height="17"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M9.62 5.10 L10.33 2.55 L13.67 2.55 L14.38 5.10 A 7.30 7.30 0 0 1 15.20 5.44 L17.51 4.14 L19.86 6.49 L18.56 8.80 A 7.30 7.30 0 0 1 18.90 9.62 L21.45 10.33 L21.45 13.67 L18.90 14.38 A 7.30 7.30 0 0 1 18.56 15.20 L19.86 17.51 L17.51 19.86 L15.20 18.56 A 7.30 7.30 0 0 1 14.38 18.90 L13.67 21.45 L10.33 21.45 L9.62 18.90 A 7.30 7.30 0 0 1 8.80 18.56 L6.49 19.86 L4.14 17.51 L5.44 15.20 A 7.30 7.30 0 0 1 5.10 14.38 L2.55 13.67 L2.55 10.33 L5.10 9.62 A 7.30 7.30 0 0 1 5.44 8.80 L4.14 6.49 L6.49 4.14 L8.80 5.44 A 7.30 7.30 0 0 1 9.62 5.10 Z"
+              />
+              <circle cx="12" cy="12" r="3.3" />
+            </svg>
+          </button>
+          <!-- popover in the markup, so it is hidden before that-tooltip registers. -->
+          <that-tooltip for="settings-cog" anchor="right" popover="manual">Settings</that-tooltip>
+        </div>
 
         <div class="flex flex-col gap-2">
           <!-- Which period the figure below describes. The rail used to mean
@@ -163,38 +194,6 @@
               <path d="M3.5 10h17M9 5V3M15 5V3" />
             </svg>
             Week
-          </a>
-
-          <a
-            href="/settings"
-            data-route
-            class="that-nav flex h-[38px] items-center gap-[11px] rounded-xs px-2.5 text-base"
-          >
-            <!-- Transcribed from the prototype's #p-gear (line 283), not drawn
-                 here: this app previously carried a hand-drawn substitute. 1.7
-                 stroke, not this file's usual 1.9 — the prototype's own use of
-                 #p-gear (line 308) draws it at 1.7, and a specific drawn value
-                 takes precedence over the language's general rule for a mark
-                 the language did not itself draw. stroke-linejoin is likewise
-                 the prototype's own choice for this mark: the tooth corners
-                 miter to points without it. -->
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path
-                d="M9.62 5.10 L10.33 2.55 L13.67 2.55 L14.38 5.10 A 7.30 7.30 0 0 1 15.20 5.44 L17.51 4.14 L19.86 6.49 L18.56 8.80 A 7.30 7.30 0 0 1 18.90 9.62 L21.45 10.33 L21.45 13.67 L18.90 14.38 A 7.30 7.30 0 0 1 18.56 15.20 L19.86 17.51 L17.51 19.86 L15.20 18.56 A 7.30 7.30 0 0 1 14.38 18.90 L13.67 21.45 L10.33 21.45 L9.62 18.90 A 7.30 7.30 0 0 1 8.80 18.56 L6.49 19.86 L4.14 17.51 L5.44 15.20 A 7.30 7.30 0 0 1 5.10 14.38 L2.55 13.67 L2.55 10.33 L5.10 9.62 A 7.30 7.30 0 0 1 5.44 8.80 L4.14 6.49 L6.49 4.14 L8.80 5.44 A 7.30 7.30 0 0 1 9.62 5.10 Z"
-              />
-              <circle cx="12" cy="12" r="3.3" />
-            </svg>
-            Settings
           </a>
         </nav>
       </aside>

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 interface StubInstance {
   id: number;
@@ -91,6 +91,51 @@ async function stubInstancesApi(
   return { deleteCount: () => deletes };
 }
 
+/**
+ * Settings is a dialog over a view, so every test opens Today first — stubbed
+ * empty, so it never reaches a real Jira — and presses the rail's cog.
+ */
+async function stubToday(page: Page): Promise<void> {
+  await page.route("**/api/issues", (route) =>
+    route.fulfill({ status: 200, json: { instances: [] } }),
+  );
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+}
+
+async function openSettings(page: Page): Promise<Locator> {
+  await stubToday(page);
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings).toBeVisible();
+
+  return settings;
+}
+
+function listed(id: number, name: string): StubInstance {
+  return {
+    id,
+    name,
+    siteUrl: `https://${name.toLowerCase()}.atlassian.net`,
+    apiBaseUrl: "https://api.atlassian.com/ex/jira/abc",
+    email: "dion@this.nl",
+    createdAt: `2026-09-0${String(id)}T09:00:00Z`,
+  };
+}
+
+async function stubListed(page: Page, instances: StubInstance[]): Promise<void> {
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: instances }));
+}
+
+async function panelBox(settings: Locator): Promise<{ top: number; height: number }> {
+  const box = await settings.locator("[data-settings-panel]").boundingBox();
+  if (!box) throw new Error("the panel did not lay out");
+
+  return { top: box.y, height: box.height };
+}
+
+const confirmDialog = (page: Page) => page.getByRole("dialog", { name: /^Remove / });
+
 async function addInstance(page: Page): Promise<void> {
   await page.getByLabel("Name").fill("Work");
   await page.getByLabel("Site URL").fill("https://example.atlassian.net");
@@ -101,7 +146,7 @@ async function addInstance(page: Page): Promise<void> {
 
 test("an instance can be added and appears in the list", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
 
   await expect(page.getByText("No instances yet. Add one below.")).toBeVisible();
 
@@ -121,7 +166,7 @@ test("an instance can be added and appears in the list", async ({ page }) => {
  */
 test("the Add instance button carries the app-wide drawn 38px height", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
 
   const height = await page
     .getByRole("button", { name: "Add instance" })
@@ -132,7 +177,7 @@ test("the Add instance button carries the app-wide drawn 38px height", async ({ 
 
 test("a successful connection test names the account", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   await page.getByRole("button", { name: "Test" }).click();
@@ -144,7 +189,7 @@ test("a successful connection test names the account", async ({ page }) => {
 // test button that asserts identity rather than a 2xx.
 test("a rejected connection test reports the failure", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 401 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   await page.getByRole("button", { name: "Test" }).click();
@@ -153,30 +198,14 @@ test("a rejected connection test reports the failure", async ({ page }) => {
   await expect(page.getByText("Connected as")).toBeHidden();
 });
 
-test("settings is reachable from the shell nav", async ({ page }) => {
-  await stubInstancesApi(page, { testStatus: 200 });
-  await page.route("**/api/issues", (route) =>
-    route.fulfill({ status: 200, json: { instances: [] } }),
-  );
-  await page.goto("/");
-
-  // exact: true disambiguates from the "Open Settings" link in Today's
-  // no-instances state, which is on screen at "/" and whose accessible name
-  // contains "Settings" as a substring.
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-
-  await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
-});
-
 test("removing an instance asks first, and cancelling changes nothing", async ({ page }) => {
   const stub = await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   await page.getByRole("button", { name: "Remove" }).click();
 
-  const dialog = page.getByRole("dialog");
+  const dialog = confirmDialog(page);
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Work");
   await expect(dialog).toContainText("cannot be undone");
@@ -190,11 +219,11 @@ test("removing an instance asks first, and cancelling changes nothing", async ({
 
 test("confirming the dialog removes the instance", async ({ page }) => {
   const stub = await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   await page.getByRole("button", { name: "Remove" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Remove instance" }).click();
+  await confirmDialog(page).getByRole("button", { name: "Remove instance" }).click();
 
   await expect(page.getByText("No instances yet. Add one below.")).toBeVisible();
   expect(stub.deleteCount()).toBe(1);
@@ -203,15 +232,16 @@ test("confirming the dialog removes the instance", async ({ page }) => {
 // Esc is the platform's own dismissal path, so a regression here would be silent.
 test("pressing Escape cancels the removal", async ({ page }) => {
   const stub = await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   await page.getByRole("button", { name: "Remove" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(confirmDialog(page)).toBeVisible();
 
   await page.keyboard.press("Escape");
 
-  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(confirmDialog(page)).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
   await expect(page.getByText("me@example.com · https://example.atlassian.net")).toBeVisible();
   expect(stub.deleteCount()).toBe(0);
 });
@@ -271,7 +301,7 @@ async function holdNextRequest(page: Page, url: string, method: string): Promise
 
 test("typed input survives removing another instance", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   // Waits for the add's own async round trip to finish resetting the form
@@ -288,7 +318,7 @@ test("typed input survives removing another instance", async ({ page }) => {
     .filter({ hasText: "Work" })
     .getByRole("button", { name: "Remove" })
     .click();
-  await page.getByRole("dialog").getByRole("button", { name: "Remove instance" }).click();
+  await confirmDialog(page).getByRole("button", { name: "Remove instance" }).click();
 
   await expect(page.getByText("Work", { exact: true })).toBeHidden();
   await expect(page.getByText("Personal", { exact: true })).toBeVisible();
@@ -297,7 +327,7 @@ test("typed input survives removing another instance", async ({ page }) => {
 
 test("editing can be cancelled", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   await page.getByRole("button", { name: "Edit" }).click();
@@ -344,7 +374,7 @@ for (const stale of [
       firstReadAnswered();
     });
 
-    await page.goto("/settings");
+    await openSettings(page);
     await addInstance(page);
     await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
@@ -362,7 +392,7 @@ for (const stale of [
 // a sibling being dropped by reconciliation, not just detached.
 test("an in-flight connection test survives another row being saved", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   // Waits for the first add's own async round trip to finish resetting the
@@ -395,7 +425,7 @@ test("an in-flight connection test survives another row being saved", async ({ p
 // (stale) instance even though the delete itself still targets the right id.
 test("removing a renamed instance names the confirm dialog correctly", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   await page.getByRole("button", { name: "Edit" }).click();
@@ -405,7 +435,7 @@ test("removing a renamed instance names the confirm dialog correctly", async ({ 
 
   await page.getByRole("button", { name: "Remove" }).click();
 
-  const dialog = page.getByRole("dialog");
+  const dialog = confirmDialog(page);
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Renamed");
 });
@@ -415,7 +445,7 @@ test("removing a renamed instance names the confirm dialog correctly", async ({ 
 // reasoning held only under the wholesale rebuild this ticket removed.
 test("editing an instance to add its site URL clears the missing-URL warning", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
 
   await page.getByLabel("Name").fill("No Site");
   await page.getByLabel("Account email").fill("me@example.com");
@@ -437,7 +467,7 @@ test("editing an instance to add its site URL clears the missing-URL warning", a
 // invalidated it.
 test("saving over a failed connection test clears the stale result", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 401 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   // Waits for the add's own async round trip to finish before interacting
@@ -461,14 +491,14 @@ test("saving over a failed connection test clears the stale result", async ({ pa
 // form behind, PATCHing an id that no longer exists.
 test("removing the instance you are editing clears the form", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
 
   await page.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByLabel("Name")).toHaveValue("Work");
 
   await page.getByRole("button", { name: "Remove" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Remove instance" }).click();
+  await confirmDialog(page).getByRole("button", { name: "Remove instance" }).click();
 
   await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
   await expect(page.getByLabel("Name")).toHaveValue("");
@@ -476,7 +506,7 @@ test("removing the instance you are editing clears the form", async ({ page }) =
 
 test("a failed initial load still renders the Add form", async ({ page }) => {
   await page.route("**/api/instances", (route) => route.abort());
-  await page.goto("/settings");
+  await openSettings(page);
 
   await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
   await expect(page.getByRole("status")).toBeVisible();
@@ -505,20 +535,20 @@ async function expectTokenNote(page: Page, form: string): Promise<void> {
 
 test("the add and edit forms say what a token needs before it can push", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
 
-  await expectTokenNote(page, "that-card:not([data-editing-id])");
+  await expectTokenNote(page, "[data-instance-form]:not([data-editing-id])");
 
   await addInstance(page);
   await page.getByRole("button", { name: "Edit" }).click();
 
-  await expectTokenNote(page, "that-card[data-editing-id]");
+  await expectTokenNote(page, "[data-instance-form][data-editing-id]");
 });
 
 // #161: save() must not reset a form the user has since replaced.
 test("a save finishing after Edit on another row leaves that edit form alone", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
   await addSecondInstance(page);
@@ -541,7 +571,7 @@ test("a save finishing after Edit on another row leaves that edit form alone", a
 
 test("a save finishing after Cancel leaves the new Add form alone", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
@@ -563,7 +593,7 @@ test("a save finishing after Cancel leaves the new Add form alone", async ({ pag
 
 test("a save finishing with its own form still shown resets to Add an instance", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
@@ -584,7 +614,7 @@ const saveFailure = { status: 500, json: { code: "store_failed", message: "could
 
 test("a save failing after its form was replaced reports in the page error slot", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
@@ -603,7 +633,7 @@ test("a save failing after its form was replaced reports in the page error slot"
 
 test("a save failing with its form still shown reports in the form", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
@@ -621,7 +651,7 @@ test("a save failing with its form still shown reports in the form", async ({ pa
 
 test("an Edit form opened on the instance being saved shows the saved values", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await page.goto("/settings");
+  await openSettings(page);
   await addInstance(page);
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
@@ -638,4 +668,137 @@ test("an Edit form opened on the instance being saved shows the saved values", a
 
   await expect(page.getByRole("heading", { name: "Edit Work Renamed" })).toBeVisible();
   await expect(page.getByLabel("Name")).toHaveValue("Work Renamed");
+});
+
+test.describe("the dialog", () => {
+  test("the cog opens Settings over the view, which stays mounted", async ({ page }) => {
+    await stubListed(page, []);
+    const settings = await openSettings(page);
+
+    await expect(page).toHaveURL(/\/today$/);
+    await expect(page.locator("#view").getByText("No Jira instances yet.")).toHaveCount(1);
+    await expect(page.getByRole("navigation").getByRole("link")).toHaveText(["Today", "Week"]);
+    await expect(settings.getByRole("heading", { name: "Jira instances" })).toBeVisible();
+  });
+
+  test("the cog sits beside the wordmark at the rail's top right, at 1.7 stroke", async ({ page }) => {
+    await stubToday(page);
+    await page.goto("/today");
+
+    const cog = page.getByRole("button", { name: "Settings", exact: true });
+    await expect(cog.locator("svg")).toHaveAttribute("stroke-width", "1.7");
+    await expect(cog.locator("svg")).toHaveAttribute("width", "17");
+
+    const cogBox = await cog.boundingBox();
+    const navBox = await page.getByRole("link", { name: "Today", exact: true }).boundingBox();
+    const markBox = await page.getByRole("heading", { name: "ThatApp" }).boundingBox();
+    if (!cogBox || !navBox || !markBox) throw new Error("the rail did not lay out");
+
+    expect(cogBox.width).toBe(34);
+    // proto:64 — the hover box ends on the rail's content edge, as the nav rows do.
+    expect(Math.abs(cogBox.x + cogBox.width - (navBox.x + navBox.width))).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(cogBox.y + cogBox.height / 2 - (markBox.y + markBox.height / 2)),
+    ).toBeLessThanOrEqual(1);
+
+    await cog.hover();
+    const tip = page.locator('that-tooltip[for="settings-cog"]');
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveText("Settings");
+    const tipBox = await tip.boundingBox();
+    if (!tipBox) throw new Error("the tooltip did not lay out");
+    // proto:168, .tip.right — 9px to the right, centred on the cog.
+    expect(Math.abs(tipBox.x - (cogBox.x + cogBox.width + 9))).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(tipBox.y + tipBox.height / 2 - (cogBox.y + cogBox.height / 2)),
+    ).toBeLessThanOrEqual(1);
+  });
+
+  test("a panel shorter than the window is centred by its own auto margin", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1600 });
+    await stubListed(page, []);
+    const settings = await openSettings(page);
+
+    const { top, height } = await panelBox(settings);
+    expect(top).toBeGreaterThan(28);
+    expect(Math.abs(top - (1600 - height) / 2)).toBeLessThanOrEqual(1);
+  });
+
+  test("a panel taller than the window scrolls as one piece, and its top is reachable", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 400 });
+    await stubListed(page, [1, 2, 3, 4, 5, 6, 7, 8].map((id) => listed(id, `Site${String(id)}`)));
+    const settings = await openSettings(page);
+    await expect(settings.getByText("Site8", { exact: true })).toBeAttached();
+
+    const scroll = await settings.evaluate((dialog) => {
+      const panel = dialog.querySelector("[data-settings-panel]");
+      if (!(panel instanceof HTMLElement)) throw new Error("no panel");
+      dialog.scrollTop = 0;
+      const top = panel.getBoundingClientRect().top;
+      dialog.scrollTop = dialog.scrollHeight;
+      const bottom = panel.getBoundingClientRect().bottom;
+
+      return {
+        top,
+        bottom,
+        viewport: window.innerHeight,
+        dialogScrolls: dialog.scrollHeight > dialog.clientHeight,
+        panelScrolls: panel.scrollHeight > panel.clientHeight,
+      };
+    });
+
+    expect(scroll.dialogScrolls).toBe(true);
+    expect(scroll.panelScrolls).toBe(false);
+    expect(Math.abs(scroll.top - 28)).toBeLessThanOrEqual(1);
+    expect(Math.abs(scroll.bottom - (scroll.viewport - 28))).toBeLessThanOrEqual(1);
+  });
+
+  test("Escape closes Settings", async ({ page }) => {
+    await stubListed(page, []);
+    const settings = await openSettings(page);
+
+    await page.keyboard.press("Escape");
+
+    await expect(settings).toHaveCount(0);
+  });
+
+  test("a second press while Settings loads opens one dialog, not two", async ({ page }) => {
+    await stubListed(page, []);
+    await stubToday(page);
+    await page.goto("/today");
+
+    await page.getByRole("button", { name: "Settings", exact: true }).dblclick();
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+    // No positive signal exists for "a second one did not arrive late".
+    await page.waitForTimeout(300);
+
+    expect(await page.locator("dialog").count()).toBe(1);
+  });
+
+  test("closing after a change redraws the view beneath; closing after none does not", async ({
+    page,
+  }) => {
+    await stubInstancesApi(page, { testStatus: 200 });
+    const settings = await openSettings(page);
+
+    let issueReads = 0;
+    await page.route("**/api/issues", (route) => {
+      issueReads += 1;
+      return route.fulfill({ status: 200, json: { instances: [] } });
+    });
+
+    await settings.getByRole("button", { name: "Close" }).click();
+    await expect(settings).toHaveCount(0);
+    await page.waitForTimeout(300);
+    expect(issueReads).toBe(0);
+
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await addInstance(page);
+    await expect(settings.getByText("Work", { exact: true })).toBeVisible();
+    await settings.getByRole("button", { name: "Close" }).click();
+
+    await expect.poll(() => issueReads).toBe(1);
+  });
 });

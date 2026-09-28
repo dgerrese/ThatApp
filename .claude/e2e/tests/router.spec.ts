@@ -5,7 +5,7 @@ const DAYS = [
   "2026-09-11", "2026-09-12", "2026-09-13",
 ];
 
-/** Every endpoint Settings, Today and Week read, answered empty. */
+/** Every endpoint Today and Week read, answered empty. */
 async function stubApi(page: Page): Promise<void> {
   await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
   await page.route("**/api/issues", (route) =>
@@ -66,8 +66,8 @@ test("a view whose import resolves after a later navigation never replaces it", 
     });
   });
 
-  await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "Add an instance" })).toBeVisible();
+  await page.goto("/week");
+  await expect(page.getByRole("heading", { name: "Week 37 · 7–13 Sep" })).toBeVisible();
   expect(todayChunk, "the router's route table was not found in any chunk").toBeDefined();
 
   await page.getByRole("link", { name: "Today", exact: true }).click();
