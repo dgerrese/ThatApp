@@ -507,7 +507,7 @@ export class ThatTicketRow extends HTMLElement {
     const summary = document.createElement("span");
     summary.id = this.summaryId;
     summary.tabIndex = 0;
-    summary.className = "block truncate text-lg";
+    summary.className = "block truncate";
     summary.textContent = this.getAttribute("summary") ?? "";
 
     return summary;
