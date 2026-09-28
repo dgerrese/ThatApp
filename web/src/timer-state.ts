@@ -25,6 +25,21 @@ const TICK_MS = 1000;
 let running: RunningTimer | null = null;
 let tickHandle: number | undefined;
 
+// One start or stop at a time, dialog through POST: a second click while the
+// dialog chunk loads or a POST is out would open a second dialog or send a
+// start this tab cannot round (#209).
+let inFlight = false;
+
+async function oneAtATime(action: () => Promise<void>): Promise<void> {
+  if (inFlight) return;
+  inFlight = true;
+  try {
+    await action();
+  } finally {
+    inFlight = false;
+  }
+}
+
 export function currentTimer(): RunningTimer | null {
   return running;
 }
@@ -91,7 +106,7 @@ async function askHowToStop(nextIssueKey?: string): Promise<StopChoice | null> {
 
 /** Starting over a running timer stops it first, so it asks how, the same as
  *  a stop does; kept running, nothing starts. */
-export async function startTimer(instanceId: number, issueKey: string): Promise<void> {
+async function startTimerNow(instanceId: number, issueKey: string): Promise<void> {
   let choice: StopChoice | undefined;
   if (running) {
     const answer = await askHowToStop(issueKey);
@@ -111,10 +126,18 @@ export async function startTimer(instanceId: number, issueKey: string): Promise<
   if (response.stopped) announceEntriesChanged();
 }
 
-export async function stopTimer(): Promise<void> {
+async function stopTimerNow(): Promise<void> {
   const choice = await askHowToStop();
   if (!choice) return;
   const response = await postStopTimer(choice);
   setRunning(null);
   if (response.stopped) announceEntriesChanged();
+}
+
+export function startTimer(instanceId: number, issueKey: string): Promise<void> {
+  return oneAtATime(() => startTimerNow(instanceId, issueKey));
+}
+
+export function stopTimer(): Promise<void> {
+  return oneAtATime(stopTimerNow);
 }
