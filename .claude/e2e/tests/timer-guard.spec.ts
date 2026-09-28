@@ -258,7 +258,6 @@ test("while a start's POST is held, a click on another row's play sends nothing"
   await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
   recorder.releaseStart();
 
-  await expect.poll(() => recorder.starts.length).toBe(1);
   await expect(railTimer(page)).toContainText("WORK-1");
   expect(recorder.starts.length).toBe(1);
 });
