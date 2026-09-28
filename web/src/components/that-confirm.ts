@@ -6,7 +6,7 @@ export const CONFIRM_HEADING_CLASS = "mb-2 text-xl font-bold tracking-[-0.02em]"
 export const CONFIRM_BODY_CLASS = "text-ink-muted mb-4 text-base";
 export const COMMENT_FIELD_CLASS =
   "border-edge bg-surface min-w-0 h-[38px] flex-1 rounded-sm border px-3 py-[10px] text-sm " +
-  "focus:border-ink focus:outline-none";
+  "focus:border-primary focus:outline-none";
 
 /**
  * Wraps a native <dialog> rather than building a modal from a div: showModal()

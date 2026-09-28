@@ -60,7 +60,7 @@ export class ThatDuration extends HTMLElement {
     // font metric no CSS property here controls.
     group.className =
       "inline-flex h-[38px] items-stretch overflow-hidden rounded-sm border border-edge " +
-      "focus-within:border-ink";
+      "focus-within:border-primary";
 
     const minus = this.stepButton("minus", -1, "Fifteen minutes less");
     const plus = this.stepButton("plus", 1, "Fifteen minutes more");
