@@ -785,44 +785,49 @@ function button(label: string, variant: string): HTMLElement {
 }
 
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = [
-  { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
-  { value: "auto", label: "Auto" },
+  { value: "light", label: "Light" },
+  // "auto" is the System state: an absent data-theme follows prefers-color-scheme.
+  { value: "auto", label: "System" },
 ];
 
-/**
- * The theme fieldset, in plain markup rather than a that-* component: this has
- * exactly one call site, and the settings form already builds its controls from
- * local helpers. Native radios also inherit color-scheme themeing without any
- * extra work.
- */
+/** The prototype's `.seg`, lit by aria-pressed (lines 267–270, and 50 for light). */
+const SEGMENT_CLASS =
+  "text-ink-muted hover:text-ink cursor-pointer rounded-xs px-[15px] py-[7px] text-base " +
+  "aria-pressed:bg-raised aria-pressed:text-ink aria-pressed:font-bold " +
+  "aria-pressed:shadow-[inset_0_0_0_1px_var(--color-edge-ring),0_1px_2px_light-dark(oklch(0_0_0/0.05),oklch(0_0_0/0.35))]";
+
 function themeControl(): HTMLElement {
-  const fieldset = document.createElement("fieldset");
-  const legend = document.createElement("legend");
-  legend.className = "mb-2 text-sm font-medium";
-  legend.textContent = "Theme";
-  fieldset.append(legend);
+  const row = document.createElement("div");
+  row.className = "flex items-center gap-3.5";
+
+  const label = document.createElement("span");
+  label.id = "that-settings-theme";
+  label.className = "text-ink text-base";
+  label.textContent = "Theme";
+
+  const segment = document.createElement("div");
+  segment.setAttribute("role", "group");
+  segment.setAttribute("aria-labelledby", label.id);
+  segment.className = "bg-surface ml-auto inline-flex gap-[3px] rounded-sm p-[3px]";
 
   const current = themePreference();
   for (const option of THEME_OPTIONS) {
-    const wrapper = document.createElement("label");
-    wrapper.className = "mr-4 inline-flex items-center gap-2 text-sm";
-
-    const radio = document.createElement("input");
-    radio.type = "radio";
-    radio.name = "theme";
-    radio.value = option.value;
-    radio.checked = option.value === current;
-    radio.addEventListener("change", () => {
+    const choice = document.createElement("button");
+    choice.type = "button";
+    choice.className = SEGMENT_CLASS;
+    choice.textContent = option.label;
+    choice.setAttribute("aria-pressed", String(option.value === current));
+    choice.addEventListener("click", () => {
       setThemePreference(option.value);
+      for (const other of segment.querySelectorAll("button")) {
+        other.setAttribute("aria-pressed", String(other === choice));
+      }
     });
-
-    const caption = document.createElement("span");
-    caption.textContent = option.label;
-
-    wrapper.append(radio, caption);
-    fieldset.append(wrapper);
+    segment.append(choice);
   }
 
-  return fieldset;
+  row.append(label, segment);
+
+  return row;
 }
