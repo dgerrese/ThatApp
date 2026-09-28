@@ -709,6 +709,44 @@ test("the split's figures node keeps its identity across ticks within the same m
   await expect(figuresEl).toHaveAttribute("data-marker", "kept");
 });
 
+// #143 gave a cut split name its own that-tooltip; #204 made the split redraw
+// on a minute tick. Removing an open popover closes it, so a full rebuild of
+// the split on every minute tick closed a name's tooltip mid-hover — this is
+// the regression test for the in-place update that fixes it.
+const longSplitName =
+  "Ridgeline Analytics and Reporting Platform for the Quarterly Capacity and Utilisation Programme";
+
+test("the split's name node — and its open tooltip — survive a minute tick that changes the figure", async ({
+  page,
+}) => {
+  const t0 = Date.parse(`${DAY}T10:00:00Z`);
+  await page.clock.install({ time: t0 });
+  await stubTotalsRig(page, [], {
+    instanceId: 1,
+    instanceName: longSplitName,
+    instancePosition: 0,
+    issueKey: "WORK-1",
+    startedAt: new Date(t0 - 50_000).toISOString(),
+  });
+
+  await page.goto("/today");
+
+  // .first(): the name's own that-tooltip carries the same text too, hidden.
+  const nameEl = page.locator("#rail-split").getByText(longSplitName, { exact: true }).first();
+  await expect(nameEl).toBeVisible();
+  await nameEl.evaluate((el) => el.setAttribute("data-marker", "kept"));
+  await nameEl.hover();
+  await expect(page.locator("that-tooltip", { hasText: longSplitName })).toBeVisible();
+
+  await expect(page.locator("#rail-split")).toContainText("0h 00m");
+  await page.clock.runFor(15_000);
+  await expect(page.locator("#rail-split")).toContainText("0h 01m");
+
+  await expect(nameEl).toHaveAttribute("data-marker", "kept");
+  await expect(nameEl).toBeAttached();
+  await expect(page.locator("that-tooltip", { hasText: longSplitName })).toBeVisible();
+});
+
 test("a running timer on an instance with no entries today still gets a named split slice", async ({
   page,
 }) => {
