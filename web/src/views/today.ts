@@ -22,6 +22,7 @@ import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import type { RegisterTeardown } from "../router";
+import { enableRowArrowKeys } from "../table-keys";
 import { currentTimer, elapsedSeconds, onTimerChanged } from "../timer-state";
 import { toolbarButton } from "../toolbar-button";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
@@ -299,6 +300,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
   container.append(stale, layoutGrid, assignedSection);
   root.append(container);
+
+  // One listener for every table this view holds — Pinned, each instance section and the
+  // off-list section all rebuild their rows in place, so a listener per table would have to be
+  // re-wired on every repaint. enableRowArrowKeys reads the DOM fresh on each keypress instead.
+  registerTeardown(enableRowArrowKeys(container, "that-ticket-row"));
 
   regions = {
     layoutGrid,

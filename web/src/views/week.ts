@@ -14,6 +14,7 @@ import { onPushReported } from "../push-reported";
 import { setRailPeriod } from "../rail";
 import { navigate } from "../router";
 import type { RegisterTeardown } from "../router";
+import { enableRowArrowKeys } from "../table-keys";
 import { toolbarButton } from "../toolbar-button";
 import type { IssueHit, WeekRollup, WeekRow } from "../types";
 import { failuresIn, noFailures, weekGrid } from "../week-grid";
@@ -260,6 +261,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
   container.append(header, grid, report);
   root.append(container);
+
+  // One listener for the grid's whole lifetime: paintWeek only ever replaces
+  // grid's children (a re-render, a week change's remount), never grid
+  // itself, so this needs wiring once rather than after every repaint.
+  registerTeardown(enableRowArrowKeys(grid, "tbody tr"));
 
   // Read off the address, never derived: /week with no start is "this week", and
   // which week that is belongs to THAT_TIMEZONE. Thereafter it is whatever
