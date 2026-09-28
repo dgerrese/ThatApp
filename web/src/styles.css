@@ -148,13 +148,16 @@
 
 /* Every native <dialog> dims the page behind it with the one scrim, so
    that-confirm, the entries dialog and the stop dialog take it with no
-   per-component style. The Settings dialog fills the viewport and paints the
-   same token as its own background instead (settings-dialog.ts), so it is
-   excluded by id here — a rule written outside any @layer always beats a
-   Tailwind utility regardless of specificity, so `backdrop:bg-transparent`
-   on #that-settings-dialog could not have overridden this rule otherwise. */
-dialog:not(#that-settings-dialog)::backdrop {
-  background: var(--color-scrim);
+   per-component style. In @layer base rather than unlayered: an unlayered
+   rule beats any Tailwind utility regardless of specificity, which would
+   also override the Settings dialog's own `backdrop:bg-transparent` (it
+   paints the scrim as its own background instead, so this rule would
+   otherwise double it) — layered, the utility wins on its own and no
+   dialog needs excluding. */
+@layer base {
+  dialog::backdrop {
+    background: var(--color-scrim);
+  }
 }
 
 /* Instance identity. Lightness and chroma are fixed and only the hue moves, so
