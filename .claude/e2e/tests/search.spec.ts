@@ -725,10 +725,19 @@ test.describe("that-issue-search on Today", () => {
       name: "Pin RIDGE-5140",
       exact: true,
     });
+    const durationButton = resultRow(page, "RIDGE-5140").getByRole("button", {
+      name: "Log time against RIDGE-5140",
+    });
     await expect(pinButton).toHaveCSS("color", mutedColor);
     await pinButton.hover();
     await expect(pinButton).toHaveCSS("color", primaryColor);
-    await pinButton.focus();
+    // Hover alone already gives primary, so a .focus() call right after
+    // proves nothing about :focus-visible — the pointer has to move off
+    // first, and a real Tab press is what actually arms it.
+    await page.mouse.move(0, 0);
+    await durationButton.focus();
+    await page.keyboard.press("Tab");
+    await expect(pinButton).toBeFocused();
     await expect(pinButton).toHaveCSS("color", primaryColor);
   });
 

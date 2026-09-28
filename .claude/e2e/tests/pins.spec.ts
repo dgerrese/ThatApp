@@ -558,14 +558,18 @@ test.describe("the ticket row's own pin control", () => {
     const primaryColor = await computedColor(page, "text-primary", "color");
 
     const unpinnedControl = page.getByRole("button", { name: "Pin RIDGE-5301", exact: true });
+    const timerControl = page.getByRole("button", { name: "start timer" });
     await expect(unpinnedControl).toHaveCSS("color", mutedColor);
     await unpinnedControl.hover();
     await expect(unpinnedControl).toHaveCSS("color", primaryColor);
     // Task 10's residual: focusing while still hovered proved nothing about
     // :focus-visible, since :hover alone already gives primary. Moving the
-    // pointer away first is what makes this a real focus assertion.
+    // pointer away first is what makes this a real focus assertion — and a
+    // real Tab press, not .focus(), is what actually arms :focus-visible.
     await page.mouse.move(0, 0);
-    await unpinnedControl.focus();
+    await timerControl.focus();
+    await page.keyboard.press("Tab");
+    await expect(unpinnedControl).toBeFocused();
     await expect(unpinnedControl).toHaveCSS("color", primaryColor);
 
     await unpinnedControl.click();

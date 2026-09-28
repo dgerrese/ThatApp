@@ -1608,13 +1608,16 @@ test("a cell takes the hover wash on keyboard focus as well as pointer hover", a
   });
 
   const trigger = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  const keyLink = ticketRow(page, "RIDGE-1").locator("th a");
   const resting = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
 
   await trigger.hover();
   const hovered = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
   await page.mouse.move(0, 0);
 
-  await trigger.focus();
+  await keyLink.focus();
+  await page.keyboard.press("Tab");
+  await expect(trigger).toBeFocused();
   const focused = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
 
   expect(hovered).not.toBe(resting);
