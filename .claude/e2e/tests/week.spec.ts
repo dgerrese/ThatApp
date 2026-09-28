@@ -1384,6 +1384,16 @@ test(
 
     await pushEverything(page);
 
+    // pushEverything only clicks the two confirm buttons; it does not wait
+    // for the push to land. Without this, expect.poll below can succeed on
+    // its very first read — against the pre-push grid, where RIDGE-3 still
+    // shows its unpushed dot, not the failed triangle a push failure draws —
+    // because that read is already non-null. Same wait as the shape test
+    // above (~line 522), scoped to RIDGE-3's own trigger.
+    await expect(
+      ticketRow(page, "RIDGE-3").locator("td").nth(2).locator("button"),
+    ).toHaveAttribute("aria-label", /push failed/);
+
     const cases: [issueKey: string, column: number][] = [
       ["RIDGE-1", 0],
       ["RIDGE-2", 1],
@@ -1402,23 +1412,29 @@ test(
       // until it lands on a connected node. Locator.boundingBox() is not
       // this poll's tool: it reports null for these spans in Firefox even
       // when they are laid out and visible.
-      const measure = () =>
-        trigger.evaluate((element) => {
-          const mark = element.querySelector("span[aria-hidden='true']");
-          const fig = element.querySelector("span.font-mono");
-          if (!mark?.isConnected || !fig?.isConnected) return null;
-          const markRect = mark.getBoundingClientRect();
-          const figRect = fig.getBoundingClientRect();
+      let result: { gap: number; markCentre: number; figCentre: number } | null = null;
+      await expect
+        .poll(async () => {
+          result = await trigger.evaluate((element) => {
+            const mark = element.querySelector("span[aria-hidden='true']");
+            const fig = element.querySelector("span.font-mono");
+            if (!mark?.isConnected || !fig?.isConnected) return null;
+            const markRect = mark.getBoundingClientRect();
+            const figRect = fig.getBoundingClientRect();
 
-          return {
-            gap: figRect.left - markRect.right,
-            markCentre: markRect.top + markRect.height / 2,
-            figCentre: figRect.top + figRect.height / 2,
-          };
-        });
+            return {
+              gap: figRect.left - markRect.right,
+              markCentre: markRect.top + markRect.height / 2,
+              figCentre: figRect.top + figRect.height / 2,
+            };
+          });
 
-      await expect.poll(measure, `${issueKey} settle`).not.toBeNull();
-      const result = await measure();
+          return result;
+        }, `${issueKey} settle`)
+        .not.toBeNull();
+      // The value the poll last settled on, not a fresh read: a second
+      // evaluate here would reopen the same detach race the poll exists to
+      // wait out.
       if (!result) throw new Error(`${issueKey}: mark or figure not rendered`);
 
       expect(Math.abs(result.gap - 7), `${issueKey} gap`).toBeLessThanOrEqual(0.5);
@@ -1432,64 +1448,63 @@ test(
 /**
  * #215's own change reaches only a marked cell — `items-center` on the
  * trigger and `shrink-0` on the mark must not move an em-dash cell (no mark
- * to centre against) or a pushed one (no mark at all). Fixed values measured
- * on `main` before the change, in both browsers.
+ * to centre against) or a pushed one (no mark at all). Checked relative to
+ * the td itself, not against fixture pixel values pinned per browser: a
+ * cell's content sits flush with its td's own content-box right edge and
+ * shares its vertical centre, whatever the viewport or font rendering does
+ * around it.
  */
-test("an empty cell and a pushed cell keep their place", async ({ page, browserName }) => {
+test("an empty cell and a pushed cell keep their place", async ({ page }) => {
   await openWeek(page, {
     [THIS_WEEK]: rollup(THIS_WEEK, [
       row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
     ]),
   });
 
-  const empty = ticketRow(page, "RIDGE-1").locator("td").nth(1).locator("button");
-  const pushedTrigger = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  const emptyTd = ticketRow(page, "RIDGE-1").locator("td").nth(1);
+  const pushedTd = ticketRow(page, "RIDGE-1").locator("td").first();
 
-  // getBoundingClientRect directly, not Locator.boundingBox(): see the gap
-  // test above for why.
-  const round = (rect: { x: number; y: number; width: number; height: number }) => ({
-    x: Math.round(rect.x),
-    y: Math.round(rect.y),
-    width: Math.round(rect.width),
-    height: Math.round(rect.height),
-  });
-  const rectOf = (locator: Locator) =>
-    locator.evaluate((element) => {
-      const r = element.getBoundingClientRect();
-      return { x: r.x, y: r.y, width: r.width, height: r.height };
-    });
+  // Placement relative to the td that draws it, not an absolute page
+  // position: a content element's own padding/border (the trigger carries
+  // 13px/9px, cancelled back out by its negative margin — see ticketCell's
+  // own comment) is read from computed style rather than assumed away, so
+  // this holds regardless of which element (button or span) is measured.
+  const placementOf = (td: Locator, contentSelector: string) =>
+    td.evaluate((tdEl, selector) => {
+      const content = tdEl.querySelector(selector);
+      if (!content) throw new Error(`${selector} not found`);
 
-  const emptyBox = round(await rectOf(empty));
-  const figBox = round(
-    await pushedTrigger.evaluate((element) => {
-      const fig = element.querySelector("span.font-mono");
-      if (!fig) throw new Error("pushed figure not rendered");
-      const r = fig.getBoundingClientRect();
+      const box = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const pr = parseFloat(cs.paddingRight) || 0;
+        const pt = parseFloat(cs.paddingTop) || 0;
+        const pb = parseFloat(cs.paddingBottom) || 0;
+        const br = parseFloat(cs.borderRightWidth) || 0;
+        const bt = parseFloat(cs.borderTopWidth) || 0;
+        const bb = parseFloat(cs.borderBottomWidth) || 0;
 
-      return { x: r.x, y: r.y, width: r.width, height: r.height };
-    }),
-  );
+        return {
+          contentRight: r.right - pr - br,
+          contentCentreY: r.top + bt + pt + (r.height - bt - bb - pt - pb) / 2,
+        };
+      };
+      const tdBox = box(tdEl);
+      const contentBox = box(content);
 
-  const expected: Record<
-    string,
-    {
-      empty: { x: number; y: number; width: number; height: number };
-      figure: { x: number; y: number; width: number; height: number };
-    }
-  > = {
-    chromium: {
-      empty: { x: 522, y: 116, width: 40, height: 41 },
-      figure: { x: 404, y: 125, width: 53, height: 23 },
-    },
-    firefox: {
-      empty: { x: 520, y: 116, width: 40, height: 41 },
-      figure: { x: 401, y: 125, width: 53, height: 23 },
-    },
-  };
+      return {
+        rightGap: tdBox.contentRight - contentBox.contentRight,
+        centreGap: tdBox.contentCentreY - contentBox.contentCentreY,
+      };
+    }, contentSelector);
 
-  const want = expected[browserName] ?? expected["chromium"];
-  expect(emptyBox).toEqual(want.empty);
-  expect(figBox).toEqual(want.figure);
+  const empty = await placementOf(emptyTd, "button");
+  const pushed = await placementOf(pushedTd, "span.font-mono");
+
+  expect(Math.abs(empty.rightGap), "empty cell right edge").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(empty.centreGap), "empty cell vertical centre").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(pushed.rightGap), "pushed cell right edge").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(pushed.centreGap), "pushed cell vertical centre").toBeLessThanOrEqual(0.5);
 });
 
 /**
