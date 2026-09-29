@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 interface StubIssue {
   key: string;
@@ -68,6 +68,15 @@ async function stubPinWithError(
   await page.route("**/api/pins**", (route) =>
     route.fulfill({ status: 200, json: [pinWithError(summary, failureMessage)] }),
   );
+}
+
+/** #217: the element under test is reached by a real Tab from the one before
+ *  it, with the pointer parked so no hover opens anything on its own. */
+async function tabTo(page: Page, before: Locator, target: Locator): Promise<void> {
+  await before.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(target).toBeFocused();
 }
 
 // Narrow enough that the summary column truncates a long summary.
@@ -164,11 +173,40 @@ test("a cut failure note on a pinned row shows its full text on hover", async ({
   await expect(tip).toBeVisible();
 });
 
-// Both the failure note's tooltip and (since 2026-09-25, owner) the
-// summary's own are hover-only on a Today row — no focus-for on either, so
-// focusing the row's key link opens only the key's own "open in Jira"
-// tooltip. Both other texts are cut here, so the only thing distinguishing
-// them from the key's is that wiring.
+// #236: the note is its own Tab stop, reached from the summary above it.
+test("a cut failure note is its own Tab stop and opens only its own tooltip", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubPinWithError(page, "Weekly standup", longFailure);
+  await page.goto("/today");
+
+  const row = page.locator('that-ticket-row[key="WORK-1"]');
+  const summary = row.locator('[id^="that-sum-"]');
+  const note = row.locator('[id^="that-fail-"]');
+  await tabTo(page, summary, note);
+
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(longFailure);
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(summary).toBeFocused();
+  await expect(page.locator("that-tooltip", { hasText: longFailure })).toBeHidden();
+});
+
+test("a failure note that is not cut is still a Tab stop and opens nothing", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubPinWithError(page, "Weekly standup", "Offline");
+  await page.goto("/today");
+
+  const row = page.locator('that-ticket-row[key="WORK-1"]');
+  await tabTo(page, row.locator('[id^="that-sum-"]'), row.locator('[id^="that-fail-"]'));
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
+// The key link's focus opens only the key's own "open in Jira": the summary
+// and the failure note are Tab stops of their own (#143 task 9, #236), each
+// opening its tooltip on its own focus. Both are cut here, so the only thing
+// that could open them on the key's focus is wiring that must not exist.
 test("focusing a pinned row's key link shows only the key's own tooltip, neither the summary's nor the failure note's", async ({
   page,
 }) => {
