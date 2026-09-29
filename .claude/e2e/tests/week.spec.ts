@@ -570,6 +570,9 @@ test("a failed marker and an unpushed one differ in shape, not only in hue", asy
   const failed = markerIn(page, "RIDGE-2", 2);
   const unpushed = markerIn(page, "RIDGE-1", 0);
 
+  await expect(failed).toBeVisible();
+  await expect(unpushed).toBeVisible();
+
   // A triangle against a disc: the failed marker has a drawn edge and square
   // corners, the unpushed one is round and has neither.
   await expect(unpushed).toHaveCSS("border-bottom-width", "0px");
