@@ -247,7 +247,9 @@ function hideForm(regions: Regions): void {
   regions.formSection.replaceChildren();
   regions.formSection.hidden = true;
   if (hadFocus) {
-    (regions.formOpener.isConnected ? regions.formOpener : regions.addButton).focus();
+    const opener = regions.formOpener;
+    // A row's Edit is disabled while its save is in flight, and takes no focus.
+    (opener.isConnected && !opener.matches(":disabled") ? opener : regions.addButton).focus();
   }
 }
 

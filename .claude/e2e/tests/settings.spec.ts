@@ -811,6 +811,13 @@ test("closing and reopening Settings while a save is held still re-enables that 
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
+  // The first Escape closes the form while the save carries on (#250). The
+  // row's Edit is disabled until the save answers, so focus falls back to Add.
+  await page.keyboard.press("Escape");
+  await expect(settings.getByLabel("Name", { exact: true })).toHaveCount(0);
+  await expect(settings).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Add an instance" })).toBeFocused();
+
   await page.keyboard.press("Escape");
   await expect(settings).toBeHidden();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
