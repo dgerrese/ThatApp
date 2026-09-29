@@ -361,19 +361,99 @@ function dialogEntry(id: number, comment: string): Record<string, unknown> {
   };
 }
 
-test("a cut entry comment in the dialog shows its full text when the edit button is focused, and a short one shows none", async ({
-  page,
-}) => {
+function dialogRows(page: Page): Locator {
+  return page.locator("that-entry-dialog li");
+}
+
+function commentOf(row: Locator): Locator {
+  return row.locator('[id^="that-entry-comment-"]');
+}
+
+// A guard, not a new behaviour: Close is what showModal() focuses today. The
+// instance name sits before it in tree order, so once the name is a Tab stop
+// only Close's autofocus keeps it that way (#236).
+test("opening the entry dialog by keyboard focuses Close", async ({ page }) => {
+  await stubIssues(page, [group(1, longInstanceName, [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, [dialogEntry(1, longComment)]);
+  await page.goto("/today");
+  await page.getByRole("button", { name: /Log time against WORK-1/ }).focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator("that-entry-dialog").getByRole("button", { name: "Close" })).toBeFocused();
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
+test("focusing an entry's Edit opens only its own tooltip, never the comment's", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [issue("WORK-1", "Ship it")])]);
-  await stubEntries(page, [dialogEntry(1, longComment), dialogEntry(2, "Quick fix")]);
+  await stubEntries(page, [dialogEntry(1, longComment)]);
   await page.goto("/today");
   await openDialog(page);
 
-  const rows = page.locator("that-entry-dialog li");
-  await rows.nth(0).getByRole("button", { name: /Edit the/ }).focus();
-  await expect(page.locator("that-tooltip", { hasText: longComment })).toBeVisible();
+  const row = dialogRows(page).nth(0);
+  // The push mark is the Tab stop just before Edit.
+  await tabTo(page, row.locator('[id^="that-entry-mark-"]'), row.getByRole("button", { name: /Edit the/ }));
 
-  await rows.nth(1).getByRole("button", { name: /Edit the/ }).focus();
-  await expect(page.locator("that-tooltip", { hasText: longComment })).toBeHidden();
-  await expect(page.locator("that-tooltip", { hasText: "Quick fix" })).toBeHidden();
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText("edit entry");
+});
+
+test("a cut entry comment is its own Tab stop and opens its full text on focus and on hover", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, [dialogEntry(1, longComment)]);
+  await page.goto("/today");
+  await openDialog(page);
+
+  const dialog = page.locator("that-entry-dialog");
+  // Nothing focusable sits between Close and the first row's comment.
+  await tabTo(page, dialog.getByRole("button", { name: "Close" }), commentOf(dialogRows(page).nth(0)));
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(longComment);
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+  await commentOf(dialogRows(page).nth(0)).hover();
+  await expect(page.locator("that-tooltip", { hasText: longComment })).toBeVisible();
+});
+
+test("a short comment and \"No comment\" are Tab stops that open nothing", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, [dialogEntry(1, "Quick fix"), dialogEntry(2, "")]);
+  await page.goto("/today");
+  await openDialog(page);
+
+  const dialog = page.locator("that-entry-dialog");
+  const rows = dialogRows(page);
+  await tabTo(page, dialog.getByRole("button", { name: "Close" }), commentOf(rows.nth(0)));
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+
+  // The row above's Delete is the Tab stop just before the next comment.
+  await tabTo(page, rows.nth(0).getByRole("button", { name: /Delete the/ }), commentOf(rows.nth(1)));
+  await expect(commentOf(rows.nth(1))).toHaveText("No comment");
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
+// The instance name is the dialog's first Tab stop, so the one real key that
+// reaches it is Shift+Tab from Close (#217's rule, run backwards).
+test("a cut dialog instance name is its own Tab stop and opens only its own tooltip", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, longInstanceName, [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, []);
+  await page.goto("/today");
+  await openDialog(page);
+
+  const dialog = page.locator("that-entry-dialog");
+  await dialog.getByRole("button", { name: "Close" }).focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(dialog.locator('[id^="that-entry-dialog-instance-"]')).toBeFocused();
+
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(longInstanceName);
 });
