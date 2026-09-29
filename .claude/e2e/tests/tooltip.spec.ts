@@ -566,6 +566,7 @@ async function mountCutText(
 
       const span = document.createElement("span");
       span.id = "cut-text";
+      span.tabIndex = 0;
       span.className = "block truncate";
       span.style.width = `${width}px`;
       span.textContent = text;
@@ -573,7 +574,6 @@ async function mountCutText(
       const tooltip = document.createElement("that-tooltip");
       tooltip.dataset["fixture"] = "";
       tooltip.setAttribute("for", "cut-text");
-      tooltip.setAttribute("focus-for", "cut-link");
       tooltip.setAttribute("wrap", "");
       tooltip.setAttribute("when-cut", "");
       tooltip.textContent = text;
@@ -597,14 +597,21 @@ test("a when-cut tooltip opens on hover of cut text and wraps", async ({ page })
   expect(box?.height ?? 0).toBeGreaterThan(30); // more than one line: it wraps
 });
 
-test("a when-cut tooltip opens on focus of its focus-for element, and closes on blur", async ({
-  page,
-}) => {
+/** #217: reach the cut text by a real Tab from the link prepended before it. */
+async function tabToCutText(page: import("@playwright/test").Page): Promise<void> {
+  await page.locator("#cut-link").focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#cut-text")).toBeFocused();
+}
+
+test("a when-cut tooltip opens on its own text's focus, and closes on blur", async ({ page }) => {
   await mountCutText(page, longText, 120);
   const tip = page.locator("that-tooltip[data-fixture]");
-  await page.locator("#cut-link").focus();
+  await tabToCutText(page);
   await expect(tip).toBeVisible();
-  await page.locator("#cut-link").blur();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.locator("#cut-link")).toBeFocused();
   await expect(tip).toBeHidden();
 });
 
@@ -615,13 +622,13 @@ test("a when-cut tooltip stays closed when the text is not cut, on hover and on 
   const tip = page.locator("that-tooltip[data-fixture]");
   await page.locator("#cut-text").hover();
   await expect(tip).toBeHidden();
-  await page.locator("#cut-link").focus();
+  await tabToCutText(page);
   await expect(tip).toBeHidden();
 });
 
 test("a tooltip removed while open leaves nothing in the top layer", async ({ page }) => {
   await mountCutText(page, longText, 120);
-  await page.locator("#cut-link").focus();
+  await tabToCutText(page);
   await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
   const open = await page.evaluate(() => {
     document.querySelector("that-tooltip[data-fixture]")?.remove();

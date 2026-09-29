@@ -746,16 +746,15 @@ export class ThatIssueSearch extends HTMLElement {
 
   /**
    * The summary's own cut-text tooltip (#143): `for` gives back the
-   * summary's hover and, since task 9, its own focus too — no `focus-for`,
-   * because the summary is its own tab stop now rather than borrowing the
-   * key link's, so a key focus opens only the key's own "open in Jira"
-   * tooltip, never this one — the same contract that-ticket-row's own
-   * summaryTooltip gives. `below`: task 7's own fix, unchanged by task 9 —
-   * the row stacks the key directly above the summary, so the tooltip's
-   * default above-opening would still cover the key.
+   * summary's hover and, since task 9, its own focus too, so a key focus
+   * opens only the key's own "open in Jira" tooltip, never this one — the
+   * same contract that-ticket-row's own summaryTooltip gives. `below`:
+   * task 7's own fix, unchanged by task 9 — the row stacks the key directly
+   * above the summary, so the tooltip's default above-opening would still
+   * cover the key.
    */
   private summaryTooltip(hit: IssueHit, summary: HTMLElement): HTMLElement {
-    return cutTextTooltip(summary.id, hit.summary, undefined, true);
+    return cutTextTooltip(summary.id, hit.summary, true);
   }
 
   /** An icon control — pin, and later Week's own return-into-week mark —

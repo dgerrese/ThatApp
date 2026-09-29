@@ -94,12 +94,11 @@ test("a cut summary in a Today row shows its full text on hover", async ({ page 
   await expect(tip).toBeVisible();
 });
 
-// Owner, 2026-09-25: dropped `focus-for` from the Today row's own summary
-// tooltip. It used to follow the key link so a keyboard user reached it too,
-// but that opened both this tooltip and the key's own "open in Jira" one at
-// once, and below ~900px the summary's covered the key's. The search panel's
-// own copy of this pairing (search.spec.ts) is unaffected — it keeps
-// `focus-for` and `below`.
+// Owner, 2026-09-25: the Today row's own summary is its own tab stop now
+// rather than following the key link's focus. It used to follow the key link
+// so a keyboard user reached it too, but that opened both this tooltip and
+// the key's own "open in Jira" one at once, and below ~900px the summary's
+// covered the key's.
 test("a Today row's key focus shows only the key's own tooltip, not the cut summary's", async ({
   page,
 }) => {
@@ -287,10 +286,10 @@ test("a rail instance name that is not cut is still a Tab stop and opens nothing
 // even a realistic Jira key like this one already overflows it, so this is
 // not a hypothetical case worth skipping.
 //
-// Task 9 (#143), folding in #235: the key span is its own tab stop now
-// (`focus-for` dropped from its tooltip), and the stop button carries its
-// own "stop timer" tooltip rather than sharing the key's — so each control's
-// focus opens only its own tooltip, never a neighbour's.
+// Task 9 (#143), folding in #235: the key span is its own tab stop now, and
+// the stop button carries its own "stop timer" tooltip rather than sharing
+// the key's — so each control's focus opens only its own tooltip, never a
+// neighbour's.
 test("the rail's running key and stop button each open only their own tooltip on focus", async ({
   page,
 }) => {

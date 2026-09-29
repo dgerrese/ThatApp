@@ -518,10 +518,9 @@ export class ThatTicketRow extends HTMLElement {
 
   /**
    * that-tooltip's first cut-text consumer (#143): `for` gives back the
-   * summary's own hover and, since task 9, its own focus too — no
-   * `focus-for`, because the summary is its own tab stop now rather than
-   * borrowing the key link's, so a key focus opens only the key's own "open
-   * in Jira" tooltip (keyTooltip above), never this one.
+   * summary's own hover and, since task 9, its own focus too, so a key focus
+   * opens only the key's own "open in Jira" tooltip (keyTooltip above),
+   * never this one.
    */
   private summaryTooltip(): HTMLElement {
     return cutTextTooltip(this.summaryId, this.getAttribute("summary") ?? "");
