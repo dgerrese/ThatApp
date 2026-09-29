@@ -107,13 +107,6 @@ See *What this ticket grew into*.
    build and test inside an already-grown ticket. #11 targets the desktop it will be used on, and
    this is a written-down gap rather than a surprise for #13.
 
-10. **The Settings fallback is deliberately not load-bearing.** Settings has no period, so the rail
-    falls back to today there — which is exactly what the rail does now, so that case costs nothing.
-    The owner is considering moving Settings out of the main navigation entirely, possibly as a
-    dialog; that is intake [#89](https://codeberg.org/DionGerrese/ThatApp/issues/89). If Settings
-    becomes a dialog over another view, the rail keeps describing the view beneath and this clause
-    becomes dead code worth deleting. Nothing else depends on it.
-
 ## The grid
 
 Columns are Monday through Sunday, then a row total. The footer carries per-day totals and the week
@@ -302,4 +295,3 @@ be updated to match this spec before planning.**
   for free.** #10 shipped on 2026-09-08, and pushing a corrected day from here still did nothing,
   because the rail's own filter — untouched by #10 — still admitted only never-pushed entries.
   Closing that gap is #121; see decision 8 above.
-- **Moving Settings.** Intake #89.

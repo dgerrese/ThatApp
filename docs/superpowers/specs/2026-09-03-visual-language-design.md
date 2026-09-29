@@ -357,6 +357,12 @@ an emoji. Every mark that carries meaning is inline SVG on a 24px grid, `1.9` st
 joins, `currentColor`, rendered at 16px in the rail's nav, 18px in a row control and in a form's
 note, and 14px inline with text.
 
+**One mark has its own stroke weight: the cog.** It is drawn from computed gear geometry
+(`#p-gear`) at **`1.7`**, not `1.9`, at 17px beside the wordmark. It carries far more outline than
+any other mark in the same box, and at `1.9` its teeth close up. It is the set's one deliberate
+exception, settled in #89's design session of 2026-09-03; any other mark drawn at another weight is
+drift, not precedent.
+
 The reason is not taste. A typed character is rendered by whichever font resolves it, and that is not
 the font the design chose: coverage varies, metrics vary, and a face that lacks the codepoint falls
 back to something else entirely or draws nothing. An icon that changes shape with the font is not a
@@ -383,7 +389,8 @@ separating two facts on one line, are typography and stay as characters. The rul
 character standing in for a *drawn mark*, not a licence to redraw punctuation.
 
 The set the app needs: pin, pin-off, search, sortable, ascending, descending, pushed, warning,
-failed, success, info, external, and the three nav marks, transcribed from the prototype's
+failed, success, info, external, plug, check, and the two nav marks and the rail's cog, transcribed
+from the prototype's
 `#p-clock`, `#p-cal` and `#p-gear` into `index.html`. `index.html` is where they are drawn from,
 not what settles what they should be — #117 found one of the three drifted from its source and
 corrected it.
@@ -576,8 +583,8 @@ Unchanged, and this document does not restate them. Read
   trap. The dot's own lightness values are unchanged: `0.6` light, `0.72` dark, `0.7` on the rail.
 - **The rail's regions and their resting states**, its 216px width, and Push being disabled rather
   than hidden.
-- **Nav** — three destinations, 38px rows, current shown by fill *and* weight, driven from
-  `aria-current`.
+- **Nav** — two destinations and a control (#89), 38px rows, current shown by fill *and* weight,
+  driven from `aria-current`.
 - **The ticket row** — the 76px key column and why it is a floor rather than a width, the summary's
   `min-width: 0`, and the rule that a row key never wears the primary.
 - **Format carries meaning**, the **five screen states**, **the phone**, and **manual entry** as a
@@ -588,7 +595,6 @@ Unchanged, and this document does not restate them. Read
 
 - **The phone layout** — #53 owns building it. This edition changes tokens it will consume; it does
   not change the phone design.
-- **Moving Settings out of the nav** — #89.
 - **Copy and tone of voice.** This changes how the app looks, not what it says.
 - **The wordmark.** It keeps its current treatment, in the new primary.
 

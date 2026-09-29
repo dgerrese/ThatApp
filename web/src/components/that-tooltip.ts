@@ -103,6 +103,17 @@ export class ThatTooltip extends HTMLElement {
     if (!this.matches(":popover-open")) this.showPopover();
 
     const box = trigger.getBoundingClientRect();
+
+    // The drawing's .tip.right (prototype line 168): beside the trigger and
+    // centred on it — the rail's cog, whose top-left corner leaves no room above.
+    if (this.getAttribute("anchor") === "right") {
+      this.style.top = `${box.top + box.height / 2 - this.offsetHeight / 2}px`;
+      this.style.left = `${box.right + 9}px`;
+      this.style.right = "auto";
+      this.style.bottom = "auto";
+      this.style.margin = "0";
+      return;
+    }
     const gap = 7;
     const left =
       this.getAttribute("anchor") === "end"

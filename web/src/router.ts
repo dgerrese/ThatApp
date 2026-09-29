@@ -34,7 +34,6 @@ interface View {
  * these and the deferral silently stops happening.
  */
 const routes: Record<string, () => Promise<View>> = {
-  "/settings": () => import("./views/settings"),
   "/today": () => import("./views/today"),
   "/week": () => import("./views/week"),
 };

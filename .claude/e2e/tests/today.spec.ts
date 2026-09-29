@@ -134,11 +134,15 @@ test("an instance with nothing assigned says so", async ({ page }) => {
 // only ever refetch an empty list is not on screen at all.
 test("no configured instances offers Settings instead of a Refresh button", async ({ page }) => {
   await stubIssues(page, []);
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
   await page.goto("/today");
 
   await expect(page.getByText("No Jira instances yet.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open Settings" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeHidden();
+
+  await page.getByRole("button", { name: "Open Settings" }).click();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await expect(page).toHaveURL(/\/today$/);
 });
 
 // #71's guard: the re-check on return only fires while the stale banner
@@ -224,8 +228,8 @@ test("/ leads to Today and leaves no history trap", async ({ page }) => {
   // .first(): #143 gave every summary a that-tooltip repeating its text.
   await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
 
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  await page.getByRole("link", { name: "Week", exact: true }).click();
+  await expect(page).toHaveURL(/\/week$/);
 
   await page.goBack();
 
@@ -264,8 +268,8 @@ test("navigating away from Today removes its 'online' listener, so reconnecting 
   await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
   expect(issuesCalls).toBe(1);
 
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  await page.getByRole("link", { name: "Week", exact: true }).click();
+  await expect(page).toHaveURL(/\/week$/);
 
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
 
@@ -346,19 +350,19 @@ test("the rail marks the view you are on", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [workIssue])]);
   await page.goto("/today");
 
-  await expect(page.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("link", { name: "Settings" })).not.toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Today", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Week", exact: true })).not.toHaveAttribute(
     "aria-current",
     /.*/,
   );
 
-  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("link", { name: "Week", exact: true }).click();
 
-  await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Week", exact: true })).toHaveAttribute(
     "aria-current",
     "page",
   );
-  await expect(page.getByRole("link", { name: "Today" })).not.toHaveAttribute("aria-current", /.*/);
+  await expect(page.getByRole("link", { name: "Today", exact: true })).not.toHaveAttribute("aria-current", /.*/);
 });
 
 /**

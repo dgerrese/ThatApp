@@ -1856,7 +1856,6 @@ test("navigating away from Week removes its entries-changed listener, so a later
   await openWeek(page, {
     [THIS_WEEK]: rollup(THIS_WEEK, [row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }])]),
   });
-  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
 
   // The mount's own read has to settle before the counting route goes on
   // below, or that first read races the route registration and can land
@@ -1873,12 +1872,17 @@ test("navigating away from Week removes its entries-changed listener, so a later
     return route.fallback();
   });
 
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  // Away to an address with no view: the router tears Week down and mounts
+  // only its placeholder, which listens to nothing.
+  await page.evaluate(() => {
+    history.pushState({}, "", "/no-view-here");
+    dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page.getByText("There is nothing at this address.")).toBeVisible();
 
   // The event Week's own dialog fires after a mutation elsewhere — see
-  // entries-changed.ts. Dispatched directly here since Settings mounts no
-  // dialog of its own to fire it through.
+  // entries-changed.ts. Dispatched directly here since the placeholder has
+  // nothing to fire it through.
   await page.evaluate(() => document.dispatchEvent(new CustomEvent("that-entries-changed")));
 
   // No positive signal exists for "nothing happened" — a leaked listener's

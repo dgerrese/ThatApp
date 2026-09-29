@@ -655,11 +655,10 @@ test("the rail total and the running instance's split figure add the timer's ela
 });
 
 /**
- * Settings borrows Today's period (setRailPeriod's reference-equality guard,
- * TODAY_PERIOD) rather than getting one of its own, so the elapsed time the
- * spec asks Today's rail to carry must still show there too.
+ * Settings is a dialog over Today, so the rail keeps describing today beneath
+ * it — running time included.
  */
-test("the rail total includes the running timer's elapsed time on Settings too", async ({ page }) => {
+test("the rail total includes the running timer's elapsed time while Settings is open", async ({ page }) => {
   const t0 = Date.parse(`${DAY}T10:00:00Z`);
   await page.clock.install({ time: t0 });
   await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
@@ -680,8 +679,8 @@ test("the rail total includes the running timer's elapsed time on Settings too",
   await page.goto("/today");
   await expect(page.locator("#rail-total")).toHaveText("1h 59m");
 
-  await page.getByRole("link", { name: "Settings" }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
   await expect(page.locator("#rail-total")).toHaveText("1h 59m");
 
   await page.clock.runFor(10_000);

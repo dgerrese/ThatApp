@@ -17,6 +17,7 @@ import { LOG_TIME, PIN, UNPIN } from "../components/that-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
 import { clockTime, totalFigure } from "../format";
 import { paintInstanceDot } from "../instance-hue";
+import { openSettings } from "../open-settings";
 import { pageHeading } from "../page-heading";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
@@ -847,7 +848,7 @@ function focusedPinTicket(): { instanceId: number; key: string } | null {
  * Pinning or unpinning moves a ticket's row between the Pinned table, an
  * instance card and the off-list table — renderPinnedList, renderResponse and
  * renderOffListSection all rebuild their rows from scratch rather than reuse
- * them (unlike settings.ts's reconcileList), so the pin control the keyboard
+ * them (unlike settings-dialog.ts's reconcileList), so the pin control the keyboard
  * was just on is a different element by the time any of them return, and the
  * browser drops focus to <body>. This finds wherever the ticket's row landed
  * and puts focus back on its own pin control — a no-op once focus is
@@ -1186,21 +1187,18 @@ function noInstances(): HTMLElement {
   paragraph.className = "text-ink-muted";
   paragraph.textContent = "No Jira instances yet. Add one to see your assigned issues.";
 
-  const link = document.createElement("a");
-  link.href = "/settings";
-  link.dataset["route"] = "";
-  link.className = "text-primary mt-4 inline-block font-bold hover:underline";
-  link.textContent = "Open Settings";
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "text-primary mt-4 inline-block cursor-pointer font-bold hover:underline";
+  open.textContent = "Open Settings";
+  open.addEventListener("click", () => {
+    void openSettings();
+  });
 
-  wrapper.append(paragraph, link);
+  wrapper.append(paragraph, open);
 
   return wrapper;
 }
-
-// alertFor and messageOf are deliberate duplicates of the same two helpers in
-// views/settings.ts. Extracting them into a shared module is the right end
-// state, but it means editing settings.ts, which is outside this ticket's
-// scope. Worth its own ticket.
 
 /** The raised surface a message sits on where a table would otherwise be. */
 function cardHolding(node: Node): HTMLElement {
