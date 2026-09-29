@@ -195,6 +195,7 @@ test("Up and Down land on a failure-noted row's summary, and Down from its note 
   await expect(summaryOf(page, "RIDGE-9")).toBeFocused();
 
   await row(page, "RIDGE-9").locator('[id^="that-fail-"]').focus();
+  await expect(row(page, "RIDGE-9").locator('[id^="that-fail-"]')).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(summaryOf(page, "RIDGE-1")).toBeFocused();
 });
