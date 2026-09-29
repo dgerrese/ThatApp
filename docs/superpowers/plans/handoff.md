@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-25 at end of day**, against the Codeberg API rather than against local git — see
+**Verified on 2026-09-28 at end of day**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -31,57 +31,55 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### The state at the end of 2026-09-25 — read this first
+### The state at the end of 2026-09-28 — read this first
 
 **This block supersedes everything below it in this section where the two disagree.** The day is in
-[`handoff/2026-09-25.md`](handoff/2026-09-25.md).
+[`handoff/2026-09-28.md`](handoff/2026-09-28.md).
 
-**`main` is at `432dbd7`** (the merge of PR #223, #127). **Merged on 2026-09-25:** the 2026-09-24
-handoff (PR #225), #106 (PR #216), #109 (PR #219), the format fix (PR #224) and #127 (PR #223).
+**`main` is at `44f2b74`** (the merge of PR #252, #217). **Merged on 2026-09-28**, all by the owner:
+the 2026-09-25 handoff (PR #238), the e2e sharding (#239, PR #240), #200 (PR #233), #204 (PR #237),
+#143 with #230 and #235 (PR #229), #227 (PR #241), #209 (PR #242), #215 (PR #243), #221 (PR #244),
+#217 (PR #252). Codeberg did not record #240's merge on the PR itself; it was closed by hand with a
+comment naming `4a9115d`.
 
-**The owner started an autopilot run on v1 on 2026-09-25 and was present for most of it.** Three pull
-requests are open, all waiting on the owner:
+**The owner ran autopilot on v1 on 2026-09-28; it finished with the v1 `status/todo` queue empty.**
+Four pull requests are open, all waiting on the owner:
 
-| PR | Ticket | Notes |
-|---|---|---|
-| #229 | #143 cut text and keyboard reach; also #230 and #235, folded in by the owner | Head `38ca840`. Both gates green (686 passed). The body still needs its last section, see below |
-| #233 | #200 Edit waits for its own save | Head `a99f639`. Both gates green (614 passed) |
-| #237 | #204 running time counts in Today's totals | Head `ab6050b`. Both gates green (630 passed). Merges with #229 without conflicts, but see its body: whichever merges second must update the split's figures in place |
+| PR | Ticket | Base | Notes |
+|---|---|---|---|
+| #251 | #89 Settings as a dialog | `main` | Head `0aeba9b`: `main` merged in and #200's in-flight Edit guard carried into the dialog, 766 passed. Six owner questions in the body; "A result carries the time it was taken" is unticked (the failed state is not drawn) |
+| #255 | #97 one scrim token | **`issue-89-settings-dialog`** | Merge #251 first. Owner question at the top: a confirm over another dialog dims the page twice |
+| #256 | #108 focused fields take the accent | **`issue-89-settings-dialog`** | Merge #251 first |
+| #257 | #119 icon-label test sees visible text | `main` | — |
 
-**#229's body is not finished.** It lacks the section for the owner's last change (focusable rail key
-and summaries, "stop timer" on the rail, the search summary joining the arrow order), `Closes #230`
-and `Closes #235`, and the Task 9 screenshot pair. The images exist only in the session's scratchpad,
-which does not survive the session; recapture them from `issue-143-keyboard-and-cut-text` (rail key focus, rail stop
-focus, Today summary focus; dark and light). Codeberg returned 504 on every upload attempt.
+**Codeberg retargets a stacked PR itself** when its base branch is deleted at merge (seen with #229's
+four children). Check `mergeable` after each merge: #251 conflicted once `main` carried a change to a
+file it deletes.
 
-**#237's body still reads `SHOTS` where its screenshot pair belongs** — the uploads kept failing
-with 504. Recapture from `issue-204-running-time-in-totals` (a timer running on an instance with no
-entries, beside one with an hour logged; dark and light), attach with `.claude/tools/pr-attach.sh 237`,
-and replace the placeholder.
+**Blocked:** #107 (unchanged — the `:focus-visible` question is on the ticket) and **#205** — #89
+turns Settings into a dialog with no cards, so the settled "24px between cards" has no subject; the
+question is on #205.
 
-**#227 is in progress, stacked on #229:** branch `issue-227-table-arrow-keys` at `369d517`, on Codeberg
-(pushed on the third attempt; Codeberg refused the first two), no pull request yet. Tasks 1 (Today) and 2 (Week) committed and green — Task 2's gate was 712 passed. Still to do:
-Task 2's task review, the whole-branch review, screenshots, and the pull request with **base
-`issue-143-keyboard-and-cut-text`**, not `main`. Plan: `docs/superpowers/plans/2026-09-25-table-arrow-keys.md`.
-It lives in the worktree `../ThatApp-review-229` (see *Environment notes* below).
+**Intake review with the owner, in progress when the day ended.** The owner is taking v1's intake
+tickets one at a time; v1 keeps every ticket that fits its description. **Done:** #226 approved
+(`status/needs-refinement`). **Next:** #228 — recommended closing as done by #227 (Up/Down shipped;
+Left/Right was never asked for). **Then:** #231, #232 (duplicate of #231), #234, #236, #245, #246,
+#247, #248 (duplicate of #247), #249, #250, #254 (duplicate of #203, filed by mistake).
 
-**Blocked: #107**, unchanged — the `:focus-visible` question for the owner is on the ticket.
+**At `status/needs-refinement`:** v1 — #226, #220, #207, #208. v2 — #253 (an MCP server, asked for by
+the owner on 2026-09-28, with its open questions in the body).
 
-**Left in v1 at `status/todo`, in the autopilot order:** #209, #215, #221 (bugs), then #89, #205,
-#217, then #97, #108, #119 (`priority/low`). #89 lost its `priority/low` on 2026-09-25.
+**#123 is at `status/in-progress` from another session.** Git now marks its worktree under an old
+scratchpad as prunable; its branch is on Codeberg. This session did not touch it.
 
-**At `status/needs-refinement` in v1:** #220, #207, #208.
+**Labels are clean**, checked across every ticket on 2026-09-28: no closed ticket carries a `status/*`
+label, every open one carries exactly one and a milestone, and no v2 ticket carries `enhancement`.
+**A merge still leaves `status/in-progress` behind** — it did for every merge that day; strip it at
+each merge.
 
-**At `status/intake`, for the owner's next cycle:** v1 — #226, #228 (folded into #227; close as a
-duplicate), #231, #232 (a duplicate of #231 made by a Codeberg time-out; close it), #234, #236. v2 —
-#110, #126, #137, #173, #176, #201–#203, #206, #211, #212.
-
-**#123 is at `status/in-progress` from another session**, with a worktree at
-`/tmp/claude-1001/-home-dion-Projects-personal-ThatApp/93ab9698-…/scratchpad/wt-123`. This session
-did not touch it.
-
-**Label anomalies, left for the owner:** #185, #127, #109, #106, #74 and #66 are closed and still
-carry `status/in-progress`.
+**The status line has a second line** for the ticket in hand (stages, current stage, ETA as
+`1h 15m (15:10)`), fed by `.claude/issue-status.sh <issue> <done> <total> "<stage>" ["<title>"]` at
+each stage change and `clear` when none is in hand. Local only, in `.git/info/exclude`.
 
 **Decisions the owner took on 2026-09-25 — do not reopen:**
 - **Tooltips on keys and cut text.** A linked Jira key carries "open in Jira" in place of the native
