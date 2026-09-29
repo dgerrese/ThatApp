@@ -104,6 +104,36 @@ test("no typed character stands in for a drawn mark", () => {
   assert.deepEqual(offenders, [], `every mark is drawn:\n${offenders.join("\n")}`);
 });
 
+/**
+ * True when the ±600-character window around an iconMarkup() call carries
+ * neither an aria-label nor a visible-text assignment.
+ *
+ * ponytail: a textContent = belonging to an unrelated nearby element can
+ * make this pass wrongly; a DOM-based check would close that gap.
+ */
+function iconLabelMissing(window: string): boolean {
+  return !/aria-label|ariaLabel|setAttribute\("aria-label"|\btextContent\s*=/.test(window);
+}
+
+test("iconLabelMissing reads the window around an iconMarkup() call", () => {
+  const cases: Array<[string, string, boolean]> = [
+    ["icon only, no label", 'x.innerHTML = iconMarkup("fetch", 17);', true],
+    [
+      "icon with aria-label",
+      'b.setAttribute("aria-label", "Fetch"); m.innerHTML = iconMarkup("fetch", 17);',
+      false,
+    ],
+    [
+      "icon with visible text",
+      'm.innerHTML = iconMarkup("fetch", 17); t.textContent = label;',
+      false,
+    ],
+  ];
+  for (const [name, window, expected] of cases) {
+    assert.equal(iconLabelMissing(window), expected, name);
+  }
+});
+
 test("a control whose only content is a drawn mark carries its own label", () => {
   const offenders: string[] = [];
   for (const { path, text } of sources()) {
@@ -113,7 +143,7 @@ test("a control whose only content is a drawn mark carries its own label", () =>
     // matches the same text without being a call.
     for (const match of text.matchAll(/(?<!function )iconMarkup\(/g)) {
       const window = text.slice(Math.max(0, match.index - 600), match.index + 600);
-      if (!/aria-label|ariaLabel|setAttribute\("aria-label"/.test(window)) {
+      if (iconLabelMissing(window)) {
         offenders.push(`${path}: an iconMarkup() call with no aria-label within 600 characters`);
       }
     }

@@ -190,6 +190,9 @@ test("Today's refresh carries its own words rather than a tooltip alone", async 
   // Scoped to the heading it sits beside, not the page: pin and unpin are
   // inline controls and keep their own tooltips under Decision 12.
   await expect(page.locator("#today-assigned").locator("..").locator("that-tooltip")).toHaveCount(0);
+  // #119: the visible words are the accessible name; no aria-label repeats them.
+  await expect(refresh).not.toHaveAttribute("aria-label");
+  await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(1);
 });
 
 test("Refresh replaces the list", async ({ page }) => {
