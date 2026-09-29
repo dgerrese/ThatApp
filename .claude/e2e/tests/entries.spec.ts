@@ -242,6 +242,7 @@ const INK_LIGHT = "oklch(0.195 0.009 55)";
 const INK_DARK = "oklch(0.962 0.005 70)";
 const INK_MUTED_LIGHT = "oklch(0.465 0.01 55)";
 const FAILED_LIGHT = "oklch(0.49 0.19 25)";
+const PRIMARY_LIGHT = "oklch(0.5 0.21 330)";
 
 /** No background painted at all, which is what an untouched row wears. */
 const UNPAINTED = "rgba(0, 0, 0, 0)";
@@ -1063,6 +1064,9 @@ test("editing marks its own row active, offers Save and Cancel, and dims no othe
  * The group is the control; the field inside it is borderless and takes no ring
  * of its own. Pressing + must light the whole thing rather than nothing, which
  * is why the group uses :focus-within and not the input's :focus.
+ *
+ * #108 moved the lit colour from ink to the accent — see focus-accent.spec.ts
+ * for the cross-field proof pinned against the search field's own border.
  */
 test("the duration group takes the focus ring, not the field inside it", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
@@ -1076,7 +1080,7 @@ test("the duration group takes the focus ring, not the field inside it", async (
   const focused = await group.evaluate((el) => getComputedStyle(el).borderTopColor);
 
   expect(focused).not.toBe(resting);
-  expect(focused).toBe(INK_LIGHT);
+  expect(focused).toBe(PRIMARY_LIGHT);
   await expect(durationField(page)).toHaveCSS("outline-style", "none");
 });
 
