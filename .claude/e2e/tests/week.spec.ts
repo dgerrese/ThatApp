@@ -235,14 +235,6 @@ function tooltipIn(page: Page, issueKey: string, column: number): Locator {
   return ticketRow(page, issueKey).locator("td").nth(column).locator("that-tooltip");
 }
 
-async function shapeOf(marker: Locator): Promise<{ radius: string; bottomBorder: string }> {
-  return marker.evaluate((element) => {
-    const style = getComputedStyle(element);
-
-    return { radius: style.borderTopLeftRadius, bottomBorder: style.borderBottomWidth };
-  });
-}
-
 /** The rail owns the only Push button, worded "Push this week" here — #117's
  *  R3 — and it sends every day the week holds rather than only today. */
 async function pushEverything(page: Page): Promise<void> {
@@ -565,23 +557,25 @@ test("a failed marker and an unpushed one differ in shape, not only in hue", asy
 
   await pushEverything(page);
 
+  // The cell already holds an unpushed disc before the push lands, so the
+  // marker being visible proves nothing; the repaint that swaps in the failed
+  // triangle has to land first, or a shape read hits a detached span (#234).
+  await expect(ticketRow(page, "RIDGE-2").locator("td").nth(2).locator("button")).toHaveAttribute(
+    "aria-label",
+    /push failed/,
+  );
+
   // The rollup is unchanged underneath, so Monday still reads unpushed while
   // Wednesday wears the marker the push left — both on screen at once.
   const failed = markerIn(page, "RIDGE-2", 2);
   const unpushed = markerIn(page, "RIDGE-1", 0);
-  await expect(failed).toBeVisible();
-  await expect(unpushed).toBeVisible();
 
-  const failedShape = await shapeOf(failed);
-  const unpushedShape = await shapeOf(unpushed);
-
-  expect(failedShape).not.toEqual(unpushedShape);
   // A triangle against a disc: the failed marker has a drawn edge and square
   // corners, the unpushed one is round and has neither.
-  expect(unpushedShape.bottomBorder).toBe("0px");
-  expect(failedShape.bottomBorder).not.toBe("0px");
-  expect(failedShape.radius).toBe("0px");
-  expect(unpushedShape.radius).not.toBe("0px");
+  await expect(unpushed).toHaveCSS("border-bottom-width", "0px");
+  await expect(failed).not.toHaveCSS("border-bottom-width", "0px");
+  await expect(failed).toHaveCSS("border-top-left-radius", "0px");
+  await expect(unpushed).not.toHaveCSS("border-top-left-radius", "0px");
 });
 
 /**
