@@ -60,7 +60,7 @@ Closed: #228 as done by #227; #232, #247, #248, #249 and #254 with `wontfix` as 
 #245 with `wontfix` (see *Decisions taken*). The finding from #254 is on #203, which stays in v2. v1
 has no intake tickets left; v2 has eleven.
 
-**#207, #208 and #226 wait for #123** (toasts; its design is on `codeberg/issue-123-toasts` only): #208 and #226 are `status/blocked`, #207 is at `status/needs-refinement`, and #207's and #208's failure placement is rewritten from #123's design once it exists. **At `status/todo` (refined 2026-09-29):** v1 — #231, #234, #236, #246, #250. **At `status/needs-refinement`:** v1 — #220, waiting on the owner's choice of host. **At intake:** v1 — #259 (instance dots' native `title`), #261 (a focused rail instance name is lost when the split rebuilds). v2 — #253 (an MCP server, asked for by
+**#207, #208 and #226 wait for #123** (toasts; its design is on `codeberg/issue-123-toasts` only): #208 and #226 are `status/blocked`, #207 is at `status/needs-refinement`, and #207's and #208's failure placement is rewritten from #123's design once it exists. **Autopilot on v1, 2026-09-29, emptied `status/todo`.** Open PRs, all on `main`: #260 (#231), #262 (#236), #263 (#234), #264 (#250). #246 is `status/blocked` — a design review needing the owner. Release `v2026.40.1` is published. **At `status/needs-refinement`:** v1 — #220, waiting on the owner's choice of host. **At intake:** v1 — #259 (instance dots' native `title`), #261 (a focused rail instance name is lost when the split rebuilds). v2 — #253 (an MCP server, asked for by
 the owner on 2026-09-28, with its open questions in the body).
 
 **#123 is at `status/in-progress` from another session.** Git now marks its worktree under an old
