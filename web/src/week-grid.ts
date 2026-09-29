@@ -239,9 +239,9 @@ type PushState = WeekCell["pushState"];
  * The visual language is explicit that amber and red never rest on colour
  * alone, and a grid has no room for the triangle-and-words an alert carries
  * — so the shape has to do it here. The words are not decoration either:
- * they are what a reader who cannot see the marker hears, and — through the
- * marker's title — what a reader who can see it has instead of a legend the
- * grid does not have room for.
+ * they are what a reader who cannot see the marker hears, and — through a
+ * footer mark's tooltip or a cell's own — what a reader who can see it has
+ * instead of a legend the grid does not have room for.
  */
 function markerFor(
   pushState: PushState,
@@ -261,6 +261,9 @@ function pushWords(pushState: PushState, failed: boolean): string {
 }
 
 let weekCellSequence = 0;
+
+/** A footer mark's id, unique across the page for the same reason as weekCellSequence. */
+let weekDayMarkSequence = 0;
 
 /**
  * One ticket's time on one day — always a control, empty cells included: a
@@ -378,9 +381,11 @@ function ticketCell(
 }
 
 /** A day's own total across every ticket, worst-wins marked like a cell but
- *  never a control: it is a sum, and there is nothing on it to edit. Wears
- *  .fig (mono) even at zero — unlike a day cell's own em dash, the footer's
- *  keeps the class regardless, per the drawing's tfoot markup. */
+ *  never a control: it is a sum, and there is nothing on it to edit. Its mark
+ *  is a tab stop, though, so a keyboard reader still reaches the tooltip that
+ *  names the state. Wears .fig (mono) even at zero — unlike a day cell's own
+ *  em dash, the footer's keeps the class regardless, per the drawing's tfoot
+ *  markup. */
 function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCellElement {
   const td = document.createElement("td");
   // Same reasoning as ticketCell's td: the footer's Ticket cell is also a
@@ -396,19 +401,21 @@ function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCell
 
   const marker = markerFor(day.pushState, failed);
   if (marker) {
+    // The entry dialog's pushMark shape: the mark is the only thing here
+    // carrying the state, so it is a named tab stop and the tooltip only
+    // shows what the label already says (#231, replacing a native title).
     const mark = document.createElement("span");
+    mark.id = `that-week-day-mark-${String(++weekDayMarkSequence)}`;
+    mark.tabIndex = 0;
+    mark.setAttribute("role", "img");
+    mark.setAttribute("aria-label", marker.words);
     mark.className = `${FOOT_MARKER} ${marker.className}`;
-    mark.setAttribute("aria-hidden", "true");
-    mark.title = marker.words;
-    td.append(mark);
 
-    const words = document.createElement("span");
-    words.className = "sr-only";
-    // Named for a reader who cannot see the marker. "Dirty" is the code's
-    // word, not a person's. There is no control here to carry an aria-label,
-    // which is what still makes this span load-bearing rather than decorative.
-    words.textContent = `${marker.words}, `;
-    td.append(words);
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", mark.id);
+    tooltip.textContent = marker.words;
+
+    td.append(mark, tooltip);
   }
 
   td.append(document.createTextNode(totalFigure(day.seconds)));
