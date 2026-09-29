@@ -1034,6 +1034,77 @@ test.describe("the dialog", () => {
   });
 });
 
+// #250: Escape first closes the add/edit form, keeping what the rest of
+// Settings shows; only a second Escape closes Settings.
+test.describe("Escape with the instance form open", () => {
+  test("the first closes the Add form and keeps Settings; the second closes Settings", async ({
+    page,
+  }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    const settings = await openSettings(page);
+    await settings.getByRole("button", { name: "Add an instance" }).click();
+    await settings.getByLabel("Name", { exact: true }).fill("Half-typed");
+
+    await page.keyboard.press("Escape");
+
+    await expect(settings.getByLabel("Name", { exact: true })).toHaveCount(0);
+    await expect(settings).toBeVisible();
+    await expect(settings.getByRole("button", { name: "Add an instance" })).toBeFocused();
+
+    await page.keyboard.press("Escape");
+
+    await expect(settings).toHaveCount(0);
+    await expect(page.locator("#settings-cog")).toBeFocused();
+  });
+
+  test("closing an Edit form hands focus back to that row's Edit", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline"), listed(2, "Harbour")]);
+    const settings = await openSettings(page);
+    await settings.getByRole("button", { name: "Edit Harbour", exact: true }).click();
+    await expect(settings.getByLabel("Name", { exact: true })).toBeFocused();
+
+    await page.keyboard.press("Escape");
+
+    await expect(settings.getByLabel("Name", { exact: true })).toHaveCount(0);
+    await expect(settings).toBeVisible();
+    await expect(settings.getByRole("button", { name: "Edit Harbour", exact: true })).toBeFocused();
+  });
+
+  test("with focus elsewhere in Settings, the form closes and focus stays put", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    const settings = await openSettings(page);
+    await settings.getByRole("button", { name: "Add an instance" }).click();
+    await expect(settings.getByLabel("Name", { exact: true })).toBeFocused();
+
+    // Back past Add an instance onto the row's last control.
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Shift+Tab");
+    const remove = settings.getByRole("button", { name: "Remove Ridgeline", exact: true });
+    await expect(remove).toBeFocused();
+
+    await page.keyboard.press("Escape");
+
+    await expect(settings.getByLabel("Name", { exact: true })).toHaveCount(0);
+    await expect(settings).toBeVisible();
+    await expect(remove).toBeFocused();
+  });
+
+  test("a Remove confirm over the form takes the Escape itself", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    const settings = await openSettings(page);
+    await settings.getByRole("button", { name: "Add an instance" }).click();
+    await settings.getByLabel("Name", { exact: true }).fill("Half-typed");
+    await settings.getByRole("button", { name: "Remove Ridgeline", exact: true }).click();
+    await expect(confirmDialog(page)).toBeVisible();
+
+    await page.keyboard.press("Escape");
+
+    await expect(confirmDialog(page)).toBeHidden();
+    await expect(settings).toBeVisible();
+    await expect(settings.getByLabel("Name", { exact: true })).toHaveValue("Half-typed");
+  });
+});
+
 test.describe("instance rows", () => {
   test("each row carries its 8px instance-hue dot and host · email in mono", async ({ page }) => {
     await stubListed(page, [listed(1, "Ridgeline"), listed(2, "Northwind")]);
