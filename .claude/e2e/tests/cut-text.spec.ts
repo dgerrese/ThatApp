@@ -253,6 +253,35 @@ test("a cut rail instance name shows its full text on hover", async ({ page }) =
   await expect(page.locator("that-tooltip", { hasText: longInstanceName })).toBeVisible();
 });
 
+// #236: the settings cog is the rail's last Tab stop before the split — the
+// period label and the total between them are not focusable.
+test("a cut rail instance name is its own Tab stop and opens only its own tooltip", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubEntries(page, [railEntry(longInstanceName)]);
+  await page.goto("/today");
+
+  const name = page.locator('#rail-split [id^="that-rail-name-"]').first();
+  await tabTo(page, page.locator("#settings-cog"), name);
+
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(longInstanceName);
+});
+
+test("a rail instance name that is not cut is still a Tab stop and opens nothing", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubEntries(page, [railEntry("Work")]);
+  await page.goto("/today");
+
+  const name = page.locator('#rail-split [id^="that-rail-name-"]').first();
+  await tabTo(page, page.locator("#settings-cog"), name);
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
 // Measured against the real rail width (216px column, 100px left for the key
 // once the dot, the elapsed figure and the stop button take their share):
 // even a realistic Jira key like this one already overflows it, so this is

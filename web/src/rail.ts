@@ -630,6 +630,9 @@ function figures(slices: Slice[]): HTMLElement {
     const nameId = `that-rail-name-${String(++railCutTextSequence)}`;
     const name = document.createElement("span");
     name.id = nameId;
+    // Its own Tab stop, cut or not (#236), so a keyboard reaches a cut name
+    // the way a pointer does; `when-cut` keeps the tooltip shut otherwise.
+    name.tabIndex = 0;
     name.className = "text-rail-muted min-w-0 flex-1 truncate";
     name.textContent = slice.name;
 
