@@ -104,7 +104,15 @@ test("a Today row's key focus shows only the key's own tooltip, not the cut summ
 }) => {
   await stubIssues(page, [group(1, "Work", [issue("WORK-1", longSummary)])]);
   await page.goto("/today");
-  await page.getByRole("link", { name: "WORK-1" }).focus();
+  const key = page.getByRole("link", { name: "WORK-1" });
+  const summary = page.getByText(longSummary, { exact: true }).first();
+  // #217: reach the key by a real Shift+Tab from the summary right after it
+  // in DOM order, never by focusing the key itself — it is the element under
+  // test.
+  await summary.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(key).toBeFocused();
   await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeVisible();
   await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeHidden();
 });
@@ -212,7 +220,17 @@ test("focusing a pinned row's key link shows only the key's own tooltip, neither
   await stubIssues(page, [group(1, "Work", [])]);
   await stubPinWithError(page, longSummary, longFailure);
   await page.goto("/today");
-  await page.getByRole("link", { name: "WORK-1" }).focus();
+
+  const key = page.getByRole("link", { name: "WORK-1" });
+  const row = page.locator('that-ticket-row[key="WORK-1"]');
+  const summary = row.locator('[id^="that-sum-"]');
+  // #217: reach the key by a real Shift+Tab from the summary right after it
+  // in DOM order, never by focusing the key itself — it is the element under
+  // test.
+  await summary.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(key).toBeFocused();
   await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeVisible();
   await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeHidden();
   await expect(page.locator("that-tooltip", { hasText: longFailure })).toBeHidden();
