@@ -118,8 +118,8 @@ test("focus on Dismiss pauses the countdown, and Dismiss closes the toast", asyn
 test("an error survives moving to Week and back", async ({ page }) => {
   await page.route("**/api/week**", (r) => r.fulfill({ status: 500, json: { code: "x", message: "y" } }));
   await add(page, "error", "stays across views");
-  await page.getByRole("link", { name: "Week" }).click();
-  await page.getByRole("link", { name: "Today" }).click();
+  await page.getByRole("link", { name: "Week", exact: true }).click();
+  await page.getByRole("link", { name: "Today", exact: true }).click();
   await expect(page.locator("that-toast", { hasText: "stays across views" })).toBeVisible();
 });
 
@@ -167,4 +167,23 @@ test("removing an open dialog without closing it does not lose the host", async 
   await page.evaluate(() => document.querySelector("#fixture-dialog")?.remove());
   await add(page, "error", "still works");
   await expect(page.locator("that-toast", { hasText: "still works" })).toBeVisible();
+});
+
+// #123, decision 3: state messages stay inline. The other guards are count-0
+// assertions inside the tests that already set each case up; this is the one
+// case none of them stubs.
+test("the pinned list's read failure is an inline alert, not a toast", async ({ page }) => {
+  await page.route("**/api/pins**", (r) =>
+    r.fulfill({ status: 500, json: { code: "store_failed", message: "could not read the stored pins" } }),
+  );
+  // Pinned only shows once an instance exists.
+  await page.route("**/api/issues", (r) =>
+    r.fulfill({ status: 200, json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] } }),
+  );
+  // The beforeEach already loaded Today; leave and return so it reads pins again.
+  await page.getByRole("link", { name: "Week", exact: true }).click();
+  await page.getByRole("link", { name: "Today", exact: true }).click();
+
+  await expect(page.locator("#view that-alert", { hasText: "could not read the stored pins" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
 });

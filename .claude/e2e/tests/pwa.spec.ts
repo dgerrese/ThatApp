@@ -723,6 +723,9 @@ test("the assigned-issues warning names a time while the server is unreachable, 
 
   const stale = await openTodayStale(page, context);
   await expect(stale.warning).toBeVisible();
+  // #123: a state message stays inline, never a toast.
+  await expect(page.locator("#view that-alert", { hasText: "Showing what was here" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
 
   // The server recovering, plus the same event the browser itself fires: this
   // is what proves the view's own "online" listener re-runs the refresh,

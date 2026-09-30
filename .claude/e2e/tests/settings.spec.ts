@@ -215,6 +215,9 @@ test("a rejected connection test reports the failure", async ({ page }) => {
   await expect(settings.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
   await expect(settings.getByText(/Connected ·/)).toBeHidden();
   await expect(settings.getByText("Not tested")).toBeHidden();
+  // #123: a Test connection failure stays inline in the dialog, never a toast.
+  await expect(settings.locator("that-alert", { hasText: "Jira did not accept the API token" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
 });
 
 test("removing an instance asks first, and cancelling changes nothing", async ({ page }) => {
@@ -489,6 +492,9 @@ test("editing an instance to add its site URL clears the missing-URL warning", a
   await page.getByRole("button", { name: "Add instance" }).click();
 
   await expect(page.getByText("This instance has no site URL")).toBeVisible();
+  // #123: a state notice stays inline in the dialog, never a toast.
+  await expect(page.getByRole("dialog", { name: "Settings" }).locator("that-alert", { hasText: "This instance has no site URL" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Site URL").fill("https://example.atlassian.net");
@@ -688,6 +694,9 @@ test("a save failing with its form still shown reports in the form", async ({ pa
 
   await expect(page.locator("form").getByText("could not save the instance", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Edit Work" })).toBeVisible();
+  // #123: the form's own error stays in the form, never a toast.
+  await expect(page.locator("form that-alert", { hasText: "could not save the instance" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
 });
 
 // #205: the error slot keeps the section heading's 10px above the instance

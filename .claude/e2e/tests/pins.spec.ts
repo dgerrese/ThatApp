@@ -191,6 +191,9 @@ test("the pinned card renders when every instance fails", async ({ page }) => {
 
   await expect(page.getByText("SHARED-12")).toBeVisible();
   await expect(page.getByText("the Jira site could not be reached")).toBeVisible();
+  // #123: a card's read failure stays inline, never a toast.
+  await expect(page.locator("#view that-alert", { hasText: "the Jira site could not be reached" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
 });
 
 test("no pins shows nothing pinned", async ({ page }) => {

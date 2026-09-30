@@ -507,6 +507,8 @@ test("a failed cell is marked, survives the push report's own re-read, and one R
 
   await pushEverything(page);
   await expect(wednesday).toHaveAttribute("aria-label", /push failed/);
+  // #123: the failure mark is the grid's own drawing and the rail line stays.
+  await expect(page.locator("#rail-unpushed")).toHaveText(/entr(y|ies) to push/);
 
   // /api/week is unchanged from the read above — the entry never actually
   // pushed, so its own rollup still says "unpushed" either way — which is
@@ -1060,6 +1062,9 @@ test("a failed read on a refresh press surfaces the same way a failed fetch does
   await refreshControl.click();
 
   await expect(page.getByText("could not read the stored week")).toBeVisible();
+  // #123: the grid's read failure stays inline, never a toast.
+  await expect(page.locator("#view that-alert", { hasText: "could not read the stored week" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
   // Neither control is left stuck disabled behind the failure — the same
   // recovery fetch.spec.ts already proves for a failed fetch.
   await expect(refreshControl).toBeEnabled();
