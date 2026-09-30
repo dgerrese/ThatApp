@@ -1,6 +1,6 @@
-import "./that-alert";
 import "./that-button";
 import "./that-confirm";
+import "./that-dialog-blocks";
 import "./that-duration";
 
 import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "../api";
@@ -12,6 +12,7 @@ import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
 import { PUSH_MARKS, knownPushState, type PushMark } from "../push-marks";
 import type { Entry } from "../types";
+import type { ThatDialogBlocks } from "./that-dialog-blocks";
 import type { ThatDuration } from "./that-duration";
 
 /**
@@ -102,7 +103,7 @@ export class ThatEntryDialog extends HTMLElement {
   private dayLine: HTMLElement | undefined;
   private list: HTMLElement | undefined;
   private empty: HTMLElement | undefined;
-  private notice: HTMLElement | undefined;
+  private readonly blocks = document.createElement("that-dialog-blocks") as ThatDialogBlocks;
   private duration: ThatDuration | undefined;
   private comment: HTMLInputElement | undefined;
   private submit: HTMLElement | undefined;
@@ -122,7 +123,9 @@ export class ThatEntryDialog extends HTMLElement {
   connectedCallback(): void {
     if (this.dialog || !this.ticket) return;
 
-    this.build(this.ticket).showModal();
+    const dialog = this.build(this.ticket);
+    dialog.showModal();
+    this.blocks.attach(dialog);
     void this.reload();
   }
 
@@ -139,10 +142,13 @@ export class ThatEntryDialog extends HTMLElement {
     // Closing is the only exit, whether it came from Esc, the round Close or a
     // successful mutation, so the element removes itself from one place.
     dialog.addEventListener("close", () => {
+      this.blocks.clear();
       this.remove();
     });
 
     this.dialog = dialog;
+    // Inside the dialog: a modal dialog leaves everything outside it inert.
+    dialog.append(this.blocks);
     this.append(dialog);
 
     return dialog;
@@ -346,11 +352,7 @@ export class ThatEntryDialog extends HTMLElement {
     const foot = document.createElement("div");
     foot.className = "border-edge border-t px-5 pt-3.5 pb-4";
 
-    const notice = document.createElement("div");
-    notice.className = "mb-2 empty:hidden";
-    this.notice = notice;
-
-    foot.append(notice, this.fieldRow());
+    foot.append(this.fieldRow());
 
     return foot;
   }
@@ -628,6 +630,7 @@ export class ThatEntryDialog extends HTMLElement {
     }
 
     const editing = this.editing;
+    this.clearNotice();
     this.setBusy(true);
     try {
       if (editing) {
@@ -658,6 +661,7 @@ export class ThatEntryDialog extends HTMLElement {
     });
     if (!confirmed) return;
 
+    this.clearNotice();
     try {
       await deleteEntry(entry.id);
       // An entry being edited that is then deleted leaves the foot form bound
@@ -703,14 +707,12 @@ export class ThatEntryDialog extends HTMLElement {
   }
 
   private showNotice(tone: string, message: string): void {
-    const alert = document.createElement("that-alert");
-    alert.setAttribute("tone", tone);
-    alert.setAttribute("message", message);
-    this.notice?.replaceChildren(alert);
+    this.blocks.clear();
+    this.blocks.add(tone, message);
   }
 
   private clearNotice(): void {
-    this.notice?.replaceChildren();
+    this.blocks.clear();
   }
 }
 
