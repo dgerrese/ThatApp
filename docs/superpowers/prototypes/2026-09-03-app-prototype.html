@@ -164,10 +164,15 @@
      the running row's), so only its hover wash needs the rail's own token
      rather than the page's --hover. */
   .rail .iconbtn:hover, .rail .iconbtn:focus-visible { background: var(--hover-rail); color: var(--rail-ink); }
-  .tip { position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%); background: oklch(0.06 0.004 60); color: oklch(0.96 0.004 70); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; padding: 5px 9px; border-radius: var(--r-xs); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 120ms; z-index: 8; }
+  .tip { position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%); background: oklch(0.34 0.01 60); color: oklch(0.96 0.004 70); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; padding: 5px 9px; border-radius: var(--r-xs); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 120ms; z-index: 8; }
   .tip.end { left: auto; right: 0; transform: none; }
   .tip.right { left: calc(100% + 9px); right: auto; bottom: auto; top: 50%; transform: translateY(-50%); }
   .tip.below { bottom: auto; top: calc(100% + 7px); }
+  /* #246: a 4px arrow pointing at the control; end-anchored, it sits under the button's centre. */
+  .tip::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 4px solid transparent; border-top-color: oklch(0.34 0.01 60); border-bottom-width: 0; }
+  .tip.end::after { left: auto; right: 13px; transform: none; }
+  .tip.right::after { top: 50%; left: auto; right: 100%; transform: translateY(-50%); border: 4px solid transparent; border-right-color: oklch(0.34 0.01 60); border-left-width: 0; }
+  .tip.below::after { top: auto; bottom: 100%; border: 4px solid transparent; border-bottom-color: oklch(0.34 0.01 60); border-top-width: 0; }
   .iconbtn:hover .tip, .iconbtn:focus-visible .tip, .cog:hover .tip, .cog:focus-visible .tip, .wctl:hover .tip, .cell:hover .tip, .cell:focus-visible .tip,
   .c-key a:hover .tip, .c-key a:focus-visible .tip, .grid .kk:hover .tip, .grid .kk:focus-visible .tip, .rrow .rk:hover .tip, .rrow .rk:focus-visible .tip { opacity: 1; }
 

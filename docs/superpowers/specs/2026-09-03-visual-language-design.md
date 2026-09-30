@@ -450,14 +450,21 @@ regardless, because a tooltip that only appears on hover reaches neither a keybo
 reader on its own. And a tooltip on a **trailing** control anchors to its right edge rather than
 centring on it, or it hangs past the card.
 
-**The tooltip wears the drawing's `.tip` skin, and an end-anchored one sits flush** (owner, #246,
-2026-09-29 and 2026-09-30, in the design companion). The skin is `.tip`'s: ground `oklch(0.06 0.004
-60)` in both themes (`--color-tip`), 12px / 500 text, 5px 9px padding, no shadow, and no
-letter-spacing or text-transform inherited from its host. The text keeps `--color-rail-ink`,
-`oklch(0.962 0.005 70)`, against `.tip`'s `oklch(0.96 0.004 70)`: a difference nobody can see,
-kept so the app has one near-white ink on dark grounds. A tooltip on a
-trailing control puts its right edge exactly on the button's right edge; the prototype's `.tip.end`
-drew it 8px past, and changed to match.
+**The tooltip's skin, settled in #246's design session** (owner, 2026-09-30, in the design companion,
+tried in the full prototype):
+
+- **Text and box are the drawing's `.tip`:** 12px / 500 text, 5px 9px padding, 2px corners, no
+  shadow, and no letter-spacing or text-transform inherited from its host. The text keeps
+  `--color-rail-ink`, `oklch(0.962 0.005 70)`, against `.tip`'s `oklch(0.96 0.004 70)`: a difference
+  nobody can see, kept so the app has one near-white ink on dark grounds.
+- **The ground is `oklch(0.34 0.01 60)` in both themes (`--color-tip`), not the drawing's 0.06.**
+  0.06 vanished on the rail (0.105), and 0.26 vanished on the dark table card (0.228). 0.34 stands
+  apart from both, and its text measures 10.55:1, above AAA's 7:1.
+- **Every tooltip carries a 4px arrow** on the side facing its control, pointing at the control's
+  centre, above, below or beside it. At 2px corners with no arrow, it was not always clear which
+  control a tooltip belonged to.
+- **An end-anchored tooltip sits flush:** its right edge is on the button's right edge, and its arrow
+  under the button's centre. The prototype's `.tip.end` drew it 8px past, and changed to match.
 
 **It opens above its trigger, the drawing's `.tip`, and falls back below — the drawing's own
 `.tip.below` — when there is not enough room above.** #content starts flush against the window's
