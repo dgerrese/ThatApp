@@ -624,7 +624,8 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
   const paintedByTooltip = await page.evaluate(({ x, y, width, height }) => {
     const tooltip = document.querySelector<HTMLElement>("that-tooltip[data-fixture]");
     if (!tooltip) throw new Error("tooltip not found");
-    // Temporarily enable pointer events for elementFromPoint to find the tooltip
+    // The probe must undo the tooltip's own pointer-events: none (#107),
+    // or elementFromPoint looks straight through it.
     const original = tooltip.style.pointerEvents;
     tooltip.style.pointerEvents = "auto";
     const hit = document.elementFromPoint(x + width / 2, y + height / 2);

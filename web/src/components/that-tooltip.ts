@@ -54,15 +54,11 @@ export class ThatTooltip extends HTMLElement {
 
     // reveal() places the box once, at show time, from the trigger's rect and
     // this element's own width. A consumer can repaint this element's text —
-    // and so its width — while the popover is still open under the pointer:
-    // that-ticket-row's pin control does exactly that, from "pin ticket" to
-    // "unpin ticket", on the same click that leaves the tooltip open.
-    // Chromium happens to focus a clicked button, which re-runs onShow and
-    // hides the seam; Firefox does not focus a button on click, so the stale
-    // box is real there, under the primary target. Watching the text directly
-    // — rather than hiding on click, which would fight the hover-driven
-    // tests that expect the tooltip to still be open right after — is what
-    // makes both browsers agree.
+    // and so its width — while the popover is still open: that-ticket-row's
+    // pin control does exactly that. A click focus no longer re-reveals (#107),
+    // so only watching the text keeps the box right. Watching rather than
+    // hiding on click also lets hover-driven tests expect the tooltip to still
+    // be open right after.
     this.observer = new MutationObserver(() => {
       if (this.matches(":popover-open")) this.reveal();
     });
