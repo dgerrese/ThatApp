@@ -219,6 +219,9 @@ test("a failed request shows the error and leaves Refresh usable", async ({ page
 
   await expect(page.getByText("could not read the stored instances")).toBeVisible();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
+  // #123: a state message stays inline, never a toast.
+  await expect(page.locator("#view that-alert", { hasText: "could not read the stored instances" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
 });
 
 test("/ leads to Today and leaves no history trap", async ({ page }) => {

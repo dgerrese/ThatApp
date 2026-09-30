@@ -191,6 +191,9 @@ test("the pinned card renders when every instance fails", async ({ page }) => {
 
   await expect(page.getByText("SHARED-12")).toBeVisible();
   await expect(page.getByText("the Jira site could not be reached")).toBeVisible();
+  // #123: a card's read failure stays inline, never a toast.
+  await expect(page.locator("#view that-alert", { hasText: "the Jira site could not be reached" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
 });
 
 test("no pins shows nothing pinned", async ({ page }) => {
@@ -684,12 +687,10 @@ test.describe("the ticket row's own pin control", () => {
 });
 
 /**
- * #109: a failed pin or unpin reports at the top of whichever section holds
- * the ticket's row once the lists are redrawn from server truth. Pinned only
- * gets the report when the row is there (an unpin) or nowhere (a pin pressed
- * in the search panel).
+ * #109, #123: a failed pin or unpin restores its row from server truth and
+ * reports in a toast, wherever the row is.
  */
-test.describe("a failed pin reports beside its row", () => {
+test.describe("a failed pin reports in a toast", () => {
   const failure = { code: "jira_error", message: "Jira did not take the pin." };
 
   async function failPinRequests(page: Page): Promise<void> {
@@ -702,11 +703,15 @@ test.describe("a failed pin reports beside its row", () => {
     });
   }
 
+  const toastReport = (page: Page) => page.locator("that-toasts that-toast[tone='error']");
+  const noInlineReport = (page: Page) =>
+    expect(page.locator("#view that-alert", { hasText: failure.message })).toHaveCount(0);
+
   const pinned = (page: Page) => page.locator('section[aria-labelledby="today-pinned"]');
   const instance = (page: Page) => page.locator('section[aria-labelledby="today-instance-1"]');
   const offList = (page: Page) => page.locator('section[aria-labelledby="today-offlist"]');
 
-  test("a pin that fails on an instance row reports at the top of that instance section", async ({
+  test("a pin that fails on an instance row reports in a toast", async ({
     page,
   }) => {
     await stubPins(page, []);
@@ -730,13 +735,12 @@ test.describe("a failed pin reports beside its row", () => {
     await page.goto("/today");
     await page.getByRole("button", { name: "Pin RIDGE-7", exact: true }).click();
 
-    await expect(instance(page).locator("that-alert + that-table")).toHaveCount(1);
-    await expect(instance(page).locator("that-alert")).toHaveText(failure.message);
-    await expect(pinned(page).locator("that-alert")).toHaveCount(0);
+    await expect(toastReport(page)).toContainText(failure.message);
+    await noInlineReport(page);
     await expect(instance(page).getByRole("button", { name: "Pin RIDGE-7", exact: true })).toBeVisible();
   });
 
-  test("a pin that fails on an off-list row reports at the top of the off-list section", async ({
+  test("a pin that fails on an off-list row reports in a toast", async ({
     page,
   }) => {
     await stubPins(page, []);
@@ -770,13 +774,12 @@ test.describe("a failed pin reports beside its row", () => {
     await expect(offList(page).getByText("Vendor security review").first()).toBeVisible();
     await page.getByRole("button", { name: "Pin SHARED-40", exact: true }).click();
 
-    await expect(offList(page).locator("that-alert + that-table")).toHaveCount(1);
-    await expect(offList(page).locator("that-alert")).toHaveText(failure.message);
-    await expect(pinned(page).locator("that-alert")).toHaveCount(0);
+    await expect(toastReport(page)).toContainText(failure.message);
+    await noInlineReport(page);
     await expect(offList(page).getByRole("button", { name: "Pin SHARED-40", exact: true })).toBeVisible();
   });
 
-  test("an unpin that fails reports at the top of Pinned", async ({ page }) => {
+  test("an unpin that fails reports in a toast", async ({ page }) => {
     await stubPins(page, [pin(1, "Ridgeline", "SHARED-12", "Weekly standup")]);
     await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
     await failPinRequests(page);
@@ -784,13 +787,12 @@ test.describe("a failed pin reports beside its row", () => {
     await page.goto("/today");
     await page.getByRole("button", { name: "Unpin SHARED-12", exact: true }).click();
 
-    await expect(pinned(page).locator("that-alert + that-table")).toHaveCount(1);
-    await expect(pinned(page).locator("that-alert")).toHaveText(failure.message);
-    await expect(instance(page).locator("that-alert")).toHaveCount(0);
+    await expect(toastReport(page)).toContainText(failure.message);
+    await noInlineReport(page);
     await expect(pinned(page).getByRole("button", { name: "Unpin SHARED-12", exact: true })).toBeVisible();
   });
 
-  test("a pin that fails from the search panel, for an issue with no row, reports in Pinned", async ({
+  test("a pin that fails from the search panel, for an issue with no row, reports in a toast", async ({
     page,
   }) => {
     await stubPins(page, []);
@@ -802,8 +804,8 @@ test.describe("a failed pin reports beside its row", () => {
     await page.getByRole("textbox", { name: "Search all instances" }).fill("vendor");
     await page.getByRole("button", { name: "Pin SHARED-40", exact: true }).click();
 
-    await expect(pinned(page).locator("that-alert")).toHaveText(failure.message);
-    await expect(instance(page).locator("that-alert")).toHaveCount(0);
+    await expect(toastReport(page)).toContainText(failure.message);
+    await noInlineReport(page);
     await expect(page.getByRole("button", { name: "Pin SHARED-40", exact: true })).toBeVisible();
   });
 });

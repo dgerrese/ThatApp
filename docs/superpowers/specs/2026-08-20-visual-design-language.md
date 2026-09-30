@@ -316,8 +316,9 @@ Each is an artboard; the reasoning is in `annotations.md`.
   live, not a stale copy — because both share the one tone. **A list with no state colour in it
   means you are done.**
 - **Partial push failure** — the state the design of record calls out by name. A push is not
-  transactional; each entry succeeds or fails alone. A banner with the count, per-row markers, a rail
-  line, and Push becomes Retry. A row is a *sum*, so it can be partly through — "1 of 2 failed" — and
+  transactional; each entry succeeds or fails alone. Toasts with the count and the entries' names
+  (`2026-09-25-toasts-design.md`, which replaced the banner), per-row markers, a rail line, and Push
+  becomes Retry. A row is a *sum*, so it can be partly through — "1 of 2 failed" — and
   opening the row shows which entry.
 
 ## The phone

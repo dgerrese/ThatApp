@@ -125,6 +125,14 @@
      and the border resolve to the same colour. */
   --shadow-popover: 0 6px 16px -8px light-dark(oklch(0 0 0 / 0.12), oklch(0 0 0 / 0.7));
 
+  /* #123: a toast takes the prototype's popover elevation (.results): an edge
+     ring and a whisper of shadow in light, a two-layer shadow in dark. */
+  --shadow-toast:
+    inset 0 0 0 1px var(--color-edge-ring),
+    0 2px 6px light-dark(oklch(0 0 0 / 0), oklch(0 0 0 / 0.45)),
+    0 6px 16px -8px light-dark(oklch(0 0 0 / 0.12), oklch(0 0 0 / 0)),
+    0 18px 40px -16px light-dark(oklch(0 0 0 / 0), oklch(0 0 0 / 0.7));
+
   /* The dialog carries a real border already, which is the same hairline by
      another mechanism, so it takes no ring of its own. */
   --shadow-dialog: 0 12px 36px -12px light-dark(oklch(0 0 0 / 0.16), oklch(0 0 0 / 0.75));
@@ -386,4 +394,26 @@ that-tooltip[data-side="right"]::after {
   top: calc(var(--arrow-at) - 4px);
   border-right-color: var(--color-tip);
   border-left-width: 0;
+}
+
+/* #123: a success toast's life is its countdown line's animation. Paused while
+   the pointer or focus is on the toast, so it resumes where it stopped. */
+@keyframes toast-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+that-toast [data-countdown] > span {
+  transform-origin: left;
+  animation: toast-countdown 4s linear forwards;
+}
+that-toast:hover [data-countdown] > span,
+that-toast:focus-within [data-countdown] > span {
+  animation-play-state: paused;
+}
+that-toasts:not(:defined) {
+  display: none;
 }

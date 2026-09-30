@@ -19,12 +19,13 @@ import { clockTime, totalFigure } from "../format";
 import { paintInstanceDot } from "../instance-hue";
 import { openSettings } from "../open-settings";
 import { pageHeading } from "../page-heading";
-import { pushReportNodes } from "../push-report";
+import { pushReportLines, showPushReport } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import type { RegisterTeardown } from "../router";
 import { enableRowArrowKeys } from "../table-keys";
 import { currentTimer, elapsedSeconds, onTimerChanged } from "../timer-state";
+import { toast } from "../toast";
 import { toolbarButton } from "../toolbar-button";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
@@ -68,9 +69,6 @@ interface Regions {
   /** One banner above both lists, per the design spec's singular "the
    *  warning" — not one per list. See renderCombinedStale. */
   stale: HTMLElement;
-  /** The result of the last push attempt: a success alert, a failure alert, or
-   *  a failure alert plus the list of entries that did not make it. */
-  pushReport: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
   /** Today's entries as last read, kept (not just folded into totals) because
@@ -220,12 +218,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // contributes none.
   stale.hidden = true;
 
-  const pushReport = document.createElement("div");
-  // Same reasoning as stale above: empty but present would still claim a
-  // margin, this time the one holding it off the cards below.
-  pushReport.className = "mb-2.5";
-  pushReport.hidden = true;
-
   // Pinned and Assigned issues are two sections of one list, so Pinned is a
   // page heading level with the other rather than a card with a label inside
   // it — the prototype's two .pageh blocks, lines 329 and 331.
@@ -297,7 +289,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
   const assignedSection = document.createElement("section");
   assignedSection.setAttribute("aria-labelledby", ASSIGNED_HEADING_ID);
-  assignedSection.append(header, pushReport, results);
+  assignedSection.append(header, results);
 
   container.append(stale, layoutGrid, assignedSection);
   root.append(container);
@@ -317,7 +309,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     refresh,
     results,
     stale,
-    pushReport,
     pins: [],
     lastIssues: null,
     entries: [],
@@ -399,7 +390,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // outlives-the-view reasoning as the subscription above, and the same
   // teardown so a navigation away cannot leave it painting a detached view.
   const stopPushListening = onPushReported((responses, unanswered) => {
-    showPushReport(regions, ...pushReportNodes(responses, unanswered));
+    showPushReport(pushReportLines(responses, unanswered));
   });
   registerTeardown(stopPushListening);
 
@@ -870,7 +861,7 @@ async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
   try {
     await createPin(ticket.instanceId, ticket.issueKey);
   } catch (error) {
-    undoOptimisticMark(regions, ticket, error);
+    undoOptimisticMark(regions, error);
     restorePinFocus(toRestore);
 
     return;
@@ -905,7 +896,7 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
   try {
     await deletePin(pin.id);
   } catch (error) {
-    undoOptimisticMark(regions, ticket, error);
+    undoOptimisticMark(regions, error);
     restorePinFocus(toRestore);
 
     return;
@@ -918,13 +909,9 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
 /**
  * Redraws both lists from what the server last said, so a row whose pin
  * control flipped optimistically stops claiming a change that never happened,
- * then names the failure above the table holding the ticket's row. The redraw
- * is server truth, so that is wherever the failed action left the row. A
- * ticket with no row on the page (a pin pressed in the search panel) reports
- * in Pinned. The alert goes in after the redraw because the redraw is what
- * would otherwise wipe it.
+ * then names the failure in a toast, which no redraw can wipe.
  */
-function undoOptimisticMark(regions: Regions, ticket: EntryTicket, error: unknown): void {
+function undoOptimisticMark(regions: Regions, error: unknown): void {
   renderPinnedList(regions, regions.pins);
   if (regions.lastIssues) {
     renderResponse(regions, regions.lastIssues);
@@ -935,29 +922,7 @@ function undoOptimisticMark(regions: Regions, ticket: EntryTicket, error: unknow
     renderOffListSection(regions);
   }
 
-  const alert = alertFor("error", messageOf(error));
-  const table = ticketRowOf(regions, ticket)?.closest("that-table");
-  if (table) {
-    table.before(alert);
-  } else {
-    regions.pinnedList.prepend(alert);
-  }
-}
-
-/** The ticket's row in Pinned, the off-list section or an instance card. The
- *  search panel's results are not that-ticket-rows and live outside both
- *  regions, so they never match. */
-function ticketRowOf(regions: Regions, ticket: EntryTicket): Element | undefined {
-  const rows = [
-    ...regions.layoutGrid.querySelectorAll("that-ticket-row"),
-    ...regions.results.querySelectorAll("that-ticket-row"),
-  ];
-
-  return rows.find(
-    (row) =>
-      row.getAttribute("instance-id") === String(ticket.instanceId) &&
-      row.getAttribute("key") === ticket.issueKey,
-  );
+  toast("error", messageOf(error));
 }
 
 /** The pinned (instanceId, key) pairs, keyed the same way offListIssues'
@@ -1042,14 +1007,6 @@ async function refreshEverything(regions: Regions): Promise<void> {
   } finally {
     regions.refresh.removeAttribute("disabled");
   }
-}
-
-/** Replaces pushReport's content and reveals it — the one place both steps
- *  happen, since every push outcome (a read failure, "already pushed", a
- *  push failure, a push result) needs both. */
-function showPushReport(regions: Regions, ...nodes: Node[]): void {
-  regions.pushReport.replaceChildren(...nodes);
-  regions.pushReport.hidden = false;
 }
 
 function renderResponse(regions: Regions, response: IssuesResponse): void {

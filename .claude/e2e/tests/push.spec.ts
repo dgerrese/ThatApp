@@ -130,9 +130,47 @@ test("a push where one entry fails names the entry that did not make it", async 
   await page.getByRole("button", { name: "Push", exact: true }).click();
 
   // The failure is named per entry, not summarised away.
-  await expect(page.getByText(/1 of 2 entries could not be pushed/)).toBeVisible();
-  await expect(page.getByText(/RIDGE-2 — the Jira site could not be reached/)).toBeVisible();
-  await expect(page.getByText("RIDGE-1 —")).toHaveCount(0);
+  await expect(page.locator("that-toasts").getByText(/1 of 2 entries could not be pushed/)).toBeVisible();
+  await expect(page.locator("that-toasts").getByText(/RIDGE-2 — the Jira site could not be reached/)).toBeVisible();
+  await expect(page.locator("that-toasts").getByText("RIDGE-1 —")).toHaveCount(0);
+  // #123: the report is a toast, but the rail's own count line stays a line of the rail.
+  await expect(page.locator("#rail-unpushed")).toHaveText(/entr(y|ies) to push/);
+});
+
+test("each line of a push report is its own toast", async ({ page }) => {
+  await stubToday(page, [
+    { id: 1, issueKey: "RIDGE-1", pushState: "unpushed" },
+    { id: 2, issueKey: "RIDGE-2", pushState: "unpushed" },
+  ]);
+  await page.route("**/api/push**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        day: "2026-08-31",
+        results: [
+          {
+            entryId: 1, issueKey: "RIDGE-1", instanceId: 1, status: "failed",
+            error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
+          },
+          {
+            entryId: 2, issueKey: "RIDGE-2", instanceId: 1, status: "failed",
+            error: { code: "store_failed", message: "disk full" },
+          },
+        ],
+      },
+    }),
+  );
+
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Push worklogs" }).click();
+  await page.getByRole("button", { name: "Push", exact: true }).click();
+
+  const toasts = page.locator("that-toasts that-toast");
+  await expect(toasts).toHaveCount(2);
+  const warning = page.locator("that-toasts that-toast[tone='warning']");
+  const error = page.locator("that-toasts that-toast[tone='error']");
+  await expect(warning.locator("li")).toHaveText(["RIDGE-1 — the Jira site could not be reached"]);
+  await expect(error.locator("li")).toHaveText(["RIDGE-2"]);
 });
 
 test("the confirmation does not claim a correction will be created", async ({ page }) => {
@@ -183,6 +221,8 @@ test("a push that cannot recheck what's pending leaves the rail failed alone, no
   await page.getByRole("button", { name: "Push worklogs" }).click();
 
   await expect(unpushed).toHaveText("Could not check what's pending — press Push worklogs to retry.");
+  // #123: the rail's own line carries this failure, never a toast.
+  await expect(page.locator("that-toast")).toHaveCount(0);
   // Both writers used to only remove their own idea of what might be on the
   // element, so a failure while the queue was non-empty left text-pending-rail
   // and text-failed-rail on it together — whichever token's declared later in

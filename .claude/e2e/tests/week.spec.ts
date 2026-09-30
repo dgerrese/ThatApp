@@ -328,7 +328,7 @@ test("a week holding only edited-since-pushed time still offers a push", async (
   await expect(page.locator("#rail-push")).toBeEnabled();
 });
 
-test("pushing from the Week view reports below the grid and names the day that failed", async ({
+test("pushing from the Week view reports in a toast and names the day that failed", async ({
   page,
 }) => {
   await openWeek(
@@ -371,15 +371,10 @@ test("pushing from the Week view reports below the grid and names the day that f
 
   // One press covered two days, so "RIDGE-2 failed" alone would not say where to
   // look. The day is part of the line.
-  const failure = page.getByText("2026-09-09 · RIDGE-2 — the Jira site could not be reached");
+  const failure = page
+    .locator("that-toasts")
+    .getByText("2026-09-09 · RIDGE-2 — the Jira site could not be reached");
   await expect(failure).toBeVisible();
-
-  // Below the grid, not above it: the grid must not move under a press.
-  const table = await page.locator("table").boundingBox();
-  const line = await failure.boundingBox();
-  expect(table).not.toBeNull();
-  expect(line).not.toBeNull();
-  expect(line?.y ?? 0).toBeGreaterThan((table?.y ?? 0) + (table?.height ?? 0));
 });
 
 /**
@@ -408,12 +403,12 @@ test("an entry Jira took but the store lost says not to push again", async ({ pa
 
   await pushEverything(page);
 
-  const alert = page.locator("that-alert[tone='error']");
+  const alert = page.locator("that-toasts that-toast[tone='error']");
   await expect(alert).toContainText(
     "1 entry was pushed but could not be recorded here. Check the issue before " +
       "pushing again — pushing now would log the time twice.",
   );
-  await expect(page.getByText("2026-09-07 · RIDGE-1")).toBeVisible();
+  await expect(page.locator("that-toasts").getByText("2026-09-07 · RIDGE-1")).toBeVisible();
   // The retry line belongs to every other failure and would be actively harmful
   // here, so its absence is as much the assertion as the words above.
   await expect(page.getByText(/again to retry them/)).toHaveCount(0);
@@ -458,11 +453,11 @@ test("a day whose push never answered is named rather than counted as pushed", a
 
   await pushEverything(page);
 
-  await expect(page.locator("that-alert[tone='warning']")).toContainText(
+  await expect(page.locator("that-toasts that-toast[tone='warning']")).toContainText(
     "1 day did not answer, so what happened to its time is not known here. " +
       "Press Push worklogs again.",
   );
-  await expect(page.getByText("2026-09-08", { exact: true })).toBeVisible();
+  await expect(page.locator("that-toasts").getByText("2026-09-08", { exact: true })).toBeVisible();
   await expect(page.getByText(/Pushed \d+ entr/)).toHaveCount(0);
 });
 
@@ -512,6 +507,8 @@ test("a failed cell is marked, survives the push report's own re-read, and one R
 
   await pushEverything(page);
   await expect(wednesday).toHaveAttribute("aria-label", /push failed/);
+  // #123: the failure mark is the grid's own drawing and the rail line stays.
+  await expect(page.locator("#rail-unpushed")).toHaveText(/entr(y|ies) to push/);
 
   // /api/week is unchanged from the read above — the entry never actually
   // pushed, so its own rollup still says "unpushed" either way — which is
@@ -1102,6 +1099,9 @@ test("a failed read on a refresh press surfaces the same way a failed fetch does
   await refreshControl.click();
 
   await expect(page.getByText("could not read the stored week")).toBeVisible();
+  // #123: the grid's read failure stays inline, never a toast.
+  await expect(page.locator("#view that-alert", { hasText: "could not read the stored week" })).toBeVisible();
+  await expect(page.locator("that-toast")).toHaveCount(0);
   // Neither control is left stuck disabled behind the failure — the same
   // recovery fetch.spec.ts already proves for a failed fetch.
   await expect(refreshControl).toBeEnabled();
@@ -1146,7 +1146,7 @@ test("the grid settles once the push has gone through", async ({ page }) => {
 
   await pushEverything(page);
 
-  await expect(page.getByText("Pushed 1 entry.")).toBeVisible();
+  await expect(page.locator("that-toasts").getByText("Pushed 1 entry.")).toBeVisible();
   await expect(monday).toHaveText("1h 00m");
 });
 
@@ -2454,7 +2454,7 @@ test.describe("Week's own search", () => {
     await expect(page.locator("tbody tr", { hasText: "RIDGE-9002" })).toHaveCount(0);
   });
 
-  test("the pin control posts to /api/pins with the chosen ticket, and a failure reports below the grid", async ({
+  test("the pin control posts to /api/pins with the chosen ticket, and a failure reports in a toast", async ({
     page,
   }) => {
     await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
@@ -2518,14 +2518,14 @@ test.describe("Week's own search", () => {
     // Week draws no pin mark of its own (decision 1: a pinned row and a
     // searched one are indistinguishable), so a successful pin has nothing
     // else on screen to show for it — no alert is the whole of the proof.
-    await expect(page.locator("that-alert[tone='error']")).toHaveCount(0);
+    await expect(page.locator("that-toast[tone='error']")).toHaveCount(0);
 
     refuseNext = true;
     await weekSearchResultRow(page, "RIDGE-9002")
       .getByRole("button", { name: "Pin RIDGE-9002", exact: true })
       .click();
 
-    await expect(page.locator("that-alert[tone='error']")).toContainText(
+    await expect(page.locator("that-toasts that-toast[tone='error']")).toContainText(
       "that issue is already pinned on this instance",
     );
   });

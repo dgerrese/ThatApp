@@ -53,33 +53,3 @@ function summarise(response: WeekFetchResponse): string {
 
   return `Added ${String(response.created)} ${entries} and updated ${String(response.updated)}.`;
 }
-
-/**
- * The lines as DOM. A sibling list after each alert, never a child of one:
- * that-alert renders by calling replaceChildren, so anything appended inside is
- * discarded the next time an attribute changes. push-report.ts learnt this the
- * same way.
- */
-export function fetchReportNodes(response: WeekFetchResponse): Node[] {
-  const nodes: Node[] = [];
-
-  for (const line of fetchReportLines(response)) {
-    const alert = document.createElement("that-alert");
-    alert.setAttribute("tone", line.tone);
-    alert.setAttribute("message", line.message);
-    nodes.push(alert);
-
-    if (line.items.length === 0) continue;
-
-    const list = document.createElement("ul");
-    list.className = "mt-2 ml-6 space-y-1 text-sm";
-    for (const item of line.items) {
-      const element = document.createElement("li");
-      element.textContent = item;
-      list.append(element);
-    }
-    nodes.push(list);
-  }
-
-  return nodes;
-}

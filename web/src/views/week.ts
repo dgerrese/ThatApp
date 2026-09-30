@@ -6,15 +6,16 @@ import { createPin, fetchWeek, getWeek } from "../api";
 import { openEntryDialog } from "../components/that-entry-dialog";
 import type { IssueSearchConfig, ThatIssueSearch } from "../components/that-issue-search";
 import { announceEntriesChanged, onEntriesChanged } from "../entries-changed";
-import { fetchReportNodes } from "../fetch-report";
+import { fetchReportLines } from "../fetch-report";
 import { iconMarkup } from "../icons";
 import { pageHeading } from "../page-heading";
-import { pushReportNodes } from "../push-report";
+import { pushReportLines, showPushReport } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod } from "../rail";
 import { navigate } from "../router";
 import type { RegisterTeardown } from "../router";
 import { enableRowArrowKeys } from "../table-keys";
+import { toast } from "../toast";
 import { toolbarButton } from "../toolbar-button";
 import type { IssueHit, WeekRollup, WeekRow } from "../types";
 import { failuresIn, noFailures, weekGrid } from "../week-grid";
@@ -177,8 +178,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
         // The week on screen, not the one the mount opened with: show() keeps
         // this in step with whatever the server answered.
         const outcome = await fetchWeek(showing);
-        report.replaceChildren(...fetchReportNodes(outcome));
-        report.hidden = false;
+        for (const line of fetchReportLines(outcome)) toast(line.tone, line.message, line.items);
         // The grid is read again rather than patched: every total, every mark
         // and every row the fetch may have added comes from the rollup, and
         // patching would be a second implementation of it.
@@ -189,8 +189,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
         // nothing worth repainting for.
         if (outcome.created + outcome.updated > 0) announceEntriesChanged();
       } catch (error) {
-        report.replaceChildren(alertFor("error", messageOf(error)));
-        report.hidden = false;
+        toast("error", messageOf(error));
       } finally {
         busy = false;
         fetchControl.disabled = false;
@@ -220,8 +219,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
         // instead of becoming a silent, unhandled rejection.
         await show();
       } catch (error) {
-        report.replaceChildren(alertFor("error", messageOf(error)));
-        report.hidden = false;
+        toast("error", messageOf(error));
       } finally {
         busy = false;
         fetchControl.disabled = false;
@@ -252,14 +250,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   const grid = document.createElement("div");
   grid.append(loadingLine());
 
-  const report = document.createElement("div");
-  // Below the grid, which is the part that matters: a press must move nothing
-  // above it. Hidden purely because there is no report yet — unlike Today's,
-  // this one is the container's last child, so it claims no space-y margin
-  // either way and hiding it reclaims nothing.
-  report.hidden = true;
-
-  container.append(header, grid, report);
+  container.append(header, grid);
   root.append(container);
 
   // One listener for the grid's whole lifetime: paintWeek only ever replaces
@@ -355,10 +346,9 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   /** Week draws no pin mark of its own (decision 1: a pinned row and a
    *  searched one are indistinguishable), so there is no optimistic mark to
    *  undo here the way Today's pin control has — only a failure worth
-   *  saying, in the same spot a push or fetch failure already reports to. */
+   *  saying, as a toast like every other failed action. */
   function reportPinFailure(error: unknown): void {
-    report.replaceChildren(alertFor("error", messageOf(error)));
-    report.hidden = false;
+    toast("error", messageOf(error));
   }
 
   // `preserveFailures` is false for every user-initiated read (the mount, a
@@ -439,8 +429,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // back, and then re-reads — every marker the rollup knows about settles only
   // when a user-initiated read is asked for again (see `show`'s own comment).
   const stopPushListening = onPushReported((responses, unanswered) => {
-    report.replaceChildren(...pushReportNodes(responses, unanswered, { nameDays: true }));
-    report.hidden = false;
+    showPushReport(pushReportLines(responses, unanswered, { nameDays: true }));
     failures = failuresIn(responses);
     void show({ preserveFailures: true });
   });

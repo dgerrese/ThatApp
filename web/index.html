@@ -213,5 +213,20 @@
         </div>
       </main>
     </div>
+
+    <!--
+      #123: the toast stack. In the markup, not created on demand, because a live
+      region inserted at the moment of its message is announced unreliably; a
+      manual popover so it can sit above a modal dialog. Upgraded from its own
+      chunk by main.ts, like that-tooltip. Empty and zero-size by design, not
+      hidden: the flex class beats the UA rule that would display:none a closed
+      popover, which keeps the live region in the accessibility tree.
+    -->
+    <that-toasts
+      role="status"
+      aria-live="polite"
+      popover="manual"
+      class="fixed inset-auto right-4 bottom-4 m-0 flex flex-col gap-2 overflow-visible border-0 bg-transparent p-0"
+    ></that-toasts>
   </body>
 </html>

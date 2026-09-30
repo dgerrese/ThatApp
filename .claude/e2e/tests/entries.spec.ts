@@ -1299,3 +1299,138 @@ test("a long instance name truncates rather than squeezing the total", async ({ 
   // One line, not two: 22px type wrapped would be nearer 44.
   expect(laidOut.total.height).toBeLessThan(30);
 });
+
+/**
+ * Messages the entry dialog shows (#123) are blocks drawn above its box, not a
+ * row inside it: the dialog's height never changes and nothing in it moves.
+ */
+function blocks(page: Page) {
+  return page.locator("that-dialog-blocks that-toast");
+}
+
+async function failNextWrites(page: Page, method: string, gate?: Promise<void>): Promise<void> {
+  await page.route("**/api/entries**", async (route) => {
+    if (route.request().method() !== method) {
+      await route.fallback();
+
+      return;
+    }
+    if (gate) await gate;
+    await route.fulfill({ status: 500, json: { code: "internal", message: "Jira said no." } });
+  });
+}
+
+test("a zero duration is a block 8px above the dialog, its width, leaving its height alone", async ({
+  page,
+}) => {
+  await openToday(page);
+  await trigger(page, "WORK-412").click();
+  await expect(dialog(page)).toBeVisible();
+  const before = await dialog(page).boundingBox();
+
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+
+  await expect(blocks(page)).toHaveCount(1);
+  await expect(blocks(page)).toContainText("Enter a duration first.");
+  await expect(blocks(page)).toBeVisible();
+  const block = await blocks(page).boundingBox();
+  const after = await dialog(page).boundingBox();
+  if (!before || !block || !after) throw new Error("no box");
+  expect(Math.abs(block.y + block.height + 8 - after.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(block.width - after.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(block.x - after.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.height - before.height)).toBeLessThanOrEqual(1);
+});
+
+test("the block host is a polite live region", async ({ page }) => {
+  await openToday(page);
+  await trigger(page, "WORK-412").click();
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+
+  const host = page.locator("that-dialog-blocks");
+  await expect(host).toHaveAttribute("role", "status");
+  await expect(host).toHaveAttribute("aria-live", "polite");
+});
+
+test("a failed save is an error block with a working Dismiss, and a retry that fails leaves one", async ({
+  page,
+}) => {
+  await openToday(page);
+  await failNextWrites(page, "POST");
+  await trigger(page, "WORK-412").click();
+  await typeDuration(page, "130");
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+
+  await expect(blocks(page)).toHaveCount(1);
+  await expect(blocks(page)).toContainText("Jira said no.");
+  await blocks(page).getByRole("button", { name: "Dismiss" }).click();
+  await expect(blocks(page)).toHaveCount(0);
+
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+  await expect(blocks(page)).toHaveCount(1);
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+  await expect(blocks(page)).toHaveCount(1);
+  await expect(blocks(page)).toContainText("Jira said no.");
+});
+
+test("starting another save removes the block before the answer arrives", async ({ page }) => {
+  await openToday(page);
+  await trigger(page, "WORK-412").click();
+  await typeDuration(page, "130");
+  await expect(blocks(page)).toHaveCount(0);
+
+  await page.route("**/api/entries**", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({ status: 500, json: { code: "internal", message: "Jira said no." } })
+      : route.fallback(),
+  );
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+  await expect(blocks(page)).toHaveCount(1);
+
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.unroute("**/api/entries**");
+  await failNextWrites(page, "POST", held);
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+  await expect(blocks(page)).toHaveCount(0);
+  release();
+  await expect(blocks(page)).toHaveCount(1);
+});
+
+test("a failed delete is a block", async ({ page }) => {
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+  await failNextWrites(page, "DELETE");
+  await trigger(page, "WORK-412").click();
+  await expect(entryRows(page)).toHaveCount(1);
+
+  await dialog(page).getByRole("button", { name: "Delete the 09:15 entry" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+
+  await expect(blocks(page)).toHaveCount(1);
+  await expect(blocks(page)).toContainText("Jira said no.");
+});
+
+test("a block leaves with its dialog", async ({ page }) => {
+  await openToday(page);
+  await trigger(page, "WORK-412").click();
+  await dialog(page).getByRole("button", { name: "Add entry" }).click();
+  await expect(blocks(page)).toHaveCount(1);
+
+  await page.keyboard.press("Escape");
+
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(page.locator("that-dialog-blocks")).toHaveCount(0);
+  await expect(page.locator("that-toast")).toHaveCount(0);
+});
+
+test("a failed read of the entries is a block", async ({ page }) => {
+  await openToday(page);
+  await page.route("**/api/entries**", (route) => route.abort());
+  await trigger(page, "WORK-412").click();
+
+  // showFailure prefers an ApiError's own words; the fallback sentence is for
+  // failures that are not one.
+  await expect(blocks(page)).toContainText("Could not reach the dashboard server.");
+});
