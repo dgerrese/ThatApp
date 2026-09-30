@@ -650,7 +650,7 @@ test("a save finishing with its own form still shown closes the form", async ({ 
 
 const saveFailure = { status: 500, json: { code: "store_failed", message: "could not save the instance" } };
 
-test("a save failing after its form was replaced reports in the page error slot", async ({ page }) => {
+test("a save failing after its form was replaced reports in a toast, not the error slot", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
   await openSettings(page);
   await addInstance(page);
@@ -665,7 +665,10 @@ test("a save failing after its form was replaced reports in the page error slot"
   await page.getByRole("button", { name: "Cancel" }).click();
   held.release(saveFailure);
 
-  await expect(page.getByText("Could not save Work: could not save the instance")).toBeVisible();
+  await expect(
+    page.locator("that-toasts that-toast[tone='error']").getByText("Could not save Work: could not save the instance"),
+  ).toBeVisible();
+  await expect(page.locator("[data-error-slot]")).not.toContainText("could not save the instance");
   await expect(page.locator("form").getByText("could not save the instance")).toHaveCount(0);
 });
 
@@ -723,9 +726,11 @@ test("a failed list read leaves 10px between its message and the instance list",
   expect((await errorSlotGap(page)).gap).toBeCloseTo(10, 0);
 });
 
-test("a save error reported after its form closed leaves the same 10px", async ({ page }) => {
+test("a save error reported after its form closed is a toast over Settings and leaves the error slot empty", async ({
+  page,
+}) => {
   await stubInstancesApi(page, { testStatus: 200 });
-  await openSettings(page);
+  const settings = await openSettings(page);
   await addInstance(page);
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
@@ -736,9 +741,35 @@ test("a save error reported after its form closed leaves the same 10px", async (
   await held.arrived;
   await page.getByRole("button", { name: "Cancel" }).click();
   held.release(saveFailure);
-  await expect(page.getByText("Could not save Work: could not save the instance")).toBeVisible();
 
-  expect((await errorSlotGap(page)).gap).toBeCloseTo(10, 0);
+  const toast = settings.locator("that-toasts that-toast[tone='error']");
+  await expect(toast).toContainText("Could not save Work: could not save the instance");
+  await toast.getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.locator("that-toasts that-toast")).toHaveCount(0);
+
+  expect(await errorSlotGap(page)).toEqual({ gap: 0, height: 0 });
+});
+
+test("a failed removal is a toast over Settings, and the row's status holds no alert", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  const settings = await openSettings(page);
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  await page.route("**/api/instances/*", (route) =>
+    route.request().method() === "DELETE"
+      ? route.fulfill({ status: 500, json: { code: "store_failed", message: "could not remove the instance" } })
+      : route.fallback(),
+  );
+  await settings.getByRole("button", { name: "Remove Work" }).click();
+  await confirmDialog(page).getByRole("button", { name: "Remove instance" }).click();
+
+  const toast = settings.locator("that-toasts that-toast[tone='error']");
+  await expect(toast).toContainText("could not remove the instance");
+  await toast.getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.locator("that-toasts that-toast")).toHaveCount(0);
+  await expect(settings.locator("li[data-instance-id] that-alert")).toHaveCount(0);
+  await expect(settings.getByRole("button", { name: "Remove Work" })).toBeEnabled();
 });
 
 test("an empty error slot adds nothing above the instance list", async ({ page }) => {
@@ -844,7 +875,10 @@ test("when the held save fails, Edit is enabled again and the failure reports wh
   heldReplaced.release(saveFailure);
 
   await expect(row.getByRole("button", { name: "Edit" })).toBeEnabled();
-  await expect(page.getByText("Could not save Work: could not save the instance")).toBeVisible();
+  await expect(
+    page.locator("that-toasts that-toast[tone='error']").getByText("Could not save Work: could not save the instance"),
+  ).toBeVisible();
+  await expect(page.locator("[data-error-slot]")).not.toContainText("could not save the instance");
 });
 
 test("a list patch while a save is held keeps that row's Edit disabled", async ({ page }) => {

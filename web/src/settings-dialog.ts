@@ -10,6 +10,7 @@ import { clockTime } from "./format";
 import { iconMarkup } from "./icons";
 import { paintInstanceDot } from "./instance-hue";
 import { navigate } from "./router";
+import { toast } from "./toast";
 import { setThemePreference, themePreference } from "./theme";
 import type { IconName } from "./icons";
 import type { Instance } from "./types";
@@ -386,7 +387,7 @@ function instanceRow(regions: Regions, instance: Instance, position: number): HT
     showForm(regions, state.instance, edit);
   });
   remove.addEventListener("click", () => {
-    void removeInstance(regions, state.instance, remove, status);
+    void removeInstance(regions, state.instance, remove);
   });
 
   patchRow(row, instance, position);
@@ -551,7 +552,6 @@ async function removeInstance(
   regions: Regions,
   instance: Instance,
   trigger: HTMLButtonElement,
-  status: HTMLElement,
 ): Promise<void> {
   const confirmed = await confirmDestructive({
     heading: `Remove ${instance.name}?`,
@@ -578,7 +578,7 @@ async function removeInstance(
     }
     refocusAfterRemoval(regions);
   } catch (error) {
-    status.replaceChildren(alertFor("error", messageOf(error)));
+    toast("error", messageOf(error));
     trigger.disabled = false;
   }
 }
@@ -706,9 +706,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
         submit.removeAttribute("disabled");
       } else {
         const label = editing?.name ?? (draft.name || "the new instance");
-        regions.errorSlot.replaceChildren(
-          alertFor("error", `Could not save ${label}: ${messageOf(error)}`),
-        );
+        toast("error", `Could not save ${label}: ${messageOf(error)}`);
       }
 
       return;
