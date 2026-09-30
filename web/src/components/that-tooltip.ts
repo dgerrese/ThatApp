@@ -37,7 +37,7 @@ export class ThatTooltip extends HTMLElement {
   connectedCallback(): void {
     this.setAttribute("popover", "manual");
     this.className =
-      "bg-tip text-rail-ink rounded-xs px-[9px] py-[5px] text-xs font-medium tracking-normal normal-case overflow-visible " +
+      "bg-tip text-rail-ink rounded-xs px-[9px] py-[5px] text-xs font-medium tracking-normal normal-case overflow-visible pointer-events-none " +
       (this.hasAttribute("wrap")
         ? "max-w-[340px] whitespace-normal break-words"
         : "whitespace-nowrap");

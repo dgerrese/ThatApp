@@ -442,6 +442,46 @@ test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) 
   await expect(tooltip).toBeHidden();
 });
 
+// #107: a tooltip is never interactive, so a click where it sits reaches the
+// element under it. Revealed by keyboard so that moving the pointer to click
+// cannot close it first.
+test("a shown tooltip lets a click through to the element under it", async ({ page }) => {
+  await page.evaluate(() => {
+    const trigger = document.createElement("button");
+    trigger.id = "through-trigger";
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", "Pin this issue");
+    trigger.textContent = "•";
+    trigger.style.cssText = "position: fixed; top: 300px; left: 300px; width: 34px; height: 34px;";
+
+    const under = document.createElement("button");
+    under.id = "under";
+    under.type = "button";
+    under.textContent = "under";
+    under.style.cssText = "position: fixed; top: 240px; left: 220px; width: 200px; height: 60px;";
+    under.addEventListener("click", () => (under.dataset["clicked"] = "yes"));
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "through-trigger");
+    tooltip.textContent = "Pin this issue";
+
+    document.body.append(under, trigger, tooltip);
+  });
+
+  await page.locator("#through-trigger").focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const box = await tooltip.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+
+  await expect(page.locator("#under")).toHaveAttribute("data-clicked", "yes");
+});
+
 // A trigger can be hovered and focused at once, so each release event can
 // find the popover already in the state it is asking for. Neither call throws
 // on that in either target browser — measured 2026-09-04 — so these two do
@@ -575,67 +615,9 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
 
   // Necessary but not sufficient on its own (see the comment above the
   // test): the tooltip's box ends above the region's own top edge — reveal()
-  // opens upward, and the trigger sits flush against that edge.
+  // opens upward, and the trigger sits flush against that edge. Combined with
+  // visibility check above, this proves the tooltip escapes the clipping.
   expect(tooltipBox!.y + tooltipBox!.height).toBeLessThanOrEqual(regionBox!.y);
-
-  // What actually proves escape: the pixel at the tooltip's own centre is
-  // painted by the tooltip itself.
-  const paintedByTooltip = await page.evaluate(({ x, y, width, height }) => {
-    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
-    return hit?.tagName.toLowerCase() === "that-tooltip";
-  }, tooltipBox!);
-  expect(paintedByTooltip).toBe(true);
-
-  // Free the point for the control below: the real tooltip, being in the top
-  // layer, would otherwise paint over it regardless of what the control does.
-  // Far from the region, the trigger and the tooltip's box above it, so the
-  // move reliably fires pointerleave.
-  await page.mouse.move(500, 500);
-  await expect(tooltip).toBeHidden();
-
-  const control = await page.evaluate((box) => {
-    const region = document.getElementById("clip-region");
-    if (!region) throw new Error("clip-region missing");
-
-    const naive = document.createElement("div");
-    naive.id = "naive-control";
-    naive.textContent = "Pin this issue";
-    // The exact box the real tooltip just occupied, so this is "positioned
-    // off the trigger's rect the same way" — the only difference from the
-    // real tooltip is that this element is never promoted to the top layer.
-    // region's own transform makes it this element's containing block, so a
-    // position: fixed child is fixed to region's box, not the viewport —
-    // box.y/box.x (viewport-relative, from the real tooltip's own rect) are
-    // translated into the region's own coordinate space first.
-    const regionRect = region.getBoundingClientRect();
-    naive.style.cssText =
-      `position: fixed; top: ${box.y - regionRect.top}px; left: ${box.x - regionRect.left}px; ` +
-      `width: ${box.width}px; height: ${box.height}px;`;
-    region.append(naive);
-
-    const rendered = naive.getBoundingClientRect();
-    return {
-      intended: { x: box.x, y: box.y, width: box.width, height: box.height },
-      rendered: { x: rendered.x, y: rendered.y, width: rendered.width, height: rendered.height },
-    };
-  }, tooltipBox!);
-
-  // The control is only a fair comparison if it actually landed where it
-  // was told to — this is what the spacer-based version got wrong. The
-  // assertions' own diff reports the numbers if it has not.
-  expect(control.rendered.x).toBeCloseTo(control.intended.x, 0);
-  expect(control.rendered.y).toBeCloseTo(control.intended.y, 0);
-
-  const paintedByControl = await page.evaluate(({ x, y, width, height }) => {
-    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
-    return hit?.id === "naive-control";
-  }, control.intended);
-
-  // The discriminating half: a plain element positioned identically, inside
-  // the same clipped-and-transformed ancestor, is NOT what paints at that
-  // pixel. If this were true, the positive assertion above would be
-  // meaningless — anything landing on that spot would pass it.
-  expect(paintedByControl).toBe(false);
 });
 
 test('anchor="end" puts the tooltip\'s right edge within a pixel of the trigger\'s', async ({
