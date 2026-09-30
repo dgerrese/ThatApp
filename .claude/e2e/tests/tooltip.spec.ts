@@ -127,6 +127,158 @@ test("hovering a trigger shows the tooltip, and pointerleave hides it again", as
   await expect(tooltip).toBeHidden();
 });
 
+// #246 made the tooltip overflow-visible, for its arrow, which lifted the UA's
+// overflow: auto off a wrapping tooltip. An unbroken word — a URL in a
+// worklog comment — must still break inside the box, not run past it.
+test("a wrapping tooltip breaks a word longer than its width inside its ground", async ({
+  page,
+}) => {
+  await mountFixed(
+    page,
+    "long-word-trigger",
+    "top: 300px; left: 300px;",
+    { wrap: "" },
+    "https://work.atlassian.net/browse/WORK-412?focusedWorklogId=1234567890&page=com.atlassian.jira",
+  );
+  await page.locator("#long-word-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+  const fits = await tooltip.evaluate((el) => el.scrollWidth <= el.clientWidth);
+  expect(fits).toBe(true);
+});
+
+// #246: the drawing's .tip text and box (prototype line 167), on the ground the
+// owner chose in its design session. The ground is compared against a probe
+// carrying that value, so the test does not depend on how each browser
+// serialises an oklch() colour.
+test("the tooltip wears the skin settled in #246's design session", async ({ page }) => {
+  await mountTrigger(page);
+  await page.locator("#trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const skin = await tooltip.evaluate((el) => {
+    const probe = document.createElement("div");
+    probe.style.background = "oklch(0.34 0.01 60)";
+    document.body.append(probe);
+    const drawnGround = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const s = getComputedStyle(el);
+    return {
+      ground: s.backgroundColor,
+      drawnGround,
+      fontSize: s.fontSize,
+      fontWeight: s.fontWeight,
+      padding: `${s.paddingTop} ${s.paddingRight} ${s.paddingBottom} ${s.paddingLeft}`,
+      shadow: s.boxShadow,
+    };
+  });
+
+  expect(skin.ground).toBe(skin.drawnGround);
+  expect(skin.fontSize).toBe("12px");
+  expect(skin.fontWeight).toBe("500");
+  expect(skin.padding).toBe("5px 9px 5px 9px");
+  expect(skin.shadow).toBe("none");
+});
+
+/**
+ * #246: every tooltip carries a 4px arrow on the side facing its trigger,
+ * pointing at the trigger's centre — whether the box is centred on it,
+ * end-anchored to it, or pushed below or beside it. The arrow is ::after, so
+ * its position is read from its computed box rather than located on screen.
+ */
+async function arrowOf(
+  page: import("@playwright/test").Page,
+  id: string,
+): Promise<{ side: string; tipAt: number; triggerAt: number; colour: string; ground: string }> {
+  return page.evaluate((triggerId) => {
+    const trigger = document.getElementById(triggerId)!;
+    const tip = document.querySelector<HTMLElement>(`that-tooltip[for="${triggerId}"]`)!;
+    const t = trigger.getBoundingClientRect();
+    const box = tip.getBoundingClientRect();
+    const after = getComputedStyle(tip, "::after");
+    const side = tip.dataset["side"] ?? "";
+    const probe = document.createElement("div");
+    probe.style.background = "oklch(0.34 0.01 60)";
+    document.body.append(probe);
+    const ground = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const colourBySide: Record<string, string> = {
+      above: after.borderTopColor,
+      below: after.borderBottomColor,
+      right: after.borderRightColor,
+    };
+    return side === "right"
+      ? {
+          side,
+          tipAt: box.top + parseFloat(after.top) + 4,
+          triggerAt: t.top + t.height / 2,
+          colour: colourBySide[side] ?? "",
+          ground,
+        }
+      : {
+          side,
+          tipAt: box.left + parseFloat(after.left) + 4,
+          triggerAt: t.left + t.width / 2,
+          colour: colourBySide[side] ?? "",
+          ground,
+        };
+  }, id);
+}
+
+async function mountFixed(
+  page: import("@playwright/test").Page,
+  id: string,
+  css: string,
+  attrs: Record<string, string>,
+  text = "Pin this issue",
+): Promise<void> {
+  await page.evaluate(
+    ({ id, css, attrs, text }) => {
+      const trigger = document.createElement("button");
+      trigger.id = id;
+      trigger.type = "button";
+      trigger.setAttribute("aria-label", "Pin this issue");
+      trigger.textContent = "•";
+      trigger.style.cssText = `position: fixed; width: 34px; height: 34px; ${css}`;
+      const tooltip = document.createElement("that-tooltip");
+      tooltip.dataset["fixture"] = "";
+      tooltip.setAttribute("for", id);
+      for (const [k, v] of Object.entries(attrs)) tooltip.setAttribute(k, v);
+      tooltip.textContent = text;
+      document.body.append(trigger, tooltip);
+    },
+    { id, css, attrs, text },
+  );
+}
+
+for (const c of [
+  { name: "above, centred", css: "top: 300px; left: 300px;", attrs: {}, side: "above" },
+  { name: "above, end-anchored", css: "top: 300px; left: 300px;", attrs: { anchor: "end" }, side: "above" },
+  { name: "below, by fallback", css: "top: 0; left: 300px;", attrs: {}, side: "below" },
+  { name: "below, end-anchored", css: "top: 0; left: 300px;", attrs: { anchor: "end" }, side: "below" },
+  { name: "right", css: "top: 300px; left: 20px;", attrs: { anchor: "right" }, side: "right" },
+  { name: "below, by the below attribute", css: "top: 300px; left: 300px;", attrs: { below: "" }, side: "below" },
+  {
+    name: "a wrapping tooltip pushed in from the window's edge",
+    css: "top: 300px; left: 4px;",
+    attrs: { wrap: "" },
+    side: "above",
+    text: "The full wording of a summary the ellipsis cut, long enough to reach the window's left edge",
+  },
+]) {
+  test(`the arrow points at the trigger's centre: ${c.name}`, async ({ page }) => {
+    await mountFixed(page, "arrow-trigger", c.css, c.attrs, c.text);
+    await page.locator("#arrow-trigger").hover();
+    await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+
+    const arrow = await arrowOf(page, "arrow-trigger");
+    expect(arrow.side).toBe(c.side);
+    expect(arrow.colour).toBe(arrow.ground);
+    expect(Math.abs(arrow.tipAt - arrow.triggerAt)).toBeLessThanOrEqual(1);
+  });
+}
+
 // The drawing's .tip sits at bottom: calc(100% + 7px) — above the trigger,
 // centred — and reveal() is meant to compute the same box. Fixed-positioned
 // at mid-viewport rather than relying on mountTrigger's natural flow

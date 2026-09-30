@@ -30,8 +30,10 @@ export class ThatTooltip extends HTMLElement {
   connectedCallback(): void {
     this.setAttribute("popover", "manual");
     this.className =
-      "bg-rail text-rail-ink shadow-popover rounded-xs px-2 py-1 text-sm " +
-      (this.hasAttribute("wrap") ? "max-w-[340px] whitespace-normal" : "whitespace-nowrap");
+      "bg-tip text-rail-ink rounded-xs px-[9px] py-[5px] text-xs font-medium tracking-normal normal-case overflow-visible " +
+      (this.hasAttribute("wrap")
+        ? "max-w-[340px] whitespace-normal break-words"
+        : "whitespace-nowrap");
 
     const id = this.getAttribute("for");
     const trigger = id ? document.getElementById(id) : null;
@@ -89,11 +91,13 @@ export class ThatTooltip extends HTMLElement {
     // The drawing's .tip.right (prototype line 168): beside the trigger and
     // centred on it — the rail's cog, whose top-left corner leaves no room above.
     if (this.getAttribute("anchor") === "right") {
-      this.style.top = `${box.top + box.height / 2 - this.offsetHeight / 2}px`;
+      const top = box.top + box.height / 2 - this.offsetHeight / 2;
+      this.style.top = `${top}px`;
       this.style.left = `${box.right + 9}px`;
       this.style.right = "auto";
       this.style.bottom = "auto";
       this.style.margin = "0";
+      this.pointArrow("right", box.top + box.height / 2 - top, this.offsetHeight);
       return;
     }
     const gap = 7;
@@ -140,6 +144,18 @@ export class ThatTooltip extends HTMLElement {
     this.style.right = "auto";
     this.style.bottom = "auto";
     this.style.margin = "0";
+    this.pointArrow(
+      top < box.top ? "above" : "below",
+      box.left + box.width / 2 - clamped,
+      this.offsetWidth,
+    );
+  }
+
+  /** Aims the ::after arrow (styles.css) at the trigger's centre, `at` px along
+   *  the facing edge, kept clear of the 2px corners. */
+  private pointArrow(side: "above" | "below" | "right", at: number, length: number): void {
+    this.dataset["side"] = side;
+    this.style.setProperty("--arrow-at", `${Math.min(Math.max(at, 6), length - 6)}px`);
   }
 }
 
