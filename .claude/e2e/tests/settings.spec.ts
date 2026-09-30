@@ -687,6 +687,81 @@ test("a save failing with its form still shown reports in the form", async ({ pa
   await expect(page.getByRole("heading", { name: "Edit Work" })).toBeVisible();
 });
 
+// #205: the error slot keeps the section heading's 10px above the instance
+// list while it holds a message, and adds nothing while it is empty. The gap
+// is the slot's own bottom edge to the top of the element after it.
+async function errorSlotGap(page: Page): Promise<{ gap: number; height: number }> {
+  return page.locator("[data-error-slot]").evaluate((slot) => {
+    const next = slot.nextElementSibling;
+    if (!next) throw new Error("nothing follows the error slot");
+    const own = slot.getBoundingClientRect();
+    return { gap: next.getBoundingClientRect().top - own.bottom, height: own.height };
+  });
+}
+
+async function failFirstListRead(page: Page): Promise<void> {
+  let failed = false;
+  await page.route("**/api/instances", async (route) => {
+    if (route.request().method() !== "GET" || failed) {
+      await route.fallback();
+      return;
+    }
+    failed = true;
+    await route.fulfill({
+      status: 500,
+      json: { code: "store_failed", message: "could not read the stored instances" },
+    });
+  });
+}
+
+test("a failed list read leaves 10px between its message and the instance list", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await failFirstListRead(page);
+  await openSettings(page);
+  await expect(page.locator("[data-error-slot]")).toContainText("could not read the stored instances");
+
+  expect((await errorSlotGap(page)).gap).toBeCloseTo(10, 0);
+});
+
+test("a save error reported after its form closed leaves the same 10px", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await openSettings(page);
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+  const held = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Work Renamed");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await held.arrived;
+  await page.getByRole("button", { name: "Cancel" }).click();
+  held.release(saveFailure);
+  await expect(page.getByText("Could not save Work: could not save the instance")).toBeVisible();
+
+  expect((await errorSlotGap(page)).gap).toBeCloseTo(10, 0);
+});
+
+test("an empty error slot adds nothing above the instance list", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await openSettings(page);
+  await expect(page.getByText("No instances yet. Add one below.")).toBeVisible();
+
+  expect(await errorSlotGap(page)).toEqual({ gap: 0, height: 0 });
+});
+
+test("a successful refresh clears the message and takes the gap out with it", async ({ page }) => {
+  await stubInstancesApi(page, { testStatus: 200 });
+  await failFirstListRead(page);
+  await openSettings(page);
+  await expect(page.locator("[data-error-slot]")).toContainText("could not read the stored instances");
+
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-error-slot]")).toBeEmpty();
+
+  expect(await errorSlotGap(page)).toEqual({ gap: 0, height: 0 });
+});
+
 // #200: a second Edit on an instance whose save has not answered would open
 // on pre-save values and overwrite that save, so Edit is disabled until its
 // own save answers — for that row only.

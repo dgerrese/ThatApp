@@ -69,6 +69,9 @@ export function showSettings(): void {
   regions.formSection.className = SECTION_CLASS;
   regions.formSection.hidden = true;
 
+  regions.errorSlot.dataset["errorSlot"] = "";
+  regions.errorSlot.className = "mb-2.5 empty:mb-0";
+
   const instances = section("Jira instances");
   instances.append(regions.errorSlot, regions.listSlot, addButton);
 
