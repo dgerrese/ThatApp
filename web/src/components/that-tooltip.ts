@@ -16,6 +16,13 @@ export class ThatTooltip extends HTMLElement {
   private trigger: HTMLElement | null = null;
   private observer: MutationObserver | undefined;
   private readonly onShow = (): void => this.reveal();
+  // #107: a focus reveals the tooltip only when it is keyboard focus. The
+  // browser already tells the two apart, and showModal() returns focus to the
+  // opener on close — with :focus-visible after a keyboard close, without it
+  // after a mouse close — so a mouse close no longer reopens the tooltip.
+  private readonly onFocus = (event: FocusEvent): void => {
+    if (event.target instanceof Element && event.target.matches(":focus-visible")) this.reveal();
+  };
   // Both halves of a pair can fire for one release, when a trigger is hovered
   // and focused at once, so each call can find the popover already in the
   // state it wants. Neither showPopover() nor hidePopover() throws in that
@@ -42,7 +49,7 @@ export class ThatTooltip extends HTMLElement {
 
     trigger.addEventListener("pointerenter", this.onShow);
     trigger.addEventListener("pointerleave", this.onHide);
-    trigger.addEventListener("focus", this.onShow);
+    trigger.addEventListener("focus", this.onFocus);
     trigger.addEventListener("blur", this.onHide);
 
     // reveal() places the box once, at show time, from the trigger's rect and
@@ -71,7 +78,7 @@ export class ThatTooltip extends HTMLElement {
 
     trigger.removeEventListener("pointerenter", this.onShow);
     trigger.removeEventListener("pointerleave", this.onHide);
-    trigger.removeEventListener("focus", this.onShow);
+    trigger.removeEventListener("focus", this.onFocus);
     trigger.removeEventListener("blur", this.onHide);
   }
 

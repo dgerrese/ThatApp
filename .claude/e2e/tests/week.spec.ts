@@ -618,18 +618,55 @@ test("every cell is a control that opens the entries dialog for its ticket", asy
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("RIDGE-1");
   await dialog.getByRole("button", { name: "Close" }).click();
-  // showModal() hands focus back to the cell that opened it, which reopens that
-  // cell's popover — correctly, and in the top layer over the row beneath it.
-  // Moving on is what a reader does next, and it is what this has to do too.
-  await page.evaluate(() => {
-    (document.activeElement as HTMLElement | null)?.blur();
-  });
 
   // The second instance, which is what makes the hue above a claim rather than
   // a coincidence: position 0 is also what a missing position would fall to.
   await ticketRow(page, "NW-1").locator("td").nth(0).locator("button").click();
   await expect(dialog.locator(".that-dot")).toHaveAttribute("aria-label", "Personal");
   await expect(dialog.locator(".that-dot")).toHaveCSS("background-color", NORTHWIND_HUE);
+});
+
+// #107: showModal() hands focus back to the cell that opened the dialog. A
+// tooltip reveals on focus only when that focus is :focus-visible, which the
+// browsers give a keyboard close and withhold from a mouse close.
+async function openCellWeek(page: Page): Promise<Locator> {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }])]),
+  });
+  return ticketRow(page, "RIDGE-1").locator("td").nth(0).locator("button");
+}
+
+test("opening a cell's dialog by click and closing it by click leaves no tooltip open", async ({ page }) => {
+  const cell = await openCellWeek(page);
+  const id = await cell.getAttribute("id");
+  const tooltip = page.locator(`that-tooltip[for="${id}"]`);
+  const dialog = page.locator("dialog[open]");
+
+  await cell.click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect(cell).toBeFocused();
+  await expect(tooltip).toBeHidden();
+});
+
+test("opening a cell's dialog from the keyboard and closing it with Escape shows the cell's tooltip", async ({
+  page,
+}) => {
+  const cell = await openCellWeek(page);
+  const id = await cell.getAttribute("id");
+  const tooltip = page.locator(`that-tooltip[for="${id}"]`);
+  const dialog = page.locator("dialog[open]");
+
+  await cell.focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+
+  await expect(cell).toBeFocused();
+  await expect(tooltip).toBeVisible();
 });
 
 /** The first two hues of the ramp in web/src/instance-hue.ts, as .that-dot
