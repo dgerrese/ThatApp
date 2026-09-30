@@ -2412,7 +2412,7 @@ test.describe("Week's own search", () => {
     await expect(page.locator("tbody tr", { hasText: "RIDGE-9002" })).toHaveCount(0);
   });
 
-  test("the pin control posts to /api/pins with the chosen ticket, and a failure reports below the grid", async ({
+  test("the pin control posts to /api/pins with the chosen ticket, and a failure reports in a toast", async ({
     page,
   }) => {
     await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
@@ -2476,14 +2476,14 @@ test.describe("Week's own search", () => {
     // Week draws no pin mark of its own (decision 1: a pinned row and a
     // searched one are indistinguishable), so a successful pin has nothing
     // else on screen to show for it — no alert is the whole of the proof.
-    await expect(page.locator("that-alert[tone='error']")).toHaveCount(0);
+    await expect(page.locator("that-toast[tone='error']")).toHaveCount(0);
 
     refuseNext = true;
     await weekSearchResultRow(page, "RIDGE-9002")
       .getByRole("button", { name: "Pin RIDGE-9002", exact: true })
       .click();
 
-    await expect(page.locator("that-alert[tone='error']")).toContainText(
+    await expect(page.locator("that-toasts that-toast[tone='error']")).toContainText(
       "that issue is already pinned on this instance",
     );
   });

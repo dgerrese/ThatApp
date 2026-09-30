@@ -59,10 +59,10 @@ async function openWeek(page: Page, fetch: { body: unknown; status?: number; hol
   await page.goto("/week");
 }
 
-/** The report region: the alert's own parent, which is also the list's — a
- *  scope a whole-page `getByRole("listitem")` search would not have. */
+/** The toast host: where every fetch report lands, and a scope a whole-page
+ *  `getByRole("listitem")` search would not have. */
 function reportRegion(page: Page): Locator {
-  return page.getByRole("status").locator("..");
+  return page.locator("that-toasts");
 }
 
 /** One entry, shaped as `/api/entries` answers it — see `entry()` in
@@ -126,7 +126,7 @@ test("a clean run reports counts and names nothing", async ({ page }) => {
 
   await page.getByRole("button", { name: "Fetch worklogs" }).click();
 
-  await expect(page.getByText("Added 3 entries and updated 1.")).toBeVisible();
+  await expect(reportRegion(page).getByText("Added 3 entries and updated 1.")).toBeVisible();
   await expect(reportRegion(page).getByRole("listitem")).toHaveCount(0);
 });
 
@@ -144,9 +144,9 @@ test("entries whose unpushed changes were kept are named", async ({ page }) => {
 
   await page.getByRole("button", { name: "Fetch worklogs" }).click();
 
-  await expect(page.getByText(/2 entries have changes you have not pushed/)).toBeVisible();
-  await expect(page.getByText("2026-09-01 · RID-1")).toBeVisible();
-  await expect(page.getByText("2026-09-03 · NW-806")).toBeVisible();
+  await expect(reportRegion(page).getByText(/2 entries have changes you have not pushed/)).toBeVisible();
+  await expect(reportRegion(page).getByText("2026-09-01 · RID-1")).toBeVisible();
+  await expect(reportRegion(page).getByText("2026-09-03 · NW-806")).toBeVisible();
 });
 
 test("an instance that refused is named, and the others still applied", async ({ page }) => {
@@ -166,9 +166,9 @@ test("an instance that refused is named, and the others still applied", async ({
 
   await page.getByRole("button", { name: "Fetch worklogs" }).click();
 
-  await expect(page.getByText("Added 2 entries and updated 0.")).toBeVisible();
-  await expect(page.getByText(/Northwind could not be read/)).toBeVisible();
-  await expect(page.getByText("the stored token does not carry the scope this needs")).toBeVisible();
+  await expect(reportRegion(page).getByText("Added 2 entries and updated 0.")).toBeVisible();
+  await expect(reportRegion(page).getByText(/Northwind could not be read/)).toBeVisible();
+  await expect(reportRegion(page).getByText("the stored token does not carry the scope this needs")).toBeVisible();
 });
 
 test("a fetch that created something updates the rail without navigating", async ({ page }) => {
@@ -178,7 +178,7 @@ test("a fetch that created something updates the rail without navigating", async
 
   await page.getByRole("button", { name: "Fetch worklogs" }).click();
 
-  await expect(page.getByText("Added 1 entry and updated 0.")).toBeVisible();
+  await expect(reportRegion(page).getByText("Added 1 entry and updated 0.")).toBeVisible();
   // No navigation and no reload happened — the fetch itself is what has to
   // have woken the rail into reading the period again.
   await expect(page.locator("#rail-total")).toHaveText("2h 00m");
@@ -199,7 +199,7 @@ test("a fetch that changed nothing leaves the rail alone", async ({ page }) => {
 
   await page.getByRole("button", { name: "Fetch worklogs" }).click();
 
-  await expect(page.getByText("Nothing to add or update.")).toBeVisible();
+  await expect(reportRegion(page).getByText("Nothing to add or update.")).toBeVisible();
   // Give a rail that wrongly re-reads a turn to do it before checking it
   // didn't: the total staying "0h 30m" alone would also be true of a re-read
   // that asked for AFTER_ENTRIES and got served BEFORE_ENTRIES by mistake.
@@ -231,7 +231,8 @@ test("a failed request reports rather than leaving the press unanswered", async 
 
   await page.getByRole("button", { name: "Fetch worklogs" }).click();
 
-  await expect(page.getByText("could not read the logged time")).toBeVisible();
+  await expect(reportRegion(page).getByText("could not read the logged time")).toBeVisible();
+  await expect(page.locator("that-toast[tone='error']")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Fetch worklogs" })).toBeEnabled();
 });
 
