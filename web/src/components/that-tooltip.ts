@@ -32,7 +32,9 @@ export class ThatTooltip extends HTMLElement {
     this.setAttribute("popover", "manual");
     this.className =
       "bg-tip text-rail-ink rounded-xs px-[9px] py-[5px] text-xs font-medium tracking-normal normal-case overflow-visible " +
-      (this.hasAttribute("wrap") ? "max-w-[340px] whitespace-normal" : "whitespace-nowrap");
+      (this.hasAttribute("wrap")
+        ? "max-w-[340px] whitespace-normal break-words"
+        : "whitespace-nowrap");
 
     const id = this.getAttribute("for");
     const trigger = id ? document.getElementById(id) : null;

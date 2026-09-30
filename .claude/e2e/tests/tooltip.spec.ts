@@ -127,6 +127,26 @@ test("hovering a trigger shows the tooltip, and pointerleave hides it again", as
   await expect(tooltip).toBeHidden();
 });
 
+// #246 made the tooltip overflow-visible, for its arrow, which lifted the UA's
+// overflow: auto off a wrapping tooltip. An unbroken word — a URL in a
+// worklog comment — must still break inside the box, not run past it.
+test("a wrapping tooltip breaks a word longer than its width inside its ground", async ({
+  page,
+}) => {
+  await mountFixed(
+    page,
+    "long-word-trigger",
+    "top: 300px; left: 300px;",
+    { wrap: "" },
+    "https://work.atlassian.net/browse/WORK-412?focusedWorklogId=1234567890&page=com.atlassian.jira",
+  );
+  await page.locator("#long-word-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+  const fits = await tooltip.evaluate((el) => el.scrollWidth <= el.clientWidth);
+  expect(fits).toBe(true);
+});
+
 // #246: the drawing's .tip text and box (prototype line 167), on the ground the
 // owner chose in its design session. The ground is compared against a probe
 // carrying that value, so the test does not depend on how each browser
@@ -211,9 +231,10 @@ async function mountFixed(
   id: string,
   css: string,
   attrs: Record<string, string>,
+  text = "Pin this issue",
 ): Promise<void> {
   await page.evaluate(
-    ({ id, css, attrs }) => {
+    ({ id, css, attrs, text }) => {
       const trigger = document.createElement("button");
       trigger.id = id;
       trigger.type = "button";
@@ -224,10 +245,10 @@ async function mountFixed(
       tooltip.dataset["fixture"] = "";
       tooltip.setAttribute("for", id);
       for (const [k, v] of Object.entries(attrs)) tooltip.setAttribute(k, v);
-      tooltip.textContent = "Pin this issue";
+      tooltip.textContent = text;
       document.body.append(trigger, tooltip);
     },
-    { id, css, attrs },
+    { id, css, attrs, text },
   );
 }
 
@@ -237,9 +258,17 @@ for (const c of [
   { name: "below, by fallback", css: "top: 0; left: 300px;", attrs: {}, side: "below" },
   { name: "below, end-anchored", css: "top: 0; left: 300px;", attrs: { anchor: "end" }, side: "below" },
   { name: "right", css: "top: 300px; left: 20px;", attrs: { anchor: "right" }, side: "right" },
+  { name: "below, by the below attribute", css: "top: 300px; left: 300px;", attrs: { below: "" }, side: "below" },
+  {
+    name: "a wrapping tooltip pushed in from the window's edge",
+    css: "top: 300px; left: 4px;",
+    attrs: { wrap: "" },
+    side: "above",
+    text: "The full wording of a summary the ellipsis cut, long enough to reach the window's left edge",
+  },
 ]) {
   test(`the arrow points at the trigger's centre: ${c.name}`, async ({ page }) => {
-    await mountFixed(page, "arrow-trigger", c.css, c.attrs);
+    await mountFixed(page, "arrow-trigger", c.css, c.attrs, c.text);
     await page.locator("#arrow-trigger").hover();
     await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
 
