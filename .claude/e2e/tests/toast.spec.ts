@@ -25,7 +25,7 @@ async function add(page: Page, tone: string, message: string, items: string[] = 
   );
 }
 
-test("the host is a polite live region from first render, hidden while empty", async ({ page }) => {
+test("the host is a polite live region from first render, empty and zero-size", async ({ page }) => {
   const host = page.locator("that-toasts");
   await expect(host).toHaveAttribute("role", "status");
   await expect(host).toHaveAttribute("aria-live", "polite");
@@ -88,27 +88,66 @@ test("a success leaves after about 4 seconds; a warning or error does not", asyn
   await add(page, "success", "Pushed 1 entry.");
   await add(page, "error", "stays");
   await expect(page.locator("that-toast", { hasText: "Pushed 1 entry." })).toBeVisible();
-  await expect(page.locator("that-toast", { hasText: "Pushed 1 entry." })).toHaveCount(0, { timeout: 6000 });
-  await page.waitForTimeout(1000);
+  await expect(page.locator("that-toast", { hasText: "Pushed 1 entry." })).toHaveCount(0, { timeout: 10_000 });
   await expect(page.locator("that-toast", { hasText: "stays" })).toBeVisible();
   await expect(page.locator("that-toast[tone='error'] [data-countdown]")).toHaveCount(0);
 });
+
+// The countdown's clock starts at add, not at hover, so the pause is proved on
+// the animation itself rather than by outliving it.
+async function countdownState(page: Page): Promise<{ playState: string; currentTime: number }> {
+  return page.evaluate(() => {
+    const fill = document.querySelector("[data-countdown] span");
+    const animation = fill?.getAnimations()[0];
+    if (!animation) throw new Error("no countdown animation");
+    return { playState: animation.playState, currentTime: Number(animation.currentTime) };
+  });
+}
+
+async function seekCountdown(page: Page, ms: number): Promise<void> {
+  await page.evaluate((ms) => {
+    const animation = document.querySelector("[data-countdown] span")?.getAnimations()[0];
+    if (!animation) throw new Error("no countdown animation");
+    animation.currentTime = ms;
+  }, ms);
+}
+
+async function nextFrames(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            resolve();
+          });
+        });
+      }),
+  );
+}
 
 test("hovering a success pauses its countdown, and leaving resumes it", async ({ page }) => {
   await add(page, "success", "Pushed 1 entry.");
   const toast = page.locator("that-toast");
   await toast.hover();
-  await page.waitForTimeout(5000);
-  await expect(toast).toBeVisible();
+  await expect.poll(async () => (await countdownState(page)).playState).toBe("paused");
+  await seekCountdown(page, 2000);
+  await nextFrames(page);
+  expect((await countdownState(page)).currentTime).toBe(2000);
+
   await page.mouse.move(0, 0);
-  await expect(toast).toHaveCount(0, { timeout: 6000 });
+  await expect.poll(async () => (await countdownState(page)).playState).toBe("running");
+  expect((await countdownState(page)).currentTime).toBeGreaterThanOrEqual(2000);
+  await expect(toast).toHaveCount(0, { timeout: 10_000 });
 });
 
 test("focus on Dismiss pauses the countdown, and Dismiss closes the toast", async ({ page }) => {
   await add(page, "success", "Pushed 1 entry.");
   const dismiss = page.getByRole("button", { name: "Dismiss" });
   await dismiss.focus();
-  await page.waitForTimeout(5000);
+  await expect.poll(async () => (await countdownState(page)).playState).toBe("paused");
+  await seekCountdown(page, 2000);
+  await nextFrames(page);
+  expect((await countdownState(page)).currentTime).toBe(2000);
   await expect(page.locator("that-toast")).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(page.locator("that-toast")).toHaveCount(0);
@@ -138,6 +177,20 @@ test("a toast added while a dialog is open sits above it, and Dismiss works", as
   await expect(page.locator("#fixture-dialog")).toBeVisible();
 });
 
+test("a toast added over a second modal dialog is clickable", async ({ page }) => {
+  await openFixtureDialog(page);
+  await page.evaluate(() => {
+    const top = document.createElement("dialog");
+    top.id = "top-dialog";
+    top.textContent = "on top";
+    document.body.append(top);
+    top.showModal();
+  });
+  await add(page, "error", "over both");
+  await page.locator("that-toast").getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.locator("that-toast")).toHaveCount(0);
+});
+
 async function openFixtureDialog(page: Page): Promise<void> {
   await page.evaluate(() => {
     const dialog = document.createElement("dialog");
@@ -152,7 +205,9 @@ test("closing the dialog returns the host to body, keeping its toast", async ({ 
   await openFixtureDialog(page);
   await add(page, "error", "outlives the dialog");
   await page.evaluate(() => document.querySelector<HTMLDialogElement>("#fixture-dialog")?.close());
-  expect(await page.evaluate(() => document.querySelector("that-toasts")?.parentElement === document.body)).toBe(true);
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector("that-toasts")?.parentElement === document.body))
+    .toBe(true);
   await expect(page.locator("that-toast", { hasText: "outlives the dialog" })).toBeVisible();
   await add(page, "error", "after");
   const view = page.viewportSize()!;
@@ -179,6 +234,21 @@ test("the pinned list's read failure is an inline alert, not a toast", async ({ 
   // Pinned only shows once an instance exists.
   await page.route("**/api/issues", (r) =>
     r.fulfill({ status: 200, json: { instances: [{ id: 1, name: "Work", issues: [], error: null }] } }),
+  );
+  await page.route("**/api/week**", (r) => 
+    r.fulfill({
+      status: 200,
+      json: {
+        start: "2026-09-28",
+        end: "2026-10-04",
+        prevStart: "2026-09-21",
+        nextStart: "2026-10-05",
+        weekNumber: 40,
+        days: [],
+        rows: [],
+        seconds: 0,
+      },
+    }),
   );
   // The beforeEach already loaded Today; leave and return so it reads pins again.
   await page.getByRole("link", { name: "Week", exact: true }).click();

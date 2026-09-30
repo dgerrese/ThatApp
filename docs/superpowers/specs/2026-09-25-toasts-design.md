@@ -69,18 +69,27 @@ A dialog block is the same anatomy, sized to the dialog's width instead of 320px
 
 - **One host, in the top layer.** The stack's host is created once by the app shell and shown with
   `popover="manual"`. A dialog opened with `showModal()` is in the top layer and makes the rest of the page
-  inert; a toast outside the top layer would sit under the backdrop, unreachable. A manual popover shown
-  after the dialog opens sits above it — so the host is re-shown (`hidePopover()` then `showPopover()`)
-  whenever a toast is added while a dialog is open, which puts it last in the top layer.
+  inert; a toast outside the top layer would sit under the backdrop, unreachable. A modal dialog leaves everything
+  outside it inert, top layer or not, so on add the host moves into the topmost open `dialog:modal`. It moves
+  back to the body when that dialog fires `close` (caught in the capture phase, since `close` does not
+  bubble) and when the dialog leaves the DOM without closing (a microtask in `disconnectedCallback`). A move
+  hides a popover, so the host is re-shown when it holds toasts.
 - **One live region.** The host carries `role="status"` (polite) from the moment the shell renders, and
   toasts are written into it. A live region inserted at the moment of the message is announced
   unreliably. Failures stay polite, as `that-alert` decided: they report the outcome of something the user
   just did. A dialog's blocks are written into a polite live region owned by that dialog.
 - **One component each.** A `that-toast` WebComponent (light DOM, per the hard constraint) renders one
-  toast by wrapping the existing `that-alert` row, and a small module exposes `toast(tone, message,
-  items?)` for callers. Dialog blocks reuse `that-toast` in a block host positioned against the dialog.
+  toast, building the same row from `toneMark()`, shared with `that-alert`; it does not wrap a `that-alert`,
+  which is itself `role="status"` and would nest live regions. And a small module exposes `toast(tone, message,
+  items?)` for callers. Dialog blocks reuse `that-toast` in a `that-dialog-blocks` host inside the `<dialog>`,
+  `position: fixed`, placed from the dialog's bounding rect and re-placed by a `ResizeObserver` and on window
+  resize. It sits inside the dialog because a modal leaves everything outside it inert; it is empty and
+  zero-size while it holds no block, so its live region stays in the accessibility tree.
   `alertFor()` stays for the inline cases in decision 3.
 - **Hover and focus pause the countdown**; it resumes from where it paused.
+  A host move (into or out of a dialog) restarts a success toast's countdown.
+
+Updated on 2026-09-30 by #123's build: the mechanisms above replace the first version's, which could not work; the outcomes in the Decisions are unchanged.
 
 ## Where each alert goes
 

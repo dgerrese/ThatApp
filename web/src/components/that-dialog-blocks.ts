@@ -8,7 +8,9 @@ import type { ThatToast } from "./that-toast";
  * clickable. It is `fixed` rather than absolute so the dialog's own
  * `overflow: auto` cannot clip what is drawn beyond its top edge, and is
  * positioned from the dialog's box on every size change (the entry list loads
- * after open and the dialog is centred, so its top moves).
+ * after open and the dialog is centred, so its top moves). Never `hidden`:
+ * empty, it is a zero-height column that draws nothing, and staying rendered
+ * keeps its live region in the accessibility tree before a message arrives.
  */
 export class ThatDialogBlocks extends HTMLElement {
   private dialog: HTMLDialogElement | undefined;
@@ -16,20 +18,10 @@ export class ThatDialogBlocks extends HTMLElement {
     this.place();
   });
 
-  constructor() {
-    super();
-    this.addEventListener("toast-dismissed", () => {
-      queueMicrotask(() => {
-        if (this.childElementCount === 0) this.hidden = true;
-      });
-    });
-  }
-
   connectedCallback(): void {
     this.setAttribute("role", "status");
     this.setAttribute("aria-live", "polite");
     this.className = "fixed m-0 flex flex-col gap-2 p-0";
-    this.hidden = true;
     window.addEventListener("resize", this.onResize);
   }
 
@@ -46,7 +38,6 @@ export class ThatDialogBlocks extends HTMLElement {
   }
 
   add(tone: string, message: string): void {
-    this.hidden = false;
     const block = document.createElement("that-toast") as ThatToast;
     block.setAttribute("block", "");
     block.setAttribute("tone", tone);
@@ -57,7 +48,6 @@ export class ThatDialogBlocks extends HTMLElement {
 
   clear(): void {
     this.replaceChildren();
-    this.hidden = true;
   }
 
   private readonly onResize = (): void => {

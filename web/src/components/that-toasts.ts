@@ -8,7 +8,9 @@ import type { ThatToast } from "./that-toast";
  * outside its own subtree inert — a popover shown afterwards is drawn above the
  * backdrop but still cannot be clicked — so while one is open the host moves
  * inside it, and moves back to the body when that dialog closes.
- * Hidden while empty.
+ * Empty, it is zero-size rather than hidden: its `flex` style beats the UA's
+ * `[popover]:not(:popover-open)` display:none, which keeps the live region in
+ * the accessibility tree before a message arrives.
  */
 export class ThatToasts extends HTMLElement {
   constructor() {
@@ -39,8 +41,12 @@ export class ThatToasts extends HTMLElement {
     });
   }
 
+  // The topmost modal: a confirm over the entry dialog leaves the one below inert.
   add(tone: string, message: string, items: string[] = []): HTMLElement {
-    this.moveTo(document.querySelector<HTMLElement>("dialog:modal") ?? document.body, true);
+    this.moveTo(
+      [...document.querySelectorAll<HTMLElement>("dialog:modal")].at(-1) ?? document.body,
+      true,
+    );
 
     const toast = document.createElement("that-toast") as ThatToast;
     toast.setAttribute("tone", tone);

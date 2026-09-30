@@ -142,7 +142,6 @@ export class ThatEntryDialog extends HTMLElement {
     // Closing is the only exit, whether it came from Esc, the round Close or a
     // successful mutation, so the element removes itself from one place.
     dialog.addEventListener("close", () => {
-      this.blocks.clear();
       this.remove();
     });
 
