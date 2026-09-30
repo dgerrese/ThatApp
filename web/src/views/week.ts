@@ -9,7 +9,7 @@ import { announceEntriesChanged, onEntriesChanged } from "../entries-changed";
 import { fetchReportNodes } from "../fetch-report";
 import { iconMarkup } from "../icons";
 import { pageHeading } from "../page-heading";
-import { pushReportNodes } from "../push-report";
+import { pushReportLines, showPushReport } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod } from "../rail";
 import { navigate } from "../router";
@@ -439,7 +439,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // back, and then re-reads — every marker the rollup knows about settles only
   // when a user-initiated read is asked for again (see `show`'s own comment).
   const stopPushListening = onPushReported((responses, unanswered) => {
-    report.replaceChildren(...pushReportNodes(responses, unanswered, { nameDays: true }));
+    showPushReport(pushReportLines(responses, unanswered, { nameDays: true }));
     report.hidden = false;
     failures = failuresIn(responses);
     void show({ preserveFailures: true });

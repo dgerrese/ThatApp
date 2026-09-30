@@ -328,7 +328,7 @@ test("a week holding only edited-since-pushed time still offers a push", async (
   await expect(page.locator("#rail-push")).toBeEnabled();
 });
 
-test("pushing from the Week view reports below the grid and names the day that failed", async ({
+test("pushing from the Week view reports in a toast and names the day that failed", async ({
   page,
 }) => {
   await openWeek(
@@ -371,15 +371,10 @@ test("pushing from the Week view reports below the grid and names the day that f
 
   // One press covered two days, so "RIDGE-2 failed" alone would not say where to
   // look. The day is part of the line.
-  const failure = page.getByText("2026-09-09 · RIDGE-2 — the Jira site could not be reached");
+  const failure = page
+    .locator("that-toasts")
+    .getByText("2026-09-09 · RIDGE-2 — the Jira site could not be reached");
   await expect(failure).toBeVisible();
-
-  // Below the grid, not above it: the grid must not move under a press.
-  const table = await page.locator("table").boundingBox();
-  const line = await failure.boundingBox();
-  expect(table).not.toBeNull();
-  expect(line).not.toBeNull();
-  expect(line?.y ?? 0).toBeGreaterThan((table?.y ?? 0) + (table?.height ?? 0));
 });
 
 /**
@@ -408,12 +403,12 @@ test("an entry Jira took but the store lost says not to push again", async ({ pa
 
   await pushEverything(page);
 
-  const alert = page.locator("that-alert[tone='error']");
+  const alert = page.locator("that-toasts that-toast[tone='error']");
   await expect(alert).toContainText(
     "1 entry was pushed but could not be recorded here. Check the issue before " +
       "pushing again — pushing now would log the time twice.",
   );
-  await expect(page.getByText("2026-09-07 · RIDGE-1")).toBeVisible();
+  await expect(page.locator("that-toasts").getByText("2026-09-07 · RIDGE-1")).toBeVisible();
   // The retry line belongs to every other failure and would be actively harmful
   // here, so its absence is as much the assertion as the words above.
   await expect(page.getByText(/again to retry them/)).toHaveCount(0);
@@ -458,11 +453,11 @@ test("a day whose push never answered is named rather than counted as pushed", a
 
   await pushEverything(page);
 
-  await expect(page.locator("that-alert[tone='warning']")).toContainText(
+  await expect(page.locator("that-toasts that-toast[tone='warning']")).toContainText(
     "1 day did not answer, so what happened to its time is not known here. " +
       "Press Push worklogs again.",
   );
-  await expect(page.getByText("2026-09-08", { exact: true })).toBeVisible();
+  await expect(page.locator("that-toasts").getByText("2026-09-08", { exact: true })).toBeVisible();
   await expect(page.getByText(/Pushed \d+ entr/)).toHaveCount(0);
 });
 
@@ -1109,7 +1104,7 @@ test("the grid settles once the push has gone through", async ({ page }) => {
 
   await pushEverything(page);
 
-  await expect(page.getByText("Pushed 1 entry.")).toBeVisible();
+  await expect(page.locator("that-toasts").getByText("Pushed 1 entry.")).toBeVisible();
   await expect(monday).toHaveText("1h 00m");
 });
 

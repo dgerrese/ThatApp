@@ -1,4 +1,5 @@
-import { alertFor } from "./alert";
+import type { ReportLine } from "./fetch-report";
+import { toast } from "./toast";
 import type { PushResponse, PushResult } from "./types";
 
 /**
@@ -26,11 +27,11 @@ export interface PushReportOptions {
  * no results to count either way, so a report reading only the responses would
  * find no failures and print the success line over a push that half finished.
  */
-export function pushReportNodes(
+export function pushReportLines(
   responses: PushResponse[],
   unanswered: string[],
   options: PushReportOptions = {},
-): Node[] {
+): ReportLine[] {
   const all = responses.flatMap((response) =>
     response.results.map((result) => ({ day: response.day, result })),
   );
@@ -39,79 +40,62 @@ export function pushReportNodes(
 
   if (failed.length === 0 && unanswered.length === 0) {
     return [
-      alertFor(
-        "success",
-        `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"}.`,
-      ),
+      {
+        tone: "success",
+        message: `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"}.`,
+        items: [],
+      },
     ];
   }
 
   const stranded = failed.filter((line) => line.result.error?.code === "store_failed");
   const retryable = failed.filter((line) => line.result.error?.code !== "store_failed");
-  const nodes: Node[] = [];
+  const lines: ReportLine[] = [];
 
   if (retryable.length > 0) {
-    nodes.push(
-      alertFor(
-        "warning",
+    lines.push({
+      tone: "warning",
+      message:
         `${String(retryable.length)} of ${String(all.length)} entries ` +
-          "could not be pushed. Press Push worklogs again to retry them.",
+        "could not be pushed. Press Push worklogs again to retry them.",
+      items: retryable.map(
+        (line) =>
+          label(line.day, line.result, options) +
+          ` — ${line.result.error?.message ?? "unknown error"}`,
       ),
-      failureList(
-        retryable.map(
-          (line) =>
-            label(line.day, line.result, options) +
-            ` — ${line.result.error?.message ?? "unknown error"}`,
-        ),
-      ),
-    );
+    });
   }
 
   if (unanswered.length > 0) {
-    nodes.push(
-      alertFor(
-        "warning",
+    lines.push({
+      tone: "warning",
+      message:
         `${String(unanswered.length)} ${unanswered.length === 1 ? "day" : "days"} did not ` +
-          `answer, so what happened to ${unanswered.length === 1 ? "its" : "their"} time is ` +
-          "not known here. Press Push worklogs again.",
-      ),
-      failureList(unanswered),
-    );
+        `answer, so what happened to ${unanswered.length === 1 ? "its" : "their"} time is ` +
+        "not known here. Press Push worklogs again.",
+      items: unanswered,
+    });
   }
 
   if (stranded.length > 0) {
-    nodes.push(
-      alertFor(
-        "error",
+    lines.push({
+      tone: "error",
+      message:
         `${String(stranded.length)} ${stranded.length === 1 ? "entry" : "entries"} ` +
-          `${stranded.length === 1 ? "was" : "were"} pushed but could not be recorded here. ` +
-          "Check the issue before pushing again — pushing now would log the time twice.",
-      ),
-      failureList(stranded.map((line) => label(line.day, line.result, options))),
-    );
+        `${stranded.length === 1 ? "was" : "were"} pushed but could not be recorded here. ` +
+        "Check the issue before pushing again — pushing now would log the time twice.",
+      items: stranded.map((line) => label(line.day, line.result, options)),
+    });
   }
 
-  return nodes;
+  return lines;
 }
 
-/** A week push covers several days, so "RID-204 failed" does not say where to look. */
+export function showPushReport(lines: ReportLine[]): void {
+  for (const line of lines) toast(line.tone, line.message, line.items);
+}
+
+/** A week push covers several days, so "RIDGE-204 failed" does not say where to look. */
 function label(day: string, result: PushResult, options: PushReportOptions): string {
   return options.nameDays === true ? `${day} · ${result.issueKey}` : result.issueKey;
-}
-
-/**
- * A sibling of the alert it follows, never a child of it: that-alert renders by
- * calling this.replaceChildren(mark, message), so anything appended inside it
- * is discarded the next time an attribute changes.
- */
-function failureList(lines: string[]): HTMLElement {
-  const list = document.createElement("ul");
-  list.className = "mt-2 ml-6 space-y-1 text-sm";
-  for (const line of lines) {
-    const item = document.createElement("li");
-    item.textContent = line;
-    list.append(item);
-  }
-
-  return list;
 }

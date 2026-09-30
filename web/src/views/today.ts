@@ -19,7 +19,7 @@ import { clockTime, totalFigure } from "../format";
 import { paintInstanceDot } from "../instance-hue";
 import { openSettings } from "../open-settings";
 import { pageHeading } from "../page-heading";
-import { pushReportNodes } from "../push-report";
+import { pushReportLines, showPushReport } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import type { RegisterTeardown } from "../router";
@@ -68,9 +68,6 @@ interface Regions {
   /** One banner above both lists, per the design spec's singular "the
    *  warning" — not one per list. See renderCombinedStale. */
   stale: HTMLElement;
-  /** The result of the last push attempt: a success alert, a failure alert, or
-   *  a failure alert plus the list of entries that did not make it. */
-  pushReport: HTMLElement;
   pins: Pin[];
   lastIssues: IssuesResponse | null;
   /** Today's entries as last read, kept (not just folded into totals) because
@@ -220,12 +217,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // contributes none.
   stale.hidden = true;
 
-  const pushReport = document.createElement("div");
-  // Same reasoning as stale above: empty but present would still claim a
-  // margin, this time the one holding it off the cards below.
-  pushReport.className = "mb-2.5";
-  pushReport.hidden = true;
-
   // Pinned and Assigned issues are two sections of one list, so Pinned is a
   // page heading level with the other rather than a card with a label inside
   // it — the prototype's two .pageh blocks, lines 329 and 331.
@@ -297,7 +288,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
   const assignedSection = document.createElement("section");
   assignedSection.setAttribute("aria-labelledby", ASSIGNED_HEADING_ID);
-  assignedSection.append(header, pushReport, results);
+  assignedSection.append(header, results);
 
   container.append(stale, layoutGrid, assignedSection);
   root.append(container);
@@ -317,7 +308,6 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     refresh,
     results,
     stale,
-    pushReport,
     pins: [],
     lastIssues: null,
     entries: [],
@@ -399,7 +389,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // outlives-the-view reasoning as the subscription above, and the same
   // teardown so a navigation away cannot leave it painting a detached view.
   const stopPushListening = onPushReported((responses, unanswered) => {
-    showPushReport(regions, ...pushReportNodes(responses, unanswered));
+    showPushReport(pushReportLines(responses, unanswered));
   });
   registerTeardown(stopPushListening);
 
@@ -1042,14 +1032,6 @@ async function refreshEverything(regions: Regions): Promise<void> {
   } finally {
     regions.refresh.removeAttribute("disabled");
   }
-}
-
-/** Replaces pushReport's content and reveals it — the one place both steps
- *  happen, since every push outcome (a read failure, "already pushed", a
- *  push failure, a push result) needs both. */
-function showPushReport(regions: Regions, ...nodes: Node[]): void {
-  regions.pushReport.replaceChildren(...nodes);
-  regions.pushReport.hidden = false;
 }
 
 function renderResponse(regions: Regions, response: IssuesResponse): void {
