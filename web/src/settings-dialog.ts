@@ -91,6 +91,16 @@ export function showSettings(): void {
     if (regions.changed) void redrawBeneath();
   });
 
+  // Chromium's close watcher: once a cancel is prevented, the next close request
+  // with no user activation in between closes the dialog without a cancelable
+  // cancel. By then the form is already closed, and reopening it takes a click
+  // or a key that counts as activation, so a second Escape still means Settings.
+  dialog.addEventListener("cancel", (event) => {
+    if (regions.formSection.hidden) return;
+    event.preventDefault();
+    hideForm(regions);
+  });
+
   document.body.append(dialog);
   dialog.showModal();
 
@@ -237,7 +247,9 @@ function hideForm(regions: Regions): void {
   regions.formSection.replaceChildren();
   regions.formSection.hidden = true;
   if (hadFocus) {
-    (regions.formOpener.isConnected ? regions.formOpener : regions.addButton).focus();
+    const opener = regions.formOpener;
+    // A row's Edit is disabled while its save is in flight, and takes no focus.
+    (opener.isConnected && !opener.matches(":disabled") ? opener : regions.addButton).focus();
   }
 }
 
