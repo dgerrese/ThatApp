@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-28 at end of day**, against the Codeberg API rather than against local git — see
+**Verified on 2026-09-30 at end of day**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -31,49 +31,67 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### The state at the end of 2026-09-28 — read this first
+### The state at the end of 2026-09-30 — read this first
 
 **This block supersedes everything below it in this section where the two disagree.** The day is in
-[`handoff/2026-09-28.md`](handoff/2026-09-28.md).
+[`handoff/2026-09-30.md`](handoff/2026-09-30.md).
 
-**`main` is at `563c464`** (the merge of PR #257, #119). **Merged on 2026-09-29** by the owner: the 2026-09-28 handoff (PR #258), #89 (PR #251), #97 (PR #255), #108 (PR #256), #119 (PR #257). **Merged on 2026-09-28**, all by the owner:
-the 2026-09-25 handoff (PR #238), the e2e sharding (#239, PR #240), #200 (PR #233), #204 (PR #237),
-#143 with #230 and #235 (PR #229), #227 (PR #241), #209 (PR #242), #215 (PR #243), #221 (PR #244),
-#217 (PR #252). Codeberg did not record #240's merge on the PR itself; it was closed by hand with a
-comment naming `4a9115d`.
+**`main` is at `5eee5ee`** (the merge of PR #270, #107). **Merged on 2026-09-30** by the owner: the
+2026-09-29 handoff (PR #265), #231 (PR #260), #236 (PR #262), #234 (PR #263), #250 (PR #264), #246
+(PR #266), #205 (PR #269), the autopilot in-progress rule (PR #271, `[Process]`) and #107 (PR #270).
+**Every one of those tickets kept `status/in-progress` after closing and was stripped by hand** — the
+merge still does not remove it.
 
-**The owner ran autopilot on v1 on 2026-09-28; it finished with the v1 `status/todo` queue empty.**
-Every pull request from that run was merged on 2026-09-29. **No pull request is open.**
+**One pull request is open: #274 (#123, toasts).** It carries two design differences and four
+questions for the owner in its body — see *Still open for the owner* below.
+
+**v1 has no `status/todo` ticket and nothing in progress but #123.** Autopilot ran twice on
+2026-09-30. **A run now takes `status/in-progress` tickets before `status/todo` ones** (PR #271): the
+owner set that on 2026-09-21, and it reached the skill only today — see the memory
+`owner-rule-changes-go-into-the-skill`.
+
+**What is left in v1:**
+- **#123** — PR #274 open. Once merged: **#207, #208 and #226 can move.** #208 and #226 are
+  `status/blocked` on #123; #207 is at `status/needs-refinement`. Their failure placement comes from
+  #123's design: a failed one-off action is a toast, a dialog's message is a block above the dialog.
+- **#267** (`status/needs-refinement`) — tooltips cannot be dismissed with Escape or hovered (WCAG
+  1.4.13). It conflicts with #107's `pointer-events: none`, which shipped; refining #267 decides it.
+- **#220** (`status/needs-refinement`) — waits on the owner's choice of CI host.
+- **At intake, for the owner:** #259, #261, #272 (`bug`, a search test flaky in Firefox), #273 (Push
+  never becomes Retry, though the 2026-08-20 design says it does).
+
+**The latest release is `v2026.40.1`** (published 2026-09-29).
 
 **Codeberg retargets a stacked PR itself** when its base branch is deleted at merge (seen with #229's
-four children). Check `mergeable` after each merge: #251 conflicted once `main` carried a change to a
-file it deletes.
+four children). Check `mergeable` after each merge. A branch whose base merged mid-flight is brought
+up to `main` with a signed merge commit, not a rebase, once it is on Codeberg — a rebase would need a
+force-push.
 
-**Blocked:** #107 (unchanged — the `:focus-visible` question is on the ticket) and **#205** — #89
-turns Settings into a dialog with no cards, so the settled "24px between cards" has no subject; the
-question is on #205.
+**v2 gained #268** (Today: filter the issue list; `status/needs-refinement`, a design session due).
 
-**The v1 intake review is finished (2026-09-29).** Approved to `status/needs-refinement`: #226, #231
-(`bug`), #234, #236 (`bug`), #246, #250. #246 is now a **design review** of `that-tooltip` and
-`that-button` against the drawing, held in the design companion; it absorbed #247, #248 and #249.
-Closed: #228 as done by #227; #232, #247, #248, #249 and #254 with `wontfix` as duplicates or folded;
-#245 with `wontfix` (see *Decisions taken*). The finding from #254 is on #203, which stays in v2. v1
-has no intake tickets left; v2 has eleven.
-
-**#207, #208 and #226 wait for #123** (toasts; its design is on `codeberg/issue-123-toasts` only): #208 and #226 are `status/blocked`, #207 is at `status/needs-refinement`, and #207's and #208's failure placement is rewritten from #123's design once it exists. **Autopilot on v1, 2026-09-29, emptied `status/todo`.** Open PRs, all on `main`: #260 (#231), #262 (#236), #263 (#234), #264 (#250). #246 is `status/blocked` — a design review needing the owner. Release `v2026.40.1` is published. **At `status/needs-refinement`:** v1 — #220, waiting on the owner's choice of host. **At intake:** v1 — #259 (instance dots' native `title`), #261 (a focused rail instance name is lost when the split rebuilds). v2 — #253 (an MCP server, asked for by
-the owner on 2026-09-28, with its open questions in the body).
-
-**#123 is at `status/in-progress` from another session.** Git now marks its worktree under an old
-scratchpad as prunable; its branch is on Codeberg. This session did not touch it.
-
-**Labels are clean**, checked across every ticket on 2026-09-28: no closed ticket carries a `status/*`
-label, every open one carries exactly one and a milestone, and no v2 ticket carries `enhancement`.
-**A merge still leaves `status/in-progress` behind** — it did for every merge that day; strip it at
-each merge.
+**Labels are clean**, checked across all 84 tickets on 2026-09-30.
 
 **The status line has a second line** for the ticket in hand (stages, current stage, ETA as
 `1h 15m (15:10)`), fed by `.claude/issue-status.sh <issue> <done> <total> "<stage>" ["<title>"]` at
 each stage change and `clear` when none is in hand. Local only, in `.git/info/exclude`.
+
+**Decisions the owner took on 2026-09-30 — do not reopen:**
+- **#107:** the Escape criterion is about a keyboard user (opens with Enter, closes with Escape). The
+  mixed dialog cases are whatever each browser does, and no test asserts them.
+- **#205:** the Settings error slot keeps 10px above the instance list (the section heading's margin).
+- **#246, the tooltip:** the drawing's text and box (12px / 500, 5px 9px, 2px corners, no shadow), a
+  **4px arrow** pointing at the control in every direction, a **ground of `oklch(0.34 0.01 60)`** in
+  both themes (the drawing's 0.06 vanished on the rail, 0.26 on the dark card), and the end-anchored
+  tooltip **flush** with its button. Buttons keep 12px padding. Recorded in the visual language spec.
+- **Design sessions show every difference on screen,** never one carried in from a comment. A
+  companion mock must not use the frame's own class names (`card`, `mockup`, `option` and the rest):
+  on 2026-09-30 a `.card` mock was clipped by the frame's `overflow: hidden`, and the companion sends
+  `X-Frame-Options: DENY`, so a screen cannot iframe another.
+
+**Still open for the owner, from #123 (PR #274):** whether Settings failures should be blocks now that
+Settings is a dialog (built as toasts, per the criteria); whether the drawing's lighter dark surface
+should replace `--color-raised`; list keys in Chivo Mono; clamping a block above a very tall dialog; a
+cap on the toast stack; a screen-reader check in Firefox of a toast announced inside a dialog.
 
 **Decisions the owner took on 2026-09-25 — do not reopen:**
 - **Tooltips on keys and cut text.** A linked Jira key carries "open in Jira" in place of the native
