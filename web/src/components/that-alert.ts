@@ -15,6 +15,25 @@ const TONES: Record<string, { colour: string; icon: IconName; label: string }> =
   error: { colour: "text-failed", icon: "failed", label: "Failed" },
 };
 
+const FALLBACK_TONE = TONES["warning"] ?? {
+  colour: "text-pending",
+  icon: "warning" as IconName,
+  label: "Warning",
+};
+
+/** The tone's mark: coloured, and named for when colour cannot carry it. Shared with that-toast. */
+export function toneMark(tone: string): HTMLElement {
+  const spec = TONES[tone] ?? FALLBACK_TONE;
+  const mark = document.createElement("span");
+  mark.className = `shrink-0 leading-6 ${spec.colour}`;
+  mark.innerHTML = iconMarkup(spec.icon);
+  // The mark is decorative on its own account (icons.ts sets aria-hidden);
+  // the word it stands for is not, so the wrapper carries it instead.
+  mark.setAttribute("role", "img");
+  mark.setAttribute("aria-label", spec.label);
+  return mark;
+}
+
 export class ThatAlert extends HTMLElement {
   static get observedAttributes(): string[] {
     return ["tone", "message"];
@@ -30,18 +49,9 @@ export class ThatAlert extends HTMLElement {
   }
 
   private render(): void {
-    const tone = TONES[this.getAttribute("tone") ?? "warning"] ?? TONES["warning"];
-    if (!tone) return;
-
     this.className = "text-base text-ink flex items-start gap-3";
 
-    const mark = document.createElement("span");
-    mark.className = `shrink-0 leading-6 ${tone.colour}`;
-    mark.innerHTML = iconMarkup(tone.icon);
-    // The mark is decorative on its own account (icons.ts sets aria-hidden);
-    // the word it stands for is not, so the wrapper carries it instead.
-    mark.setAttribute("role", "img");
-    mark.setAttribute("aria-label", tone.label);
+    const mark = toneMark(this.getAttribute("tone") ?? "warning");
 
     const message = document.createElement("span");
     message.textContent = this.getAttribute("message") ?? "";

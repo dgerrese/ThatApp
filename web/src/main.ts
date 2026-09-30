@@ -15,6 +15,10 @@ startRail();
 // shell's code-splitting already assumes.
 void import("./components/that-tooltip");
 
+// #123: the toast host sits in the markup from first render; its behaviour
+// comes from its own chunk, like that-tooltip's.
+void import("./components/that-toasts");
+
 const root = document.querySelector<HTMLElement>("#view");
 if (root) {
   startRouter(root);

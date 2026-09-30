@@ -546,7 +546,7 @@ test("a failed initial load still offers to add an instance", async ({ page }) =
   await openSettings(page);
 
   await expect(page.getByRole("button", { name: "Add an instance" })).toBeVisible();
-  await expect(page.getByRole("status")).toBeVisible();
+  await expect(page.locator("that-alert[role='status']")).toBeVisible();
 });
 
 const TOKEN_PAGE = "https://id.atlassian.com/manage-profile/security/api-tokens";
