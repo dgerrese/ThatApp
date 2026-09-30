@@ -16,6 +16,13 @@ export class ThatTooltip extends HTMLElement {
   private trigger: HTMLElement | null = null;
   private observer: MutationObserver | undefined;
   private readonly onShow = (): void => this.reveal();
+  // #107: a focus reveals the tooltip only when it is keyboard focus. The
+  // browser already tells the two apart, and showModal() returns focus to the
+  // opener on close — with :focus-visible after a keyboard close, without it
+  // after a mouse close — so a mouse close no longer reopens the tooltip.
+  private readonly onFocus = (event: FocusEvent): void => {
+    if (event.target instanceof Element && event.target.matches(":focus-visible")) this.reveal();
+  };
   // Both halves of a pair can fire for one release, when a trigger is hovered
   // and focused at once, so each call can find the popover already in the
   // state it wants. Neither showPopover() nor hidePopover() throws in that
@@ -30,7 +37,7 @@ export class ThatTooltip extends HTMLElement {
   connectedCallback(): void {
     this.setAttribute("popover", "manual");
     this.className =
-      "bg-tip text-rail-ink rounded-xs px-[9px] py-[5px] text-xs font-medium tracking-normal normal-case overflow-visible " +
+      "bg-tip text-rail-ink rounded-xs px-[9px] py-[5px] text-xs font-medium tracking-normal normal-case overflow-visible pointer-events-none " +
       (this.hasAttribute("wrap")
         ? "max-w-[340px] whitespace-normal break-words"
         : "whitespace-nowrap");
@@ -42,20 +49,16 @@ export class ThatTooltip extends HTMLElement {
 
     trigger.addEventListener("pointerenter", this.onShow);
     trigger.addEventListener("pointerleave", this.onHide);
-    trigger.addEventListener("focus", this.onShow);
+    trigger.addEventListener("focus", this.onFocus);
     trigger.addEventListener("blur", this.onHide);
 
     // reveal() places the box once, at show time, from the trigger's rect and
     // this element's own width. A consumer can repaint this element's text —
-    // and so its width — while the popover is still open under the pointer:
-    // that-ticket-row's pin control does exactly that, from "pin ticket" to
-    // "unpin ticket", on the same click that leaves the tooltip open.
-    // Chromium happens to focus a clicked button, which re-runs onShow and
-    // hides the seam; Firefox does not focus a button on click, so the stale
-    // box is real there, under the primary target. Watching the text directly
-    // — rather than hiding on click, which would fight the hover-driven
-    // tests that expect the tooltip to still be open right after — is what
-    // makes both browsers agree.
+    // and so its width — while the popover is still open: that-ticket-row's
+    // pin control does exactly that. A click focus no longer re-reveals (#107),
+    // so only watching the text keeps the box right. Watching rather than
+    // hiding on click also lets hover-driven tests expect the tooltip to still
+    // be open right after.
     this.observer = new MutationObserver(() => {
       if (this.matches(":popover-open")) this.reveal();
     });
@@ -71,7 +74,7 @@ export class ThatTooltip extends HTMLElement {
 
     trigger.removeEventListener("pointerenter", this.onShow);
     trigger.removeEventListener("pointerleave", this.onHide);
-    trigger.removeEventListener("focus", this.onShow);
+    trigger.removeEventListener("focus", this.onFocus);
     trigger.removeEventListener("blur", this.onHide);
   }
 

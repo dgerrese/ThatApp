@@ -442,6 +442,47 @@ test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) 
   await expect(tooltip).toBeHidden();
 });
 
+// #107: a tooltip is never interactive, so a click where it sits reaches the
+// element under it. Revealed by keyboard so that moving the pointer to click
+// cannot close it first.
+test("a shown tooltip lets a click through to the element under it", async ({ page }) => {
+  await page.evaluate(() => {
+    const trigger = document.createElement("button");
+    trigger.id = "through-trigger";
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", "Pin this issue");
+    trigger.textContent = "•";
+    trigger.style.cssText = "position: fixed; top: 300px; left: 300px; width: 34px; height: 34px;";
+
+    const under = document.createElement("button");
+    under.id = "under";
+    under.type = "button";
+    under.textContent = "under";
+    under.style.cssText = "position: fixed; top: 240px; left: 220px; width: 200px; height: 60px;";
+    under.addEventListener("click", () => (under.dataset["clicked"] = "yes"));
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "through-trigger");
+    tooltip.textContent = "Pin this issue";
+
+    document.body.append(under, trigger, tooltip);
+  });
+
+  await page.locator("#through-trigger").focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#through-trigger")).toBeFocused();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const box = await tooltip.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+
+  await expect(page.locator("#under")).toHaveAttribute("data-clicked", "yes");
+});
+
 // A trigger can be hovered and focused at once, so each release event can
 // find the popover already in the state it is asking for. Neither call throws
 // on that in either target browser — measured 2026-09-04 — so these two do
@@ -581,7 +622,14 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
   // What actually proves escape: the pixel at the tooltip's own centre is
   // painted by the tooltip itself.
   const paintedByTooltip = await page.evaluate(({ x, y, width, height }) => {
+    const tooltip = document.querySelector<HTMLElement>("that-tooltip[data-fixture]");
+    if (!tooltip) throw new Error("tooltip not found");
+    // The probe must undo the tooltip's own pointer-events: none (#107),
+    // or elementFromPoint looks straight through it.
+    const original = tooltip.style.pointerEvents;
+    tooltip.style.pointerEvents = "auto";
     const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+    tooltip.style.pointerEvents = original;
     return hit?.tagName.toLowerCase() === "that-tooltip";
   }, tooltipBox!);
   expect(paintedByTooltip).toBe(true);
