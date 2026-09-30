@@ -137,25 +137,30 @@ test("each push state draws its own marker, and pushed draws none", async (t) =>
   }
 });
 
-test("a day total wears its day's marker, named for a reader who cannot see it", () => {
-  const grid = weekGrid(
+test("a day total's mark is a tab stop named for its state, with the app's tooltip saying the same", () => {
+  const unpushedMonday = (): WeekRollup =>
     rollup([row({ byDay: { 0: { seconds: 3600, pushState: "unpushed" } } })], {
       0: { pushState: "unpushed" },
-    }),
-    noFailures(),
-    noop,
-  );
-  const monday = footCells(grid)[0];
+    });
+  const monday = footCells(weekGrid(unpushedMonday(), noFailures(), noop))[0];
+  const mark = monday?.querySelector<HTMLElement>("[role='img']");
 
-  assert.equal(
-    monday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"),
-    "not pushed",
+  assert.equal(mark?.getAttribute("aria-label"), "not pushed");
+  assert.equal(mark?.tabIndex, 0);
+  assert.equal(mark?.hasAttribute("title"), false, "the mark still carries a native title");
+  assert.ok(mark?.classList.contains("size-[7px]"), "day total's marker is not 7px");
+  assert.equal(monday?.querySelector(".sr-only"), null, "the sr-only words would be heard twice");
+
+  const tooltip = monday?.querySelector("that-tooltip");
+  assert.ok(mark?.id, "the mark has no id for its tooltip to find");
+  assert.equal(tooltip?.getAttribute("for"), mark?.id);
+  assert.equal(tooltip?.textContent, "not pushed");
+
+  // Week navigation rebuilds the grid: a second mount must not reuse the id.
+  const again = footCells(weekGrid(unpushedMonday(), noFailures(), noop))[0]?.querySelector(
+    "[role='img']",
   );
-  assert.equal(monday?.querySelector(".sr-only")?.textContent, "not pushed, ");
-  assert.ok(
-    monday?.querySelector("span[aria-hidden='true']")?.classList.contains("size-[7px]"),
-    "day total's marker is not 7px",
-  );
+  assert.notEqual(again?.id, mark?.id);
 });
 
 test("a failed push marks its own cell and day, outranking the rollup's state", () => {
@@ -191,10 +196,8 @@ test("a failed push marks its own cell and day, outranking the rollup's state", 
   );
 
   const tuesday = footCells(grid)[1];
-  assert.equal(
-    tuesday?.querySelector("span[aria-hidden='true']")?.getAttribute("title"),
-    "push failed",
-  );
+  assert.equal(tuesday?.querySelector("[role='img']")?.getAttribute("aria-label"), "push failed");
+  assert.equal(tuesday?.querySelector("that-tooltip")?.textContent, "push failed");
 });
 
 test("rows, days and the week are totalled, and a zero total is an em dash", () => {

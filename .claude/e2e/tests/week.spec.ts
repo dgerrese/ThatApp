@@ -1556,10 +1556,85 @@ test("the footer's day-total mark keeps its own rule", async ({ page }) => {
     ]),
   });
 
-  const mark = page.locator("tfoot td").first().locator("span[aria-hidden='true']");
+  const mark = page.locator("tfoot td").first().getByRole("img", { name: "not pushed" });
   await expect(mark).toBeVisible();
   await expect(mark).toHaveCSS("margin-right", "6px");
   await expect(mark).toHaveCSS("vertical-align", "1px");
+});
+
+/**
+ * #231: a footer day total's mark names its state in the app's own tooltip —
+ * the owner ruled in #143 that a native title no longer fits — and to a
+ * screen reader through its aria-label alone, so the state is heard once.
+ */
+test("a footer day total's mark shows its state in a tooltip on hover, never a title", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [
+        { at: 0, seconds: 3600, pushState: "unpushed" },
+        { at: 1, seconds: 1800, pushState: "dirty" },
+      ]),
+    ]),
+  });
+
+  await expect(page.locator("tfoot .sr-only")).toHaveCount(0);
+
+  for (const [column, words] of [
+    [0, "not pushed"],
+    [1, "edited since it was pushed"],
+  ] as const) {
+    const mark = page.locator("tfoot td").nth(column).getByRole("img", { name: words });
+    await expect(mark).toBeVisible();
+    await expect(mark).not.toHaveAttribute("title");
+
+    const tooltip = page.locator(`that-tooltip[for="${(await mark.getAttribute("id")) ?? ""}"]`);
+    await expect(tooltip).toBeHidden();
+    await mark.hover();
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toHaveText(words);
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toBeHidden();
+  }
+});
+
+/**
+ * #231: the mark is a Tab stop straight after the last row's Sunday cell —
+ * the row total between them is inert — and its tooltip opens on that real
+ * key press. The footer is outside `tbody tr`, so Up and Down neither leave
+ * it nor enter it (#227's rows are unchanged).
+ */
+test("a real Tab reaches a footer mark and opens its tooltip; Up and Down stay put", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+    ]),
+  });
+
+  const sunday = ticketRow(page, "RIDGE-1").locator("td button").nth(6);
+  const mark = page.locator("tfoot td").first().getByRole("img", { name: "not pushed" });
+  await expect(mark).toBeVisible();
+  const tooltip = page.locator(`that-tooltip[for="${(await mark.getAttribute("id")) ?? ""}"]`);
+
+  await sunday.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(mark).toBeFocused();
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText("not pushed");
+
+  await page.keyboard.press("ArrowUp");
+  await expect(mark).toBeFocused();
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(sunday).toBeFocused();
+  await expect(tooltip).toBeHidden();
+
+  await page.keyboard.press("ArrowDown");
+  await expect(sunday).toBeFocused();
 });
 
 /**
@@ -1795,8 +1870,8 @@ test("opening a past Monday's cell and adding time moves the cell, its row total
       entries.push(created);
 
       // pushed, not unpushed: the footer's own day total would otherwise grow
-      // a worst-wins marker and the sr-only words beside it, which is a
-      // separate claim from the one this test makes about the figures alone.
+      // a worst-wins marker and its tooltip, which is a separate claim from
+      // the one this test makes about the figures alone.
       if (body.day === "2026-08-31") {
         rollups["2026-08-31"] = rollup("2026-08-31", [
           row("RIDGE-9", [{ at: 0, seconds: 3600 + body.seconds, pushState: "pushed" }]),
