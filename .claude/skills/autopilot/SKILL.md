@@ -29,11 +29,19 @@ that the owner opened, every rule here is inert and `CLAUDE.md` reads as written
    ```
 
    The owner may name one instead ("work the board on v2"); that wins.
-3. List that milestone's `status/todo` tickets and order them: `priority/high`, then unlabelled,
-   then `priority/low`, and **inside a band a `bug` comes before a non-bug**.
+3. List that milestone's `status/in-progress` **and** `status/todo` tickets. **In-progress comes
+   first: finish what is started before starting anything new.** Order each group the same way:
+   `priority/high`, then unlabelled, then `priority/low`, and **inside a band a `bug` comes before a
+   non-bug**. Set by the owner on 2026-09-21, mid-run, when the run walked past #83 and #8 — the
+   board's two highest-priority tickets, both in progress with branches pushed. The rule sat in that
+   day's narrative and never reached this skill, so the 2026-09-30 run walked past #123 the same way.
 4. Post the queue as the opening ledger, in the order it will be worked.
 
-**No open milestone, or no `status/todo` in it:** say so and stop. Do not refine one to refill the
+**An in-progress ticket is resumed, not restarted.** Its branch and anything already on it — a
+design, a plan, commits — are where the run picks up, at the stage the ticket reached. Read its
+comments and the handoff for what the last session left open.
+
+**No open milestone, or nothing in-progress or to-do in it:** say so and stop. Do not refine one to refill the
 queue, and do not roll into the next milestone — a run is one milestone.
 
 ## The loop
@@ -54,7 +62,8 @@ the owner, which is the one thing a run cannot do. A run leaves stacks behind by
 ships faster than the owner merges, so by the fifth ticket the branch that a sixth needs is very
 often still open.
 
-The run ends when the milestone has no `status/todo` left, or when the owner ends it.
+The run ends when the milestone has no `status/in-progress` or `status/todo` left that the run can
+take, or when the owner ends it.
 
 ## When the owner is not there
 
@@ -106,6 +115,7 @@ Then stop. Do not run `eod` off the back of it — the owner signals that separa
 
 | Thought | Reality |
 |---|---|
+| "It's in progress, so someone else has it" | In-progress goes first. Resume it from its branch. |
 | "The queue is empty, v2 has plenty" | A run is one milestone. Report and stop. |
 | "This ticket needs one small design decision — I can infer it" | A drawing you cannot point at is a blocker. Block it. |
 | "This `needs-refinement` ticket is nearly refined already" | Refinement is attended work. Leave it. |
