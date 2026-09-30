@@ -452,7 +452,10 @@ centring on it, or it hangs past the card.
 
 **The tooltip wears the drawing's `.tip` skin, and an end-anchored one sits flush** (owner, #246,
 2026-09-29 and 2026-09-30, in the design companion). The skin is `.tip`'s: ground `oklch(0.06 0.004
-60)` in both themes (`--color-tip`), 12px / 500 text, 5px 9px padding, no shadow. A tooltip on a
+60)` in both themes (`--color-tip`), 12px / 500 text, 5px 9px padding, no shadow, and no
+letter-spacing or text-transform inherited from its host. The text keeps `--color-rail-ink`,
+`oklch(0.962 0.005 70)`, against `.tip`'s `oklch(0.96 0.004 70)`: a difference nobody can see,
+kept so the app has one near-white ink on dark grounds. A tooltip on a
 trailing control puts its right edge exactly on the button's right edge; the prototype's `.tip.end`
 drew it 8px past, and changed to match.
 
