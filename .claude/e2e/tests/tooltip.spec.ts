@@ -127,6 +127,39 @@ test("hovering a trigger shows the tooltip, and pointerleave hides it again", as
   await expect(tooltip).toBeHidden();
 });
 
+// #246: the tooltip wears the drawing's .tip skin (prototype line 167). The
+// ground is compared against a probe carrying the drawing's own value, so the
+// test does not depend on how each browser serialises an oklch() colour.
+test("the tooltip wears the drawing's .tip skin", async ({ page }) => {
+  await mountTrigger(page);
+  await page.locator("#trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const skin = await tooltip.evaluate((el) => {
+    const probe = document.createElement("div");
+    probe.style.background = "oklch(0.06 0.004 60)";
+    document.body.append(probe);
+    const drawnGround = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const s = getComputedStyle(el);
+    return {
+      ground: s.backgroundColor,
+      drawnGround,
+      fontSize: s.fontSize,
+      fontWeight: s.fontWeight,
+      padding: `${s.paddingTop} ${s.paddingRight} ${s.paddingBottom} ${s.paddingLeft}`,
+      shadow: s.boxShadow,
+    };
+  });
+
+  expect(skin.ground).toBe(skin.drawnGround);
+  expect(skin.fontSize).toBe("12px");
+  expect(skin.fontWeight).toBe("500");
+  expect(skin.padding).toBe("5px 9px 5px 9px");
+  expect(skin.shadow).toBe("none");
+});
+
 // The drawing's .tip sits at bottom: calc(100% + 7px) — above the trigger,
 // centred — and reveal() is meant to compute the same box. Fixed-positioned
 // at mid-viewport rather than relying on mountTrigger's natural flow

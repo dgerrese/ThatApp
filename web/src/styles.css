@@ -76,6 +76,9 @@
   --color-rail-muted: oklch(0.66 0.01 60);
   --color-rail-active: oklch(0.205 0.008 60);
 
+  /* The drawing's .tip ground (#246), one value in both themes like the rail. */
+  --color-tip: oklch(0.06 0.004 60);
+
   /* Identity, never state: wordmark, Push, links, focus rings. */
   --color-primary: light-dark(oklch(0.5 0.21 330), oklch(0.72 0.19 330));
   --color-primary-ink: light-dark(oklch(0.99 0.004 70), oklch(0.16 0.02 330));

@@ -450,6 +450,12 @@ regardless, because a tooltip that only appears on hover reaches neither a keybo
 reader on its own. And a tooltip on a **trailing** control anchors to its right edge rather than
 centring on it, or it hangs past the card.
 
+**The tooltip wears the drawing's `.tip` skin, and an end-anchored one sits flush** (owner, #246,
+2026-09-29 and 2026-09-30, in the design companion). The skin is `.tip`'s: ground `oklch(0.06 0.004
+60)` in both themes (`--color-tip`), 12px / 500 text, 5px 9px padding, no shadow. A tooltip on a
+trailing control puts its right edge exactly on the button's right edge; the prototype's `.tip.end`
+drew it 8px past, and changed to match.
+
 **It opens above its trigger, the drawing's `.tip`, and falls back below — the drawing's own
 `.tip.below` — when there is not enough room above.** #content starts flush against the window's
 top edge, so a trigger near the top of the content column has nowhere to open upward into.
@@ -573,6 +579,9 @@ label — the stop dialog is the first case, growing wider than `that-confirm`'s
 its button row on one line rather than letting a label wrap. The prototype draws that dialog at
 440px, the width the design session settled on; a later dialog is free to need a different one
 and still follow this rule.
+
+**A button's horizontal padding is 12px** (owner, #246, 2026-09-30, in the design companion). The
+prototype's `.btn` drew 16px and changed to match `that-button`, which already had 12px.
 
 ## What the first edition still governs
 

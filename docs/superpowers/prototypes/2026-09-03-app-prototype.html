@@ -165,7 +165,7 @@
      rather than the page's --hover. */
   .rail .iconbtn:hover, .rail .iconbtn:focus-visible { background: var(--hover-rail); color: var(--rail-ink); }
   .tip { position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%); background: oklch(0.06 0.004 60); color: oklch(0.96 0.004 70); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; padding: 5px 9px; border-radius: var(--r-xs); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 120ms; z-index: 8; }
-  .tip.end { left: auto; right: -8px; transform: none; }
+  .tip.end { left: auto; right: 0; transform: none; }
   .tip.right { left: calc(100% + 9px); right: auto; bottom: auto; top: 50%; transform: translateY(-50%); }
   .tip.below { bottom: auto; top: calc(100% + 7px); }
   .iconbtn:hover .tip, .iconbtn:focus-visible .tip, .cog:hover .tip, .cog:focus-visible .tip, .wctl:hover .tip, .cell:hover .tip, .cell:focus-visible .tip,
@@ -311,7 +311,7 @@
   .ecomment-in:focus { border-color: var(--pri); }
   .ecomment-in::placeholder { color: var(--ink-muted); opacity: .85; }
 
-  .btn { display: inline-flex; align-items: center; justify-content: center; height: 38px; padding: 0 16px; border-radius: var(--r-sm); font-size: 14px; font-weight: 700; flex: none; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; height: 38px; padding: 0 12px; border-radius: var(--r-sm); font-size: 14px; font-weight: 700; flex: none; }
   .btn.primary { background: var(--pri); color: var(--pri-ink); }
   .btn.primary:hover { filter: brightness(1.07); }
   .btn.quiet { color: var(--ink-muted); }
