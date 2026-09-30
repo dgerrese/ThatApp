@@ -36,21 +36,14 @@ further down is history and says otherwise in places.
 **This block supersedes everything below it in this section where the two disagree.** The day is in
 [`handoff/2026-09-28.md`](handoff/2026-09-28.md).
 
-**`main` is at `44f2b74`** (the merge of PR #252, #217). **Merged on 2026-09-28**, all by the owner:
+**`main` is at `563c464`** (the merge of PR #257, #119). **Merged on 2026-09-29** by the owner: the 2026-09-28 handoff (PR #258), #89 (PR #251), #97 (PR #255), #108 (PR #256), #119 (PR #257). **Merged on 2026-09-28**, all by the owner:
 the 2026-09-25 handoff (PR #238), the e2e sharding (#239, PR #240), #200 (PR #233), #204 (PR #237),
 #143 with #230 and #235 (PR #229), #227 (PR #241), #209 (PR #242), #215 (PR #243), #221 (PR #244),
 #217 (PR #252). Codeberg did not record #240's merge on the PR itself; it was closed by hand with a
 comment naming `4a9115d`.
 
 **The owner ran autopilot on v1 on 2026-09-28; it finished with the v1 `status/todo` queue empty.**
-Four pull requests are open, all waiting on the owner:
-
-| PR | Ticket | Base | Notes |
-|---|---|---|---|
-| #251 | #89 Settings as a dialog | `main` | Head `0aeba9b`: `main` merged in and #200's in-flight Edit guard carried into the dialog, 766 passed. Six owner questions in the body; "A result carries the time it was taken" is unticked (the failed state is not drawn) |
-| #255 | #97 one scrim token | **`issue-89-settings-dialog`** | Merge #251 first. Owner question at the top: a confirm over another dialog dims the page twice |
-| #256 | #108 focused fields take the accent | **`issue-89-settings-dialog`** | Merge #251 first |
-| #257 | #119 icon-label test sees visible text | `main` | — |
+Every pull request from that run was merged on 2026-09-29. **No pull request is open.**
 
 **Codeberg retargets a stacked PR itself** when its base branch is deleted at merge (seen with #229's
 four children). Check `mergeable` after each merge: #251 conflicted once `main` carried a change to a
@@ -60,13 +53,14 @@ file it deletes.
 turns Settings into a dialog with no cards, so the settled "24px between cards" has no subject; the
 question is on #205.
 
-**Intake review with the owner, in progress when the day ended.** The owner is taking v1's intake
-tickets one at a time; v1 keeps every ticket that fits its description. **Done:** #226 approved
-(`status/needs-refinement`). **Next:** #228 — recommended closing as done by #227 (Up/Down shipped;
-Left/Right was never asked for). **Then:** #231, #232 (duplicate of #231), #234, #236, #245, #246,
-#247, #248 (duplicate of #247), #249, #250, #254 (duplicate of #203, filed by mistake).
+**The v1 intake review is finished (2026-09-29).** Approved to `status/needs-refinement`: #226, #231
+(`bug`), #234, #236 (`bug`), #246, #250. #246 is now a **design review** of `that-tooltip` and
+`that-button` against the drawing, held in the design companion; it absorbed #247, #248 and #249.
+Closed: #228 as done by #227; #232, #247, #248, #249 and #254 with `wontfix` as duplicates or folded;
+#245 with `wontfix` (see *Decisions taken*). The finding from #254 is on #203, which stays in v2. v1
+has no intake tickets left; v2 has eleven.
 
-**At `status/needs-refinement`:** v1 — #226, #220, #207, #208. v2 — #253 (an MCP server, asked for by
+**#207, #208 and #226 wait for #123** (toasts; its design is on `codeberg/issue-123-toasts` only): #208 and #226 are `status/blocked`, #207 is at `status/needs-refinement`, and #207's and #208's failure placement is rewritten from #123's design once it exists. **Autopilot on v1, 2026-09-29, emptied `status/todo`.** Open PRs, all on `main`: #260 (#231), #262 (#236), #263 (#234), #264 (#250). #246 is `status/blocked` — a design review needing the owner. Release `v2026.40.1` is published. **At `status/needs-refinement`:** v1 — #220, waiting on the owner's choice of host. **At intake:** v1 — #259 (instance dots' native `title`), #261 (a focused rail instance name is lost when the split rebuilds). v2 — #253 (an MCP server, asked for by
 the owner on 2026-09-28, with its open questions in the body).
 
 **#123 is at `status/in-progress` from another session.** Git now marks its worktree under an old
@@ -991,6 +985,16 @@ behind an open dialog is still half-opaque black in both themes. Darkening a whi
 is a question about modality, not about depth. It needs a design session before planning.
 
 ## Decisions taken — do not reopen
+
+**The dialog shadow is the shipped token, not the drawing's dark `.sheet`.** Settled by the owner on
+2026-09-29, declining #245. `--shadow-dialog` is `0 12px 36px -12px` in both themes; the prototype's
+dark `0 14px 44px -10px` is not to be matched, and a later audit must not raise it again.
+
+**A dialog opened over another dialog dims the page twice, on purpose.** Settled by the owner on
+2026-09-29, on #255 (#97). Each native dialog paints `--color-scrim` behind itself and the layers
+stack: about 84% on dark and 44% on light outside a confirm. The dialog underneath is dimmed too,
+which is what puts the eye on the confirm. A transparent backdrop for nested dialogs was the rejected
+option: over full-screen Settings it would leave the confirm with no dimming at all.
 
 **No worktrees — branch in place, permanently.** Settled by the owner on 2026-09-16: they do not use
 worktrees and do not intend to, so the plan to make them cheap (`worktrees-without-the-tax`, which
