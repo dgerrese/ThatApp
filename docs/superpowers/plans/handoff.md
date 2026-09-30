@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-24 at end of day**, against the Codeberg API rather than against local git — see
+**Verified on 2026-09-28 at end of day**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -31,39 +31,78 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### The state at the end of 2026-09-24 — read this first
+### The state at the end of 2026-09-28 — read this first
 
 **This block supersedes everything below it in this section where the two disagree.** The day is in
-[`handoff/2026-09-24.md`](handoff/2026-09-24.md).
+[`handoff/2026-09-28.md`](handoff/2026-09-28.md).
 
-**`main` is at `9d552f0`** (the merge of PR #214, #74). **Merged on 2026-09-24:** #185 (PR #210),
-#66 (PR #213), #74 (PR #214) and the handoff PR #222. Local `main` was brought level with
-`git fetch codeberg main:main`, not by a merge.
+**`main` is at `563c464`** (the merge of PR #257, #119). **Merged on 2026-09-29** by the owner: the 2026-09-28 handoff (PR #258), #89 (PR #251), #97 (PR #255), #108 (PR #256), #119 (PR #257). **Merged on 2026-09-28**, all by the owner:
+the 2026-09-25 handoff (PR #238), the e2e sharding (#239, PR #240), #200 (PR #233), #204 (PR #237),
+#143 with #230 and #235 (PR #229), #227 (PR #241), #209 (PR #242), #215 (PR #243), #221 (PR #244),
+#217 (PR #252). Codeberg did not record #240's merge on the PR itself; it was closed by hand with a
+comment naming `4a9115d`.
 
-**Four pull requests are open, all waiting on the owner:**
+**The owner ran autopilot on v1 on 2026-09-28; it finished with the v1 `status/todo` queue empty.**
+Every pull request from that run was merged on 2026-09-29. **No pull request is open.**
 
-| PR | Ticket | Notes |
-|---|---|---|
-| #216 | #106 one definition of the push marks | Cut before #214; may fail the prettier gate once it meets `main` |
-| #219 | #109 a failed pin reports beside its row | Same as #216 |
-| #223 | #127 table body cells take the drawn 15px | Rebased onto `9d552f0` at the owner's request and force-pushed with lease. Both gates green after the rebase |
-| #224 | follows #74: formats two files | `main` fails `npm run lint`'s prettier check on `web/src/duration.test.ts` and `web/src/views/settings.ts`, which #185 brought in beside #214. Whitespace only |
+**Codeberg retargets a stacked PR itself** when its base branch is deleted at merge (seen with #229's
+four children). Check `mergeable` after each merge: #251 conflicted once `main` carried a change to a
+file it deletes.
 
-**Blocked: #107**, by its own tripwire — after the entries dialog closes, `:focus-visible` differs
-between Firefox and Chromium. The question for the owner, with the measurement, is on the ticket.
+**Blocked:** #107 (unchanged — the `:focus-visible` question is on the ticket) and **#205** — #89
+turns Settings into a dialog with no cards, so the settled "24px between cards" has no subject; the
+question is on #205.
 
-**Left in v1 at `status/todo`:** #143 (normal), then #119, #108, #97 and #89 (`priority/low`).
+**The v1 intake review is finished (2026-09-29).** Approved to `status/needs-refinement`: #226, #231
+(`bug`), #234, #236 (`bug`), #246, #250. #246 is now a **design review** of `that-tooltip` and
+`that-button` against the drawing, held in the design companion; it absorbed #247, #248 and #249.
+Closed: #228 as done by #227; #232, #247, #248, #249 and #254 with `wontfix` as duplicates or folded;
+#245 with `wontfix` (see *Decisions taken*). The finding from #254 is on #203, which stays in v2. v1
+has no intake tickets left; v2 has eleven.
 
-**At `status/needs-refinement` in v1:** #220 (CI on a self-hosted runner on an always-on host). Its
-first open question is whether Codeberg runs a fork's workflow on a self-hosted runner without
-approval — it must be answered before any runner is registered. #198 (nothing cleans `web/dist`) is
-v2.
+**#207, #208 and #226 wait for #123** (toasts; its design is on `codeberg/issue-123-toasts` only): #208 and #226 are `status/blocked`, #207 is at `status/needs-refinement`, and #207's and #208's failure placement is rewritten from #123's design once it exists. **Autopilot on v1, 2026-09-29, emptied `status/todo`.** Open PRs, all on `main`: #260 (#231), #262 (#236), #263 (#234), #264 (#250). #246 is `status/blocked` — a design review needing the owner. Release `v2026.40.1` is published. **At `status/needs-refinement`:** v1 — #220, waiting on the owner's choice of host. **At intake:** v1 — #259 (instance dots' native `title`), #261 (a focused rail instance name is lost when the split rebuilds). v2 — #253 (an MCP server, asked for by
+the owner on 2026-09-28, with its open questions in the body).
 
-**At `status/intake`, the session's own findings, for the owner's next cycle:** #200–#209, #211, #212,
-#215, #217, #218 and #221.
+**#123 is at `status/in-progress` from another session.** Git now marks its worktree under an old
+scratchpad as prunable; its branch is on Codeberg. This session did not touch it.
 
-**Label anomalies, left for the owner:** #185, #74 and #66 are closed and still carry
-`status/in-progress`. The strip after a merge is still structural, not a lapse.
+**Labels are clean**, checked across every ticket on 2026-09-28: no closed ticket carries a `status/*`
+label, every open one carries exactly one and a milestone, and no v2 ticket carries `enhancement`.
+**A merge still leaves `status/in-progress` behind** — it did for every merge that day; strip it at
+each merge.
+
+**The status line has a second line** for the ticket in hand (stages, current stage, ETA as
+`1h 15m (15:10)`), fed by `.claude/issue-status.sh <issue> <done> <total> "<stage>" ["<title>"]` at
+each stage change and `clear` when none is in hand. Local only, in `.git/info/exclude`.
+
+**Decisions the owner took on 2026-09-25 — do not reopen:**
+- **Tooltips on keys and cut text.** A linked Jira key carries "open in Jira" in place of the native
+  `title`; an unlinked key carries neither. The row timer control carries "start timer"/"stop timer",
+  and the rail's stop button "stop timer". The rail's running key and every ticket summary (Today's rows,
+  the search panel) are focusable, and each opens only its own tooltip on its own focus. Other cut texts
+  keep the earlier rule until #236 is decided.
+- **The search panel's summary tooltip opens below the summary**, so it never covers the focused key.
+- **Up/Down move between table rows** (#227): across Today's tables in document order, within Week's
+  grid; data rows only; a missing cell lands on the nearest focusable in the target row.
+- **Extra Tab stops are acceptable**; the arrow keys are the answer to the Tab walk, not fewer stops.
+
+**A review build of an open PR runs from a worktree.** `../ThatApp-review-229` has its own `.env`
+(`THAT_PORT=8082`, `COMPOSE_PROJECT_NAME=thatapp-review`) and a copy of the real database, so `make`
+there never collides with the main checkout and Push there would write real worklogs. The owner chose
+the database copy. Stop it with `docker compose -p thatapp-review down` in that directory (no `-v`
+needed: its database is a bind mount), then `git worktree remove ../ThatApp-review-229`.
+
+**`.claude/e2e/tests` is neither type-checked nor linted** — it has no `tsconfig.json` or eslint config,
+so `make tsc` and `make lint` never see it. Only a Playwright run proves a spec compiles. Found 2026-09-25.
+
+**A hidden `that-tooltip` repeats its trigger's text**, so a bare `getByText(summary)` in an e2e spec
+matches two elements. Scope such locators to the visible element (`span:text-is(…)`, a row, a role).
+A change that adds hidden duplicate text breaks specs across the whole suite: run the full `make
+test-e2e` before the whole-branch review, not only the specs a task touched. Found 2026-09-25.
+
+**Codeberg failed on and off through the afternoon of 2026-09-25:** pushes were refused with
+"pre-receive hook declined / Internal Server Connection Error", and the API and attachment uploads
+returned 504. Retrying later worked every time. A 504 on `POST /issues` can still create the issue.
 
 **Rules the owner set on 2026-09-23 — do not reopen:**
 - **A finding of the session's own is filed at `status/intake` at once, never asked about.** Asking
@@ -946,6 +985,16 @@ behind an open dialog is still half-opaque black in both themes. Darkening a whi
 is a question about modality, not about depth. It needs a design session before planning.
 
 ## Decisions taken — do not reopen
+
+**The dialog shadow is the shipped token, not the drawing's dark `.sheet`.** Settled by the owner on
+2026-09-29, declining #245. `--shadow-dialog` is `0 12px 36px -12px` in both themes; the prototype's
+dark `0 14px 44px -10px` is not to be matched, and a later audit must not raise it again.
+
+**A dialog opened over another dialog dims the page twice, on purpose.** Settled by the owner on
+2026-09-29, on #255 (#97). Each native dialog paints `--color-scrim` behind itself and the layers
+stack: about 84% on dark and 44% on light outside a confirm. The dialog underneath is dimmed too,
+which is what puts the eye on the confirm. A transparent backdrop for nested dialogs was the rejected
+option: over full-screen Settings it would leave the confirm with no dimming at all.
 
 **No worktrees — branch in place, permanently.** Settled by the owner on 2026-09-16: they do not use
 worktrees and do not intend to, so the plan to make them cheap (`worktrees-without-the-tax`, which

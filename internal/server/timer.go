@@ -18,19 +18,47 @@ func validRound(round store.Rounding) bool {
 }
 
 // timerDTO is the timer in progress, if any. The browser computes elapsed time
-// from startedAt itself, so there is no server tick to render.
+// from startedAt itself, so there is no server tick to render. InstanceName and
+// InstancePosition are joined in exactly as entryDTOFrom does, so the rail can
+// draw a split slice for the running instance without a second fetch.
 type timerDTO struct {
-	InstanceID int64  `json:"instanceId"`
-	IssueKey   string `json:"issueKey"`
-	StartedAt  string `json:"startedAt"`
+	InstanceID       int64  `json:"instanceId"`
+	InstanceName     string `json:"instanceName"`
+	InstancePosition int    `json:"instancePosition"`
+	IssueKey         string `json:"issueKey"`
+	StartedAt        string `json:"startedAt"`
 }
 
-func (s *Server) timerDTOFrom(timer store.Timer) timerDTO {
+func (s *Server) timerDTOFrom(timer store.Timer, inst store.Instance, position int) timerDTO {
 	return timerDTO{
-		InstanceID: timer.InstanceID,
-		IssueKey:   timer.IssueKey,
-		StartedAt:  timer.StartedAt.In(s.cfg.Location).Format(time.RFC3339),
+		InstanceID:       timer.InstanceID,
+		InstanceName:     inst.Name,
+		InstancePosition: position,
+		IssueKey:         timer.IssueKey,
+		StartedAt:        timer.StartedAt.In(s.cfg.Location).Format(time.RFC3339),
 	}
+}
+
+// runningTimerDTO builds the DTO for a running timer, or nil when its
+// instance cannot be found in a since-read instance index. handleGetTimer
+// reads the timer and the instance index as two separate store calls, so a
+// delete landing between them is a real (if narrow) race — and the store
+// cascades a timer away with its instance, so nil here is what the truth
+// catches up to a moment later, not a DTO with its name and position blanked
+// out to the zero value a missing map key would otherwise silently hand back.
+func (s *Server) runningTimerDTO(
+	running *store.Timer, instances map[int64]store.Instance, positions map[int64]int,
+) *timerDTO {
+	if running == nil {
+		return nil
+	}
+	inst, found := instances[running.InstanceID]
+	if !found {
+		return nil
+	}
+	dto := s.timerDTOFrom(*running, inst, positions[running.InstanceID])
+
+	return &dto
 }
 
 // timerStateResponse is what GET /api/timer answers with: the timer now
@@ -66,16 +94,16 @@ func (s *Server) handleGetTimer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var resp timerStateResponse
-	if running != nil {
-		dto := s.timerDTOFrom(*running)
-		resp.Running = &dto
-	}
-	if closed != nil {
-		dto, ok := s.entryDTOForClosedTimer(w, r, closed)
+	if running != nil || closed != nil {
+		instances, positions, ok := s.instanceIndex(w, r)
 		if !ok {
 			return
 		}
-		resp.Stopped = &dto
+		resp.Running = s.runningTimerDTO(running, instances, positions)
+		if closed != nil {
+			dto := s.entryDTOFrom(*closed, instances[closed.InstanceID], positions[closed.InstanceID])
+			resp.Stopped = &dto
+		}
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -144,7 +172,7 @@ func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runningDTO := s.timerDTOFrom(*running)
+	runningDTO := s.timerDTOFrom(*running, inst, positions[inst.ID])
 	resp := startTimerResponse{Running: &runningDTO, Discarded: wasRunning && stopped == nil}
 	if stopped != nil {
 		// instances and positions were already read above for req.InstanceID; the

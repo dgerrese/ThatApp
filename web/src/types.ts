@@ -214,6 +214,9 @@ export interface WeekRow {
  *  `startedAt` itself, so there is no server tick to render. */
 export interface RunningTimer {
   instanceId: number;
+  instanceName: string;
+  /** 0-based index into the instance list's created_at order — what instanceHue keys its dot off. */
+  instancePosition: number;
   issueKey: string;
   startedAt: string;
 }

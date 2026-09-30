@@ -17,11 +17,14 @@ import { LOG_TIME, PIN, UNPIN } from "../components/that-ticket-row";
 import { onEntriesChanged } from "../entries-changed";
 import { clockTime, totalFigure } from "../format";
 import { paintInstanceDot } from "../instance-hue";
+import { openSettings } from "../open-settings";
 import { pageHeading } from "../page-heading";
 import { pushReportNodes } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
 import type { RegisterTeardown } from "../router";
+import { enableRowArrowKeys } from "../table-keys";
+import { currentTimer, elapsedSeconds, onTimerChanged } from "../timer-state";
 import { toolbarButton } from "../toolbar-button";
 import type { Entry, InstanceIssues, IssueHit, IssuesResponse, Pin } from "../types";
 
@@ -299,6 +302,11 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   container.append(stale, layoutGrid, assignedSection);
   root.append(container);
 
+  // One listener for every table this view holds — Pinned, each instance section and the
+  // off-list section all rebuild their rows in place, so a listener per table would have to be
+  // re-wired on every repaint. enableRowArrowKeys reads the DOM fresh on each keypress instead.
+  registerTeardown(enableRowArrowKeys(container, "that-ticket-row"));
+
   regions = {
     layoutGrid,
     pinnedSection,
@@ -395,6 +403,15 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   });
   registerTeardown(stopPushListening);
 
+  // The rail repaints its own total/split off every tick via the same event
+  // (rail.ts's paintFigures); the instance tallies need the same treatment,
+  // since paintTotals otherwise only runs off an entries read and a tick is
+  // neither a start, a stop nor a switch.
+  const stopTimerListening = onTimerChanged(() => {
+    paintInstanceTallies(regions);
+  });
+  registerTeardown(stopTimerListening);
+
   // Independent on purpose: the Pinned card paints from the store alone and
   // must not wait on a fan-out that may be slow or failing.
   void refreshPins(regions);
@@ -466,9 +483,17 @@ function paintTotals(regions: Regions): void {
  * because it is still the instance's day, even once its row moves elsewhere.
  *
  * Called from paintTotals because the totals it reads are what paintTotals
- * has just written.
+ * has just written, and from the onTimerChanged subscription at mount, which
+ * is what keeps it current on a tick alone — a running timer's row can sit in
+ * Pinned rather than this card, but its instance's whole day still counts
+ * here, so the elapsed time is added by instance id regardless of where the
+ * row is. `tally.textContent` is only written on change, the same guard
+ * rail.ts's own paintFigures uses, so a tick that does not cross a minute
+ * touches no DOM.
  */
 function paintInstanceTallies(regions: Regions): void {
+  const running = currentTimer();
+
   for (const tally of document.querySelectorAll<HTMLElement>("[data-instance-tally]")) {
     const section = tally.closest("section");
     if (!section) continue;
@@ -482,10 +507,12 @@ function paintInstanceTallies(regions: Regions): void {
     for (const [key, value] of regions.totals) {
       if (instanceIdOfTotalKey(key) === instanceId) seconds += value;
     }
+    if (running?.instanceId === instanceId) seconds += elapsedSeconds();
 
     // A middot between two facts is typography, not an icon — the one place
     // the language says a typed character stays a typed character.
-    tally.textContent = `${String(rows.length)} ${rows.length === 1 ? "issue" : "issues"} · ${totalFigure(seconds)}`;
+    const text = `${String(rows.length)} ${rows.length === 1 ? "issue" : "issues"} · ${totalFigure(seconds)}`;
+    if (tally.textContent !== text) tally.textContent = text;
   }
 }
 
@@ -797,17 +824,60 @@ function instancePositionOf(regions: Regions, instanceId: number): number | unde
   return regions.pins.find((pin) => pin.instanceId === instanceId)?.instancePosition;
 }
 
+/**
+ * The ticket a row's own pin control holds focus for, read before a pin or
+ * unpin repaints anything — the control's own id is rebuilt fresh on every
+ * repaint (pinTriggerSequence), so identity has to travel as the ticket
+ * instead. `null` whenever focus is on anything else, which is what keeps
+ * this from ever redirecting a press that landed somewhere unrelated.
+ */
+function focusedPinTicket(): { instanceId: number; key: string } | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !active.id.startsWith("that-pin-")) return null;
+
+  const row = active.closest("that-ticket-row");
+  if (!row) return null;
+
+  return {
+    instanceId: Number(row.getAttribute("instance-id") ?? "0"),
+    key: row.getAttribute("key") ?? "",
+  };
+}
+
+/**
+ * Pinning or unpinning moves a ticket's row between the Pinned table, an
+ * instance card and the off-list table — renderPinnedList, renderResponse and
+ * renderOffListSection all rebuild their rows from scratch rather than reuse
+ * them (unlike settings-dialog.ts's reconcileList), so the pin control the keyboard
+ * was just on is a different element by the time any of them return, and the
+ * browser drops focus to <body>. This finds wherever the ticket's row landed
+ * and puts focus back on its own pin control — a no-op once focus is
+ * anywhere real, so it never steals a press that moved on in the meantime.
+ */
+function restorePinFocus(target: { instanceId: number; key: string } | null): void {
+  if (!target || document.activeElement !== document.body) return;
+
+  const selector =
+    `that-ticket-row[instance-id="${CSS.escape(String(target.instanceId))}"]` +
+    `[key="${CSS.escape(target.key)}"]`;
+  const row = document.querySelector(selector);
+  row?.querySelector<HTMLElement>('button[id^="that-pin-"]')?.focus();
+}
+
 /** Pins the ticket a row's own control just marked as pinned. */
 async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
+  const toRestore = focusedPinTicket();
   try {
     await createPin(ticket.instanceId, ticket.issueKey);
   } catch (error) {
     undoOptimisticMark(regions, ticket, error);
+    restorePinFocus(toRestore);
 
     return;
   }
 
   await refreshPins(regions);
+  restorePinFocus(toRestore);
 }
 
 /**
@@ -818,6 +888,7 @@ async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
  * if the request does not land.
  */
 async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
+  const toRestore = focusedPinTicket();
   const pin = currentPins(regions).find(
     (candidate) => candidate.instanceId === ticket.instanceId && candidate.key === ticket.issueKey,
   );
@@ -826,6 +897,7 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
   // repair and the whole of it.
   if (!pin) {
     renderPinnedList(regions, regions.pins);
+    restorePinFocus(toRestore);
 
     return;
   }
@@ -834,11 +906,13 @@ async function unpinTicket(regions: Regions, ticket: EntryTicket): Promise<void>
     await deletePin(pin.id);
   } catch (error) {
     undoOptimisticMark(regions, ticket, error);
+    restorePinFocus(toRestore);
 
     return;
   }
 
   await refreshPins(regions);
+  restorePinFocus(toRestore);
 }
 
 /**
@@ -1113,21 +1187,18 @@ function noInstances(): HTMLElement {
   paragraph.className = "text-ink-muted";
   paragraph.textContent = "No Jira instances yet. Add one to see your assigned issues.";
 
-  const link = document.createElement("a");
-  link.href = "/settings";
-  link.dataset["route"] = "";
-  link.className = "text-primary mt-4 inline-block font-bold hover:underline";
-  link.textContent = "Open Settings";
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "text-primary mt-4 inline-block cursor-pointer font-bold hover:underline";
+  open.textContent = "Open Settings";
+  open.addEventListener("click", () => {
+    void openSettings();
+  });
 
-  wrapper.append(paragraph, link);
+  wrapper.append(paragraph, open);
 
   return wrapper;
 }
-
-// alertFor and messageOf are deliberate duplicates of the same two helpers in
-// views/settings.ts. Extracting them into a shared module is the right end
-// state, but it means editing settings.ts, which is outside this ticket's
-// scope. Worth its own ticket.
 
 /** The raised surface a message sits on where a table would otherwise be. */
 function cardHolding(node: Node): HTMLElement {

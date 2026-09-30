@@ -94,7 +94,9 @@ test("a that-tooltip that never upgrades stays invisible, not printed into the p
   });
 
   await page.reload();
-  await expect(page.getByText("Fix the thing")).toBeVisible();
+  // .first(): #143 gave the summary its own cut-text that-tooltip, which
+  // repeats this same text — un-upgraded, so it is the second match here too.
+  await expect(page.getByText("Fix the thing").first()).toBeVisible();
 
   // Proves the block actually worked — the element never upgraded — so the
   // assertions below are proving the CSS rule in styles.css, not a
@@ -124,6 +126,158 @@ test("hovering a trigger shows the tooltip, and pointerleave hides it again", as
   await page.mouse.move(0, 0);
   await expect(tooltip).toBeHidden();
 });
+
+// #246 made the tooltip overflow-visible, for its arrow, which lifted the UA's
+// overflow: auto off a wrapping tooltip. An unbroken word — a URL in a
+// worklog comment — must still break inside the box, not run past it.
+test("a wrapping tooltip breaks a word longer than its width inside its ground", async ({
+  page,
+}) => {
+  await mountFixed(
+    page,
+    "long-word-trigger",
+    "top: 300px; left: 300px;",
+    { wrap: "" },
+    "https://work.atlassian.net/browse/WORK-412?focusedWorklogId=1234567890&page=com.atlassian.jira",
+  );
+  await page.locator("#long-word-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+  const fits = await tooltip.evaluate((el) => el.scrollWidth <= el.clientWidth);
+  expect(fits).toBe(true);
+});
+
+// #246: the drawing's .tip text and box (prototype line 167), on the ground the
+// owner chose in its design session. The ground is compared against a probe
+// carrying that value, so the test does not depend on how each browser
+// serialises an oklch() colour.
+test("the tooltip wears the skin settled in #246's design session", async ({ page }) => {
+  await mountTrigger(page);
+  await page.locator("#trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const skin = await tooltip.evaluate((el) => {
+    const probe = document.createElement("div");
+    probe.style.background = "oklch(0.34 0.01 60)";
+    document.body.append(probe);
+    const drawnGround = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const s = getComputedStyle(el);
+    return {
+      ground: s.backgroundColor,
+      drawnGround,
+      fontSize: s.fontSize,
+      fontWeight: s.fontWeight,
+      padding: `${s.paddingTop} ${s.paddingRight} ${s.paddingBottom} ${s.paddingLeft}`,
+      shadow: s.boxShadow,
+    };
+  });
+
+  expect(skin.ground).toBe(skin.drawnGround);
+  expect(skin.fontSize).toBe("12px");
+  expect(skin.fontWeight).toBe("500");
+  expect(skin.padding).toBe("5px 9px 5px 9px");
+  expect(skin.shadow).toBe("none");
+});
+
+/**
+ * #246: every tooltip carries a 4px arrow on the side facing its trigger,
+ * pointing at the trigger's centre — whether the box is centred on it,
+ * end-anchored to it, or pushed below or beside it. The arrow is ::after, so
+ * its position is read from its computed box rather than located on screen.
+ */
+async function arrowOf(
+  page: import("@playwright/test").Page,
+  id: string,
+): Promise<{ side: string; tipAt: number; triggerAt: number; colour: string; ground: string }> {
+  return page.evaluate((triggerId) => {
+    const trigger = document.getElementById(triggerId)!;
+    const tip = document.querySelector<HTMLElement>(`that-tooltip[for="${triggerId}"]`)!;
+    const t = trigger.getBoundingClientRect();
+    const box = tip.getBoundingClientRect();
+    const after = getComputedStyle(tip, "::after");
+    const side = tip.dataset["side"] ?? "";
+    const probe = document.createElement("div");
+    probe.style.background = "oklch(0.34 0.01 60)";
+    document.body.append(probe);
+    const ground = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const colourBySide: Record<string, string> = {
+      above: after.borderTopColor,
+      below: after.borderBottomColor,
+      right: after.borderRightColor,
+    };
+    return side === "right"
+      ? {
+          side,
+          tipAt: box.top + parseFloat(after.top) + 4,
+          triggerAt: t.top + t.height / 2,
+          colour: colourBySide[side] ?? "",
+          ground,
+        }
+      : {
+          side,
+          tipAt: box.left + parseFloat(after.left) + 4,
+          triggerAt: t.left + t.width / 2,
+          colour: colourBySide[side] ?? "",
+          ground,
+        };
+  }, id);
+}
+
+async function mountFixed(
+  page: import("@playwright/test").Page,
+  id: string,
+  css: string,
+  attrs: Record<string, string>,
+  text = "Pin this issue",
+): Promise<void> {
+  await page.evaluate(
+    ({ id, css, attrs, text }) => {
+      const trigger = document.createElement("button");
+      trigger.id = id;
+      trigger.type = "button";
+      trigger.setAttribute("aria-label", "Pin this issue");
+      trigger.textContent = "•";
+      trigger.style.cssText = `position: fixed; width: 34px; height: 34px; ${css}`;
+      const tooltip = document.createElement("that-tooltip");
+      tooltip.dataset["fixture"] = "";
+      tooltip.setAttribute("for", id);
+      for (const [k, v] of Object.entries(attrs)) tooltip.setAttribute(k, v);
+      tooltip.textContent = text;
+      document.body.append(trigger, tooltip);
+    },
+    { id, css, attrs, text },
+  );
+}
+
+for (const c of [
+  { name: "above, centred", css: "top: 300px; left: 300px;", attrs: {}, side: "above" },
+  { name: "above, end-anchored", css: "top: 300px; left: 300px;", attrs: { anchor: "end" }, side: "above" },
+  { name: "below, by fallback", css: "top: 0; left: 300px;", attrs: {}, side: "below" },
+  { name: "below, end-anchored", css: "top: 0; left: 300px;", attrs: { anchor: "end" }, side: "below" },
+  { name: "right", css: "top: 300px; left: 20px;", attrs: { anchor: "right" }, side: "right" },
+  { name: "below, by the below attribute", css: "top: 300px; left: 300px;", attrs: { below: "" }, side: "below" },
+  {
+    name: "a wrapping tooltip pushed in from the window's edge",
+    css: "top: 300px; left: 4px;",
+    attrs: { wrap: "" },
+    side: "above",
+    text: "The full wording of a summary the ellipsis cut, long enough to reach the window's left edge",
+  },
+]) {
+  test(`the arrow points at the trigger's centre: ${c.name}`, async ({ page }) => {
+    await mountFixed(page, "arrow-trigger", c.css, c.attrs, c.text);
+    await page.locator("#arrow-trigger").hover();
+    await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+
+    const arrow = await arrowOf(page, "arrow-trigger");
+    expect(arrow.side).toBe(c.side);
+    expect(arrow.colour).toBe(arrow.ground);
+    expect(Math.abs(arrow.tipAt - arrow.triggerAt)).toBeLessThanOrEqual(1);
+  });
+}
 
 // The drawing's .tip sits at bottom: calc(100% + 7px) — above the trigger,
 // centred — and reveal() is meant to compute the same box. Fixed-positioned
@@ -194,14 +348,97 @@ test("the tooltip falls back below when there is no room above", async ({ page }
   expect(tooltipBox!.y - (triggerBox!.y + triggerBox!.height)).toBeCloseTo(7, 0);
 });
 
-test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) => {
-  await mountTrigger(page);
-  const tooltip = page.locator("that-tooltip[data-fixture]");
+// Task 7 fix: the search panel's summary tooltip covered a focused key link
+// sitting directly above it, because reveal() always opens above by default.
+// `below` is the opt-in the drawing gives this case (.tip.below, prototype
+// line 166) — a trigger with room below it opens there instead. Fixed at
+// mid-viewport, the same reasoning as "the tooltip opens above its trigger"
+// above: room on both sides, so this is the plain case, not the edge one.
+test("a below tooltip opens under its trigger, with the drawn 7px gap", async ({ page }) => {
+  await page.evaluate(() => {
+    const trigger = document.createElement("button");
+    trigger.id = "below-trigger";
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", "Pin this issue");
+    trigger.textContent = "•";
+    trigger.style.cssText = "position: fixed; top: 300px; left: 300px;";
 
-  await page.locator("#trigger").focus();
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "below-trigger");
+    tooltip.setAttribute("below", "");
+    tooltip.textContent = "Pin this issue";
+
+    document.body.append(trigger, tooltip);
+  });
+
+  await page.locator("#below-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
   await expect(tooltip).toBeVisible();
 
-  await page.locator("#trigger").blur();
+  const tooltipBox = await tooltip.boundingBox();
+  const triggerBox = await page.locator("#below-trigger").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(triggerBox).not.toBeNull();
+
+  // Tooltip's top edge sits 7px below the trigger's bottom edge, not above it.
+  expect(tooltipBox!.y - (triggerBox!.y + triggerBox!.height)).toBeCloseTo(7, 0);
+});
+
+// The drawing's own fallback for `below`: a trigger flush against the
+// window's bottom edge has no room to open into, so it falls back to the
+// same above placement a plain tooltip always uses.
+test("a below tooltip falls back above when there is no room below", async ({ page }) => {
+  await page.evaluate(() => {
+    const trigger = document.createElement("button");
+    trigger.id = "bottom-trigger";
+    trigger.type = "button";
+    trigger.setAttribute("aria-label", "Pin this issue");
+    trigger.textContent = "•";
+    trigger.style.cssText = "position: fixed; bottom: 10px; left: 300px;";
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "bottom-trigger");
+    tooltip.setAttribute("below", "");
+    tooltip.textContent = "Pin this issue";
+
+    document.body.append(trigger, tooltip);
+  });
+
+  await page.locator("#bottom-trigger").hover();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await expect(tooltip).toBeVisible();
+
+  const tooltipBox = await tooltip.boundingBox();
+  const triggerBox = await page.locator("#bottom-trigger").boundingBox();
+  expect(tooltipBox).not.toBeNull();
+  expect(triggerBox).not.toBeNull();
+
+  // Tooltip's bottom edge sits 7px above the trigger's top edge, not below it.
+  expect(triggerBox!.y - (tooltipBox!.y + tooltipBox!.height)).toBeCloseTo(7, 0);
+});
+
+test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) => {
+  await mountTrigger(page);
+  const trigger = page.locator("#trigger");
+  const before = page.locator("#before");
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+
+  await trigger.evaluate((t) =>
+    t.before(
+      Object.assign(document.createElement("button"), { id: "before", textContent: "before" }),
+    ),
+  );
+
+  await before.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(trigger).toBeFocused();
+  await expect(tooltip).toBeVisible();
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(before).toBeFocused();
   await expect(tooltip).toBeHidden();
 });
 
@@ -465,4 +702,109 @@ test("the tooltip repositions when its text changes while open, keeping anchor=\
   const tooltipRight = tooltipBox!.x + tooltipBox!.width;
   const triggerRight = triggerBox!.x + triggerBox!.width;
   expect(Math.abs(tooltipRight - triggerRight)).toBeLessThanOrEqual(1);
+});
+
+async function mountCutText(
+  page: import("@playwright/test").Page,
+  text: string,
+  width: number,
+): Promise<void> {
+  await page.evaluate(
+    ({ text, width }) => {
+      const link = document.createElement("a");
+      link.id = "cut-link";
+      link.href = "#";
+      link.textContent = "KEY-1";
+
+      const span = document.createElement("span");
+      span.id = "cut-text";
+      span.tabIndex = 0;
+      span.className = "block truncate";
+      span.style.width = `${width}px`;
+      span.textContent = text;
+
+      const tooltip = document.createElement("that-tooltip");
+      tooltip.dataset["fixture"] = "";
+      tooltip.setAttribute("for", "cut-text");
+      tooltip.setAttribute("wrap", "");
+      tooltip.setAttribute("when-cut", "");
+      tooltip.textContent = text;
+
+      document.body.prepend(link, span, tooltip);
+    },
+    { text, width },
+  );
+}
+
+const longText =
+  "A summary long enough that no reasonable column shows all of it, so the ellipsis engages";
+
+test("a when-cut tooltip opens on hover of cut text and wraps", async ({ page }) => {
+  await mountCutText(page, longText, 120);
+  const tip = page.locator("that-tooltip[data-fixture]");
+  await page.locator("#cut-text").hover();
+  await expect(tip).toBeVisible();
+  const box = await tip.boundingBox();
+  expect(box?.width ?? 0).toBeLessThanOrEqual(341);
+  expect(box?.height ?? 0).toBeGreaterThan(30); // more than one line: it wraps
+});
+
+/** #217: reach the cut text by a real Tab from the link prepended before it. */
+async function tabToCutText(page: import("@playwright/test").Page): Promise<void> {
+  await page.locator("#cut-link").focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#cut-text")).toBeFocused();
+}
+
+test("a when-cut tooltip opens on its own text's focus, and closes on blur", async ({ page }) => {
+  await mountCutText(page, longText, 120);
+  const tip = page.locator("that-tooltip[data-fixture]");
+  await tabToCutText(page);
+  await expect(tip).toBeVisible();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.locator("#cut-link")).toBeFocused();
+  await expect(tip).toBeHidden();
+});
+
+test("a when-cut tooltip stays closed when the text is not cut, on hover and on focus", async ({
+  page,
+}) => {
+  await mountCutText(page, "Short", 400);
+  const tip = page.locator("that-tooltip[data-fixture]");
+  await page.locator("#cut-text").hover();
+  await expect(tip).toBeHidden();
+  await tabToCutText(page);
+  await expect(tip).toBeHidden();
+});
+
+test("a tooltip removed while open leaves nothing in the top layer", async ({ page }) => {
+  await mountCutText(page, longText, 120);
+  await tabToCutText(page);
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+  const open = await page.evaluate(() => {
+    document.querySelector("that-tooltip[data-fixture]")?.remove();
+    return document.querySelectorAll(":popover-open").length;
+  });
+  expect(open).toBe(0);
+});
+
+test("a tooltip near the left edge stays inside the window", async ({ page }) => {
+  await page.evaluate(() => {
+    const span = document.createElement("span");
+    span.id = "edge-text";
+    span.className = "block truncate";
+    span.style.cssText = "position:fixed;left:0;top:200px;width:40px";
+    span.textContent = "An instance name far too long for the rail";
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.dataset["fixture"] = "";
+    tooltip.setAttribute("for", "edge-text");
+    tooltip.setAttribute("wrap", "");
+    tooltip.setAttribute("when-cut", "");
+    tooltip.textContent = span.textContent;
+    document.body.append(span, tooltip);
+  });
+  await page.locator("#edge-text").hover();
+  const box = await page.locator("that-tooltip[data-fixture]").boundingBox();
+  expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
 });

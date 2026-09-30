@@ -8,11 +8,9 @@ import { iconMarkup } from "./icons";
  * refresh and Week's fetch and refresh build on this; there is one shape
  * rather than each view drawing its own.
  *
- * The label is the accessible name already, so the belt-and-braces
- * `aria-label` below repeats it rather than adds to it — the same reasoning
- * sortHeaderCell in that-table.ts gives beside its own iconMarkup call. A
- * labelled toolbar button carries no tooltip: its words are the tooltip an
- * icon-only control needed.
+ * The label is rendered as visible text, which is already the accessible
+ * name — no `aria-label` is needed to repeat it. A labelled toolbar button
+ * carries no tooltip: its words are the tooltip an icon-only control needed.
  *
  * A plain function and not a `that-*` component: it renders a bare button
  * with no state of its own, and CLAUDE.md reserves `that-*` for reusable UI
@@ -25,7 +23,6 @@ export function toolbarButton(options: { icon: IconName; label: string }): HTMLB
     "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-sm px-3 " +
     "text-base font-bold text-ink-muted hover:bg-hover hover:text-ink " +
     "disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent";
-  button.setAttribute("aria-label", options.label);
 
   const mark = document.createElement("span");
   mark.innerHTML = iconMarkup(options.icon, 17);

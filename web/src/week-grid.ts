@@ -68,6 +68,11 @@ export function failuresIn(responses: PushResponse[]): Failures {
  */
 const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap align-middle";
 
+/** One id per row's key link, so its that-tooltip's `for` can resolve it on a
+ *  page holding many rows — the same reasoning weekCellSequence below gives
+ *  its own triggers (#143). */
+let weekKeyLinkSequence = 0;
+
 /**
  * A row's key, linked to the issue in Jira — the drawing's `.kk`, Chivo Mono
  * at 13px/700 via `.that-key`, ink-muted at rest and brightening to ink on
@@ -78,24 +83,41 @@ const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap ali
  */
 function keyLink(issueKey: string, url: string): HTMLElement {
   if (url === "") {
+    // No title either (owner, 2026-09-25): a key with no site to open gets
+    // no tooltip at all, not even the native one it used to carry.
     const span = document.createElement("span");
     span.className = "that-key text-ink-muted";
-    span.title = `Open ${issueKey} in Jira`;
     span.textContent = issueKey;
 
     return span;
   }
 
   const link = document.createElement("a");
+  link.id = `that-week-key-${String(++weekKeyLinkSequence)}`;
   link.href = url;
   link.target = "_blank";
   // Without noopener the opened page gets a window.opener handle back here.
   link.rel = "noopener";
   link.className = "that-key text-ink-muted";
-  link.title = `Open ${issueKey} in Jira`;
   link.textContent = issueKey;
 
   return link;
+}
+
+/** The key link's own that-tooltip (#143), replacing the native title it used
+ *  to carry — the same contract that-ticket-row's own keyTooltip gives.
+ *  `instanceof`, not a second `url !== ""` check (matching
+ *  that-issue-search.ts's own keyTooltip): keyLink above is the one place
+ *  that decides link-or-span, so this reads its answer off the element
+ *  rather than re-deciding it. */
+function keyTooltip(key: HTMLElement): HTMLElement | null {
+  if (!(key instanceof HTMLAnchorElement)) return null;
+
+  const tooltip = document.createElement("that-tooltip");
+  tooltip.setAttribute("for", key.id);
+  tooltip.textContent = "open in Jira";
+
+  return tooltip;
 }
 
 function gridTable(
@@ -144,8 +166,11 @@ function gridTable(
     // paintInstanceDot labels the dot with the instance name, so the row says
     // which Jira it came from without the hue having to carry it alone.
     paintInstanceDot(dot, row.instancePosition, row.instanceName);
-    holder.append(dot, keyLink(row.issueKey, row.url));
+    const key = keyLink(row.issueKey, row.url);
+    holder.append(dot, key);
     ticket.append(holder);
+    const tooltip = keyTooltip(key);
+    if (tooltip) ticket.append(tooltip);
     tr.append(ticket);
 
     row.cells.forEach((cell, index) => {
@@ -197,7 +222,9 @@ function gridCard(table: HTMLTableElement): HTMLElement {
   return card;
 }
 
-const MARKER_BASE = "mr-1.5 inline-block align-[1px]";
+/** The footer's own rule for a day total's mark — the prototype's `.dmark`.
+ *  A cell's own mark does not use this: see ticketCell. */
+const FOOT_MARKER = "mr-1.5 inline-block align-[1px]";
 
 type PushState = WeekCell["pushState"];
 
@@ -212,9 +239,9 @@ type PushState = WeekCell["pushState"];
  * The visual language is explicit that amber and red never rest on colour
  * alone, and a grid has no room for the triangle-and-words an alert carries
  * — so the shape has to do it here. The words are not decoration either:
- * they are what a reader who cannot see the marker hears, and — through the
- * marker's title — what a reader who can see it has instead of a legend the
- * grid does not have room for.
+ * they are what a reader who cannot see the marker hears, and — through a
+ * footer mark's tooltip or a cell's own — what a reader who can see it has
+ * instead of a legend the grid does not have room for.
  */
 function markerFor(
   pushState: PushState,
@@ -234,6 +261,9 @@ function pushWords(pushState: PushState, failed: boolean): string {
 }
 
 let weekCellSequence = 0;
+
+/** A footer mark's id, unique across the page for the same reason as weekCellSequence. */
+let weekDayMarkSequence = 0;
 
 /**
  * One ticket's time on one day — always a control, empty cells included: a
@@ -286,7 +316,7 @@ function ticketCell(
   // figure rather than spanning the column, which stays the td's job alone.
   trigger.className =
     "hover:bg-hover focus-visible:bg-hover -mx-[13px] -my-[9px] inline-flex cursor-pointer " +
-    "items-baseline rounded-sm px-[13px] py-[9px]";
+    "items-center gap-[7px] rounded-sm px-[13px] py-[9px]";
   // Independent of the popover below, which reaches neither a keyboard nor a
   // screen reader on its own.
   trigger.setAttribute(
@@ -327,7 +357,7 @@ function ticketCell(
     const marker = markerFor(cell.pushState, failed);
     if (marker) {
       const mark = document.createElement("span");
-      mark.className = `${MARKER_BASE} ${marker.className}`;
+      mark.className = `shrink-0 ${marker.className}`;
       mark.setAttribute("aria-hidden", "true");
       trigger.append(mark);
     }
@@ -351,9 +381,11 @@ function ticketCell(
 }
 
 /** A day's own total across every ticket, worst-wins marked like a cell but
- *  never a control: it is a sum, and there is nothing on it to edit. Wears
- *  .fig (mono) even at zero — unlike a day cell's own em dash, the footer's
- *  keeps the class regardless, per the drawing's tfoot markup. */
+ *  never a control: it is a sum, and there is nothing on it to edit. Its mark
+ *  is a tab stop, though, so a keyboard reader still reaches the tooltip that
+ *  names the state. Wears .fig (mono) even at zero — unlike a day cell's own
+ *  em dash, the footer's keeps the class regardless, per the drawing's tfoot
+ *  markup. */
 function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCellElement {
   const td = document.createElement("td");
   // Same reasoning as ticketCell's td: the footer's Ticket cell is also a
@@ -369,19 +401,21 @@ function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCell
 
   const marker = markerFor(day.pushState, failed);
   if (marker) {
+    // The entry dialog's pushMark shape: the mark is the only thing here
+    // carrying the state, so it is a named tab stop and the tooltip only
+    // shows what the label already says (#231, replacing a native title).
     const mark = document.createElement("span");
-    mark.className = `${MARKER_BASE} ${marker.className}`;
-    mark.setAttribute("aria-hidden", "true");
-    mark.title = marker.words;
-    td.append(mark);
+    mark.id = `that-week-day-mark-${String(++weekDayMarkSequence)}`;
+    mark.tabIndex = 0;
+    mark.setAttribute("role", "img");
+    mark.setAttribute("aria-label", marker.words);
+    mark.className = `${FOOT_MARKER} ${marker.className}`;
 
-    const words = document.createElement("span");
-    words.className = "sr-only";
-    // Named for a reader who cannot see the marker. "Dirty" is the code's
-    // word, not a person's. There is no control here to carry an aria-label,
-    // which is what still makes this span load-bearing rather than decorative.
-    words.textContent = `${marker.words}, `;
-    td.append(words);
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", mark.id);
+    tooltip.textContent = marker.words;
+
+    td.append(mark, tooltip);
   }
 
   td.append(document.createTextNode(totalFigure(day.seconds)));

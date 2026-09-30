@@ -62,8 +62,12 @@ jobs:
   #
   # The seam is already in playwright.config.ts: `firefox` and `chromium` are
   # two independent projects. Splitting on it halves both large costs — half the
-  # tests per job, and one browser download instead of two. Sharding with
-  # --shard halves only the first, and still installs both browsers twice.
+  # tests per job, and one browser download instead of two.
+  #
+  # The suite outgrew that split too: on 2026-09-25 Firefox reached 10:17 and
+  # 10:26 and was killed (#239). So each browser also runs in two --shard halves.
+  # Every job still installs only its own browser; the build steps repeat, but
+  # they are a small share of a job next to the tests.
   #
   # verify.yml is split across two jobs for this same cap. This is that pattern.
   e2e:
@@ -74,6 +78,7 @@ jobs:
       fail-fast: false
       matrix:
         browser: [firefox, chromium]
+        shard: [1, 2]
     steps:
       - uses: https://data.forgejo.org/actions/checkout@v5
 
@@ -134,7 +139,7 @@ jobs:
           curl -sf http://localhost:8080/api/health \
             || { echo "server did not become healthy"; exit 1; }
 
-          npx playwright test --project=${{ matrix.browser }}
+          npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2
 
       - name: Stop the server
         if: always()
@@ -147,7 +152,7 @@ jobs:
         if: failure()
         uses: https://data.forgejo.org/forgejo/upload-artifact@v4
         with:
-          # The browser is in the name because both matrix jobs upload, and two
-          # artifacts of one name collide.
-          name: playwright-traces-${{ matrix.browser }}
+          # Browser and shard are in the name because every matrix job uploads,
+          # and two artifacts of one name collide.
+          name: playwright-traces-${{ matrix.browser }}-${{ matrix.shard }}
           path: .claude/e2e/test-results/

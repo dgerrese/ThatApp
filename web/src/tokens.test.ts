@@ -97,6 +97,20 @@ test("the rail's own pairs clear their floors, and the rail is one value", () =>
   }
 });
 
+// #246: the drawing's oklch(0.06) ground vanished on the rail, and 0.26 on the
+// dark card. The owner chose 0.34, the lightest step that stood clear of both;
+// 1.4:1 is where that step sits, so a ground drifting back toward either fails.
+test("the tooltip ground is one value, carries rail-ink, and stands apart from every dark ground", () => {
+  const tip = token("color-tip");
+  assert.equal(tip.light, tip.dark, "the tooltip carries one ground in both themes");
+  const text = contrast(token("color-rail-ink").dark, tip.dark);
+  assert.ok(text >= 7, `rail-ink on the tooltip is ${text.toFixed(2)}:1, under AAA's 7:1`);
+  for (const name of ["rail", "surface", "raised"]) {
+    const apart = contrast(tip.dark, token(`color-${name}`).dark);
+    assert.ok(apart >= 1.4, `the tooltip against dark ${name} is ${apart.toFixed(2)}:1`);
+  }
+});
+
 test("the light primary is why the -rail variant exists", () => {
   const ratio = contrast(token("color-primary").light, token("color-rail").light);
   assert.ok(

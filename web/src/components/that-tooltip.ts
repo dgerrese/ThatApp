@@ -30,7 +30,10 @@ export class ThatTooltip extends HTMLElement {
   connectedCallback(): void {
     this.setAttribute("popover", "manual");
     this.className =
-      "bg-rail text-rail-ink shadow-popover rounded-xs px-2 py-1 text-sm whitespace-nowrap";
+      "bg-tip text-rail-ink rounded-xs px-[9px] py-[5px] text-xs font-medium tracking-normal normal-case overflow-visible " +
+      (this.hasAttribute("wrap")
+        ? "max-w-[340px] whitespace-normal break-words"
+        : "whitespace-nowrap");
 
     const id = this.getAttribute("for");
     const trigger = id ? document.getElementById(id) : null;
@@ -76,11 +79,27 @@ export class ThatTooltip extends HTMLElement {
     const trigger = this.trigger;
     if (!trigger) return;
 
+    // #143: a cut-text tooltip exists only to give back what the ellipsis took.
+    if (this.hasAttribute("when-cut") && trigger.scrollWidth <= trigger.clientWidth) return;
+
     // See onHide: neither call throws on a redundant transition in either
     // target browser, and this guard is the same insurance.
     if (!this.matches(":popover-open")) this.showPopover();
 
     const box = trigger.getBoundingClientRect();
+
+    // The drawing's .tip.right (prototype line 168): beside the trigger and
+    // centred on it — the rail's cog, whose top-left corner leaves no room above.
+    if (this.getAttribute("anchor") === "right") {
+      const top = box.top + box.height / 2 - this.offsetHeight / 2;
+      this.style.top = `${top}px`;
+      this.style.left = `${box.right + 9}px`;
+      this.style.right = "auto";
+      this.style.bottom = "auto";
+      this.style.margin = "0";
+      this.pointArrow("right", box.top + box.height / 2 - top, this.offsetHeight);
+      return;
+    }
     const gap = 7;
     const left =
       this.getAttribute("anchor") === "end"
@@ -92,17 +111,51 @@ export class ThatTooltip extends HTMLElement {
     // #content starts flush against the window's top edge (#3's), so a
     // trigger at the top of the content column, or Week's own header arrows,
     // would otherwise open partly off-screen.
-    const top =
-      box.top - this.offsetHeight - gap < 0 ? box.bottom + gap : box.top - this.offsetHeight - gap;
+    //
+    // `below` is the opt-in for the drawing's other variant, `.tip.below`
+    // (prototype line 166): open under the trigger instead, falling back
+    // above when the box would run past the window's bottom edge. Task 7's
+    // own case — the search panel stacks a row's key link over its summary,
+    // so the summary's tooltip must open away from the key link above it,
+    // not over it.
+    const top = this.hasAttribute("below")
+      ? box.bottom + gap + this.offsetHeight > window.innerHeight
+        ? box.top - this.offsetHeight - gap
+        : box.bottom + gap
+      : box.top - this.offsetHeight - gap < 0
+        ? box.bottom + gap
+        : box.top - this.offsetHeight - gap;
+
+    // Only a wrapping tooltip is clamped: it is the wide, cut-text case this
+    // is for (#143), sized to run into a window edge. An icon tooltip's
+    // anchor="end" pins its right edge to the trigger's on purpose, even past
+    // the window's own left edge for a trigger mounted flush against it —
+    // clamping that would pull it away from the trigger it is pinned to.
+    const edge = 8;
+    const clamped = this.hasAttribute("wrap")
+      ? Math.min(Math.max(left, edge), window.innerWidth - this.offsetWidth - edge)
+      : left;
 
     // All four longhands, not just top/left: the UA stylesheet gives an open
     // popover `inset: 0` for its default centred position, and leaving right
     // or bottom set would fight the explicit placement on some engines.
     this.style.top = `${top}px`;
-    this.style.left = `${left}px`;
+    this.style.left = `${clamped}px`;
     this.style.right = "auto";
     this.style.bottom = "auto";
     this.style.margin = "0";
+    this.pointArrow(
+      top < box.top ? "above" : "below",
+      box.left + box.width / 2 - clamped,
+      this.offsetWidth,
+    );
+  }
+
+  /** Aims the ::after arrow (styles.css) at the trigger's centre, `at` px along
+   *  the facing edge, kept clear of the 2px corners. */
+  private pointArrow(side: "above" | "below" | "right", at: number, length: number): void {
+    this.dataset["side"] = side;
+    this.style.setProperty("--arrow-at", `${Math.min(Math.max(at, 6), length - 6)}px`);
   }
 }
 

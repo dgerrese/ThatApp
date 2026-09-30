@@ -92,10 +92,10 @@ test("unreadable storage still themes from the OS", async ({ page }) => {
 });
 
 // The inline script only proves storage-that-throws survives at "/", which
-// never imports settings.ts. appearanceCard() calls themePreference()
-// synchronously inside render(); if that throw were left uncaught it would
-// reject the awaited render() in router.ts and blank the whole Settings view.
-test("unreadable storage still renders Settings, defaulting to Auto", async ({ page }) => {
+// never imports settings-dialog.ts. themeControl() calls themePreference()
+// synchronously; if that throw were left uncaught it would
+// reject showSettings() and leave no dialog.
+test("unreadable storage still renders Settings, defaulting to System", async ({ page }) => {
   await page.addInitScript(() => {
     Storage.prototype.getItem = () => {
       throw new Error("storage disabled");
@@ -104,19 +104,29 @@ test("unreadable storage still renders Settings, defaulting to Auto", async ({ p
   await openSettings(page);
 
   await expect(page.getByRole("heading", { name: "Jira instances" })).toBeVisible();
-  await expect(page.getByRole("radio", { name: "Auto" })).toBeChecked();
+  await expect(themeChoice(page, "System")).toHaveAttribute("aria-pressed", "true");
 });
 
 async function openSettings(page: Page): Promise<void> {
   await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
-  await page.goto("/settings");
+  await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
+  await stubIssues(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+}
+
+function themeChoice(page: Page, name: "Dark" | "Light" | "System") {
+  return page
+    .getByRole("dialog", { name: "Settings" })
+    .getByRole("group", { name: "Theme" })
+    .getByRole("button", { name, exact: true });
 }
 
 test("choosing Light themes the page and survives a reload", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await openSettings(page);
 
-  await page.getByRole("radio", { name: "Light" }).check();
+  await themeChoice(page, "Light").click();
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   expect(await bodyBackground(page)).toBe(LIGHT_GROUND);
@@ -125,14 +135,15 @@ test("choosing Light themes the page and survives a reload", async ({ page }) =>
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   expect(await bodyBackground(page)).toBe(LIGHT_GROUND);
-  await expect(page.getByRole("radio", { name: "Light" })).toBeChecked();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(themeChoice(page, "Light")).toHaveAttribute("aria-pressed", "true");
 });
 
 test("choosing Dark themes the page and survives a reload", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await openSettings(page);
 
-  await page.getByRole("radio", { name: "Dark" }).check();
+  await themeChoice(page, "Dark").click();
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect(await bodyBackground(page)).toBe(DARK_GROUND);
@@ -141,22 +152,24 @@ test("choosing Dark themes the page and survives a reload", async ({ page }) => 
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect(await bodyBackground(page)).toBe(DARK_GROUND);
-  await expect(page.getByRole("radio", { name: "Dark" })).toBeChecked();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(themeChoice(page, "Dark")).toHaveAttribute("aria-pressed", "true");
 });
 
-test("choosing Auto after Dark follows the OS again", async ({ page }) => {
+test("choosing System after Dark follows the OS again", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await openSettings(page);
 
-  await page.getByRole("radio", { name: "Dark" }).check();
-  await page.getByRole("radio", { name: "Auto" }).check();
+  await themeChoice(page, "Dark").click();
+  await themeChoice(page, "System").click();
 
   await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
   expect(await bodyBackground(page)).toBe(LIGHT_GROUND);
 
   await page.reload();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
 
-  await expect(page.getByRole("radio", { name: "Auto" })).toBeChecked();
+  await expect(themeChoice(page, "System")).toHaveAttribute("aria-pressed", "true");
 });
 
 test("cards and buttons take the dark palette too", async ({ page }) => {
@@ -170,6 +183,7 @@ test("cards and buttons take the dark palette too", async ({ page }) => {
   await expect(card).toHaveCSS("background-color", "oklch(0.228 0.014 40)");
   await expect(card).not.toHaveCSS("box-shadow", "none");
 
+  await page.getByRole("button", { name: "Add an instance" }).click();
   const addButton = page.getByRole("button", { name: "Add instance" });
   await expect(addButton).toHaveCSS("background-color", "oklch(0.72 0.19 330)");
   await expect(addButton).toHaveCSS("color", "oklch(0.16 0.02 330)");
@@ -183,7 +197,7 @@ test("the rail carries one ground in both themes", async ({ page }) => {
   await openSettings(page);
   await expect(page.locator("aside")).toHaveCSS("background-color", "oklch(0.105 0.006 60)");
 
-  await page.getByRole("radio", { name: "Dark" }).check();
+  await themeChoice(page, "Dark").click();
   await expect(page.locator("aside")).toHaveCSS("background-color", "oklch(0.105 0.006 60)");
 });
 
@@ -198,4 +212,17 @@ test("the rail renders its resting state", async ({ page }) => {
   await expect(page.locator("#rail-total")).toHaveText("0h 00m");
   await expect(page.locator("#rail-push")).toBeVisible();
   await expect(page.locator("#rail-push")).toBeDisabled();
+});
+
+test("the segment reads Dark · Light · System, and an unset preference is System", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openSettings(page);
+
+  await expect(
+    page.getByRole("dialog", { name: "Settings" }).getByRole("group", { name: "Theme" }).getByRole("button"),
+  ).toHaveText(["Dark", "Light", "System"]);
+  await expect(themeChoice(page, "System")).toHaveAttribute("aria-pressed", "true");
+  await expect(themeChoice(page, "Dark")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
+  expect(await bodyBackground(page)).toBe(LIGHT_GROUND);
 });

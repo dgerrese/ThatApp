@@ -137,9 +137,16 @@ function searchField(page: Page) {
 
 /** The result row for `key`, scoped from the key's own link — the only
  *  element in a row that names its ticket, since a control's accessible name
- *  is fixed per IssueSearchControl and repeats across every row. */
+ *  is fixed per IssueSearchControl and repeats across every row. Reaches the
+ *  ancestor carrying `data-hit-key` rather than a fixed number of `..` hops
+ *  (#143 nested the key inside its own text column), so it stays correct
+ *  regardless of how deep the key sits. By role and exact name rather than
+ *  `getByTitle` (#143 dropped the key link's native title for the app's own
+ *  tooltip) — `exact` so e.g. "RIDGE-5000" does not also match "RIDGE-50001". */
 function resultRow(page: Page, key: string) {
-  return page.getByTitle(`Open ${key} in Jira`).locator("..");
+  return page
+    .getByRole("link", { name: key, exact: true })
+    .locator("xpath=ancestor::*[@data-hit-key]");
 }
 
 /** Enough hits under one instance to overflow any plausible viewport — task
@@ -286,9 +293,56 @@ test.describe("that-issue-search on Today", () => {
       .getByRole("button", { name: "Pin RIDGE-5140", exact: true })
       .hover();
 
-    const tooltip = page.locator("that-issue-search that-tooltip");
+    // :popover-open: the row's own summary carries a cut-text tooltip too
+    // (#143), so a bare "that-tooltip" locator would match both.
+    const tooltip = page.locator("that-issue-search that-tooltip:popover-open");
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText("pin ticket");
+  });
+
+  // #143: the key link drops its native title for the app's own tooltip, the
+  // same treatment the pin control's tooltip above already gets.
+  test("the key link carries a tooltip reading exactly \"open in Jira\", not a native title", async ({
+    page,
+  }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+    const key = resultRow(page, "RIDGE-5140").getByRole("link", { name: "RIDGE-5140" });
+    await expect(key).not.toHaveAttribute("title");
+
+    // hasText, not :popover-open: the row's own summary carries a cut-text
+    // tooltip too (#143) — hidden here regardless, since task 9 made the
+    // summary its own tab stop, so a key focus never opens a neighbour's
+    // tooltip.
+    const tooltip = page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" });
+
+    await key.hover();
+    await expect(tooltip).toBeVisible();
+
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toBeHidden();
+
+    await key.focus();
+    await expect(tooltip).toBeVisible();
+  });
+
+  // Owner, 2026-09-25: an unlinked key (no site to open) gets no tooltip at
+  // all, native or drawn — the same rule that-ticket-row.ts and week-grid.ts
+  // now follow.
+  test("an unlinked result key has no title and no tooltip on hover", async ({ page }) => {
+    await stubSearch(page, [{ ...ridge5140, url: "" }]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+    const key = page.getByText("RIDGE-5140", { exact: true });
+    await expect(key).not.toHaveAttribute("title");
+
+    await key.hover();
+    await expect(
+      page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" }),
+    ).toBeHidden();
   });
 
   // Review finding 2: the missing screen-reader signal that typing opened a
@@ -640,7 +694,11 @@ test.describe("that-issue-search on Today", () => {
     ).toHaveCount(0);
 
     await unpinButton.hover();
-    await expect(page.locator("that-issue-search that-tooltip")).toHaveText("unpin ticket");
+    // :popover-open: the row's own summary carries a cut-text tooltip too
+    // (#143), so a bare "that-tooltip" locator would match both.
+    await expect(page.locator("that-issue-search that-tooltip:popover-open")).toHaveText(
+      "unpin ticket",
+    );
 
     await unpinButton.click();
 
@@ -668,10 +726,19 @@ test.describe("that-issue-search on Today", () => {
       name: "Pin RIDGE-5140",
       exact: true,
     });
+    const durationButton = resultRow(page, "RIDGE-5140").getByRole("button", {
+      name: "Log time against RIDGE-5140",
+    });
     await expect(pinButton).toHaveCSS("color", mutedColor);
     await pinButton.hover();
     await expect(pinButton).toHaveCSS("color", primaryColor);
-    await pinButton.focus();
+    // Hover alone already gives primary, so a .focus() call right after
+    // proves nothing about :focus-visible — the pointer has to move off
+    // first, and a real Tab press is what actually arms it.
+    await page.mouse.move(0, 0);
+    await durationButton.focus();
+    await page.keyboard.press("Tab");
+    await expect(pinButton).toBeFocused();
     await expect(pinButton).toHaveCSS("color", primaryColor);
   });
 
@@ -862,6 +929,35 @@ test.describe("that-issue-search on Today", () => {
 
     await expect(keyLink).toBeFocused();
   });
+
+  // Task 9 (#143): the summary joined data-control-index too, so it must
+  // survive a repaint the same way the key link above does — proof that
+  // captureFocus/restoreFocus generalise to it rather than needing their own
+  // case, since a pin action elsewhere on the page (a background Refresh,
+  // another row's own pin) reaches this component's repaint() regardless of
+  // which row's summary a keyboard user was reading.
+  test("a repaint restores focus to a focused summary", async ({ page }) => {
+    await stubSearch(page, [ridge5140]);
+    await stubPins(page, []);
+
+    await page.goto("/today");
+    await searchField(page).fill("capacity");
+
+    const summary = resultRow(page, "RIDGE-5140")
+      .getByText(ridge5140.summary, { exact: true })
+      .first();
+    await summary.focus();
+    await expect(summary).toBeFocused();
+
+    await page.evaluate(() => {
+      const search = document.querySelector("that-issue-search") as unknown as {
+        repaint: () => void;
+      };
+      search.repaint();
+    });
+
+    await expect(summary).toBeFocused();
+  });
 });
 
 // Task 10, added 2026-09-16 after the plan and the fix wave: the panel grew
@@ -987,6 +1083,18 @@ test.describe("the search panel's height stops at the window's edge", () => {
   // render above that box's own top edge, so this only holds because
   // that-tooltip is a top-layer popover, positioned in the viewport's own
   // coordinate space rather than the rows area's.
+  //
+  // #143 update: stacking the key over the summary made a row taller than
+  // the pin control it centres, which pushes the control (and so the
+  // tooltip that opens above it) down within the row. Unscrolled, the very
+  // first row now sits close enough under the group heading that its
+  // tooltip no longer needs to clear rowsArea's own top edge at all — the
+  // scenario this test exists to prove would stop proving anything. Scrolled
+  // by exactly the first row's own distance from the top (measured, not
+  // hard-coded, so this stays correct if either height changes again), the
+  // same row sits flush with rowsArea's top instead, which restores the
+  // original scenario: opening above it pushes the tooltip past the area's
+  // own edge regardless of how tall the row itself is.
   test("the first row's tooltip escapes the rows area's own clipping box via the top layer", async ({
     page,
   }) => {
@@ -998,7 +1106,14 @@ test.describe("the search panel's height stops at the window's edge", () => {
     const areaBox = await rowsArea(page).boundingBox();
     expect(areaBox).not.toBeNull();
 
-    const firstPin = resultRow(page, "RIDGE-5000").getByRole("button", {
+    const firstRow = resultRow(page, "RIDGE-5000");
+    const firstRowBox = await firstRow.boundingBox();
+    expect(firstRowBox).not.toBeNull();
+    await rowsArea(page).evaluate((el, delta) => {
+      el.scrollTop = delta;
+    }, firstRowBox!.y - areaBox!.y);
+
+    const firstPin = firstRow.getByRole("button", {
       name: "Pin RIDGE-5000",
       exact: true,
     });
@@ -1120,5 +1235,458 @@ test.describe("the search panel's height stops at the window's edge", () => {
         return box ? box.y + box.height : null;
       })
       .toBeLessThanOrEqual(700 - 16 + 0.5);
+  });
+});
+
+// #143: the row stacks the key over the summary rather than sitting them side
+// by side, so the summary reads at the row's full text width instead of
+// whatever the key's own width leaves it.
+test.describe("the search results row stacks key over summary (#143)", () => {
+  test.beforeEach(async ({ page }) => {
+    await stubPins(page, []);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await stubEntries(page);
+  });
+
+  test("a search result draws its key above its summary, on the row's full text width", async ({
+    page,
+  }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+
+    const row = page.locator("[data-hit-key]").first();
+    const key = row.getByRole("link", { name: "RIDGE-5140" });
+    // .first(): the row's own that-tooltip carries the same text, hidden.
+    const summary = row.getByText("Capacity planning spreadsheet is out of date", {
+      exact: true,
+    }).first();
+    const k = await key.boundingBox();
+    const s = await summary.boundingBox();
+    expect((k?.y ?? 0) + (k?.height ?? 0)).toBeLessThanOrEqual((s?.y ?? 0) + 1);
+    expect(Math.abs((k?.x ?? 0) - (s?.x ?? 0))).toBeLessThan(2);
+  });
+});
+
+// #143: the summary's own cut-text tooltip, the same contract that-ticket-row
+// already gives its summary — on hover of the text and on the summary's own
+// focus, never as the accessible name. Proved on both hosts of
+// that-issue-search, since neither owns the tooltip wiring itself.
+//
+// Task 9 (owner, 2026-09-25): the summary is its own tab stop now — a key
+// focus opens only the key's own "open in Jira" tooltip, never the
+// summary's.
+test.describe("a cut summary in the search panel comes back in a tooltip (#143)", () => {
+  const longSummary =
+    "Reconcile the capacity forecast against every team's actual booked hours, including " +
+    "contractors who log their time in an entirely different Jira instance from ours";
+
+  function fieldFor(page: Page, path: "/today" | "/week") {
+    return path === "/today"
+      ? searchField(page)
+      : page.getByRole("textbox", { name: "Add a ticket to this week", exact: true });
+  }
+
+  for (const path of ["/today", "/week"] as const) {
+    test(`shows the full text on its own focus and on hover, hidden on key focus, on ${path}`, async ({
+      page,
+    }) => {
+      const longHit = hit(1, "Ridgeline", 0, "RIDGE-9100", longSummary);
+
+      if (path === "/today") {
+        await stubPins(page, []);
+        await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+        await stubEntries(page);
+      } else {
+        // Week's own minimal render — an empty rollup is enough, since this
+        // test is about the search panel rather than the grid underneath it.
+        // Copied from week.spec.ts's own openWeek/rollup shape.
+        await page.route("**/api/entries**", (route) =>
+          route.fulfill({ status: 200, json: { today: "2026-09-10", entries: [] } }),
+        );
+        await page.route("**/api/week**", (route) =>
+          route.fulfill({
+            status: 200,
+            json: {
+              start: "2026-09-07",
+              end: "2026-09-13",
+              prevStart: "2026-08-31",
+              nextStart: "2026-09-14",
+              weekNumber: 37,
+              days: Array.from({ length: 7 }, (_, i) => ({
+                day: `2026-09-0${String(i + 7)}`,
+                seconds: 0,
+                pushState: null,
+              })),
+              rows: [],
+              seconds: 0,
+            },
+          }),
+        );
+      }
+      await stubSearch(page, [longHit]);
+      await page.goto(path);
+
+      const field = fieldFor(page, path);
+      await field.fill("capacity");
+
+      const row = resultRow(page, "RIDGE-9100");
+      const keyLink = row.getByRole("link", { name: "RIDGE-9100" });
+      const summary = row.getByText(longSummary, { exact: true }).first();
+      const tooltip = page.locator("that-issue-search that-tooltip", { hasText: longSummary });
+
+      await keyLink.focus();
+      await expect(tooltip).toBeHidden();
+
+      await summary.focus();
+      await expect(tooltip).toBeVisible();
+
+      // Back to the field rather than a bare blur: this component closes the
+      // whole panel on a focusout whose relatedTarget it does not itself
+      // contain (see build()'s own focusout listener), and a blur to nowhere
+      // is exactly that — the field is still part of the component, so
+      // "focus elsewhere" the brief asks for is this, not a closed panel.
+      await field.focus();
+      await expect(tooltip).toBeHidden();
+
+      await summary.hover();
+      await expect(tooltip).toBeVisible();
+    });
+  }
+
+  // Task 7 fix: the controller's screenshots showed the tooltip's default
+  // above-opening covering the key link that keyboard focus had just moved
+  // to — the row stacks the key directly above the summary (#143's own
+  // refinement). `below` is the search panel's opt-in for this row shape.
+  //
+  // Task 9: reaching the summary is now a second ArrowRight, not the key's
+  // own focus — the key's focus no longer opens this tooltip at all.
+  test("the summary tooltip opens below the summary, clear of the focused key link", async ({
+    page,
+  }) => {
+    const longHit = hit(1, "Ridgeline", 0, "RIDGE-9200", longSummary);
+    await stubPins(page, []);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await stubEntries(page);
+    await stubSearch(page, [longHit]);
+    await page.goto("/today");
+
+    await searchField(page).fill("capacity");
+    const row = resultRow(page, "RIDGE-9200");
+    await expect(row).toBeVisible();
+
+    const tooltip = page.locator("that-issue-search that-tooltip", { hasText: longSummary });
+
+    await searchField(page).press("ArrowDown");
+    const keyLink = row.getByRole("link", { name: "RIDGE-9200" });
+    await expect(keyLink).toBeFocused();
+    await expect(tooltip).toBeHidden();
+
+    await page.keyboard.press("ArrowRight");
+    const summary = row.getByText(longSummary, { exact: true }).first();
+    await expect(summary).toBeFocused();
+    await expect(tooltip).toBeVisible();
+
+    const tooltipBox = await tooltip.boundingBox();
+    const keyBox = await keyLink.boundingBox();
+    const summaryBox = await summary.boundingBox();
+    expect(tooltipBox).not.toBeNull();
+    expect(keyBox).not.toBeNull();
+    expect(summaryBox).not.toBeNull();
+
+    // Opens below the summary, not above it where the focused key link sits.
+    expect(tooltipBox!.y).toBeGreaterThanOrEqual(summaryBox!.y + summaryBox!.height - 1);
+
+    // No overlap with the focused key link's own box.
+    const overlaps =
+      tooltipBox!.y < keyBox!.y + keyBox!.height &&
+      tooltipBox!.y + tooltipBox!.height > keyBox!.y &&
+      tooltipBox!.x < keyBox!.x + keyBox!.width &&
+      tooltipBox!.x + tooltipBox!.width > keyBox!.x;
+    expect(overlaps).toBe(false);
+  });
+});
+
+// #143, point 4: arrow-key movement across the results, and Escape back to
+// the field. The focused element's row and column are read fresh off the DOM
+// on every press (that-issue-search's own moveFocus), never tracked as
+// separate state, which is what test 6 below exists to prove survives a
+// repaint mid-navigation.
+test.describe("the search panel moves by arrow keys and Escape returns to the field (#143)", () => {
+  const rowA = hit(1, "Ridgeline", 0, "RIDGE-6001", "Row A summary");
+  const rowB = hit(1, "Ridgeline", 0, "RIDGE-6002", "Row B summary");
+  const rowC = hit(1, "Ridgeline", 0, "RIDGE-6003", "Row C summary");
+
+  test.beforeEach(async ({ page }) => {
+    await stubPins(page, []);
+    await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
+    await stubEntries(page);
+  });
+
+  test("down in the input focuses the first row's key link", async ({ page }) => {
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    await searchField(page).fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await searchField(page).press("ArrowDown");
+    await expect(
+      resultRow(page, "RIDGE-6001").getByRole("link", { name: "RIDGE-6001" }),
+    ).toBeFocused();
+  });
+
+  // Task 9 (#143): the summary joined the arrow-key order between the key and
+  // the host's own controls, so reaching the Log control now takes a second
+  // ArrowRight.
+  test("down again moves to the second row's key link, right moves to its summary, then right again to its Log control", async ({
+    page,
+  }) => {
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    await searchField(page).fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await searchField(page).press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      resultRow(page, "RIDGE-6002").getByRole("link", { name: "RIDGE-6002" }),
+    ).toBeFocused();
+
+    await page.keyboard.press("ArrowRight");
+    await expect(
+      resultRow(page, "RIDGE-6002").getByText(rowB.summary, { exact: true }).first(),
+    ).toBeFocused();
+
+    await page.keyboard.press("ArrowRight");
+    await expect(
+      resultRow(page, "RIDGE-6002").getByRole("button", {
+        name: "Log time against RIDGE-6002",
+        exact: true,
+      }),
+    ).toBeFocused();
+  });
+
+  test("up from the first row returns to the field, and the panel stays open", async ({ page }) => {
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    const field = searchField(page);
+    await field.fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await field.press("ArrowDown");
+    await page.keyboard.press("ArrowUp");
+
+    await expect(field).toBeFocused();
+    await expect(field).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("escape in a row returns to the field without closing; a second escape closes it", async ({
+    page,
+  }) => {
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    const field = searchField(page);
+    await field.fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await field.press("ArrowDown");
+    await page.keyboard.press("Escape");
+
+    await expect(field).toBeFocused();
+    await expect(field).toHaveAttribute("aria-expanded", "true");
+
+    await field.press("Escape");
+    await expect(field).toHaveAttribute("aria-expanded", "false");
+  });
+
+  // Controller ruling: "Tab leaves the panel, as today" means Tab keeps its
+  // native order and no arrow handler intercepts it. aria-expanded alone
+  // proves nothing here — a Tab whose keydown handler called preventDefault
+  // would leave focus on the field and aria-expanded untouched, and this
+  // test would still pass. So this checks where focus actually lands: the
+  // first row's key link on the first Tab (native order, not an arrow-key
+  // jump), and that tabbing out of the last row's last control leaves the
+  // component entirely and closes the panel, the same as any other focusout
+  // this component does not contain.
+  test("tab from the field leaves the panel as today, with no arrow handler interfering", async ({
+    page,
+  }) => {
+    // A real assigned row, linked, so tabbing off the panel's own last
+    // control has somewhere native to land — without one, tabbing off the
+    // last focusable element on the page is a browser-chrome affair
+    // Playwright cannot observe consistently across engines, which would
+    // make this half of the test about that quirk rather than about Tab.
+    await stubIssues(page, [
+      {
+        id: 1,
+        name: "Ridgeline",
+        error: null,
+        issues: [
+          {
+            key: "WORK-1",
+            summary: "An assigned ticket",
+            status: "To Do",
+            url: "https://example.atlassian.net/browse/WORK-1",
+          },
+        ],
+      },
+    ]);
+    await stubSearch(page, [rowA, rowB, rowC]);
+    await page.goto("/today");
+
+    const field = searchField(page);
+    await field.fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await field.press("Tab");
+    await expect(
+      resultRow(page, "RIDGE-6001").getByRole("link", { name: "RIDGE-6001" }),
+    ).toBeFocused();
+    await expect(field).toHaveAttribute("aria-expanded", "true");
+
+    const lastRowPin = resultRow(page, "RIDGE-6003").getByRole("button", {
+      name: "Pin RIDGE-6003",
+      exact: true,
+    });
+    await lastRowPin.focus();
+    await lastRowPin.press("Tab");
+    // The assigned table's own first control, immediately after the search
+    // panel in DOM order — proof focus actually left the panel via native
+    // order, not merely that some flag flipped.
+    await expect(page.getByRole("button", { name: "Sort by Key" })).toBeFocused();
+    await expect(field).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("pressing pin with Enter, then Down, moves to the next row's pin control across the repaint", async ({
+    page,
+  }) => {
+    await stubSearch(page, [rowA, rowB]);
+    const pinnedRowA = {
+      id: 9,
+      instanceId: rowA.instanceId,
+      instanceName: rowA.instanceName,
+      instancePosition: rowA.instancePosition,
+      key: rowA.key,
+      summary: rowA.summary,
+      status: rowA.status,
+      url: rowA.url,
+      error: null,
+    };
+    await stubPins(page, [], [pinnedRowA]);
+    await page.route("**/api/pins", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({ status: 201, json: pinnedRowA });
+    });
+
+    await page.goto("/today");
+    await searchField(page).fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    const pinButtonA = resultRow(page, "RIDGE-6001").getByRole("button", {
+      name: "Pin RIDGE-6001",
+      exact: true,
+    });
+    await pinButtonA.focus();
+    await pinButtonA.press("Enter");
+
+    const unpinButtonA = resultRow(page, "RIDGE-6001").getByRole("button", {
+      name: "Unpin RIDGE-6001",
+      exact: true,
+    });
+    await expect(unpinButtonA).toBeFocused();
+
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      resultRow(page, "RIDGE-6002").getByRole("button", { name: "Pin RIDGE-6002", exact: true }),
+    ).toBeFocused();
+  });
+
+  test("on Week, down in the input focuses the first row's first control", async ({ page }) => {
+    await page.route("**/api/entries**", (route) =>
+      route.fulfill({ status: 200, json: { today: "2026-09-10", entries: [] } }),
+    );
+    await page.route("**/api/week**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: {
+          start: "2026-09-07",
+          end: "2026-09-13",
+          prevStart: "2026-08-31",
+          nextStart: "2026-09-14",
+          weekNumber: 37,
+          days: Array.from({ length: 7 }, (_, i) => ({
+            day: `2026-09-0${String(i + 7)}`,
+            seconds: 0,
+            pushState: null,
+          })),
+          rows: [],
+          seconds: 0,
+        },
+      }),
+    );
+    // No url: keyLabel draws a plain, unfocusable span for the key, so
+    // column 0 is the summary now (#143 task 9) rather than a link — proving
+    // the rule reads "the row's first focusable element", not the key link
+    // every other case above happens to have there.
+    const noUrlHit = { ...rowA, url: "" };
+    await stubSearch(page, [noUrlHit]);
+    await page.goto("/week");
+
+    const field = page.getByRole("textbox", { name: "Add a ticket to this week", exact: true });
+    await field.fill("row");
+    await expect(page.getByText("RIDGE-6001")).toBeVisible();
+
+    await field.press("ArrowDown");
+    const summary = page.getByText(noUrlHit.summary, { exact: true }).first();
+    await expect(summary).toBeFocused();
+
+    await page.keyboard.press("ArrowRight");
+    await expect(
+      page.getByRole("button", { name: "Add RIDGE-6001 to this week", exact: true }),
+    ).toBeFocused();
+  });
+
+  // Review round: Up/Down used to preserve the raw column index, but a
+  // no-URL row has no key (see keyLabel), so its summary and controls each
+  // sit one column earlier than a linked row's — a positional Down from a
+  // linked row's summary (column 1) landed on the no-URL row's first control
+  // (also column 1) rather than its summary (column 0). moveFocus now
+  // prefers the target row's element carrying the same data-control-index
+  // value as the one focus is leaving, falling back to the clamped column
+  // only when the target row carries no matching kind.
+  test("down from a summary lands on the row below's own summary, even when that row has no key", async ({
+    page,
+  }) => {
+    const rowD = hit(1, "Ridgeline", 0, "RIDGE-6004", "Row D summary");
+    const noUrlRowE = { ...hit(1, "Ridgeline", 0, "RIDGE-6005", "Row E summary"), url: "" };
+    await stubSearch(page, [rowD, noUrlRowE]);
+    await page.goto("/today");
+
+    await searchField(page).fill("row");
+    await expect(page.getByText("RIDGE-6004")).toBeVisible();
+
+    const firstRow = resultRow(page, "RIDGE-6004");
+    // Not resultRow(): a no-URL hit's key is a plain span, not a link — the
+    // helper's own getByRole("link", ...) has nothing to find. The summary
+    // text is unique enough to stand in for it.
+    const secondSummary = page.getByText(noUrlRowE.summary, { exact: true }).first();
+
+    await firstRow.getByText(rowD.summary, { exact: true }).first().focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(secondSummary).toBeFocused();
+
+    // The key's own Down is unaffected: the row below has no key of its own,
+    // so its first element already is its summary regardless of matching.
+    await firstRow.getByRole("link", { name: "RIDGE-6004" }).focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(secondSummary).toBeFocused();
   });
 });

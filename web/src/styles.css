@@ -76,6 +76,11 @@
   --color-rail-muted: oklch(0.66 0.01 60);
   --color-rail-active: oklch(0.205 0.008 60);
 
+  /* The tooltip's ground (#246), one value in both themes like the rail. Not the
+     drawing's 0.06, which vanished on the rail, nor 0.26, which vanished on the
+     dark card: the owner chose 0.34 in the design session. */
+  --color-tip: oklch(0.34 0.01 60);
+
   /* Identity, never state: wordmark, Push, links, focus rings. */
   --color-primary: light-dark(oklch(0.5 0.21 330), oklch(0.72 0.19 330));
   --color-primary-ink: light-dark(oklch(0.99 0.004 70), oklch(0.16 0.02 330));
@@ -124,6 +129,12 @@
      another mechanism, so it takes no ring of its own. */
   --shadow-dialog: 0 12px 36px -12px light-dark(oklch(0 0 0 / 0.16), oklch(0 0 0 / 0.75));
 
+  /* One value in both themes would dim a light page and a dark one by the
+     same number but not by the same felt amount — a dark page is already
+     close to black. 25%/60% was settled by the owner on 2026-09-23 over the
+     prototype's 50% in both themes and the browser's UA default of 10%. */
+  --color-scrim: light-dark(oklch(0 0 0 / 0.25), oklch(0 0 0 / 0.6));
+
   /* The owner's screen is 2560px wide and every Tailwind default stops far
      short of it. Beware: max-w-3xl is the container scale's 48rem and has
      nothing to do with this — capping a column needs an explicit value. */
@@ -138,6 +149,20 @@
 }
 [data-theme="dark"] {
   color-scheme: dark;
+}
+
+/* Every native <dialog> dims the page behind it with the one scrim, so
+   that-confirm, the entries dialog and the stop dialog take it with no
+   per-component style. In @layer base rather than unlayered: an unlayered
+   rule beats any Tailwind utility regardless of specificity, which would
+   also override the Settings dialog's own `backdrop:bg-transparent` (it
+   paints the scrim as its own background instead, so this rule would
+   otherwise double it) — layered, the utility wins on its own and no
+   dialog needs excluding. */
+@layer base {
+  dialog::backdrop {
+    background: var(--color-scrim);
+  }
 }
 
 /* Instance identity. Lightness and chroma are fixed and only the hue moves, so
@@ -335,4 +360,30 @@ that-ticket-row {
    text renders as page content until it upgrades. Hidden until then. */
 that-tooltip:not(:defined) {
   display: none;
+}
+
+/* #246: a 4px arrow on the side facing the trigger. reveal() writes the side
+   and, as --arrow-at, where the trigger's centre falls along that edge. */
+that-tooltip::after {
+  content: "";
+  position: absolute;
+  border: 4px solid transparent;
+}
+that-tooltip[data-side="above"]::after {
+  top: 100%;
+  left: calc(var(--arrow-at) - 4px);
+  border-top-color: var(--color-tip);
+  border-bottom-width: 0;
+}
+that-tooltip[data-side="below"]::after {
+  bottom: 100%;
+  left: calc(var(--arrow-at) - 4px);
+  border-bottom-color: var(--color-tip);
+  border-top-width: 0;
+}
+that-tooltip[data-side="right"]::after {
+  right: 100%;
+  top: calc(var(--arrow-at) - 4px);
+  border-right-color: var(--color-tip);
+  border-left-width: 0;
 }

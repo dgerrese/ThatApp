@@ -242,6 +242,7 @@ const INK_LIGHT = "oklch(0.195 0.009 55)";
 const INK_DARK = "oklch(0.962 0.005 70)";
 const INK_MUTED_LIGHT = "oklch(0.465 0.01 55)";
 const FAILED_LIGHT = "oklch(0.49 0.19 25)";
+const PRIMARY_LIGHT = "oklch(0.5 0.21 330)";
 
 /** No background painted at all, which is what an untouched row wears. */
 const UNPAINTED = "rgba(0, 0, 0, 0)";
@@ -391,7 +392,7 @@ test("the dialog opens from a pinned row as well as an assigned one", async ({ p
  * Today view. It lives in the shell precisely so Settings — and #11's Week —
  * keep showing the right figure without knowing it exists.
  */
-test("the rail keeps the total after navigating to Settings", async ({ page }) => {
+test("the rail keeps the total while Settings is open over Today", async ({ page }) => {
   await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
   await openToday(page);
 
@@ -404,9 +405,10 @@ test("the rail keeps the total after navigating to Settings", async ({ page }) =
   // clickable — which is the platform behaviour this ticket relies on.
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);
-  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
 
-  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await expect(page).toHaveURL(/\/today$/);
   await expect(page.locator("#rail-total")).toHaveText("0h 45m");
 });
 
@@ -510,7 +512,9 @@ test("the dialog shows only the ticket it was opened from", async ({ page }) => 
 
   await trigger(page, "WORK-412").click();
 
-  await expect(dialog(page).getByText("mine")).toBeVisible();
+  // .first(): #143 gave the comment its own cut-text that-tooltip, hidden but
+  // carrying the same text.
+  await expect(dialog(page).getByText("mine").first()).toBeVisible();
   await expect(dialog(page).getByText("someone else's row")).toHaveCount(0);
   // The rail still totals the whole day, which is the difference being tested.
   await expect(page.locator("#rail-total")).toHaveText("1h 30m");
@@ -540,7 +544,9 @@ test("a day-scoped dialog lists only that day's entries", async ({ page }) => {
     day: PAST_DAY,
   });
 
-  await expect(dialog(page).getByText("past work")).toBeVisible();
+  // .first(): #143 gave the comment its own cut-text that-tooltip, hidden but
+  // carrying the same text.
+  await expect(dialog(page).getByText("past work").first()).toBeVisible();
   await expect(dialog(page).getByText("today's work")).toHaveCount(0);
   await expect(dialogTotal(page)).toHaveText("0h 30m");
   // The exact contract, not just its effect: a ranged read, not the bare one.
@@ -803,6 +809,41 @@ test("the split names every instance with time against it", async ({ page }) => 
 });
 
 /**
+ * Review finding on #204: the split's rebuild-once-a-minute signature used to
+ * carry only a slice's position and its figure, so a read that renamed an
+ * instance (same position, same seconds) left the old name on screen until a
+ * figure happened to cross a minute — a regression, since paint() used to
+ * redraw the split on every read regardless. Editing an entry is what fires a
+ * real re-announce with a fresh server response, the same path a rename
+ * reaching this instance's row would take.
+ */
+test("a renamed instance redraws the split at once, not on the next minute crossing", async ({
+  page,
+}) => {
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+
+  let instanceName = "Ridgeline";
+  await page.route("**/api/entries**", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+
+    await route.fulfill({
+      status: 200,
+      json: { today: DAY, entries: [entry(1, "WORK-412", 3600, { instanceName })] },
+    });
+  });
+
+  await expect(page.locator("#rail-split")).toContainText("Ridgeline");
+
+  instanceName = "Basecamp";
+  await trigger(page, "WORK-412").click();
+  await dialog(page).getByRole("button", { name: "Edit the 09:15 entry" }).click();
+  await dialog(page).getByRole("button", { name: "Save" }).click();
+
+  await expect(page.locator("#rail-split")).toContainText("Basecamp");
+  await expect(page.locator("#rail-split")).not.toContainText("Ridgeline");
+});
+
+/**
  * Trap 4 of the design, and the one this ticket exists to nail down. A native
  * <dialog> is in the top layer and the user-agent stylesheet gives it
  * `color: CanvasText` — a declaration, which beats inheritance — so a dialog
@@ -898,8 +939,9 @@ test("the row's edit and delete controls carry a tooltip, like cancel beside the
   await trigger(page, "WORK-412").click();
 
   const row = entryRows(page).nth(0);
-  const editTip = row.locator("that-tooltip").nth(1);
-  const deleteTip = row.locator("that-tooltip").nth(2);
+  // 0 is the comment's own cut-text tooltip (#143), 1 is the push mark's.
+  const editTip = row.locator("that-tooltip").nth(2);
+  const deleteTip = row.locator("that-tooltip").nth(3);
 
   await expect(editTip).toBeHidden();
   await dialog(page).getByRole("button", { name: "Edit the 09:15 entry" }).hover();
@@ -982,7 +1024,9 @@ test("an entry with no comment reads No comment in the muted tone", async ({ pag
 
   await trigger(page, "WORK-412").click();
 
-  const none = dialog(page).getByText("No comment");
+  // .first(): #143 gave the comment its own cut-text that-tooltip, hidden but
+  // carrying the same text.
+  const none = dialog(page).getByText("No comment").first();
   await expect(none).toBeVisible();
   await expect(none).toHaveCSS("color", INK_MUTED_LIGHT);
 });
@@ -1020,6 +1064,9 @@ test("editing marks its own row active, offers Save and Cancel, and dims no othe
  * The group is the control; the field inside it is borderless and takes no ring
  * of its own. Pressing + must light the whole thing rather than nothing, which
  * is why the group uses :focus-within and not the input's :focus.
+ *
+ * #108 moved the lit colour from ink to the accent — see focus-accent.spec.ts
+ * for the cross-field proof pinned against the search field's own border.
  */
 test("the duration group takes the focus ring, not the field inside it", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
@@ -1033,7 +1080,7 @@ test("the duration group takes the focus ring, not the field inside it", async (
   const focused = await group.evaluate((el) => getComputedStyle(el).borderTopColor);
 
   expect(focused).not.toBe(resting);
-  expect(focused).toBe(INK_LIGHT);
+  expect(focused).toBe(PRIMARY_LIGHT);
   await expect(durationField(page)).toHaveCSS("outline-style", "none");
 });
 
@@ -1060,10 +1107,11 @@ test("each entry carries a push-state mark naming its state", async ({ page }) =
     "pushed",
   );
 
-  // Scoped to this row and to the first of its three tooltips: Today and Week
-  // both put tooltips on the page already, and edit and delete now carry their
-  // own beside this one — D2 of #117 task 11.
-  const popover = entryRows(page).nth(0).locator("that-tooltip").first();
+  // Scoped to this row and to its push mark's tooltip specifically: Today and
+  // Week both put tooltips on the page already, edit and delete carry their
+  // own beside this one (D2 of #117 task 11), and the comment now carries its
+  // own cut-text one ahead of it in the DOM (#143).
+  const popover = entryRows(page).nth(0).locator("that-tooltip").nth(1);
   await expect(popover).toBeHidden();
   await entryRows(page).nth(0).getByRole("img").hover();
   await expect(popover).toBeVisible();

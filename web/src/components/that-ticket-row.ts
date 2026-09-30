@@ -1,3 +1,4 @@
+import { cutTextTooltip } from "../cut-text-tooltip";
 import { fieldFigure } from "../duration";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
@@ -18,6 +19,10 @@ export const UNPIN = "that-unpin";
 /** One id per pin control mounted, so its tooltip's `for` can resolve it on a
  *  page holding many rows in several cards. */
 let pinTriggerSequence = 0;
+
+/** Same reasoning as pinTriggerSequence, for the summary's own cut-text
+ *  tooltip and the key link's own "open in Jira" one (#143). */
+let summaryTriggerSequence = 0;
 
 /**
  * One issue: its key, its summary and its status. Light DOM, so #7 and #8 can
@@ -61,6 +66,11 @@ export class ThatTicketRow extends HTMLElement {
   private pinTrigger: HTMLButtonElement | undefined;
   private pinTooltip: HTMLElement | undefined;
   private readonly pinTriggerId = `that-pin-${++pinTriggerSequence}`;
+  // Same sequence value for all three (#143): one row, one number, three
+  // prefixes, so nothing here collides across a page holding many rows.
+  private readonly summaryId = `that-sum-${++summaryTriggerSequence}`;
+  private readonly keyLinkId = `that-key-${summaryTriggerSequence}`;
+  private readonly failureId = `that-fail-${summaryTriggerSequence}`;
   private stopTimerListening: (() => void) | undefined;
 
   connectedCallback(): void {
@@ -114,13 +124,14 @@ export class ThatTicketRow extends HTMLElement {
     const keyCell = document.createElement("td");
     keyCell.className = "c-key";
     keyCell.append(this.keyContent(url));
+    if (url !== "") keyCell.append(this.keyTooltip());
 
     const sumCell = document.createElement("td");
     sumCell.className = "c-sum";
-    sumCell.append(this.summarySpan());
+    sumCell.append(this.summarySpan(), this.summaryTooltip());
     const failure = this.getAttribute("error");
     if (failure !== null && failure !== "") {
-      sumCell.append(this.failureNote(failure));
+      sumCell.append(this.failureNote(failure), this.failureTooltip(failure));
     }
 
     const statusCell = document.createElement("td");
@@ -403,24 +414,40 @@ export class ThatTicketRow extends HTMLElement {
     const key = this.getAttribute("key") ?? "";
 
     if (url === "") {
+      // No title either (owner, 2026-09-25): a key with no site to open gets
+      // no tooltip at all, not even the native one it used to carry.
       const span = document.createElement("span");
       span.className = "that-key that-tnum text-ink-muted";
-      span.title = `Open ${key} in Jira`;
       span.textContent = key;
 
       return span;
     }
 
     const link = document.createElement("a");
+    // keyLinkId is set on the link alone — only when it exists, which is why
+    // the plain-span branch above sets no id: this element's own tooltip
+    // (keyTooltip below) is nothing to attach when there is nothing focusable
+    // or hoverable to give it.
+    link.id = this.keyLinkId;
     link.href = url;
     link.target = "_blank";
     // Without noopener the opened page gets a window.opener handle back here.
     link.rel = "noopener";
     link.className = "that-key that-tnum text-ink-muted";
-    link.title = `Open ${key} in Jira`;
     link.textContent = key;
 
     return link;
+  }
+
+  /** The key link's own that-tooltip (#143), replacing the native title it
+   *  used to carry — default (centred) anchor, since the key is not a
+   *  trailing control. */
+  private keyTooltip(): HTMLElement {
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", this.keyLinkId);
+    tooltip.textContent = "open in Jira";
+
+    return tooltip;
   }
 
   /**
@@ -457,6 +484,8 @@ export class ThatTicketRow extends HTMLElement {
    */
   private failureNote(message: string): HTMLElement {
     const note = document.createElement("span");
+    note.id = this.failureId;
+    note.tabIndex = 0;
     note.setAttribute("role", "status");
     note.className = "text-failed block truncate text-xs";
     note.textContent = message;
@@ -464,12 +493,37 @@ export class ThatTicketRow extends HTMLElement {
     return note;
   }
 
+  /**
+   * Opens on the note's own hover and its own focus (#236): the note is a Tab
+   * stop whether or not it is cut, so the Tab order never changes with the
+   * window's width, and `when-cut` keeps this shut when there is nothing to
+   * give back.
+   */
+  private failureTooltip(message: string): HTMLElement {
+    return cutTextTooltip(this.failureId, message);
+  }
+
+  /** Focusable (#143 task 9, owner): its own tab stop rather than borrowing
+   *  the key link's, so its tooltip can open on its own focus instead of a
+   *  neighbour's. */
   private summarySpan(): HTMLElement {
     const summary = document.createElement("span");
-    summary.className = "block truncate text-lg";
+    summary.id = this.summaryId;
+    summary.tabIndex = 0;
+    summary.className = "block truncate";
     summary.textContent = this.getAttribute("summary") ?? "";
 
     return summary;
+  }
+
+  /**
+   * that-tooltip's first cut-text consumer (#143): `for` gives back the
+   * summary's own hover and, since task 9, its own focus too, so a key focus
+   * opens only the key's own "open in Jira" tooltip (keyTooltip above),
+   * never this one.
+   */
+  private summaryTooltip(): HTMLElement {
+    return cutTextTooltip(this.summaryId, this.getAttribute("summary") ?? "");
   }
 }
 

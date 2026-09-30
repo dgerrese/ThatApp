@@ -235,14 +235,6 @@ function tooltipIn(page: Page, issueKey: string, column: number): Locator {
   return ticketRow(page, issueKey).locator("td").nth(column).locator("that-tooltip");
 }
 
-async function shapeOf(marker: Locator): Promise<{ radius: string; bottomBorder: string }> {
-  return marker.evaluate((element) => {
-    const style = getComputedStyle(element);
-
-    return { radius: style.borderTopLeftRadius, bottomBorder: style.borderBottomWidth };
-  });
-}
-
 /** The rail owns the only Push button, worded "Push this week" here — #117's
  *  R3 — and it sends every day the week holds rather than only today. */
 async function pushEverything(page: Page): Promise<void> {
@@ -565,23 +557,28 @@ test("a failed marker and an unpushed one differ in shape, not only in hue", asy
 
   await pushEverything(page);
 
+  // The cell already holds an unpushed disc before the push lands, so the
+  // marker being visible proves nothing; the repaint that swaps in the failed
+  // triangle has to land first, or a shape read hits a detached span (#234).
+  await expect(ticketRow(page, "RIDGE-2").locator("td").nth(2).locator("button")).toHaveAttribute(
+    "aria-label",
+    /push failed/,
+  );
+
   // The rollup is unchanged underneath, so Monday still reads unpushed while
   // Wednesday wears the marker the push left — both on screen at once.
   const failed = markerIn(page, "RIDGE-2", 2);
   const unpushed = markerIn(page, "RIDGE-1", 0);
+
   await expect(failed).toBeVisible();
   await expect(unpushed).toBeVisible();
 
-  const failedShape = await shapeOf(failed);
-  const unpushedShape = await shapeOf(unpushed);
-
-  expect(failedShape).not.toEqual(unpushedShape);
   // A triangle against a disc: the failed marker has a drawn edge and square
   // corners, the unpushed one is round and has neither.
-  expect(unpushedShape.bottomBorder).toBe("0px");
-  expect(failedShape.bottomBorder).not.toBe("0px");
-  expect(failedShape.radius).toBe("0px");
-  expect(unpushedShape.radius).not.toBe("0px");
+  await expect(unpushed).toHaveCSS("border-bottom-width", "0px");
+  await expect(failed).not.toHaveCSS("border-bottom-width", "0px");
+  await expect(failed).toHaveCSS("border-top-left-radius", "0px");
+  await expect(unpushed).not.toHaveCSS("border-top-left-radius", "0px");
 });
 
 /**
@@ -817,6 +814,9 @@ test("the fetch control sits beside the label, and the week controls do not move
 
   const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
   await expect(fetchControl).toBeVisible();
+  // #119: the visible words are the accessible name; no aria-label repeats them.
+  await expect(fetchControl).not.toHaveAttribute("aria-label");
+  await expect(page.getByRole("button", { name: "Fetch worklogs", exact: true })).toHaveCount(1);
 
   const label = page.getByRole("heading", { level: 2 });
   const thisWeek = page.getByRole("button", { name: "This week", exact: true });
@@ -855,7 +855,7 @@ test("Refresh sits between the rule and Fetch worklogs, and re-reads /api/week w
   const order = await page.evaluate(() => {
     const byLabel = (label: string) =>
       Array.from(document.querySelectorAll("button")).find(
-        (button) => button.getAttribute("aria-label") === label,
+        (button) => button.textContent?.trim() === label,
       ) ?? null;
     const rule = document.querySelector(".bg-edge");
     const refresh = byLabel("Refresh");
@@ -1246,6 +1246,34 @@ test("the ticket key opens the issue in Jira, ink-muted at rest and full ink on 
   await expect(key).toHaveCSS("color", INK_LIGHT);
 });
 
+/** #143: the grid's own key link drops its native title for the app's own
+ *  tooltip, the same treatment the week arrows already get (see "the week
+ *  arrows carry the drawn popover rather than a native title" above). */
+test("the ticket key carries a tooltip reading exactly \"open in Jira\", not a native title", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const key = ticketRow(page, "RIDGE-1").locator(".that-key");
+  await expect(key).not.toHaveAttribute("title");
+
+  const tooltip = page.locator("that-tooltip", { hasText: "open in Jira" });
+  await expect(tooltip).toBeHidden();
+
+  await key.hover();
+  await expect(tooltip).toBeVisible();
+
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toBeHidden();
+
+  await key.focus();
+  await expect(tooltip).toBeVisible();
+});
+
 /**
  * #117 task 10, W4: an instance migrated from a gateway URL carries no site to
  * link to, so its row's key stays plain text rather than a dead anchor —
@@ -1262,6 +1290,12 @@ test("a key from an instance with no site URL renders as plain text", async ({ p
   await expect(key).toHaveText("RIDGE-1");
   const tagName = await key.evaluate((element) => element.tagName);
   expect(tagName).toBe("SPAN");
+
+  // Owner, 2026-09-25: an unlinked key gets no tooltip at all, native or
+  // drawn — there is nowhere for it to send anyone.
+  await expect(key).not.toHaveAttribute("title");
+  await key.hover();
+  await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeHidden();
 });
 
 /**
@@ -1344,6 +1378,263 @@ test("a body row is 46px, a cell's trigger carries the drawn padding, and tfoot 
 });
 
 /**
+ * #215: the drawing's `.cell` centres its mark on the figure, 7px away —
+ * measured edge to edge with `getBoundingClientRect`, not the flex `gap`
+ * read back from CSS, which a stray margin on the mark could satisfy while
+ * still missing the drawing. RIDGE-3's failed mark comes from a push failure
+ * layered on top of an otherwise-unpushed cell, not from its own pushState —
+ * markerFor's rule, per #117.
+ */
+test(
+  "a cell's push mark sits 7px from its figure, centred on it — unpushed, dirty and failed",
+  async ({ page }) => {
+    await openWeek(
+      page,
+      {
+        [THIS_WEEK]: rollup(THIS_WEEK, [
+          row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+          row("RIDGE-2", [{ at: 1, seconds: 1800, pushState: "dirty" }]),
+          row("RIDGE-3", [{ at: 2, seconds: 2700, pushState: "unpushed" }]),
+        ]),
+      },
+      [
+        entry(1, "RIDGE-1", "2026-09-07", 3600, "unpushed"),
+        entry(2, "RIDGE-2", "2026-09-08", 1800, "dirty"),
+        entry(3, "RIDGE-3", "2026-09-09", 2700, "unpushed"),
+      ],
+    );
+
+    await page.route("**/api/push**", (route) => {
+      const day = new URL(route.request().url()).searchParams.get("day") ?? "";
+      const result =
+        day === "2026-09-07"
+          ? pushed(1, "RIDGE-1")
+          : day === "2026-09-08"
+            ? pushed(2, "RIDGE-2")
+            : unreachable(3, "RIDGE-3");
+
+      return route.fulfill({ status: 200, json: { day, results: [result] } });
+    });
+
+    await pushEverything(page);
+
+    // pushEverything only clicks the two confirm buttons; it does not wait
+    // for the push to land. Without this, expect.poll below can succeed on
+    // its very first read — against the pre-push grid, where RIDGE-3 still
+    // shows its unpushed dot, not the failed triangle a push failure draws —
+    // because that read is already non-null. Same wait as the shape test
+    // above (~line 522), scoped to RIDGE-3's own trigger.
+    await expect(
+      ticketRow(page, "RIDGE-3").locator("td").nth(2).locator("button"),
+    ).toHaveAttribute("aria-label", /push failed/);
+
+    const cases: [issueKey: string, column: number][] = [
+      ["RIDGE-1", 0],
+      ["RIDGE-2", 1],
+      ["RIDGE-3", 2],
+    ];
+
+    for (const [issueKey, column] of cases) {
+      const trigger = ticketRow(page, issueKey).locator("td").nth(column).locator("button");
+
+      // pushEverything's trailing re-read (see onPushReported in
+      // views/week.ts) repaints the whole grid asynchronously, after the
+      // push report text but on no signal a locator assertion can wait on.
+      // A one-shot evaluate can land between the old row's removal and the
+      // new one's insertion — the handle resolves but the node is detached,
+      // so getBoundingClientRect reads all zero — so the read is polled
+      // until it lands on a connected node. Locator.boundingBox() is not
+      // this poll's tool: it reports null for these spans in Firefox even
+      // when they are laid out and visible.
+      let result: { gap: number; markCentre: number; figCentre: number } | null = null;
+      await expect
+        .poll(async () => {
+          result = await trigger.evaluate((element) => {
+            const mark = element.querySelector("span[aria-hidden='true']");
+            const fig = element.querySelector("span.font-mono");
+            if (!mark?.isConnected || !fig?.isConnected) return null;
+            const markRect = mark.getBoundingClientRect();
+            const figRect = fig.getBoundingClientRect();
+
+            return {
+              gap: figRect.left - markRect.right,
+              markCentre: markRect.top + markRect.height / 2,
+              figCentre: figRect.top + figRect.height / 2,
+            };
+          });
+
+          return result;
+        }, `${issueKey} settle`)
+        .not.toBeNull();
+      // The value the poll last settled on, not a fresh read: a second
+      // evaluate here would reopen the same detach race the poll exists to
+      // wait out.
+      if (!result) throw new Error(`${issueKey}: mark or figure not rendered`);
+
+      expect(Math.abs(result.gap - 7), `${issueKey} gap`).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(result.markCentre - result.figCentre), `${issueKey} centre offset`).toBeLessThanOrEqual(
+        0.5,
+      );
+    }
+  },
+);
+
+/**
+ * #215's own change reaches only a marked cell — `items-center` on the
+ * trigger and `shrink-0` on the mark must not move an em-dash cell (no mark
+ * to centre against) or a pushed one (no mark at all). Checked relative to
+ * the td itself, not against fixture pixel values pinned per browser: a
+ * cell's content sits flush with its td's own content-box right edge and
+ * shares its vertical centre, whatever the viewport or font rendering does
+ * around it.
+ */
+test("an empty cell and a pushed cell keep their place", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }]),
+    ]),
+  });
+
+  const emptyTd = ticketRow(page, "RIDGE-1").locator("td").nth(1);
+  const pushedTd = ticketRow(page, "RIDGE-1").locator("td").first();
+
+  // Placement relative to the td that draws it, not an absolute page
+  // position: a content element's own padding/border (the trigger carries
+  // 13px/9px, cancelled back out by its negative margin — see ticketCell's
+  // own comment) is read from computed style rather than assumed away, so
+  // this holds regardless of which element (button or span) is measured.
+  const placementOf = (td: Locator, contentSelector: string) =>
+    td.evaluate((tdEl, selector) => {
+      const content = tdEl.querySelector(selector);
+      if (!content) throw new Error(`${selector} not found`);
+
+      const box = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const pr = parseFloat(cs.paddingRight) || 0;
+        const pt = parseFloat(cs.paddingTop) || 0;
+        const pb = parseFloat(cs.paddingBottom) || 0;
+        const br = parseFloat(cs.borderRightWidth) || 0;
+        const bt = parseFloat(cs.borderTopWidth) || 0;
+        const bb = parseFloat(cs.borderBottomWidth) || 0;
+
+        return {
+          contentRight: r.right - pr - br,
+          contentCentreY: r.top + bt + pt + (r.height - bt - bb - pt - pb) / 2,
+        };
+      };
+      const tdBox = box(tdEl);
+      const contentBox = box(content);
+
+      return {
+        rightGap: tdBox.contentRight - contentBox.contentRight,
+        centreGap: tdBox.contentCentreY - contentBox.contentCentreY,
+      };
+    }, contentSelector);
+
+  const empty = await placementOf(emptyTd, "button");
+  const pushed = await placementOf(pushedTd, "span.font-mono");
+
+  expect(Math.abs(empty.rightGap), "empty cell right edge").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(empty.centreGap), "empty cell vertical centre").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(pushed.rightGap), "pushed cell right edge").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(pushed.centreGap), "pushed cell vertical centre").toBeLessThanOrEqual(0.5);
+});
+
+/**
+ * The footer's own rule (`.dmark`) is out of this ticket's scope — 6px
+ * margin-right and a 1px vertical-align, unlike the cell's mark, which drops
+ * both for `items-center` and an explicit 7px gap instead.
+ */
+test("the footer's day-total mark keeps its own rule", async ({ page }) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+    ]),
+  });
+
+  const mark = page.locator("tfoot td").first().getByRole("img", { name: "not pushed" });
+  await expect(mark).toBeVisible();
+  await expect(mark).toHaveCSS("margin-right", "6px");
+  await expect(mark).toHaveCSS("vertical-align", "1px");
+});
+
+/**
+ * #231: a footer day total's mark names its state in the app's own tooltip —
+ * the owner ruled in #143 that a native title no longer fits — and to a
+ * screen reader through its aria-label alone, so the state is heard once.
+ */
+test("a footer day total's mark shows its state in a tooltip on hover, never a title", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [
+        { at: 0, seconds: 3600, pushState: "unpushed" },
+        { at: 1, seconds: 1800, pushState: "dirty" },
+      ]),
+    ]),
+  });
+
+  await expect(page.locator("tfoot .sr-only")).toHaveCount(0);
+
+  for (const [column, words] of [
+    [0, "not pushed"],
+    [1, "edited since it was pushed"],
+  ] as const) {
+    const mark = page.locator("tfoot td").nth(column).getByRole("img", { name: words });
+    await expect(mark).toBeVisible();
+    await expect(mark).not.toHaveAttribute("title");
+
+    const tooltip = page.locator(`that-tooltip[for="${(await mark.getAttribute("id")) ?? ""}"]`);
+    await expect(tooltip).toBeHidden();
+    await mark.hover();
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toHaveText(words);
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toBeHidden();
+  }
+});
+
+/**
+ * #231: the mark is a Tab stop straight after the last row's Sunday cell —
+ * the row total between them is inert — and its tooltip opens on that real
+ * key press. The footer is outside `tbody tr`, so Up and Down neither leave
+ * it nor enter it (#227's rows are unchanged).
+ */
+test("a real Tab reaches a footer mark and opens its tooltip; Up and Down stay put", async ({
+  page,
+}) => {
+  await openWeek(page, {
+    [THIS_WEEK]: rollup(THIS_WEEK, [
+      row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "unpushed" }]),
+    ]),
+  });
+
+  const sunday = ticketRow(page, "RIDGE-1").locator("td button").nth(6);
+  const mark = page.locator("tfoot td").first().getByRole("img", { name: "not pushed" });
+  await expect(mark).toBeVisible();
+  const tooltip = page.locator(`that-tooltip[for="${(await mark.getAttribute("id")) ?? ""}"]`);
+
+  await sunday.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(mark).toBeFocused();
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText("not pushed");
+
+  await page.keyboard.press("ArrowUp");
+  await expect(mark).toBeFocused();
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(sunday).toBeFocused();
+  await expect(tooltip).toBeHidden();
+
+  await page.keyboard.press("ArrowDown");
+  await expect(sunday).toBeFocused();
+});
+
+/**
  * #127: `.grid tbody td, .grid tbody th` and `.grid tfoot th, .grid tfoot td`
  * set 15px, and the figures inherit it. The line box stays the drawing's 1.5
  * rather than Tailwind's text-lg default, which the totals row's drawn 47px
@@ -1392,13 +1683,16 @@ test("a cell takes the hover wash on keyboard focus as well as pointer hover", a
   });
 
   const trigger = ticketRow(page, "RIDGE-1").locator("td").first().locator("button");
+  const keyLink = ticketRow(page, "RIDGE-1").locator("th a");
   const resting = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
 
   await trigger.hover();
   const hovered = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
   await page.mouse.move(0, 0);
 
-  await trigger.focus();
+  await keyLink.focus();
+  await page.keyboard.press("Tab");
+  await expect(trigger).toBeFocused();
   const focused = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor);
 
   expect(hovered).not.toBe(resting);
@@ -1573,8 +1867,8 @@ test("opening a past Monday's cell and adding time moves the cell, its row total
       entries.push(created);
 
       // pushed, not unpushed: the footer's own day total would otherwise grow
-      // a worst-wins marker and the sr-only words beside it, which is a
-      // separate claim from the one this test makes about the figures alone.
+      // a worst-wins marker and its tooltip, which is a separate claim from
+      // the one this test makes about the figures alone.
       if (body.day === "2026-08-31") {
         rollups["2026-08-31"] = rollup("2026-08-31", [
           row("RIDGE-9", [{ at: 0, seconds: 3600 + body.seconds, pushState: "pushed" }]),
@@ -1637,7 +1931,6 @@ test("navigating away from Week removes its entries-changed listener, so a later
   await openWeek(page, {
     [THIS_WEEK]: rollup(THIS_WEEK, [row("RIDGE-1", [{ at: 0, seconds: 3600, pushState: "pushed" }])]),
   });
-  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
 
   // The mount's own read has to settle before the counting route goes on
   // below, or that first read races the route registration and can land
@@ -1654,12 +1947,17 @@ test("navigating away from Week removes its entries-changed listener, so a later
     return route.fallback();
   });
 
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  // Away to an address with no view: the router tears Week down and mounts
+  // only its placeholder, which listens to nothing.
+  await page.evaluate(() => {
+    history.pushState({}, "", "/no-view-here");
+    dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page.getByText("There is nothing at this address.")).toBeVisible();
 
   // The event Week's own dialog fires after a mutation elsewhere — see
-  // entries-changed.ts. Dispatched directly here since Settings mounts no
-  // dialog of its own to fire it through.
+  // entries-changed.ts. Dispatched directly here since the placeholder has
+  // nothing to fire it through.
   await page.evaluate(() => document.dispatchEvent(new CustomEvent("that-entries-changed")));
 
   // No positive signal exists for "nothing happened" — a leaked listener's
@@ -1840,9 +2138,15 @@ function weekSearchField(page: Page) {
 /** The result row for `key`, scoped from the key's own link — the only
  *  element in a row that names its ticket, the same reasoning search.spec.ts's
  *  own resultRow gives: every control's accessible name is fixed per
- *  IssueSearchControl and repeats across rows. */
+ *  IssueSearchControl and repeats across rows. Reaches the ancestor carrying
+ *  `data-hit-key` rather than a fixed number of `..` hops (#143 nested the
+ *  key inside its own text column), matching search.spec.ts's own fix. By
+ *  role and exact name rather than `getByTitle` (#143 dropped the key link's
+ *  native title for the app's own tooltip), also matching search.spec.ts. */
 function weekSearchResultRow(page: Page, key: string) {
-  return page.getByTitle(`Open ${key} in Jira`).locator("..");
+  return page
+    .getByRole("link", { name: key, exact: true })
+    .locator("xpath=ancestor::*[@data-hit-key]");
 }
 
 test.describe("Week's own search", () => {
@@ -1900,6 +2204,41 @@ test.describe("Week's own search", () => {
         "Searching all instances. Choosing a result adds it to this week; click a day to log time.",
       ),
     ).toBeVisible();
+  });
+
+  // #143: the search panel's own key link drops its native title for the
+  // app's own tooltip, the same treatment search.spec.ts's own test gives
+  // Today's copy of this component.
+  test("the search result's key link carries a tooltip reading exactly \"open in Jira\", not a native title", async ({
+    page,
+  }) => {
+    await openWeek(page, { [THIS_WEEK]: rollup(THIS_WEEK, []) });
+    await page.route("**/api/issues/search**", (route) =>
+      route.fulfill({
+        status: 200,
+        json: { results: [searchHit("RIDGE-9001", "Draft the onboarding checklist")], errors: [] },
+      }),
+    );
+
+    await page.goto("/week");
+    await weekSearchField(page).fill("ridge");
+
+    const key = weekSearchResultRow(page, "RIDGE-9001").getByRole("link", { name: "RIDGE-9001" });
+    await expect(key).not.toHaveAttribute("title");
+
+    // hasText, not :popover-open: the row's own summary carries a cut-text
+    // tooltip too (#143) — this scopes to the key's own tooltip by its fixed
+    // text regardless of whether the summary is also cut.
+    const tooltip = page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" });
+
+    await key.hover();
+    await expect(tooltip).toBeVisible();
+
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toBeHidden();
+
+    await key.focus();
+    await expect(tooltip).toBeVisible();
   });
 
   test("a row added by search survives once logged, and disappears once abandoned", async ({ page }) => {

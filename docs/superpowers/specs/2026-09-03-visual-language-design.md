@@ -357,6 +357,12 @@ an emoji. Every mark that carries meaning is inline SVG on a 24px grid, `1.9` st
 joins, `currentColor`, rendered at 16px in the rail's nav, 18px in a row control and in a form's
 note, and 14px inline with text.
 
+**One mark has its own stroke weight: the cog.** It is drawn from computed gear geometry
+(`#p-gear`) at **`1.7`**, not `1.9`, at 17px beside the wordmark. It carries far more outline than
+any other mark in the same box, and at `1.9` its teeth close up. It is the set's one deliberate
+exception, settled in #89's design session of 2026-09-03; any other mark drawn at another weight is
+drift, not precedent.
+
 The reason is not taste. A typed character is rendered by whichever font resolves it, and that is not
 the font the design chose: coverage varies, metrics vary, and a face that lacks the codepoint falls
 back to something else entirely or draws nothing. An icon that changes shape with the font is not a
@@ -383,7 +389,8 @@ separating two facts on one line, are typography and stay as characters. The rul
 character standing in for a *drawn mark*, not a licence to redraw punctuation.
 
 The set the app needs: pin, pin-off, search, sortable, ascending, descending, pushed, warning,
-failed, success, info, external, and the three nav marks, transcribed from the prototype's
+failed, success, info, external, plug, check, and the two nav marks and the rail's cog, transcribed
+from the prototype's
 `#p-clock`, `#p-cal` and `#p-gear` into `index.html`. `index.html` is where they are drawn from,
 not what settles what they should be — #117 found one of the three drifted from its source and
 corrected it.
@@ -419,7 +426,10 @@ and the right one depends on what sits next to it:
 - **Reserve.** The hint always occupies its width and fades in. Nothing moves. Correct in a table,
   where the neighbour is a status column that would otherwise jump on every hover.
 - **Reveal.** The hint has no width until wanted, and expands. Correct in a narrow panel such as the
-  search results, where reserved width is taken straight out of the summary being read.
+  search results, where reserved width is taken straight out of the summary being read. There, the
+  key sits above the summary rather than beside it, and the row's controls sit to their right (#143,
+  2026-09-23 refinement) — so the summary reads at the row's own full text width instead of whatever
+  the key's width would otherwise leave it.
 
 **This reverses a decision recorded in the first edition.** That document says the owner chose the
 shifting arrangement on 2026-08-21 over three that hold the row still, and that reserving the width
@@ -440,9 +450,41 @@ regardless, because a tooltip that only appears on hover reaches neither a keybo
 reader on its own. And a tooltip on a **trailing** control anchors to its right edge rather than
 centring on it, or it hangs past the card.
 
+**The tooltip's skin, settled in #246's design session** (owner, 2026-09-30, in the design companion,
+tried in the full prototype):
+
+- **Text and box are the drawing's `.tip`:** 12px / 500 text, 5px 9px padding, 2px corners, no
+  shadow, and no letter-spacing or text-transform inherited from its host. The text keeps
+  `--color-rail-ink`, `oklch(0.962 0.005 70)`, against `.tip`'s `oklch(0.96 0.004 70)`: a difference
+  nobody can see, kept so the app has one near-white ink on dark grounds.
+- **The ground is `oklch(0.34 0.01 60)` in both themes (`--color-tip`), not the drawing's 0.06.**
+  0.06 vanished on the rail (0.105), and 0.26 vanished on the dark table card (0.228). 0.34 stands
+  apart from both, and its text measures 10.55:1, above AAA's 7:1.
+- **Every tooltip carries a 4px arrow** on the side facing its control, pointing at the control's
+  centre, above, below or beside it. At 2px corners with no arrow, it was not always clear which
+  control a tooltip belonged to.
+- **An end-anchored tooltip sits flush:** its right edge is on the button's right edge, and its arrow
+  under the button's centre. The prototype's `.tip.end` drew it 8px past, and changed to match.
+
 **It opens above its trigger, the drawing's `.tip`, and falls back below — the drawing's own
 `.tip.below` — when there is not enough room above.** #content starts flush against the window's
 top edge, so a trigger near the top of the content column has nowhere to open upward into.
+
+**A text cut by an ellipsis gives its full wording back in the same tooltip** (#143), in a wrapping
+variant about 340px wide, shown only when the text is actually cut — never for a text that already
+fits. **Every cut text is its own Tab stop** (#236, owner, 2026-09-29): a ticket summary (Today's
+rows and the search panel's), a pinned row's failure note, the rail's running key and its
+instance-name slices, and the entry dialog's instance name and each entry's comment. Each is a Tab
+stop whether or not it is cut — "No comment" included — so the Tab order never changes with the
+window's width, and each opens its tooltip on its own hover and its own focus, never on a
+neighbour's. A neighbouring control's focus opens only that control's own tooltip: a key's "open in
+Jira", the rail's "stop timer", an entry's "edit entry". This replaced the earlier rule, where a cut
+text borrowed a neighbouring control's focus — a shape that broke the moment a row carried more than
+one cut text, since one focus then had to open two tooltips at once. Like every other tooltip here,
+it is never the accessible name.
+
+**A key that links to Jira carries a tooltip reading "open in Jira"** (#143), replacing the native
+title, centred like any other non-trailing control — owner, 2026-09-25.
 
 ## Decision 8 — the breakpoint scale, and one collision it walks into
 
@@ -496,9 +538,11 @@ exception: it already carries a real border, which is the same hairline by anoth
 eye. The drop shadow around the prototype's own window frame is scaffolding for the mock and is not a
 surface in the app.
 
-**Still open — the scrim.** The half-opaque black behind an open dialog is unchanged in both themes.
-Darkening a white page by that much is a decision about modality rather than about depth, and it was not
-settled on 2026-09-04.
+**The scrim is one token, `--color-scrim`, and it differs by theme: 25% black on light, 60% on dark** —
+`oklch(0 0 0 / 0.25)` and `oklch(0 0 0 / 0.6)`. One value in both themes would dim a light page and a
+dark one by the same number but not by the same felt amount, since a dark page is already close to
+black; two values are what makes the dimming read as the same weight of modality in both. Settled by
+the owner on 2026-09-23, over the prototype's 50% in both themes and the browser's UA-default 10%.
 
 ## Decision 12 — a toolbar button carries words, an inline control carries a glyph
 
@@ -547,6 +591,9 @@ its button row on one line rather than letting a label wrap. The prototype draws
 440px, the width the design session settled on; a later dialog is free to need a different one
 and still follow this rule.
 
+**A button's horizontal padding is 12px** (owner, #246, 2026-09-30, in the design companion). The
+prototype's `.btn` drew 16px and changed to match `that-button`, which already had 12px.
+
 ## What the first edition still governs
 
 Unchanged, and this document does not restate them. Read
@@ -558,8 +605,8 @@ Unchanged, and this document does not restate them. Read
   trap. The dot's own lightness values are unchanged: `0.6` light, `0.72` dark, `0.7` on the rail.
 - **The rail's regions and their resting states**, its 216px width, and Push being disabled rather
   than hidden.
-- **Nav** — three destinations, 38px rows, current shown by fill *and* weight, driven from
-  `aria-current`.
+- **Nav** — two destinations and a control (#89), 38px rows, current shown by fill *and* weight,
+  driven from `aria-current`.
 - **The ticket row** — the 76px key column and why it is a floor rather than a width, the summary's
   `min-width: 0`, and the rule that a row key never wears the primary.
 - **Format carries meaning**, the **five screen states**, **the phone**, and **manual entry** as a
@@ -570,7 +617,6 @@ Unchanged, and this document does not restate them. Read
 
 - **The phone layout** — #53 owns building it. This edition changes tokens it will consume; it does
   not change the phone design.
-- **Moving Settings out of the nav** — #89.
 - **Copy and tone of voice.** This changes how the app looks, not what it says.
 - **The wordmark.** It keeps its current treatment, in the new primary.
 

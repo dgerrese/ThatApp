@@ -1,8 +1,10 @@
 import { ApiError, searchIssues } from "../api";
+import { cutTextTooltip } from "../cut-text-tooltip";
 import { fieldFigure } from "../duration";
 import type { IconName } from "../icons";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
+import { nextSearchFocus } from "../search-keys";
 import type { InstanceFailure, IssueHit } from "../types";
 
 /**
@@ -81,6 +83,13 @@ function hitKey(hit: IssueHit): string {
  *  a page holding many rows — the same reasoning that-ticket-row's own
  *  pinTriggerSequence gives. */
 let iconControlSequence = 0;
+
+/** One id per row's key link and summary, so the summary's own cut-text
+ *  tooltip (#143) can `for` resolve them on a page holding many rows — the
+ *  same reasoning iconControlSequence gives, and the same shape
+ *  that-ticket-row's own summaryTriggerSequence uses for the identical
+ *  pairing. */
+let resultTextSequence = 0;
 
 /** One id per panel mounted, so its input's `aria-controls` names it
  *  uniquely even if more than one that-issue-search is ever on screen at
@@ -268,9 +277,15 @@ export class ThatIssueSearch extends HTMLElement {
       this.scheduleSearch(config);
     });
     input.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      this.close();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.close();
+
+        return;
+      }
+      if (event.key === "ArrowDown" && this.panel && !this.panel.hidden) {
+        this.moveFocus("input", event);
+      }
     });
     this.input = input;
 
@@ -293,6 +308,22 @@ export class ThatIssueSearch extends HTMLElement {
     // on rowsAreaEl for why a rebuilt-per-repaint pair was the blocker.
     const rowsAreaEl = document.createElement("div");
     rowsAreaEl.className = "min-h-0 overflow-y-auto";
+    // #143, point 3: arrow-key movement across result rows. The focused
+    // element's own row and column are read fresh on every press rather than
+    // tracked as state, so a repaint mid-navigation (a pin landing) never
+    // leaves this stale.
+    rowsAreaEl.addEventListener("keydown", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !this.rowsAreaEl) return;
+      const row = target.closest<HTMLElement>("[data-hit-key]");
+      if (!row) return;
+      const rowEls = [...this.rowsAreaEl.querySelectorAll<HTMLElement>("[data-hit-key]")];
+      const rowIndex = rowEls.indexOf(row);
+      const controls = [...row.querySelectorAll<HTMLElement>("[data-control-index]")];
+      const column = controls.indexOf(target);
+      if (rowIndex === -1 || column === -1) return;
+      this.moveFocus({ row: rowIndex, column, value: target.dataset.controlIndex }, event);
+    });
     const fixedBottomEl = document.createElement("div");
     fixedBottomEl.className = "shrink-0";
     panel.append(rowsAreaEl, fixedBottomEl);
@@ -518,6 +549,56 @@ export class ThatIssueSearch extends HTMLElement {
     control?.focus();
   }
 
+  /**
+   * Resolves one arrow or Escape press to where focus should land next
+   * (`nextSearchFocus`, #143 point 3) and moves it there. `null` leaves the
+   * key for the browser's own handling (Tab, and anything typed while a
+   * control has focus), which is also why `preventDefault` only runs once an
+   * answer is known.
+   *
+   * `nextSearchFocus` only ever sees counts, so its own answer for an
+   * ArrowDown/ArrowUp is a column clamped by raw position — right within one
+   * row's own shape, but two rows are not always the same shape: a no-URL
+   * hit's row carries no key (see keyLabel), so its summary and controls
+   * each sit one column earlier than a linked row's. Review round (#143):
+   * moving vertically now prefers the target row's element carrying the same
+   * `data-control-index` value as the one focus is leaving — a summary
+   * lands on a summary regardless of which column either row's happens to
+   * be — and falls back to `nextSearchFocus`'s clamped column only when the
+   * target row carries no matching kind at all. Left/Right and Escape stay
+   * purely positional: they move within, or return from, one row's own
+   * shape, where position is exactly what should carry over.
+   */
+  private moveFocus(
+    from: { row: number; column: number; value?: string } | "input",
+    event: KeyboardEvent,
+  ): void {
+    if (!this.rowsAreaEl) return;
+    const rowEls = [...this.rowsAreaEl.querySelectorAll<HTMLElement>("[data-hit-key]")];
+    const rows = rowEls.map((row) => row.querySelectorAll("[data-control-index]").length);
+    const answer = nextSearchFocus(rows, from, event.key);
+    if (answer === null) return;
+
+    event.preventDefault();
+    if (answer === "input") {
+      this.input?.focus();
+
+      return;
+    }
+
+    const controls = [
+      ...(rowEls[answer.row]?.querySelectorAll<HTMLElement>("[data-control-index]") ?? []),
+    ];
+    const vertical = event.key === "ArrowDown" || event.key === "ArrowUp";
+    const sourceValue = vertical && from !== "input" ? from.value : undefined;
+    const matched =
+      sourceValue === undefined
+        ? undefined
+        : controls.find((control) => control.dataset.controlIndex === sourceValue);
+
+    (matched ?? controls[answer.column])?.focus();
+  }
+
   /** Grouped by instance in first-seen order, since the search endpoint fans
    *  out per instance and this only has to survive that assumption breaking,
    *  not rely on it. */
@@ -565,16 +646,26 @@ export class ThatIssueSearch extends HTMLElement {
     return heading;
   }
 
-  /** The drawing's `.rrow`: the key (`.rk`), the summary (`.rs`), then the
-   *  host's own controls, left to right. `data-hit-key` is what
-   *  `repaint`'s own focus restore uses to find this row again after a
-   *  rebuild — see the field comment on rowsAreaEl. */
+  /** The drawing's `.rrow`: a text column holding the key (`.rk`) above the
+   *  summary (`.rs`), then the host's own controls, left to right (#143,
+   *  2026-09-23 refinement — the key and summary used to sit side by side).
+   *  `data-hit-key` is what `repaint`'s own focus restore uses to find this
+   *  row again after a rebuild — see the field comment on rowsAreaEl. */
   private resultRow(config: IssueSearchConfig, hit: IssueHit): HTMLElement {
     const row = document.createElement("div");
     row.className = "hover:bg-hover flex items-center gap-2.5 rounded-sm px-[9px] py-1.5";
     row.dataset.hitKey = hitKey(hit);
 
-    row.append(this.keyLabel(hit), this.summaryLabel(hit));
+    const textId = ++resultTextSequence;
+    const text = document.createElement("div");
+    text.className = "flex min-w-0 flex-1 flex-col";
+    const key = this.keyLabel(hit, textId);
+    const summary = this.summaryLabel(hit, textId);
+    text.append(key, summary, this.summaryTooltip(hit, summary));
+    const keyTooltip = this.keyTooltip(key);
+    if (keyTooltip) text.append(keyTooltip);
+    row.append(text);
+
     config.controls.forEach((control, index) => {
       if (control.kind === "duration") {
         row.append(this.durationControl(control, hit, index));
@@ -597,34 +688,73 @@ export class ThatIssueSearch extends HTMLElement {
    *  unrecognised and dropped focus to `<body>` on a repaint same as
    *  before the fix — a plain `<span>` (no url) is never focusable, so it
    *  needs no such attribute. */
-  private keyLabel(hit: IssueHit): HTMLElement {
+  private keyLabel(hit: IssueHit, textId: number): HTMLElement {
     if (hit.url === "") {
+      // No title either (owner, 2026-09-25): a key with no site to open gets
+      // no tooltip at all, not even the native one it used to carry.
       const span = document.createElement("span");
-      span.className = "that-key that-tnum shrink-0 text-ink-muted";
-      span.title = `Open ${hit.key} in Jira`;
+      span.className = "that-key that-tnum self-start text-ink-muted";
       span.textContent = hit.key;
 
       return span;
     }
 
     const link = document.createElement("a");
+    link.id = `that-search-key-${String(textId)}`;
     link.href = hit.url;
     link.target = "_blank";
     link.rel = "noopener";
-    link.title = `Open ${hit.key} in Jira`;
-    link.className = "that-key that-tnum shrink-0 text-ink-muted";
+    link.className = "that-key that-tnum self-start text-ink-muted";
     link.textContent = hit.key;
     link.dataset.controlIndex = "key";
 
     return link;
   }
 
-  private summaryLabel(hit: IssueHit): HTMLElement {
+  /** The key link's own that-tooltip (#143), replacing the native title it
+   *  used to carry — the same contract that-ticket-row's own keyTooltip
+   *  gives. Omitted for a plain-span key (no site to open). */
+  private keyTooltip(key: HTMLElement): HTMLElement | null {
+    if (!(key instanceof HTMLAnchorElement)) return null;
+
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", key.id);
+    tooltip.textContent = "open in Jira";
+
+    return tooltip;
+  }
+
+  /**
+   * Focusable and joins the arrow-key order (#143 task 9, owner): a plain
+   * `data-control-index="summary"` between the key's own `"key"` sentinel and
+   * `config.controls`' numeric indices, in DOM order — the same generic
+   * mechanism `moveFocus`, `captureFocus` and `restoreFocus` already give
+   * every other focusable thing in a row, so none of the three needed to
+   * learn a new case for it. A no-URL hit's key is an unfocusable plain span
+   * (see keyLabel), so the summary is that row's first control instead.
+   */
+  private summaryLabel(hit: IssueHit, textId: number): HTMLElement {
     const summary = document.createElement("span");
-    summary.className = "min-w-0 flex-1 truncate text-base";
+    summary.id = `that-search-summary-${String(textId)}`;
+    summary.tabIndex = 0;
+    summary.dataset.controlIndex = "summary";
+    summary.className = "truncate text-base";
     summary.textContent = hit.summary;
 
     return summary;
+  }
+
+  /**
+   * The summary's own cut-text tooltip (#143): `for` gives back the
+   * summary's hover and, since task 9, its own focus too, so a key focus
+   * opens only the key's own "open in Jira" tooltip, never this one — the
+   * same contract that-ticket-row's own summaryTooltip gives. `below`:
+   * task 7's own fix, unchanged by task 9 — the row stacks the key directly
+   * above the summary, so the tooltip's default above-opening would still
+   * cover the key.
+   */
+  private summaryTooltip(hit: IssueHit, summary: HTMLElement): HTMLElement {
+    return cutTextTooltip(summary.id, hit.summary, true);
   }
 
   /** An icon control — pin, and later Week's own return-into-week mark —

@@ -1,6 +1,11 @@
 import { iconMarkup } from "../icons";
 import { isRunningTicket, onTimerChanged, startTimer, stopTimer } from "../timer-state";
 
+/** One id per timer control mounted, so its tooltip's `for` can resolve it on
+ *  a page holding many rows — the same reasoning that-ticket-row.ts's own
+ *  pinTriggerSequence gives (#143). */
+let timerTriggerSequence = 0;
+
 /**
  * The row's play/stop button — decision 1 of the timer design. Light DOM, in
  * a wrapper of its own rather than inside that-ticket-row's shadow, because
@@ -17,6 +22,8 @@ export class ThatTimer extends HTMLElement {
   }
 
   private trigger: HTMLButtonElement | undefined;
+  private tooltip: HTMLElement | undefined;
+  private readonly triggerId = `that-timer-${++timerTriggerSequence}`;
   private stopListening: (() => void) | undefined;
   // What paint() last drew, so the once-a-second tick — which fires the same
   // onTimerChanged event a start, stop or switch does — does not rewrite the
@@ -54,6 +61,7 @@ export class ThatTimer extends HTMLElement {
   private render(): void {
     const trigger = document.createElement("button");
     trigger.type = "button";
+    trigger.id = this.triggerId;
     // The pin control's own class list (that-ticket-row.ts's
     // appendPinControl), a 34px square wash button, minus its own resting
     // colour — that toggles between text-ink-muted and text-running below.
@@ -63,22 +71,34 @@ export class ThatTimer extends HTMLElement {
     trigger.addEventListener("click", () => {
       void this.toggle();
     });
-    this.replaceChildren(trigger);
+
+    // Follows the pin control's own button-plus-tooltip pattern (#143):
+    // anchor="end" for a trailing control, text set alongside the aria-label
+    // in paint() below.
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", this.triggerId);
+    tooltip.setAttribute("anchor", "end");
+
+    this.replaceChildren(trigger, tooltip);
     this.trigger = trigger;
+    this.tooltip = tooltip;
     this.renderedMine = undefined;
     this.paint();
   }
 
   private paint(): void {
     const trigger = this.trigger;
-    if (!trigger) return;
+    const tooltip = this.tooltip;
+    if (!trigger || !tooltip) return;
 
     const running = this.mine();
     if (running === this.renderedMine) return;
     this.renderedMine = running;
 
+    const label = running ? "stop timer" : "start timer";
     trigger.innerHTML = iconMarkup(running ? "stop" : "play");
-    trigger.setAttribute("aria-label", running ? "stop timer" : "start timer");
+    trigger.setAttribute("aria-label", label);
+    tooltip.textContent = label;
     trigger.classList.toggle("text-running", running);
     trigger.classList.toggle("text-ink-muted", !running);
   }

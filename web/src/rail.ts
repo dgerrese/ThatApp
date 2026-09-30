@@ -1,4 +1,5 @@
 import { listEntries, pushDay } from "./api";
+import { cutTextTooltip } from "./cut-text-tooltip";
 import { announceEntriesChanged, onEntriesChanged } from "./entries-changed";
 import { elapsedFigure, totalFigure } from "./format";
 import { iconMarkup } from "./icons";
@@ -14,7 +15,7 @@ import type { Entry, PushResponse, RunningTimer } from "./types";
  *
  * It lives in the shell rather than in Today, and that is the whole point. The
  * rail is the instrument — the same figure in the same place whatever view you
- * are on — so it has to stay right on Settings, and on #11's Week view, without
+ * are on — so it has to stay right on #11's Week view, and under the Settings dialog, without
  * either of them knowing it exists. Push belongs here for the same reason: it
  * sits beside the day total it sends, reachable from every view rather than
  * only from Today.
@@ -58,6 +59,11 @@ export const TODAY_PERIOD: RailPeriod = {
 // filters below drifted from it because each was written by hand — #121.
 const isPending = (entry: Entry): boolean => entry.pushState !== "pushed";
 
+// One counter for every cut-text id the rail hands out (#143): the split's
+// instance names and the running timer's key, each rebuilt often enough that
+// a per-render id would collide with whatever a previous render left behind.
+let railCutTextSequence = 0;
+
 let currentPeriod: RailPeriod = TODAY_PERIOD;
 let applyPeriod: ((period: RailPeriod) => void) | undefined;
 
@@ -67,7 +73,7 @@ let applyPeriod: ((period: RailPeriod) => void) | undefined;
  *
  * A no-op when the period is already current: startRail in fact always runs
  * before any view mounts (see main.ts), so every mount of a view that shares
- * today's period — Today itself, and Settings borrowing it — would otherwise
+ * today's period — Today remounting — would otherwise
  * fire a live re-read of a period the rail is already showing. Reference
  * equality is enough because every period a view hands in is a shared
  * constant (TODAY_PERIOD) or freshly built for a genuine change.
@@ -100,6 +106,13 @@ export function startRail(): void {
   // directly — so a push in progress cannot be raced by an unrelated repaint.
   let pending: Entry[] = [];
   let pushing = false;
+
+  // What paint() last painted (lastEntries), and the signature paintFigures()
+  // last drew the split from (lastSplitSignature) — each guards its own DOM
+  // write, so a 1-second tick that moves neither leaves both untouched.
+  let lastEntries: Entry[] = [];
+  let lastSplitSignature: string | undefined;
+  let lastSplitShape: string | undefined;
 
   const syncPushButton = (): void => {
     push.disabled = pushing || pending.length === 0;
@@ -139,13 +152,81 @@ export function startRail(): void {
     unpushed.textContent = message;
   };
 
+  /**
+   * Also the timer tick handler (onTimerChanged fires every second one runs),
+   * so it is guarded on `painted`: setRailPeriod flips `currentPeriod`
+   * synchronously, inside the destination view's own mount, but `lastEntries`
+   * only catches up once that period's own read lands in paint() — an async
+   * gap a real tick can land inside. Without this guard a tick in that gap
+   * combines the old period's stale `lastEntries` with the new period's
+   * TODAY_PERIOD-ness (or lack of it): Today's entries suddenly lose their
+   * elapsed time, or Week's stale entries suddenly gain the timer's. `paint()`
+   * sets `painted` back to true; `applyPeriod` is what dropped it.
+   *
+   * `pending`/unpushed/push are computed only in paint(), from entries alone:
+   * a run must never move the push count or its total.
+   */
+  const paintFigures = (): void => {
+    if (!painted) return;
+
+    const slices = sliceByInstance(lastEntries);
+    let seconds = lastEntries.reduce((sum, entry) => sum + entry.seconds, 0);
+
+    if (currentPeriod === TODAY_PERIOD) {
+      const running = currentTimer();
+      if (running) {
+        const elapsed = elapsedSeconds();
+        seconds += elapsed;
+        const slice = slices.find((candidate) => candidate.instanceId === running.instanceId);
+        if (slice) {
+          slice.seconds += elapsed;
+        } else {
+          slices.push({
+            instanceId: running.instanceId,
+            name: running.instanceName,
+            position: running.instancePosition,
+            seconds: elapsed,
+          });
+          slices.sort((a, b) => a.position - b.position);
+        }
+      }
+    }
+
+    const totalText = totalFigure(seconds);
+    if (total.textContent !== totalText) total.textContent = totalText;
+
+    // Name and instanceId matter here, not just position, so a renamed
+    // instance (same position, same seconds) redraws the split at once
+    // rather than wait for a figure to cross a minute — the only other thing
+    // that would otherwise change the shape.
+    const shape = slices
+      .map((slice) => `${String(slice.instanceId)}:${String(slice.position)}:${slice.name}`)
+      .join("|");
+    const signature = `${shape}|${slices.map((slice) => totalFigure(slice.seconds)).join(",")}`;
+    if (signature !== lastSplitSignature) {
+      lastSplitSignature = signature;
+      // A tick that only moves a figure — the common case once a minute,
+      // while the same instances are still running — updates the existing
+      // bar segments and figure text in place instead of rebuilding the row.
+      // Rebuilding removes and recreates each name's that-tooltip, and
+      // removing an open popover closes it (#143): a rebuild every minute
+      // closed a name's tooltip mid-hover.
+      if (shape === lastSplitShape && slices.length > 0) {
+        updateSplitFigures(split, slices);
+      } else {
+        lastSplitShape = shape;
+        drawSplit(split, slices);
+      }
+    }
+  };
+
   const paint = (entries: Entry[]): void => {
     period.textContent = currentPeriod.label;
     push.textContent = currentPeriod.pushLabel;
     painted = true;
     retryDelay = FIRST_RETRY_MS;
-    total.textContent = totalFigure(entries.reduce((sum, entry) => sum + entry.seconds, 0));
-    drawSplit(split, sliceByInstance(entries));
+    lastEntries = entries;
+    paintFigures();
     pending = entries.filter(isPending);
     paintUnpushed();
     syncPushButton();
@@ -303,6 +384,10 @@ export function startRail(): void {
   // retry) is the one boot read timer-state.ts itself never makes on its
   // own — see its own comment for why that is the rail's job.
   onTimerChanged(paintTimer);
+  // A separate subscription rather than folded into paintTimer: that one owns
+  // #rail-timer's own line, this owns the total and the split, and the two
+  // repaint on independent conditions (paintFigures also runs from paint()).
+  onTimerChanged(paintFigures);
   paintTimer();
   void refreshTimer();
 
@@ -432,6 +517,7 @@ export function startRail(): void {
 
 /** One instance's share of the day. */
 interface Slice {
+  instanceId: number;
   name: string;
   position: number;
   seconds: number;
@@ -452,6 +538,7 @@ function sliceByInstance(entries: Entry[]): Slice[] {
       continue;
     }
     slices.set(entry.instanceId, {
+      instanceId: entry.instanceId,
       name: entry.instanceName,
       position: entry.instancePosition,
       seconds: entry.seconds,
@@ -471,6 +558,27 @@ function drawSplit(split: HTMLElement, slices: Slice[]): void {
   }
 
   split.replaceChildren(bar(slices), figures(slices));
+}
+
+/**
+ * The in-place counterpart to drawSplit, for a signature change that moves
+ * only figures — same instances, same order, same names. Both selections
+ * are positional rather than keyed, which is safe only because the shape
+ * (and so the slice order) is what the caller already confirmed is
+ * unchanged.
+ */
+function updateSplitFigures(split: HTMLElement, slices: Slice[]): void {
+  const segments = [...split.querySelectorAll<HTMLElement>(".that-split-bar > *")];
+  const figureEls = [...split.querySelectorAll<HTMLElement>("[data-split-figure]")];
+
+  slices.forEach((slice, index) => {
+    const segment = segments[index];
+    if (segment) segment.style.flex = String(slice.seconds);
+
+    const figure = figureEls[index];
+    const text = totalFigure(slice.seconds);
+    if (figure && figure.textContent !== text) figure.textContent = text;
+  });
 }
 
 function restingLine(): HTMLElement {
@@ -519,15 +627,21 @@ function figures(slices: Slice[]): HTMLElement {
     // screen reader say every instance twice.
     dot.setAttribute("aria-hidden", "true");
 
+    const nameId = `that-rail-name-${String(++railCutTextSequence)}`;
     const name = document.createElement("span");
+    name.id = nameId;
+    // Its own Tab stop, cut or not (#236), so a keyboard reaches a cut name
+    // the way a pointer does; `when-cut` keeps the tooltip shut otherwise.
+    name.tabIndex = 0;
     name.className = "text-rail-muted min-w-0 flex-1 truncate";
     name.textContent = slice.name;
 
     const figure = document.createElement("span");
     figure.className = "that-tnum text-rail-ink font-mono font-bold";
+    figure.setAttribute("data-split-figure", "");
     figure.textContent = totalFigure(slice.seconds);
 
-    row.append(dot, name, figure);
+    row.append(dot, name, figure, cutTextTooltip(nameId, slice.name));
     list.append(row);
   }
 
@@ -556,7 +670,13 @@ function runningTimerLine(
   const dot = document.createElement("span");
   dot.className = "bg-running-rail size-[7px] shrink-0 rounded-full";
 
+  // This line is rebuilt only when what is running changes, never on a tick
+  // (see paintTimer) — otherwise the tooltip appended below would go with it
+  // every second, and removing an open popover closes it, so it would flicker.
+  const keyId = `that-rail-key-${String(++railCutTextSequence)}`;
   const key = document.createElement("span");
+  key.id = keyId;
+  key.tabIndex = 0;
   key.className = "text-rail-ink text-base min-w-0 flex-1 truncate";
   key.textContent = running.issueKey;
 
@@ -564,7 +684,9 @@ function runningTimerLine(
   elapsed.className = "that-tnum text-running-rail shrink-0 font-mono text-base";
   elapsed.textContent = elapsedFigure(elapsedSeconds());
 
+  const stopId = `that-rail-stop-${String(railCutTextSequence)}`;
   const stop = document.createElement("button");
+  stop.id = stopId;
   stop.type = "button";
   stop.className =
     "text-running-rail hover:bg-hover-rail flex h-[26px] w-[26px] shrink-0 cursor-pointer " +
@@ -573,5 +695,17 @@ function runningTimerLine(
   stop.setAttribute("aria-label", "stop timer");
   stop.addEventListener("click", onStop);
 
-  return { nodes: [dot, key, elapsed, stop], elapsed };
+  const stopTooltip = document.createElement("that-tooltip");
+  stopTooltip.setAttribute("for", stopId);
+  stopTooltip.setAttribute("anchor", "end");
+  stopTooltip.textContent = "stop timer";
+
+  return {
+    // The key's own tooltip (#143 task 9): that-tooltip already opens on its
+    // `for` element's own focus, now that the key itself is focusable, and
+    // the stop button gets its own tooltip below rather than sharing the
+    // key's.
+    nodes: [dot, key, elapsed, stop, cutTextTooltip(keyId, running.issueKey), stopTooltip],
+    elapsed,
+  };
 }

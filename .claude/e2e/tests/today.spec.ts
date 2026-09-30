@@ -75,8 +75,9 @@ test("both instances' issues render under their own headings", async ({ page }) 
   // substring match for "Work" under Playwright's default name matching.
   await expect(page.getByRole("heading", { name: "Work", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Personal" })).toBeVisible();
-  await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
-  await expect(page.getByText("Renew the domain")).toBeVisible();
+  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
+  await expect(page.getByText("Renew the domain").first()).toBeVisible();
   await expect(page.getByText("In Progress")).toBeVisible();
 });
 
@@ -93,7 +94,7 @@ test("one instance failing still shows the other's issues", async ({ page }) => 
   ]);
   await page.goto("/today");
 
-  await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
+  await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
   await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
 });
 
@@ -111,6 +112,13 @@ test("an issue key links to Jira, and a row with no site URL does not", async ({
 
   await expect(page.getByText("MIGR-3")).toBeVisible();
   await expect(page.getByRole("link", { name: "MIGR-3" })).toHaveCount(0);
+
+  // Owner, 2026-09-25: an unlinked key gets no tooltip at all, native or
+  // drawn — there is nowhere for it to send anyone.
+  const plainKey = page.getByText("MIGR-3");
+  await expect(plainKey).not.toHaveAttribute("title");
+  await plainKey.hover();
+  await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeHidden();
 });
 
 test("an instance with nothing assigned says so", async ({ page }) => {
@@ -126,11 +134,15 @@ test("an instance with nothing assigned says so", async ({ page }) => {
 // only ever refetch an empty list is not on screen at all.
 test("no configured instances offers Settings instead of a Refresh button", async ({ page }) => {
   await stubIssues(page, []);
+  await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
   await page.goto("/today");
 
   await expect(page.getByText("No Jira instances yet.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open Settings" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeHidden();
+
+  await page.getByRole("button", { name: "Open Settings" }).click();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await expect(page).toHaveURL(/\/today$/);
 });
 
 // #71's guard: the re-check on return only fires while the stale banner
@@ -178,17 +190,21 @@ test("Today's refresh carries its own words rather than a tooltip alone", async 
   // Scoped to the heading it sits beside, not the page: pin and unpin are
   // inline controls and keep their own tooltips under Decision 12.
   await expect(page.locator("#today-assigned").locator("..").locator("that-tooltip")).toHaveCount(0);
+  // #119: the visible words are the accessible name; no aria-label repeats them.
+  await expect(refresh).not.toHaveAttribute("aria-label");
+  await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(1);
 });
 
 test("Refresh replaces the list", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [workIssue])], [group(1, "Work", [personalIssue])]);
   await page.goto("/today");
 
-  await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
+  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Refresh" }).click();
 
-  await expect(page.getByText("Renew the domain")).toBeVisible();
+  await expect(page.getByText("Renew the domain").first()).toBeVisible();
   await expect(page.getByText("Fix the CSV export encoding")).toBeHidden();
 });
 
@@ -212,10 +228,11 @@ test("/ leads to Today and leaves no history trap", async ({ page }) => {
   await page.goto("/");
 
   await expect(page).toHaveURL(/\/today$/);
-  await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
+  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
 
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  await page.getByRole("link", { name: "Week", exact: true }).click();
+  await expect(page).toHaveURL(/\/week$/);
 
   await page.goBack();
 
@@ -251,11 +268,11 @@ test("navigating away from Today removes its 'online' listener, so reconnecting 
   await page.route("**/api/instances", (route) => route.fulfill({ status: 200, json: [] }));
 
   await page.goto("/today");
-  await expect(page.getByText("Fix the CSV export encoding")).toBeVisible();
+  await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
   expect(issuesCalls).toBe(1);
 
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  await page.getByRole("link", { name: "Week", exact: true }).click();
+  await expect(page).toHaveURL(/\/week$/);
 
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
 
@@ -303,8 +320,11 @@ test("a long summary truncates instead of pushing the status out of the card", a
 
   // The summary is clipped rather than laid out in full: without this the
   // assertion below could pass on a card that simply grew to fit everything.
+  // .first(): #143's own cut-text tooltip carries the same summary in full,
+  // and this substring match would otherwise find it too.
   const clipped = await page
     .getByText("A deliberately overlong summary")
+    .first()
     .evaluate((element) => element.scrollWidth > element.clientWidth);
   expect(clipped).toBe(true);
 
@@ -333,19 +353,19 @@ test("the rail marks the view you are on", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [workIssue])]);
   await page.goto("/today");
 
-  await expect(page.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("link", { name: "Settings" })).not.toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Today", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Week", exact: true })).not.toHaveAttribute(
     "aria-current",
     /.*/,
   );
 
-  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("link", { name: "Week", exact: true }).click();
 
-  await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Week", exact: true })).toHaveAttribute(
     "aria-current",
     "page",
   );
-  await expect(page.getByRole("link", { name: "Today" })).not.toHaveAttribute("aria-current", /.*/);
+  await expect(page.getByRole("link", { name: "Today", exact: true })).not.toHaveAttribute("aria-current", /.*/);
 });
 
 /**
@@ -581,16 +601,29 @@ test("the loading line sits inside a that-card", async ({ page }) => {
   releaseIssues?.();
 });
 
-/** T12: every key carries the native title the prototype writes — "Open <KEY>
- *  in Jira" — verbatim, not merely a link. */
-test("a ticket key carries the native Jira title", async ({ page }) => {
+/** T12, updated by #143: the key link no longer carries a native title —
+ *  it carries the app's own that-tooltip instead, reading "open in Jira",
+ *  on hover and on focus. */
+test("a ticket key link carries the app's tooltip reading \"open in Jira\", not a native title", async ({
+  page,
+}) => {
   await stubIssues(page, [group(1, "Work", [workIssue])]);
   await page.goto("/today");
 
-  await expect(page.getByRole("link", { name: "WORK-412" })).toHaveAttribute(
-    "title",
-    "Open WORK-412 in Jira",
-  );
+  const key = page.getByRole("link", { name: "WORK-412" });
+  await expect(key).not.toHaveAttribute("title");
+
+  const tooltip = page.locator("that-tooltip", { hasText: "open in Jira" });
+  await expect(tooltip).toBeHidden();
+
+  await key.hover();
+  await expect(tooltip).toBeVisible();
+
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toBeHidden();
+
+  await key.focus();
+  await expect(tooltip).toBeVisible();
 });
 
 /** T10: `.grouph .n { opacity: .75 }` — the instance tally beside the name. */
@@ -682,7 +715,8 @@ test("an instance's tally counts a pinned issue's time too", async ({ page }) =>
   // filtered out of it (it still shows in Pinned above, hence the region
   // scope) — yet the tally carries both entries' time.
   const workCard = page.getByRole("region", { name: "Work", exact: true });
-  await expect(workCard.getByText("Rotate the deploy key")).toBeVisible();
+  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  await expect(workCard.getByText("Rotate the deploy key").first()).toBeVisible();
   await expect(workCard.getByText("Fix the CSV export encoding")).toHaveCount(0);
 
   const tally = page.locator("[data-instance-tally]").first();
@@ -922,7 +956,8 @@ test("logging from a search result fills the off-list row with no lookup", async
   await expect.poll(() => entries.created().length).toBe(1);
 
   const offList = page.getByRole("region", { name: "Logged today, not on your list" });
-  await expect(offList.getByText("Roll the on-call schedule forward")).toBeVisible();
+  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  await expect(offList.getByText("Roll the on-call schedule forward").first()).toBeVisible();
   await expect(offList.getByText("To Do")).toBeVisible();
   await expect(offList.getByRole("link", { name: "WORK-777" })).toHaveAttribute(
     "href",
@@ -979,11 +1014,14 @@ test("a cold reload looks up an off-list issue once, and shows it loading rather
 
   const offList = page.getByRole("region", { name: "Logged today, not on your list" });
   await expect(offList.getByText("WORK-777")).toBeVisible();
-  await expect(offList.getByText("Loading…")).toBeVisible();
+  // .first(): #143 gave every summary a that-tooltip repeating its text,
+  // including this row's placeholder one while it is still "Loading…".
+  await expect(offList.getByText("Loading…").first()).toBeVisible();
 
   releaseSearch?.();
 
-  await expect(offList.getByText("Roll the on-call schedule forward")).toBeVisible();
+  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  await expect(offList.getByText("Roll the on-call schedule forward").first()).toBeVisible();
   await expect(offList.getByText("To Do")).toBeVisible();
   // One lookup despite several render passes racing to be first to ask.
   expect(calls).toBe(1);
@@ -1047,7 +1085,8 @@ test("the off-list section waits for the assigned read to settle before it rende
 
   releaseIssues?.();
 
-  await expect(page.getByText(workIssue.summary)).toBeVisible();
+  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  await expect(page.getByText(workIssue.summary).first()).toBeVisible();
   // The issue turned out to be assigned: the section must never have shown it,
   // before or after release, and must never have asked for its summary.
   await expect(

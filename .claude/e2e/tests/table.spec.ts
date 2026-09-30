@@ -679,6 +679,83 @@ test("a body cell computes the drawn 15px, and the children with their own drawn
 });
 
 /**
+ * #221: the drawing's `.tbl .c-sum .clip` sets no size of its own, so the
+ * summary inherits the cell's 15px and the 1.5 line every other cell already
+ * carries — 22.5px — rather than Tailwind's own text-lg utility, whose line
+ * height is 23.33px and pushed the whole row past the drawing's 45.5px.
+ *
+ * The drawing's own last row measures 45px, not 45.5 (confirmed by framing
+ * docs/superpowers/prototypes/2026-09-03-app-prototype.html and measuring
+ * both rows) — `.that-tbl tbody > :last-child td` drops that row's own
+ * hairline (out of scope here, and already true before this fix), so only a
+ * row with its own border-bottom lands on 45.5.
+ */
+test("a Today body row is the drawn 45.5px, and its summary takes the cell's 15px on a 22.5px line", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
+  await page.goto("/today");
+
+  const table = page.locator("that-table table.that-tbl").first();
+  await expect(table.locator("tbody > *")).toHaveCount(2);
+
+  const heights = await table.evaluate((element) =>
+    Array.from(element.querySelectorAll("tbody > *"), (row) => row.getBoundingClientRect().height),
+  );
+  const last = heights.length - 1;
+  heights.forEach((height, index) => {
+    const drawn = index === last ? 45 : 45.5;
+    expect(Math.abs(height - drawn)).toBeLessThanOrEqual(0.1);
+  });
+
+  const summary = table.locator("tbody td.c-sum span[tabindex='0']").first();
+  const summaryStyle = await summary.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { fontSize: style.fontSize, lineHeight: style.lineHeight };
+  });
+  expect(summaryStyle.fontSize).toBe("15px");
+  expect(summaryStyle.lineHeight).toBe("22.5px");
+});
+
+/**
+ * A pinned row's failure note (that-ticket-row's own `error` attribute,
+ * rendered by failureNote as its own text-xs span) is untouched by #221's
+ * fix, which only drops the summary span's text-lg.
+ */
+test("a failure note under the summary stays 12px and truncated", async ({ page }) => {
+  await stubIssues(page, [group(1, "Ridgeline", [])]);
+  await page.route("**/api/pins**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          id: 1,
+          instanceId: 1,
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          key: "RIDGE-1",
+          summary: "Weekly standup",
+          status: "To Do",
+          url: "https://ridgeline.atlassian.net/browse/RIDGE-1",
+          error: { code: "instance_unreachable", message: "the Jira site could not be reached" },
+        },
+      ],
+    }),
+  );
+
+  await page.goto("/today");
+
+  const note = page.getByRole("status").first();
+  await expect(note).toHaveText("the Jira site could not be reached");
+  const noteStyle = await note.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { fontSize: style.fontSize, textOverflow: style.textOverflow };
+  });
+  expect(noteStyle.fontSize).toBe("12px");
+  expect(noteStyle.textOverflow).toBe("ellipsis");
+});
+
+/**
  * A row moved during a re-sort is the same element, not a rebuilt one — the
  * brief's own requirement. `append`/`insertBefore` on an already-connected
  * custom element fires disconnectedCallback then connectedCallback, and
