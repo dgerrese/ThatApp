@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 interface StubIssue {
   key: string;
@@ -70,6 +70,15 @@ async function stubPinWithError(
   );
 }
 
+/** #217: the element under test is reached by a real Tab from the one before
+ *  it, with the pointer parked so no hover opens anything on its own. */
+async function tabTo(page: Page, before: Locator, target: Locator): Promise<void> {
+  await before.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(target).toBeFocused();
+}
+
 // Narrow enough that the summary column truncates a long summary.
 test.use({ viewport: { width: 900, height: 700 } });
 
@@ -85,18 +94,25 @@ test("a cut summary in a Today row shows its full text on hover", async ({ page 
   await expect(tip).toBeVisible();
 });
 
-// Owner, 2026-09-25: dropped `focus-for` from the Today row's own summary
-// tooltip. It used to follow the key link so a keyboard user reached it too,
-// but that opened both this tooltip and the key's own "open in Jira" one at
-// once, and below ~900px the summary's covered the key's. The search panel's
-// own copy of this pairing (search.spec.ts) is unaffected — it keeps
-// `focus-for` and `below`.
+// Owner, 2026-09-25: the Today row's own summary is its own tab stop now
+// rather than following the key link's focus. It used to follow the key link
+// so a keyboard user reached it too, but that opened both this tooltip and
+// the key's own "open in Jira" one at once, and below ~900px the summary's
+// covered the key's.
 test("a Today row's key focus shows only the key's own tooltip, not the cut summary's", async ({
   page,
 }) => {
   await stubIssues(page, [group(1, "Work", [issue("WORK-1", longSummary)])]);
   await page.goto("/today");
-  await page.getByRole("link", { name: "WORK-1" }).focus();
+  const key = page.getByRole("link", { name: "WORK-1" });
+  const summary = page.getByText(longSummary, { exact: true }).first();
+  // #217: reach the key by a real Shift+Tab from the summary right after it
+  // in DOM order, never by focusing the key itself — it is the element under
+  // test.
+  await summary.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(key).toBeFocused();
   await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeVisible();
   await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeHidden();
 });
@@ -164,18 +180,57 @@ test("a cut failure note on a pinned row shows its full text on hover", async ({
   await expect(tip).toBeVisible();
 });
 
-// Both the failure note's tooltip and (since 2026-09-25, owner) the
-// summary's own are hover-only on a Today row — no focus-for on either, so
-// focusing the row's key link opens only the key's own "open in Jira"
-// tooltip. Both other texts are cut here, so the only thing distinguishing
-// them from the key's is that wiring.
+// #236: the note is its own Tab stop, reached from the summary above it.
+test("a cut failure note is its own Tab stop and opens only its own tooltip", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubPinWithError(page, "Weekly standup", longFailure);
+  await page.goto("/today");
+
+  const row = page.locator('that-ticket-row[key="WORK-1"]');
+  const summary = row.locator('[id^="that-sum-"]');
+  const note = row.locator('[id^="that-fail-"]');
+  await tabTo(page, summary, note);
+
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(longFailure);
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(summary).toBeFocused();
+  await expect(page.locator("that-tooltip", { hasText: longFailure })).toBeHidden();
+});
+
+test("a failure note that is not cut is still a Tab stop and opens nothing", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubPinWithError(page, "Weekly standup", "Offline");
+  await page.goto("/today");
+
+  const row = page.locator('that-ticket-row[key="WORK-1"]');
+  await tabTo(page, row.locator('[id^="that-sum-"]'), row.locator('[id^="that-fail-"]'));
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
+// The key link's focus opens only the key's own "open in Jira": the summary
+// and the failure note are Tab stops of their own (#143 task 9, #236), each
+// opening its tooltip on its own focus. Both are cut here, so the only thing
+// that could open them on the key's focus is wiring that must not exist.
 test("focusing a pinned row's key link shows only the key's own tooltip, neither the summary's nor the failure note's", async ({
   page,
 }) => {
   await stubIssues(page, [group(1, "Work", [])]);
   await stubPinWithError(page, longSummary, longFailure);
   await page.goto("/today");
-  await page.getByRole("link", { name: "WORK-1" }).focus();
+
+  const key = page.getByRole("link", { name: "WORK-1" });
+  const row = page.locator('that-ticket-row[key="WORK-1"]');
+  const summary = row.locator('[id^="that-sum-"]');
+  // #217: reach the key by a real Shift+Tab from the summary right after it
+  // in DOM order, never by focusing the key itself — it is the element under
+  // test.
+  await summary.focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(key).toBeFocused();
   await expect(page.locator("that-tooltip", { hasText: "open in Jira" })).toBeVisible();
   await expect(page.locator("that-tooltip", { hasText: longSummary })).toBeHidden();
   await expect(page.locator("that-tooltip", { hasText: longFailure })).toBeHidden();
@@ -215,15 +270,44 @@ test("a cut rail instance name shows its full text on hover", async ({ page }) =
   await expect(page.locator("that-tooltip", { hasText: longInstanceName })).toBeVisible();
 });
 
+// #236: the settings cog is the rail's last Tab stop before the split — the
+// period label and the total between them are not focusable.
+test("a cut rail instance name is its own Tab stop and opens only its own tooltip", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubEntries(page, [railEntry(longInstanceName)]);
+  await page.goto("/today");
+
+  const name = page.locator('#rail-split [id^="that-rail-name-"]').first();
+  await tabTo(page, page.locator("#settings-cog"), name);
+
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(longInstanceName);
+});
+
+test("a rail instance name that is not cut is still a Tab stop and opens nothing", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [])]);
+  await stubEntries(page, [railEntry("Work")]);
+  await page.goto("/today");
+
+  const name = page.locator('#rail-split [id^="that-rail-name-"]').first();
+  await tabTo(page, page.locator("#settings-cog"), name);
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
 // Measured against the real rail width (216px column, 100px left for the key
 // once the dot, the elapsed figure and the stop button take their share):
 // even a realistic Jira key like this one already overflows it, so this is
 // not a hypothetical case worth skipping.
 //
-// Task 9 (#143), folding in #235: the key span is its own tab stop now
-// (`focus-for` dropped from its tooltip), and the stop button carries its
-// own "stop timer" tooltip rather than sharing the key's — so each control's
-// focus opens only its own tooltip, never a neighbour's.
+// Task 9 (#143), folding in #235: the key span is its own tab stop now, and
+// the stop button carries its own "stop timer" tooltip rather than sharing
+// the key's — so each control's focus opens only its own tooltip, never a
+// neighbour's.
 test("the rail's running key and stop button each open only their own tooltip on focus", async ({
   page,
 }) => {
@@ -294,19 +378,99 @@ function dialogEntry(id: number, comment: string): Record<string, unknown> {
   };
 }
 
-test("a cut entry comment in the dialog shows its full text when the edit button is focused, and a short one shows none", async ({
-  page,
-}) => {
+function dialogRows(page: Page): Locator {
+  return page.locator("that-entry-dialog li");
+}
+
+function commentOf(row: Locator): Locator {
+  return row.locator('[id^="that-entry-comment-"]');
+}
+
+// A guard, not a new behaviour: Close is what showModal() focuses today. The
+// instance name sits before it in tree order, so once the name is a Tab stop
+// only Close's autofocus keeps it that way (#236).
+test("opening the entry dialog by keyboard focuses Close", async ({ page }) => {
+  await stubIssues(page, [group(1, longInstanceName, [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, [dialogEntry(1, longComment)]);
+  await page.goto("/today");
+  await page.getByRole("button", { name: /Log time against WORK-1/ }).focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator("that-entry-dialog").getByRole("button", { name: "Close" })).toBeFocused();
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
+test("focusing an entry's Edit opens only its own tooltip, never the comment's", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [issue("WORK-1", "Ship it")])]);
-  await stubEntries(page, [dialogEntry(1, longComment), dialogEntry(2, "Quick fix")]);
+  await stubEntries(page, [dialogEntry(1, longComment)]);
   await page.goto("/today");
   await openDialog(page);
 
-  const rows = page.locator("that-entry-dialog li");
-  await rows.nth(0).getByRole("button", { name: /Edit the/ }).focus();
-  await expect(page.locator("that-tooltip", { hasText: longComment })).toBeVisible();
+  const row = dialogRows(page).nth(0);
+  // The push mark is the Tab stop just before Edit.
+  await tabTo(page, row.locator('[id^="that-entry-mark-"]'), row.getByRole("button", { name: /Edit the/ }));
 
-  await rows.nth(1).getByRole("button", { name: /Edit the/ }).focus();
-  await expect(page.locator("that-tooltip", { hasText: longComment })).toBeHidden();
-  await expect(page.locator("that-tooltip", { hasText: "Quick fix" })).toBeHidden();
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText("edit entry");
+});
+
+test("a cut entry comment is its own Tab stop and opens its full text on focus and on hover", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Work", [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, [dialogEntry(1, longComment)]);
+  await page.goto("/today");
+  await openDialog(page);
+
+  const dialog = page.locator("that-entry-dialog");
+  // Nothing focusable sits between Close and the first row's comment.
+  await tabTo(page, dialog.getByRole("button", { name: "Close" }), commentOf(dialogRows(page).nth(0)));
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(longComment);
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+  await commentOf(dialogRows(page).nth(0)).hover();
+  await expect(page.locator("that-tooltip", { hasText: longComment })).toBeVisible();
+});
+
+test("a short comment and \"No comment\" are Tab stops that open nothing", async ({ page }) => {
+  await stubIssues(page, [group(1, "Work", [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, [dialogEntry(1, "Quick fix"), dialogEntry(2, "")]);
+  await page.goto("/today");
+  await openDialog(page);
+
+  const dialog = page.locator("that-entry-dialog");
+  const rows = dialogRows(page);
+  await tabTo(page, dialog.getByRole("button", { name: "Close" }), commentOf(rows.nth(0)));
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+
+  // The row above's Delete is the Tab stop just before the next comment.
+  await tabTo(page, rows.nth(0).getByRole("button", { name: /Delete the/ }), commentOf(rows.nth(1)));
+  await expect(commentOf(rows.nth(1))).toHaveText("No comment");
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
+// The instance name is the dialog's first Tab stop, so the one real key that
+// reaches it is Shift+Tab from Close (#217's rule, run backwards).
+test("a cut dialog instance name is its own Tab stop and opens only its own tooltip", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, longInstanceName, [issue("WORK-1", "Ship it")])]);
+  await stubEntries(page, []);
+  await page.goto("/today");
+  await openDialog(page);
+
+  const dialog = page.locator("that-entry-dialog");
+  await dialog.getByRole("button", { name: "Close" }).focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(dialog.locator('[id^="that-entry-dialog-instance-"]')).toBeFocused();
+
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(longInstanceName);
 });

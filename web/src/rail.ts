@@ -630,6 +630,9 @@ function figures(slices: Slice[]): HTMLElement {
     const nameId = `that-rail-name-${String(++railCutTextSequence)}`;
     const name = document.createElement("span");
     name.id = nameId;
+    // Its own Tab stop, cut or not (#236), so a keyboard reaches a cut name
+    // the way a pointer does; `when-cut` keeps the tooltip shut otherwise.
+    name.tabIndex = 0;
     name.className = "text-rail-muted min-w-0 flex-1 truncate";
     name.textContent = slice.name;
 
@@ -698,10 +701,10 @@ function runningTimerLine(
   stopTooltip.textContent = "stop timer";
 
   return {
-    // No `focus-for` on the key's own tooltip (#143 task 9): that-tooltip
-    // already opens on its `for` element's own focus, now that the key
-    // itself is focusable, and the stop button gets its own tooltip below
-    // rather than sharing the key's.
+    // The key's own tooltip (#143 task 9): that-tooltip already opens on its
+    // `for` element's own focus, now that the key itself is focusable, and
+    // the stop button gets its own tooltip below rather than sharing the
+    // key's.
     nodes: [dot, key, elapsed, stop, cutTextTooltip(keyId, running.issueKey), stopTooltip],
     elapsed,
   };

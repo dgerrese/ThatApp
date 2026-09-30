@@ -14,7 +14,6 @@
  */
 export class ThatTooltip extends HTMLElement {
   private trigger: HTMLElement | null = null;
-  private focusTrigger: HTMLElement | null = null;
   private observer: MutationObserver | undefined;
   private readonly onShow = (): void => this.reveal();
   // Both halves of a pair can fire for one release, when a trigger is hovered
@@ -44,19 +43,6 @@ export class ThatTooltip extends HTMLElement {
     trigger.addEventListener("focus", this.onShow);
     trigger.addEventListener("blur", this.onHide);
 
-    // A second focus target, for a tooltip whose own trigger is not
-    // focusable but sits beside something that is (#143) — the entry
-    // dialog's comment tooltip follows its row's edit button this way.
-    // Cut text used to lean on this for a key link's focus before task 9
-    // made every cut text a tab stop in its own right.
-    const focusId = this.getAttribute("focus-for");
-    const focusTrigger = focusId ? document.getElementById(focusId) : null;
-    if (focusTrigger) {
-      this.focusTrigger = focusTrigger;
-      focusTrigger.addEventListener("focus", this.onShow);
-      focusTrigger.addEventListener("blur", this.onHide);
-    }
-
     // reveal() places the box once, at show time, from the trigger's rect and
     // this element's own width. A consumer can repaint this element's text —
     // and so its width — while the popover is still open under the pointer:
@@ -77,10 +63,6 @@ export class ThatTooltip extends HTMLElement {
   disconnectedCallback(): void {
     this.observer?.disconnect();
     this.observer = undefined;
-
-    this.focusTrigger?.removeEventListener("focus", this.onShow);
-    this.focusTrigger?.removeEventListener("blur", this.onHide);
-    this.focusTrigger = null;
 
     const trigger = this.trigger;
     if (!trigger) return;

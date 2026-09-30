@@ -160,6 +160,46 @@ test("Down from a key onto a row with no URL focuses that row's summary", async 
   await expect(summaryOf(page, "RIDGE-2")).toBeFocused();
 });
 
+// #236: a failure note is a second focusable in the summary cell. Moving
+// between rows must still land on the summary, and leaving the note must
+// clamp to the next row's summary.
+test("Up and Down land on a failure-noted row's summary, and Down from its note reaches the next summary", async ({
+  page,
+}) => {
+  await stubIssues(page, [group(1, "Ridgeline", ridgeIssues)]);
+  await page.route("**/api/pins**", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          id: 1,
+          instanceId: 1,
+          instanceName: "Ridgeline",
+          instancePosition: 0,
+          key: "RIDGE-9",
+          summary: "Weekly standup",
+          status: "To Do",
+          url: "https://ridgeline.atlassian.net/browse/RIDGE-9",
+          error: { code: "instance_unreachable", message: "Could not reach Ridgeline" },
+        },
+      ],
+    }),
+  );
+  await page.goto("/today");
+  await expect(row(page, "RIDGE-1")).toBeVisible();
+
+  await summaryOf(page, "RIDGE-9").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(summaryOf(page, "RIDGE-1")).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(summaryOf(page, "RIDGE-9")).toBeFocused();
+
+  await row(page, "RIDGE-9").locator('[id^="that-fail-"]').focus();
+  await expect(row(page, "RIDGE-9").locator('[id^="that-fail-"]')).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(summaryOf(page, "RIDGE-1")).toBeFocused();
+});
+
 /**
  * `window.scrollY` never moves in this layout — `#content` is the app's own
  * scrolling region (index.html's overflow-y-auto, exercised by smoke.spec.ts's

@@ -180,6 +180,7 @@ export class ThatEntryDialog extends HTMLElement {
 
     const instance = document.createElement("span");
     instance.id = this.instanceId;
+    instance.tabIndex = 0;
     instance.className = "text-ink-muted truncate text-xs font-bold tracking-[0.16em] uppercase";
     instance.textContent = ticket.instanceName;
 
@@ -267,9 +268,8 @@ export class ThatEntryDialog extends HTMLElement {
   }
 
   /**
-   * Hover-only (#143's decision, reversible): the row's only focusable
-   * element is Close, and Close names nothing about the instance, so there is
-   * no sensible focus-for to give it.
+   * Opens on the name's own hover and its own focus (#236): the name is a Tab
+   * stop whether or not it is cut, and `when-cut` keeps this shut when it fits.
    */
   private instanceTooltip(name: string): HTMLElement {
     return cutTextTooltip(this.instanceId, name);
@@ -281,6 +281,10 @@ export class ThatEntryDialog extends HTMLElement {
     close.setAttribute("aria-label", "Close");
     close.className = ICON_BUTTON;
     close.innerHTML = iconMarkup("close");
+    // The instance name before it in the header is a Tab stop now (#236);
+    // without this, showModal() would focus the name instead of Close, and
+    // open its tooltip the moment the dialog appears.
+    close.autofocus = true;
     close.addEventListener("click", () => {
       this.dialog?.close();
     });
@@ -492,6 +496,7 @@ export class ThatEntryDialog extends HTMLElement {
     const commentId = `that-entry-comment-${this.sequence}-${entry.id}`;
     const comment = document.createElement("span");
     comment.id = commentId;
+    comment.tabIndex = 0;
     comment.className = "min-w-0 flex-1 truncate text-base";
     comment.textContent = entry.comment;
     if (entry.comment === "") {
@@ -534,7 +539,7 @@ export class ThatEntryDialog extends HTMLElement {
     row.append(
       duration,
       comment,
-      this.commentTooltip(commentId, entry.comment, editId),
+      this.commentTooltip(commentId, entry.comment),
       ...this.pushMark(entry),
       actions,
     );
@@ -543,17 +548,13 @@ export class ThatEntryDialog extends HTMLElement {
   }
 
   /**
-   * `focus-for` follows the edit button, per the brief, so a keyboard user
-   * reaches a cut comment the same way a mouse does. Always appended, like the
-   * summary's own equivalent: `when-cut` decides whether it ever has anything
-   * to reveal.
-   *
-   * Not literally the row's first Tab stop — the push mark beside it (below)
-   * carries `tabIndex = 0` and sits earlier in the DOM — but it is the first
-   * *action*, and the brief names it specifically; see the task report.
+   * Opens on the comment's own hover and its own focus (#236), never on a
+   * neighbour's: the comment is a Tab stop whether or not it is cut —
+   * "No comment" included — so the Tab order never changes with the window's
+   * width, and `when-cut` keeps this shut when there is nothing to give back.
    */
-  private commentTooltip(forId: string, comment: string, editId: string): HTMLElement {
-    return cutTextTooltip(forId, comment === "" ? "No comment" : comment, editId);
+  private commentTooltip(forId: string, comment: string): HTMLElement {
+    return cutTextTooltip(forId, comment === "" ? "No comment" : comment);
   }
 
   /**

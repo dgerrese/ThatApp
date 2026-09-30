@@ -455,16 +455,17 @@ centring on it, or it hangs past the card.
 top edge, so a trigger near the top of the content column has nowhere to open upward into.
 
 **A text cut by an ellipsis gives its full wording back in the same tooltip** (#143), in a wrapping
-variant about 340px wide, shown only when the text is actually cut — never for a summary or a key
-that already fits. **The rail's running key and a ticket summary — Today's own row and the search
-panel's result row alike — are each focusable and open their tooltip on their own focus; the key's
-tooltip and the rail's stop button tooltip each open only their own, never the summary's** (owner,
-2026-09-25). This replaced the earlier rule, where a cut summary borrowed a neighbouring key link's
-focus instead of taking its own — a shape that broke the moment a row carried more than one cut
-text, since one focus then had to open two tooltips at once. Every other cut text in the app (the
-entry dialog's comment and instance name, the rail's own instance-name slices, a pinned row's
-failure note) keeps the earlier rule: hover-only, or following a neighbouring control's focus,
-never a tab stop of its own. Like every other tooltip here, it is never the accessible name.
+variant about 340px wide, shown only when the text is actually cut — never for a text that already
+fits. **Every cut text is its own Tab stop** (#236, owner, 2026-09-29): a ticket summary (Today's
+rows and the search panel's), a pinned row's failure note, the rail's running key and its
+instance-name slices, and the entry dialog's instance name and each entry's comment. Each is a Tab
+stop whether or not it is cut — "No comment" included — so the Tab order never changes with the
+window's width, and each opens its tooltip on its own hover and its own focus, never on a
+neighbour's. A neighbouring control's focus opens only that control's own tooltip: a key's "open in
+Jira", the rail's "stop timer", an entry's "edit entry". This replaced the earlier rule, where a cut
+text borrowed a neighbouring control's focus — a shape that broke the moment a row carried more than
+one cut text, since one focus then had to open two tooltips at once. Like every other tooltip here,
+it is never the accessible name.
 
 **A key that links to Jira carries a tooltip reading "open in Jira"** (#143), replacing the native
 title, centred like any other non-trailing control — owner, 2026-09-25.

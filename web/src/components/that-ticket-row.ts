@@ -485,6 +485,7 @@ export class ThatTicketRow extends HTMLElement {
   private failureNote(message: string): HTMLElement {
     const note = document.createElement("span");
     note.id = this.failureId;
+    note.tabIndex = 0;
     note.setAttribute("role", "status");
     note.className = "text-failed block truncate text-xs";
     note.textContent = message;
@@ -493,8 +494,10 @@ export class ThatTicketRow extends HTMLElement {
   }
 
   /**
-   * Hover-only (#143): the failure note itself is not focusable, and there is
-   * nothing else for this tooltip to follow — so no `focus-for`, deliberately.
+   * Opens on the note's own hover and its own focus (#236): the note is a Tab
+   * stop whether or not it is cut, so the Tab order never changes with the
+   * window's width, and `when-cut` keeps this shut when there is nothing to
+   * give back.
    */
   private failureTooltip(message: string): HTMLElement {
     return cutTextTooltip(this.failureId, message);
@@ -515,10 +518,9 @@ export class ThatTicketRow extends HTMLElement {
 
   /**
    * that-tooltip's first cut-text consumer (#143): `for` gives back the
-   * summary's own hover and, since task 9, its own focus too — no
-   * `focus-for`, because the summary is its own tab stop now rather than
-   * borrowing the key link's, so a key focus opens only the key's own "open
-   * in Jira" tooltip (keyTooltip above), never this one.
+   * summary's own hover and, since task 9, its own focus too, so a key focus
+   * opens only the key's own "open in Jira" tooltip (keyTooltip above),
+   * never this one.
    */
   private summaryTooltip(): HTMLElement {
     return cutTextTooltip(this.summaryId, this.getAttribute("summary") ?? "");

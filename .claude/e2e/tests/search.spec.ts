@@ -313,8 +313,9 @@ test.describe("that-issue-search on Today", () => {
     await expect(key).not.toHaveAttribute("title");
 
     // hasText, not :popover-open: the row's own summary carries a cut-text
-    // tooltip too (#143) — hidden here regardless, since task 9 dropped
-    // `focus-for` and a key focus no longer opens a neighbour's tooltip.
+    // tooltip too (#143) — hidden here regardless, since task 9 made the
+    // summary its own tab stop, so a key focus never opens a neighbour's
+    // tooltip.
     const tooltip = page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" });
 
     await key.hover();
@@ -1273,9 +1274,9 @@ test.describe("the search results row stacks key over summary (#143)", () => {
 // focus, never as the accessible name. Proved on both hosts of
 // that-issue-search, since neither owns the tooltip wiring itself.
 //
-// Task 9 (owner, 2026-09-25): the summary is its own tab stop now, and its
-// tooltip dropped `focus-for` — a key focus opens only the key's own "open in
-// Jira" tooltip, never the summary's.
+// Task 9 (owner, 2026-09-25): the summary is its own tab stop now — a key
+// focus opens only the key's own "open in Jira" tooltip, never the
+// summary's.
 test.describe("a cut summary in the search panel comes back in a tooltip (#143)", () => {
   const longSummary =
     "Reconcile the capacity forecast against every team's actual booked hours, including " +
