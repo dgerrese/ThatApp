@@ -29,6 +29,16 @@ export class ThatToasts extends HTMLElement {
     );
   }
 
+  // A dialog removed from the DOM without closing (the router's replaceChildren
+  // does this) takes the host with it, and toast() would then find nothing for
+  // the rest of the session. A move within the DOM reconnects synchronously, so
+  // only a real loss is still disconnected by the microtask.
+  disconnectedCallback(): void {
+    queueMicrotask(() => {
+      if (!this.isConnected) this.moveTo(document.body, this.childElementCount > 0);
+    });
+  }
+
   add(tone: string, message: string, items: string[] = []): HTMLElement {
     this.moveTo(document.querySelector<HTMLElement>("dialog:modal") ?? document.body, true);
 

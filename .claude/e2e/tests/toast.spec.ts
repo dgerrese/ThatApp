@@ -137,3 +137,34 @@ test("a toast added while a dialog is open sits above it, and Dismiss works", as
   await expect(page.locator("that-toast")).toHaveCount(0);
   await expect(page.locator("#fixture-dialog")).toBeVisible();
 });
+
+async function openFixtureDialog(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const dialog = document.createElement("dialog");
+    dialog.id = "fixture-dialog";
+    dialog.textContent = "a dialog";
+    document.body.append(dialog);
+    dialog.showModal();
+  });
+}
+
+test("closing the dialog returns the host to body, keeping its toast", async ({ page }) => {
+  await openFixtureDialog(page);
+  await add(page, "error", "outlives the dialog");
+  await page.evaluate(() => document.querySelector<HTMLDialogElement>("#fixture-dialog")?.close());
+  expect(await page.evaluate(() => document.querySelector("that-toasts")?.parentElement === document.body)).toBe(true);
+  await expect(page.locator("that-toast", { hasText: "outlives the dialog" })).toBeVisible();
+  await add(page, "error", "after");
+  const view = page.viewportSize()!;
+  const box = await page.locator("that-toast", { hasText: "after" }).boundingBox();
+  expect(view.height - (box!.y + box!.height)).toBeCloseTo(16, 0);
+  expect(view.width - (box!.x + box!.width)).toBeCloseTo(16, 0);
+});
+
+test("removing an open dialog without closing it does not lose the host", async ({ page }) => {
+  await openFixtureDialog(page);
+  await add(page, "error", "first");
+  await page.evaluate(() => document.querySelector("#fixture-dialog")?.remove());
+  await add(page, "error", "still works");
+  await expect(page.locator("that-toast", { hasText: "still works" })).toBeVisible();
+});
