@@ -31,6 +31,14 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
+### 2026-10-05 — read this first
+
+**v1's queue is #208, #207, #226, in that order, all `bug` and `status/todo`.** Refined on 2026-10-05
+from #123's design: #208 shows a failed stop as a dialog block, #207 a failed start as a toast (and no
+toast when the dialog already showed the failure), #226 stacks on both. Re-cut #208's branch from
+`main`; the local one predates #123. **No pull request is open**: the owner merged PR #277 (the first
+retro) on 2026-10-05.
+
 ### The first retro ran on 2026-10-05 — do not reopen its rules
 
 [`retros/2026-10-05-retro.md`](../retros/2026-10-05-retro.md). The owner approved all eight
@@ -52,7 +60,7 @@ their classes. It raised intake **#276** (strip `status/*` on close in CI).
 **Every one of those tickets kept `status/in-progress` after closing and was stripped by hand** — the
 merge still does not remove it.
 
-**One pull request is open: #274 (#123, toasts).** It carries two design differences and four
+**PR #274 (#123, toasts) was open at the end of 2026-09-30; the owner merged it that evening.** It carries two design differences and four
 questions for the owner in its body — see *Still open for the owner* below.
 
 **v1 has no `status/todo` ticket and nothing in progress but #123.** Autopilot ran twice on
@@ -61,7 +69,7 @@ owner set that on 2026-09-21, and it reached the skill only today — see the me
 `owner-rule-changes-go-into-the-skill`.
 
 **What is left in v1:**
-- **#123** — PR #274 open. Once merged: **#207, #208 and #226 can move.** #208 and #226 are
+- **#123** — merged as PR #274. **#207, #208 and #226 moved to `status/todo` on 2026-10-05.** #208 and #226 are
   `status/blocked` on #123; #207 is at `status/needs-refinement`. Their failure placement comes from
   #123's design: a failed one-off action is a toast, a dialog's message is a block above the dialog.
 - **#267** (`status/needs-refinement`) — tooltips cannot be dismissed with Escape or hovered (WCAG
