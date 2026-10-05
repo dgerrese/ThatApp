@@ -41,6 +41,13 @@ proven by mutation; ticket comments are read before refinement or any status mov
 subagent owns the working tree; a failed create is searched for before a retry; design mocks prefix
 their classes. It raised intake **#276** (strip `status/*` on close in CI).
 
+### 2026-10-05 — read this first
+
+**v1's queue is #208, #207, #226, in that order, all `bug` and `status/todo`.** Refined on 2026-10-05
+from #123's design: #208 shows a failed stop as a dialog block, #207 a failed start as a toast (and no
+toast when the dialog already showed the failure), #226 stacks on both. Re-cut #208's branch from
+`main`; the local one predates #123. **PR #277** (the first retro, `[Process]`) is open.
+
 ### The state at the end of 2026-09-30 — read this first
 
 **This block supersedes everything below it in this section where the two disagree.** The day is in
