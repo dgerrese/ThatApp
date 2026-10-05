@@ -291,7 +291,13 @@ guessing which is right.
 
 **Intake.** A short problem or idea statement, and **only for ideas you raise yourself**. Do not
 research, do not design, do not estimate. Create it and stop. Discoveries made mid-ticket — a bug
-noticed in passing, a gap in the spec — belong here, not in the ticket you are working on. A ticket
+noticed in passing, a gap in the spec — belong here, not in the ticket you are working on. **"In passing" means outside this ticket's
+scope.** A defect in what this ticket itself builds — its own feature failing, its own rule broken, an
+acceptance criterion it does not meet — is not a discovery. It is unfinished work: fix it on the
+branch before the pull request opens. If the fix is too big for the ticket, that is a blocker and the
+ticket goes to `status/blocked`; it does not go to review with the defect filed beside it. Set by the
+2026-10-05 retro, after #121, #207–#209, #236 and #221 were each filed against the ticket that built
+the thing they describe, and that ticket shipped. A ticket
 the owner asked for does not pass through here; create it at `status/needs-refinement`.
 
 **Refinement.** Research properly: read the relevant code, check the design of record, resolve open
