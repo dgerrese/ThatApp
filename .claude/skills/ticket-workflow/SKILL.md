@@ -58,8 +58,20 @@ indistinguishable from work that shipped.
 signal at all — it has happened once, on PR#27. Move the ticket back to `status/in-progress` by
 hand when that occurs.
 
-**On closing an issue, remove its `status/*` label.** A closed issue carrying `status/in-progress`
-is a lie.
+**A closed issue carries no `status/*` label, and the session removes it.** The owner's merge closes
+the issue and leaves the label behind every time, and the session never sees the merge — about sixty
+closes left one before this rule moved its trigger (2026-10-05 retro). So **every session sweeps
+when it starts**, before it reads the board:
+
+```shell
+for s in intake needs-refinement todo in-progress blocked; do
+  tea api "repos/{owner}/{repo}/issues?state=closed&type=issues&labels=status/$s&limit=50" \
+    | python3 -c "import sys,json;[print(i['number']) for i in json.load(sys.stdin)]"
+done
+```
+
+Remove the label from each issue it prints. This is bookkeeping, not a relabel, and needs nobody's
+word.
 
 ### Scoped labels are exclusive, and the forge enforces it
 
@@ -187,8 +199,8 @@ renamed as soon as it is noticed. Set by the owner on 2026-09-18.
   pre-empt it.
 - **Closing a finished ticket.** The merge is the owner's, and so is the close. A green
   `make verify`, a passing CI run, an approving review and a branch that looks merged are none of
-  them that signal. Merging the pull request closes the issue through `Closes #<n>`; strip the
-  `status/*` label when it does.
+  them that signal. Merging the pull request closes the issue through `Closes #<n>`; the next
+  session's start-of-session sweep strips its `status/*` label.
 
 **Merging into `main` locally is forbidden outright** — a hard constraint in `CLAUDE.md`, not a
 preference. A branch reaches `main` through a pull request the owner merges and no other way, no
@@ -259,7 +271,7 @@ tea api "repos/{owner}/{repo}/labels" \
   -d '{"name":"status/todo","color":"#0e8a16","exclusive":true}'
 ```
 
-### Two Codeberg limits worth knowing before you hit them
+### Three Codeberg limits worth knowing before you hit them
 
 **Issue creation is rate limited to 17 in 5 minutes.** Creating issues in bulk — a batch of intake
 tickets, a migration — must be paced at roughly one every 20 seconds or the API starts returning
@@ -270,6 +282,16 @@ which this project's token deliberately does not carry: the ticket workflow neve
 standing credential that can delete repositories is a poor trade for saving a manual step. Create
 and delete repositories in the web interface.
 
+**A create that fails can still have created the issue.** A 504, a timeout or a reply that does not
+parse says nothing about whether the issue exists. Before a retry, search for the title — as its own
+command, after the failed one has returned:
+
+```shell
+tea api "repos/{owner}/{repo}/issues?state=all&type=issues&q=<title words>&limit=5"
+```
+
+Retry only when the search finds nothing. #232, #248 and #254 were each a duplicate made by a retry.
+
 Never leave an **open** issue with no `status/*` label, and never leave a **closed** one carrying a
 `status/*` label at all. Two statuses at once is no longer possible — the scope is exclusive — so
 the only failure left is the absent one. If you find an issue in either state, say so rather than
@@ -279,11 +301,20 @@ guessing which is right.
 
 **Intake.** A short problem or idea statement, and **only for ideas you raise yourself**. Do not
 research, do not design, do not estimate. Create it and stop. Discoveries made mid-ticket — a bug
-noticed in passing, a gap in the spec — belong here, not in the ticket you are working on. A ticket
+noticed in passing, a gap in the spec — belong here, not in the ticket you are working on. **"In passing" means outside this ticket's
+scope.** A defect in what this ticket itself builds — its own feature failing, its own rule broken, an
+acceptance criterion it does not meet — is not a discovery. It is unfinished work: fix it on the
+branch before the pull request opens. If the fix is too big for the ticket, that is a blocker and the
+ticket goes to `status/blocked`; it does not go to review with the defect filed beside it. Set by the
+2026-10-05 retro, after #121, #207–#209, #236 and #221 were each filed against the ticket that built
+the thing they describe, and that ticket shipped. A ticket
 the owner asked for does not pass through here; create it at `status/needs-refinement`.
 
-**Refinement.** Research properly: read the relevant code, check the design of record, resolve open
-questions with the owner. Finish by rewriting the issue body to hold the problem, the approach,
+**Refinement.** Research properly: **read every comment on the ticket, not only its body** — the
+owner's decisions often land there, and the body goes stale. Then read the relevant code, check the
+design of record, and resolve open questions with the owner. Read the comments again before any
+status move: on 2026-09-29, #207 and #208 went to `status/todo` over the owner's comment that they
+wait for #123. Finish by rewriting the issue body to hold the problem, the approach,
 explicit acceptance criteria, and anything deliberately out of scope. Refinement is over when
 nothing about the ticket is still fuzzy — not when you have run out of patience with it.
 
@@ -298,11 +329,11 @@ days is the signal it is meant to give: work was started and left.
 **Review.** The pull request is open and linked to the issue with `Closes #<n>`. Nothing further
 happens on the ticket until the owner responds.
 
-**Done.** The owner has confirmed the merge. The issue is closed and keeps the label.
+**Done.** The owner has confirmed the merge. The issue is closed.
 
 **Blocked.** Nothing happens until the owner responds.
 
-**Declined.** The owner rejected the intake. The issue is closed and keeps the label, so the idea
+**Declined.** The owner rejected the intake. The issue is closed and carries `wontfix`, so the idea
 is not redrafted later.
 
 ## The superpowers loop, from "Ready" to "Review"
@@ -319,6 +350,10 @@ is not redrafted later.
    creating the branch** — that is the trigger, and a branch that exists under `status/todo` is the
    exact ambiguity the label was added to remove. The decision is settled: the owner dropped the
    plan to make worktrees cheap on 2026-09-16 and does not intend to use them.
+   **Branching in place means the subagent owns the directory while it runs.** Until it reports, the
+   session does not switch branch, stash, reset, check out a file or edit a tracked file; it reads
+   another branch with `git show <branch>:<path>`. On 2026-09-21 a switch under a running subagent
+   corrupted a 20-run measurement on #134 and produced eleven false Firefox failures.
 3. **`superpowers:writing-plans`** — turns the acceptance criteria into a plan under
    `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into bite-sized tasks with exact file
    paths, complete code and verification steps. New plans and specs open with a **Date**,
@@ -329,6 +364,13 @@ is not redrafted later.
    human checkpoints are wanted instead.
 5. **`superpowers:test-driven-development`** — governs every implementation task. RED before GREEN,
    and the failing output belongs in the task report; a task that cannot show it is not done.
+   **RED fails on the assertion, for the reason the test names** — a compile error, a missing export
+   or a timeout is not RED, and the report quotes the failing assertion. **Then every assertion the
+   task adds or changes is proven by mutation:** break the code it guards by hand, run that one test,
+   show it go red, restore. An assertion that stays green with its code broken is a finding, the same
+   as a failing test. Since #7, mutation found something on every task it ran on; without it, tests
+   that could not fail reached review on at least twelve tickets and `main` on #99 and #117. Set by
+   the 2026-10-05 retro.
 6. **`superpowers:requesting-code-review`** — between tasks and again before merge.
 7. **`superpowers:finishing-a-development-branch`** — verifies the suite, presents the integration
    options, pushes and opens the pull request. The ticket keeps `status/in-progress` — the open
@@ -354,6 +396,13 @@ one height.
 handoff: `superpowers:brainstorming`'s `scripts/start-server.sh --project-dir <repo> --open`, with
 screens written into the session's `content/` directory. Options go up side by side and the owner
 picks. **Never a cloud artifact, and never a canvas** — that was settled on 2026-09-03.
+
+**A mock never uses a class name the companion's frame styles.** The frame is the brainstorming
+skill's `scripts/frame-template.html`; it styles `card`, `cards`, `mockup`, `mock-*`, `option`,
+`options`, `header`, `main`, `section`, `split`, `label`, `status`, `placeholder` and a few more.
+Prefix every mock class — `m-card`, not `card`. On 2026-09-03 four rounds of "misaligned" were all
+collisions with `.card`; on 2026-09-30 the frame's `overflow: hidden` on `.card` clipped every
+tooltip in the #246 session.
 
 Two things this does not mean. It is not a session per ticket: a ticket that only rewires what is
 already drawn goes straight to planning as before. And it is not licence to redesign — the session

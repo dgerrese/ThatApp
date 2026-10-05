@@ -31,6 +31,16 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
+### The first retro ran on 2026-10-05 — do not reopen its rules
+
+[`retros/2026-10-05-retro.md`](../retros/2026-10-05-retro.md). The owner approved all eight
+proposals, and each one is now in a skill or `CLAUDE.md`: every session sweeps closed issues for
+stale `status/*` labels when it starts; a defect in the ticket's own feature is fixed on the branch
+or blocks it; an owner's rule reaches its skill the same day; every new or changed assertion is
+proven by mutation; ticket comments are read before refinement or any status move; a running
+subagent owns the working tree; a failed create is searched for before a retry; design mocks prefix
+their classes. It raised intake **#276** (strip `status/*` on close in CI).
+
 ### The state at the end of 2026-09-30 — read this first
 
 **This block supersedes everything below it in this section where the two disagree.** The day is in

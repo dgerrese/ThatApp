@@ -79,19 +79,24 @@ tea pulls list --state open         # what waits on the owner
 
 ```shell
 for st in open closed; do
-  tea issues list --state $st --output json | python3 -c "
-import json,sys
-d=json.load(sys.stdin); want_one = '$st' == 'open'
-bad=[(i['index'], [l for l in i.get('labels','').split() if l.startswith('status/')] or ['(none)'])
-     for i in d
-     if (len([l for l in i.get('labels','').split() if l.startswith('status/')]) != (1 if want_one else 0))]
-print('$st:', len(d), 'issues, anomalies:', bad or 'none')"
+  python3 -c "
+import json,subprocess
+st='$st'; d=[]; p=1
+while True:
+    page=json.loads(subprocess.check_output(['tea','api',f'repos/{{owner}}/{{repo}}/issues?state={st}&type=issues&limit=50&page={p}']))
+    if not page: break
+    d+=page; p+=1
+want=1 if st=='open' else 0
+bad=[(i['number'],[l['name'] for l in i['labels'] if l['name'].startswith('status/')] or ['(none)'])
+     for i in d if sum(l['name'].startswith('status/') for l in i['labels'])!=want]
+print(st+':', len(d), 'issues, anomalies:', bad or 'none')"
 done
 ```
 
-`tea`'s JSON is not the shape you would guess, and guessing wrong fails silently: **`labels` is a
-single space-separated string, not an array of objects, and the issue number is `index`, not
-`number`.** Both established on 2026-09-01.
+**Read every page, through the API.** `tea issues list` returns 30 issues and says nothing about the
+rest, so until 2026-10-05 this check never saw most closed tickets. The API's own JSON is used here:
+`labels` is a list of objects and the issue number is `number`. (`tea`'s JSON is different — `labels`
+is one space-separated string and the number is `index` — so do not mix the two.)
 
 Branch state, which the rest of the skill depends on:
 
@@ -108,8 +113,9 @@ for b in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
 done
 ```
 
-**Label integrity:** an open issue carrying no `status/*` label, or a closed one still carrying one.
-Both are report lines, never fixes — see *What this never does*.
+**Label integrity:** a closed issue still carrying a `status/*` label has it removed — that is the
+bookkeeping `ticket-workflow`'s start-of-session sweep does, not a relabel. An open issue carrying no
+`status/*` label is a report line, never a fix, because which status it should have is a judgement.
 
 ### The stop condition
 
@@ -176,6 +182,12 @@ requests across.
 So every sentence in `handoff.md` naming **an open pull request, a branch, or a commit count** gets
 checked against Phase 2's output before the commit. Correct what has rotted. This is the one place
 the skill edits prose it did not write.
+
+**And every rule the owner set today is in `CLAUDE.md` or a skill, on a pushed branch.** One that
+lives only in the day file or in this machine's memory means the day is not finished. This skill
+commits nothing outside the handoff, so stop and say so: the session lands the rule on a `[Process]`
+branch, and then this phase resumes. Added by the 2026-10-05 retro, after the 2026-09-21
+in-progress-first rule stayed in a day file for nine days.
 
 Then commit on `handoff-<today>`, cut from `codeberg/main`, reusing it if it already exists.
 
@@ -265,7 +277,7 @@ Every one of these is either a hard constraint in `CLAUDE.md` or a decision rese
 | Force-push anything | A rejected push is information, not an obstacle. |
 | Switch the remote to HTTPS | Auth failure is reported, never routed around. |
 | Open a PR for a product branch | That is a ticket reaching review — `ticket-workflow` owns it. |
-| Close, approve or relabel a ticket | The owner's alone. |
+| Close, approve or relabel a ticket | The owner's alone. Stripping a closed ticket's `status/*` is not a relabel. |
 | `make down` | `-v` drops the caches. Use `docker compose --profile e2e down`. |
 | Commit anything outside `docs/superpowers/plans/handoff*` | The handoff is the only thing this skill authors. |
 | Stop a peer session or a `Workflow` run | Not this session's work to end. |
