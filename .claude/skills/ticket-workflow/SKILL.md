@@ -300,8 +300,11 @@ ticket goes to `status/blocked`; it does not go to review with the defect filed 
 the thing they describe, and that ticket shipped. A ticket
 the owner asked for does not pass through here; create it at `status/needs-refinement`.
 
-**Refinement.** Research properly: read the relevant code, check the design of record, resolve open
-questions with the owner. Finish by rewriting the issue body to hold the problem, the approach,
+**Refinement.** Research properly: **read every comment on the ticket, not only its body** — the
+owner's decisions often land there, and the body goes stale. Then read the relevant code, check the
+design of record, and resolve open questions with the owner. Read the comments again before any
+status move: on 2026-09-29, #207 and #208 went to `status/todo` over the owner's comment that they
+wait for #123. Finish by rewriting the issue body to hold the problem, the approach,
 explicit acceptance criteria, and anything deliberately out of scope. Refinement is over when
 nothing about the ticket is still fuzzy — not when you have run out of patience with it.
 
