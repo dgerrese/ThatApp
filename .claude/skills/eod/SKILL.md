@@ -183,6 +183,12 @@ So every sentence in `handoff.md` naming **an open pull request, a branch, or a 
 checked against Phase 2's output before the commit. Correct what has rotted. This is the one place
 the skill edits prose it did not write.
 
+**And every rule the owner set today is in `CLAUDE.md` or a skill, on a pushed branch.** One that
+lives only in the day file or in this machine's memory means the day is not finished. This skill
+commits nothing outside the handoff, so stop and say so: the session lands the rule on a `[Process]`
+branch, and then this phase resumes. Added by the 2026-10-05 retro, after the 2026-09-21
+in-progress-first rule stayed in a day file for nine days.
+
 Then commit on `handoff-<today>`, cut from `codeberg/main`, reusing it if it already exists.
 
 ---

@@ -285,6 +285,11 @@ day only to learn how something came to be. Anything a later session must not re
 promoted from the day's file into `handoff.md` on the day it happens, so no daily file is ever
 load-bearing.
 
+**A rule the owner sets goes into the document that governs it on the day it is set** — `CLAUDE.md`
+or the skill — on a `[Process]` branch. A day file is not read and this machine's memory does not
+leave this machine, so neither is a home for a rule. On 2026-09-21 the owner set in-progress tickets
+first; the rule reached only a day file, and the 2026-09-30 run walked past #123.
+
 **Invoke the `eod` skill when the day ends** — the owner saying "eod", "that's me for today" or
 "shutting down". The end of the day propagates: running subagents are signalled to wrap up and
 report, and their reports go into the day's handoff. It then leaves nothing running, nothing that
