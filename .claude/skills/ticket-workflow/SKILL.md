@@ -271,7 +271,7 @@ tea api "repos/{owner}/{repo}/labels" \
   -d '{"name":"status/todo","color":"#0e8a16","exclusive":true}'
 ```
 
-### Two Codeberg limits worth knowing before you hit them
+### Three Codeberg limits worth knowing before you hit them
 
 **Issue creation is rate limited to 17 in 5 minutes.** Creating issues in bulk — a batch of intake
 tickets, a migration — must be paced at roughly one every 20 seconds or the API starts returning
@@ -281,6 +281,16 @@ tickets, a migration — must be paced at roughly one every 20 seconds or the AP
 which this project's token deliberately does not carry: the ticket workflow never needs it, and a
 standing credential that can delete repositories is a poor trade for saving a manual step. Create
 and delete repositories in the web interface.
+
+**A create that fails can still have created the issue.** A 504, a timeout or a reply that does not
+parse says nothing about whether the issue exists. Before a retry, search for the title — as its own
+command, after the failed one has returned:
+
+```shell
+tea api "repos/{owner}/{repo}/issues?state=all&type=issues&q=<title words>&limit=5"
+```
+
+Retry only when the search finds nothing. #232, #248 and #254 were each a duplicate made by a retry.
 
 Never leave an **open** issue with no `status/*` label, and never leave a **closed** one carrying a
 `status/*` label at all. Two statuses at once is no longer possible — the scope is exclusive — so
