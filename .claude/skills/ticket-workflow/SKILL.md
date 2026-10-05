@@ -397,6 +397,13 @@ handoff: `superpowers:brainstorming`'s `scripts/start-server.sh --project-dir <r
 screens written into the session's `content/` directory. Options go up side by side and the owner
 picks. **Never a cloud artifact, and never a canvas** — that was settled on 2026-09-03.
 
+**A mock never uses a class name the companion's frame styles.** The frame is the brainstorming
+skill's `scripts/frame-template.html`; it styles `card`, `cards`, `mockup`, `mock-*`, `option`,
+`options`, `header`, `main`, `section`, `split`, `label`, `status`, `placeholder` and a few more.
+Prefix every mock class — `m-card`, not `card`. On 2026-09-03 four rounds of "misaligned" were all
+collisions with `.card`; on 2026-09-30 the frame's `overflow: hidden` on `.card` clipped every
+tooltip in the #246 session.
+
 Two things this does not mean. It is not a session per ticket: a ticket that only rewires what is
 already drawn goes straight to planning as before. And it is not licence to redesign — the session
 covers the thing the ticket puts on screen, and anything else it turns up becomes an intake ticket
