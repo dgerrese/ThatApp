@@ -58,8 +58,20 @@ indistinguishable from work that shipped.
 signal at all — it has happened once, on PR#27. Move the ticket back to `status/in-progress` by
 hand when that occurs.
 
-**On closing an issue, remove its `status/*` label.** A closed issue carrying `status/in-progress`
-is a lie.
+**A closed issue carries no `status/*` label, and the session removes it.** The owner's merge closes
+the issue and leaves the label behind every time, and the session never sees the merge — about sixty
+closes left one before this rule moved its trigger (2026-10-05 retro). So **every session sweeps
+when it starts**, before it reads the board:
+
+```shell
+for s in intake needs-refinement todo in-progress blocked; do
+  tea api "repos/{owner}/{repo}/issues?state=closed&type=issues&labels=status/$s&limit=50" \
+    | python3 -c "import sys,json;[print(i['number']) for i in json.load(sys.stdin)]"
+done
+```
+
+Remove the label from each issue it prints. This is bookkeeping, not a relabel, and needs nobody's
+word.
 
 ### Scoped labels are exclusive, and the forge enforces it
 
@@ -187,8 +199,8 @@ renamed as soon as it is noticed. Set by the owner on 2026-09-18.
   pre-empt it.
 - **Closing a finished ticket.** The merge is the owner's, and so is the close. A green
   `make verify`, a passing CI run, an approving review and a branch that looks merged are none of
-  them that signal. Merging the pull request closes the issue through `Closes #<n>`; strip the
-  `status/*` label when it does.
+  them that signal. Merging the pull request closes the issue through `Closes #<n>`; the next
+  session's start-of-session sweep strips its `status/*` label.
 
 **Merging into `main` locally is forbidden outright** — a hard constraint in `CLAUDE.md`, not a
 preference. A branch reaches `main` through a pull request the owner merges and no other way, no
@@ -298,11 +310,11 @@ days is the signal it is meant to give: work was started and left.
 **Review.** The pull request is open and linked to the issue with `Closes #<n>`. Nothing further
 happens on the ticket until the owner responds.
 
-**Done.** The owner has confirmed the merge. The issue is closed and keeps the label.
+**Done.** The owner has confirmed the merge. The issue is closed.
 
 **Blocked.** Nothing happens until the owner responds.
 
-**Declined.** The owner rejected the intake. The issue is closed and keeps the label, so the idea
+**Declined.** The owner rejected the intake. The issue is closed and carries `wontfix`, so the idea
 is not redrafted later.
 
 ## The superpowers loop, from "Ready" to "Review"
