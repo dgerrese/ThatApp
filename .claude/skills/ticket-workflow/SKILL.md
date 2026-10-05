@@ -340,6 +340,10 @@ is not redrafted later.
    creating the branch** — that is the trigger, and a branch that exists under `status/todo` is the
    exact ambiguity the label was added to remove. The decision is settled: the owner dropped the
    plan to make worktrees cheap on 2026-09-16 and does not intend to use them.
+   **Branching in place means the subagent owns the directory while it runs.** Until it reports, the
+   session does not switch branch, stash, reset, check out a file or edit a tracked file; it reads
+   another branch with `git show <branch>:<path>`. On 2026-09-21 a switch under a running subagent
+   corrupted a 20-run measurement on #134 and produced eleven false Firefox failures.
 3. **`superpowers:writing-plans`** — turns the acceptance criteria into a plan under
    `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into bite-sized tasks with exact file
    paths, complete code and verification steps. New plans and specs open with a **Date**,
