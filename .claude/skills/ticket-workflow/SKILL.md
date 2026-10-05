@@ -347,6 +347,13 @@ is not redrafted later.
    human checkpoints are wanted instead.
 5. **`superpowers:test-driven-development`** — governs every implementation task. RED before GREEN,
    and the failing output belongs in the task report; a task that cannot show it is not done.
+   **RED fails on the assertion, for the reason the test names** — a compile error, a missing export
+   or a timeout is not RED, and the report quotes the failing assertion. **Then every assertion the
+   task adds or changes is proven by mutation:** break the code it guards by hand, run that one test,
+   show it go red, restore. An assertion that stays green with its code broken is a finding, the same
+   as a failing test. Since #7, mutation found something on every task it ran on; without it, tests
+   that could not fail reached review on at least twelve tickets and `main` on #99 and #117. Set by
+   the 2026-10-05 retro.
 6. **`superpowers:requesting-code-review`** — between tasks and again before merge.
 7. **`superpowers:finishing-a-development-branch`** — verifies the suite, presents the integration
    options, pushes and opens the pull request. The ticket keeps `status/in-progress` — the open
