@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -593,5 +594,95 @@ func TestAStoppedTimersCommentReachesJiraOnPush(t *testing.T) {
 				t.Errorf("worklog body %s does not contain %q", worklogBody, test.comment)
 			}
 		})
+	}
+}
+
+// TestATimerCloseNamingAnotherRunIsRefused (#226): a stop or switch whose
+// expected run is not the one running gets 409 timer_changed and leaves the
+// timer running; a malformed expected.startedAt is a 400; a matching one, sent
+// in the configured zone's offset as GET /api/timer renders it, goes through.
+func TestATimerCloseNamingAnotherRunIsRefused(t *testing.T) {
+	start := time.Date(2026, 8, 21, 12, 5, 0, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		expected   string // %d is the instance id
+		wantStatus int
+		wantCode   string
+	}{
+		{
+			name:       "another key",
+			expected:   `{"instanceId":%d,"issueKey":"OTHER-9","startedAt":"2026-08-21T14:05:00+02:00"}`,
+			wantStatus: http.StatusConflict,
+			wantCode:   "timer_changed",
+		},
+		{
+			name:       "another start",
+			expected:   `{"instanceId":%d,"issueKey":"FIRST-1","startedAt":"2026-08-21T14:05:01+02:00"}`,
+			wantStatus: http.StatusConflict,
+			wantCode:   "timer_changed",
+		},
+		{
+			name:       "a malformed startedAt",
+			expected:   `{"instanceId":%d,"issueKey":"FIRST-1","startedAt":"yesterday"}`,
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_request",
+		},
+		{
+			name:       "the running one",
+			expected:   `{"instanceId":%d,"issueKey":"FIRST-1","startedAt":"2026-08-21T14:05:00+02:00"}`,
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, path := range []string{"stop", "start"} {
+		for _, tc := range tests {
+			t.Run(path+"/"+tc.name, func(t *testing.T) {
+				srv, _, inst := serverInZone(t, "Europe/Amsterdam", start)
+				id := strconv.FormatInt(inst.ID, 10)
+				rec := callEntries(t, srv, http.MethodPost, "/api/timer/start",
+					`{"instanceId":`+id+`,"issueKey":"FIRST-1"}`)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("first start status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+				}
+
+				srv.now = func() time.Time { return start.Add(5 * time.Minute) }
+				expected := fmt.Sprintf(tc.expected, inst.ID)
+				body := `{"round":"up","expected":` + expected + `}`
+				if path == "start" {
+					body = `{"instanceId":` + id + `,"issueKey":"SECOND-2","round":"up","expected":` + expected + `}`
+				}
+				rec = callEntries(t, srv, http.MethodPost, "/api/timer/"+path, body)
+
+				if tc.wantStatus != http.StatusOK {
+					assertRejected(t, rec, tc.wantStatus, tc.wantCode)
+					if tc.wantStatus == http.StatusConflict {
+						var refusal errorBody
+						if err := json.Unmarshal(rec.Body.Bytes(), &refusal); err != nil {
+							t.Fatalf("decoding %s: %v", rec.Body.String(), err)
+						}
+						if refusal.Message != "The timer changed in another tab." {
+							t.Errorf("message = %q, want %q", refusal.Message, "The timer changed in another tab.")
+						}
+					}
+					got := decodeTimerState(t, callEntries(t, srv, http.MethodGet, "/api/timer", ""))
+					if got.Running == nil || got.Running.IssueKey != "FIRST-1" {
+						t.Errorf("running = %+v after a refused %s, want FIRST-1 still running", got.Running, path)
+					}
+					return
+				}
+
+				if rec.Code != http.StatusOK {
+					t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
+				}
+				got := decodeTimerState(t, callEntries(t, srv, http.MethodGet, "/api/timer", ""))
+				if path == "stop" && got.Running != nil {
+					t.Errorf("running = %+v after a matching stop, want nothing", got.Running)
+				}
+				if path == "start" && (got.Running == nil || got.Running.IssueKey != "SECOND-2") {
+					t.Errorf("running = %+v after a matching switch, want SECOND-2", got.Running)
+				}
+			})
+		}
 	}
 }
