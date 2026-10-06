@@ -54,7 +54,7 @@ decisions there are in each ticket body and are not to be reopened:
   over read, entries and the timer — **no push**. Streamable HTTP at `/mcp`, stateless, stdlib
   JSON-RPC; each tool calls its `/api/*` handler in process. Protection is the `Origin` check only,
   no token or `THAT_*` variable. An open tab re-reads the timer and entries on focus.
-- **#279 at intake** (raised by the session): the dev stack publishes its port on every network.
+- **#279 approved into v2** at `status/needs-refinement`: the dev stack publishes its port on every network.
 
 ### 2026-10-05 — read this first
 
