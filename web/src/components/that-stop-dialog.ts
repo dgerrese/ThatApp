@@ -108,11 +108,19 @@ export class ThatStopDialog extends HTMLElement {
 
     this.paint();
     this.tick = window.setInterval(() => this.paint(), 1000);
+    document.addEventListener("keydown", this.holdEscapeWhileBusy);
     dialog.showModal();
     this.blocks.attach(dialog);
   }
 
+  // Chromium makes a repeat Esc's cancel uncancelable; stopping the keydown is what holds.
+  // On document because the pressed button, once disabled, leaves focus on <body>.
+  private readonly holdEscapeWhileBusy = (event: KeyboardEvent): void => {
+    if (event.key === "Escape" && this.busy) event.preventDefault();
+  };
+
   disconnectedCallback(): void {
+    document.removeEventListener("keydown", this.holdEscapeWhileBusy);
     window.clearInterval(this.tick);
   }
 
@@ -121,6 +129,7 @@ export class ThatStopDialog extends HTMLElement {
   private async confirm(round: Rounding): Promise<void> {
     if (this.busy) return;
     this.blocks.clear();
+    const focused = document.activeElement;
     this.setBusy(true);
     try {
       await this.commit({ round, comment: this.comment });
@@ -130,9 +139,12 @@ export class ThatStopDialog extends HTMLElement {
         "error",
         error instanceof ApiError ? error.message : "Could not stop the timer — try again.",
       );
-    } finally {
       this.setBusy(false);
+      // Disabling the pressed button dropped focus to <body>, inside an open modal.
+      if (focused instanceof HTMLElement && this.dialog?.contains(focused)) focused.focus();
+      return;
     }
+    this.setBusy(false);
   }
 
   private setBusy(busy: boolean): void {

@@ -1227,6 +1227,8 @@ test("a retry that fails again shows exactly one fresh block, from a click or fr
 
   await dialog.getByRole("button", { name: "Log 0:15" }).click();
   await expect(stopBlocks(page)).toHaveCount(1);
+  await stopBlocks(page).getByRole("button", { name: "Dismiss" }).click();
+  await expect(stopBlocks(page)).toHaveCount(0);
   await dialog.getByRole("textbox", { name: "Description" }).press("Enter");
   await expect(stopBlocks(page)).toHaveCount(1);
   await expect(stopBlocks(page)).toContainText("Jira said no.");
@@ -1313,6 +1315,8 @@ test("while a stop is in flight the buttons are disabled, Esc and Enter do nothi
   await expect.poll(() => sent).toBe(1);
 
   for (const name of names) await expect(dialog.getByRole("button", { name })).toBeDisabled();
+  // Chromium lets only the first Esc's cancel be prevented; the second needs the keydown guard.
+  await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("textbox", { name: "Description" }).press("Enter");
@@ -1326,4 +1330,20 @@ test("while a stop is in flight the buttons are disabled, Esc and Enter do nothi
   await expect(stopBlocks(page)).toHaveCount(1);
   for (const name of names) await expect(dialog.getByRole("button", { name })).toBeEnabled();
   await expect(dialog).toBeVisible();
+});
+
+test("after a failed stop the keyboard focus returns to the button that was pressed", async ({ page }) => {
+  await stubTimer(page, { runningFor: 60 });
+  await failTimerPost(page, "stop");
+  await page.goto("/today");
+
+  const dialog = page.getByRole("dialog");
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
+  const log = dialog.getByRole("button", { name: "Log 0:15" });
+  await log.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await expect(log).toBeEnabled();
+  await expect(log).toBeFocused();
 });
