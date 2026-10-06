@@ -1,7 +1,10 @@
 import "./that-button";
+import "./that-dialog-blocks";
 
+import { ApiError } from "../api";
 import { fieldFigure, roundedSeconds } from "../duration";
 import type { Rounding, StopChoice } from "../types";
+import type { ThatDialogBlocks } from "./that-dialog-blocks";
 import {
   COMMENT_FIELD_CLASS,
   CONFIRM_BODY_CLASS,
@@ -23,6 +26,9 @@ export class ThatStopDialog extends HTMLElement {
   issueKey = "";
   nextIssueKey: string | undefined;
   elapsed: () => number = () => 0;
+  commit: (choice: StopChoice) => Promise<void> = () => Promise.resolve();
+
+  private readonly blocks = document.createElement("that-dialog-blocks") as ThatDialogBlocks;
 
   private dialog: HTMLDialogElement | undefined;
   private ran: HTMLElement | undefined;
@@ -69,7 +75,7 @@ export class ThatStopDialog extends HTMLElement {
     field.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
-      dialog.close("up");
+      void this.confirm("up");
     });
     label.append(eyebrow, field);
 
@@ -78,13 +84,13 @@ export class ThatStopDialog extends HTMLElement {
     const keep = dialogButton("Keep running", "secondary");
     const down = dialogButton("", "secondary");
     const up = dialogButton("", "primary");
-    keep.addEventListener("click", () => dialog.close("cancel"));
-    down.addEventListener("click", () => dialog.close("down"));
-    up.addEventListener("click", () => dialog.close("up"));
+    keep.addEventListener("click", () => dialog.close());
+    down.addEventListener("click", () => void this.confirm("down"));
+    up.addEventListener("click", () => void this.confirm("up"));
     actions.append(keep, down, up);
 
     dialog.setAttribute("aria-labelledby", heading.id);
-    dialog.append(heading, line, label, actions);
+    dialog.append(heading, line, label, actions, this.blocks);
     this.append(dialog);
     this.dialog = dialog;
     this.ran = ran;
@@ -95,10 +101,26 @@ export class ThatStopDialog extends HTMLElement {
     this.paint();
     this.tick = window.setInterval(() => this.paint(), 1000);
     dialog.showModal();
+    this.blocks.attach(dialog);
   }
 
   disconnectedCallback(): void {
     window.clearInterval(this.tick);
+  }
+
+  /** Commits the choice first and closes only once it landed; a failure stays
+   *  in the dialog as a block, so the typed description survives a retry. */
+  private async confirm(round: Rounding): Promise<void> {
+    this.blocks.clear();
+    try {
+      await this.commit({ round, comment: this.comment });
+      this.dialog?.close();
+    } catch (error) {
+      this.blocks.add(
+        "error",
+        error instanceof ApiError ? error.message : "Could not stop the timer — try again.",
+      );
+    }
   }
 
   private paint(): void {
@@ -118,23 +140,26 @@ function setIfChanged(element: HTMLElement | undefined, name: string, value: str
 
 customElements.define("that-stop-dialog", ThatStopDialog);
 
-/** Resolves the confirmed choice, or null for Keep running, Esc or any other close. */
+/** Opens the stop dialog; a confirmed rounding runs `commit` while the dialog
+ *  stays open. Resolves once the dialog closes — committed, kept running, or Esc. */
 export function confirmStop(
   issueKey: string,
   nextIssueKey: string | undefined,
   elapsed: () => number,
-): Promise<StopChoice | null> {
+  commit: (choice: StopChoice) => Promise<void>,
+): Promise<void> {
   const element = document.createElement("that-stop-dialog") as ThatStopDialog;
   element.issueKey = issueKey;
   element.nextIssueKey = nextIssueKey;
   element.elapsed = elapsed;
+  element.commit = commit;
   document.body.append(element);
 
   const dialog = element.querySelector("dialog");
   if (!dialog) {
     element.remove();
 
-    return Promise.resolve(null);
+    return Promise.resolve();
   }
 
   // <dialog>'s close event does not bubble, so this listens on the dialog itself.
@@ -142,16 +167,10 @@ export function confirmStop(
     dialog.addEventListener(
       "close",
       () => {
-        const round = dialog.returnValue;
-        const comment = element.comment;
         element.remove();
-        resolve(isRounding(round) ? { round, comment } : null);
+        resolve();
       },
       { once: true },
     );
   });
-}
-
-function isRounding(value: string): value is Rounding {
-  return value === "up" || value === "down";
 }

@@ -1122,3 +1122,170 @@ test("a stop settles the instance tally on logged time plus the rounded entry", 
   await expect(page.locator("#rail-total")).toHaveText("1h 15m");
   await expect(page.locator("#rail-split")).toContainText("1h 15m");
 });
+
+/**
+ * #208: a stop or switch that fails after the dialog is confirmed leaves the
+ * dialog open, the description typed and the timer running, with one error
+ * block above the dialog (the toasts design, decisions 7 and 8).
+ */
+const stopBlocks = (page: Page) => page.locator("that-stop-dialog that-dialog-blocks that-toast");
+
+/** Registered after stubTimer, so it answers first for `times` requests and
+ *  then falls through to the stub. */
+async function failTimerPost(page: Page, path: "stop" | "start", times = 1): Promise<void> {
+  await page.route(
+    `**/api/timer/${path}`,
+    (route) => route.fulfill({ status: 500, json: { code: "internal_error", message: "Jira said no." } }),
+    { times },
+  );
+}
+
+test("a failed stop keeps the dialog open with its description, the timer running and one error block above it", async ({
+  page,
+}) => {
+  const recorder = await stubTimer(page, { runningFor: 60 });
+  await failTimerPost(page, "stop");
+  await page.goto("/today");
+
+  const row = ticketRow(page, "WORK-1");
+  const dialog = page.getByRole("dialog");
+  await row.getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("textbox", { name: "Description" }).fill("Traced the export");
+  const before = await dialog.boundingBox();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await expect(stopBlocks(page)).toContainText("Jira said no.");
+  await expect(stopBlocks(page).getByRole("img", { name: "Failed" })).toBeVisible();
+  await expect(stopBlocks(page).getByRole("button", { name: "Dismiss" })).toBeVisible();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("WORK-1 ran")).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Description" })).toHaveValue("Traced the export");
+  await expect(row.getByRole("button", { name: "stop timer" })).toBeVisible();
+  await expect(railTimer(page)).toContainText("WORK-1");
+  expect(recorder.logged).toEqual([]);
+
+  // The entry dialog's block geometry: 8px above, the dialog's width and left edge, the dialog unchanged.
+  const block = await stopBlocks(page).boundingBox();
+  const after = await dialog.boundingBox();
+  if (!before || !block || !after) throw new Error("no box");
+  expect(Math.abs(block.y + block.height + 8 - after.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(block.width - after.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(block.x - after.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.height - before.height)).toBeLessThanOrEqual(1);
+});
+
+test("a retry clears the block when it starts, and a successful one writes the description and closes", async ({
+  page,
+}) => {
+  const recorder = await stubTimer(page, { runningFor: 60 });
+  await failTimerPost(page, "stop");
+  await page.goto("/today");
+
+  // From the rail: it routes through the same stopTimer as a row.
+  const dialog = page.getByRole("dialog");
+  await railTimer(page).getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("textbox", { name: "Description" }).fill("Traced the export");
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(
+    "**/api/timer/stop",
+    async (route) => {
+      await held;
+      await route.fallback();
+    },
+    { times: 1 },
+  );
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(0);
+  release();
+
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("that-dialog-blocks")).toHaveCount(0);
+  await expect(railTimer(page)).toContainText("No timer running");
+  await expect.poll(() => recorder.logged).toEqual([
+    expect.objectContaining({ issueKey: "WORK-1", seconds: 900, comment: "Traced the export" }),
+  ]);
+});
+
+test("a retry that fails again shows exactly one fresh block, from a click or from Enter", async ({ page }) => {
+  await stubTimer(page, { runningFor: 60 });
+  await failTimerPost(page, "stop", 3);
+  await page.goto("/today");
+
+  const dialog = page.getByRole("dialog");
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await stopBlocks(page).getByRole("button", { name: "Dismiss" }).click();
+  await expect(stopBlocks(page)).toHaveCount(0);
+
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await dialog.getByRole("textbox", { name: "Description" }).press("Enter");
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await expect(stopBlocks(page)).toContainText("Jira said no.");
+  await expect(dialog).toBeVisible();
+});
+
+test("a failed switch keeps the dialog open with a block, and the first timer still running", async ({ page }) => {
+  const recorder = await stubTimer(page);
+  await page.goto("/today");
+
+  const first = ticketRow(page, "WORK-1");
+  const second = ticketRow(page, "WORK-2");
+  await first.getByRole("button", { name: "start timer" }).click();
+  await expect(first.getByRole("button", { name: "stop timer" })).toBeVisible();
+
+  await failTimerPost(page, "start");
+  await second.getByRole("button", { name: "start timer" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: "Description" }).fill("Half the export");
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await expect(stopBlocks(page)).toContainText("Jira said no.");
+  await expect(dialog.getByRole("heading")).toHaveText("Stop WORK-1 and start WORK-2?");
+  await expect(dialog.getByRole("textbox", { name: "Description" })).toHaveValue("Half the export");
+  await expect(first.getByRole("button", { name: "stop timer" })).toBeVisible();
+  await expect(second.getByRole("button", { name: "start timer" })).toBeVisible();
+  await expect(railTimer(page)).toContainText("WORK-1");
+
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(railTimer(page)).toContainText("WORK-2");
+  await expect.poll(() => recorder.logged).toEqual([
+    expect.objectContaining({ issueKey: "WORK-1", comment: "Half the export" }),
+  ]);
+});
+
+test("after a failure, Keep running and Esc still cancel, and the block leaves with the dialog", async ({ page }) => {
+  await stubTimer(page, { runningFor: 60 });
+  await failTimerPost(page, "stop", 2);
+  await page.goto("/today");
+
+  const row = ticketRow(page, "WORK-1");
+  const dialog = page.getByRole("dialog");
+
+  await row.getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("that-dialog-blocks")).toHaveCount(0);
+  await expect(page.locator("that-toast")).toHaveCount(0);
+
+  await row.getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("that-dialog-blocks")).toHaveCount(0);
+  await expect(page.locator("that-toast")).toHaveCount(0);
+  await expect(row.getByRole("button", { name: "stop timer" })).toBeVisible();
+});
