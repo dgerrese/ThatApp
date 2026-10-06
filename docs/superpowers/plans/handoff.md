@@ -50,6 +50,8 @@ decisions there are in each ticket body and are not to be reopened:
   falls to `<body>`, by choice.
 - **#272:** all three real-time debounce tests in `search.spec.ts` move to `page.clock`.
 - **#220 moved to v2**, still `status/needs-refinement`, waiting on the host.
+- **#253 (MCP server) moved to v1** at the owner's word, typed `enhancement`, still
+  `status/needs-refinement`. Its body lists the questions refinement must answer.
 
 ### 2026-10-05 — read this first
 
