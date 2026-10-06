@@ -31,6 +31,26 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
+### 2026-10-06 — read this first
+
+**v1's queue, all normal priority and `status/todo`:** the bugs #208, #207, #226 (in that order, #226
+stacks on both) and #272; then #259, #261 and #267. Re-cut #208's branch from `main`; the local one
+predates #123. **No pull request is open.** Intake and refinement ran on 2026-10-06 — the owner's
+decisions there are in each ticket body and are not to be reopened:
+
+- **#273 declined** (`wontfix`). The visual language still says Push becomes Retry after a partial
+  failure; the app does not, and that sentence is now stale. A spec fix needs its own ticket, not
+  yet asked for.
+- **#267: Escape only.** Tooltips stay `pointer-events: none` and not hoverable — 1.4.13's
+  "hoverable" is knowingly unmet. Inside a dialog or the search field, the first Escape closes only
+  the tooltip.
+- **#259:** dots lose `title`; `that-tooltip` on hover only, and only in a ticket row and a Week row,
+  where the name is not printed beside the dot. No new Tab stops.
+- **#261:** covers the running timer line too. Focus returns only to the same element; otherwise it
+  falls to `<body>`, by choice.
+- **#272:** all three real-time debounce tests in `search.spec.ts` move to `page.clock`.
+- **#220 moved to v2**, still `status/needs-refinement`, waiting on the host.
+
 ### 2026-10-05 — read this first
 
 **v1's queue is #208, #207, #226, in that order, all `bug` and `status/todo`.** Refined on 2026-10-05
