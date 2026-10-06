@@ -1571,3 +1571,119 @@ test("a confirmed switch and a confirmed stop name the run their dialog opened f
     }),
   ]);
 });
+
+/** This tab's boot read shows WORK-1 running for a minute, whatever the stub runs. */
+async function bootReadShowsWork1(page: Page): Promise<void> {
+  await page.route(
+    "**/api/timer",
+    (route) =>
+      route.fulfill({
+        status: 200,
+        json: {
+          running: { instanceId: 1, issueKey: "WORK-1", startedAt: new Date(Date.now() - 60_000).toISOString() },
+          stopped: null,
+        },
+      }),
+    { times: 1 },
+  );
+}
+
+test("a stale tab's stop is refused, and the dialog reopens for the timer that runs now with an empty description", async ({
+  page,
+}) => {
+  const recorder = await stubTimer(page, { runningFor: 60, issueKey: "WORK-2" });
+  await bootReadShowsWork1(page);
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("WORK-1");
+
+  const dialog = page.getByRole("dialog");
+  const description = dialog.getByRole("textbox", { name: "Description" });
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
+  await expect(dialog.getByText("WORK-1 ran")).toBeVisible();
+  await description.fill("Traced the export");
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+
+  await expect(dialog.getByText("WORK-2 ran")).toBeVisible();
+  await expect(description).toHaveValue("");
+  await expect(page.locator("that-toast")).toHaveCount(0);
+  await expect(railTimer(page)).toContainText("WORK-2");
+  expect(recorder.stops).toEqual([
+    expect.objectContaining({ round: "up", expected: expect.objectContaining({ issueKey: "WORK-1" }) }),
+  ]);
+  expect(recorder.logged).toEqual([]);
+
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(railTimer(page)).toContainText("No timer running");
+  expect(recorder.logged).toEqual([expect.objectContaining({ issueKey: "WORK-2", comment: "" })]);
+});
+
+test("after a refused stop, a re-read that finds nothing running closes the dialog quietly", async ({ page }) => {
+  const recorder = await stubTimer(page);
+  await bootReadShowsWork1(page);
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("WORK-1");
+
+  const dialog = page.getByRole("dialog");
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+
+  await expect(dialog).toHaveCount(0);
+  await expect(railTimer(page)).toContainText("No timer running");
+  // A dialog block is a that-toast too, so this counts blocks and toasts alike.
+  await expect(page.locator("that-toast")).toHaveCount(0);
+  expect(recorder.stops.length).toBe(1);
+  expect(recorder.logged).toEqual([]);
+});
+
+test("a stop refused twice closes after the second refusal and asks no third time", async ({ page }) => {
+  await stubTimer(page, { runningFor: 60, issueKey: "WORK-2" });
+  await bootReadShowsWork1(page);
+  let stops = 0;
+  await page.route("**/api/timer/stop", (route) => {
+    stops += 1;
+    return route.fulfill({
+      status: 409,
+      json: { code: "timer_changed", message: "The timer changed in another tab." },
+    });
+  });
+  await page.goto("/today");
+
+  const dialog = page.getByRole("dialog");
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(dialog.getByText("WORK-2 ran")).toBeVisible();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // A third dialog would be modal and block this click; opening one proves the first click's work is done.
+  await ticketRow(page, "WORK-2").getByRole("button", { name: "stop timer" }).click();
+  await expect(dialog.getByText("WORK-2 ran")).toBeVisible();
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+
+  expect(stops).toBe(2);
+  await expect(page.locator("that-toast")).toHaveCount(0);
+  await expect(railTimer(page)).toContainText("WORK-2");
+});
+
+test("a refused stop whose re-read fails keeps the dialog open with the refusal as its block", async ({ page }) => {
+  await stubTimer(page, { runningFor: 60, issueKey: "WORK-2" });
+  await bootReadShowsWork1(page);
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("WORK-1");
+  await page.route(
+    "**/api/timer",
+    (route) => route.fulfill({ status: 500, json: { code: "store_failed", message: "could not read the timer" } }),
+    { times: 1 },
+  );
+
+  const dialog = page.getByRole("dialog");
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("textbox", { name: "Description" }).fill("Traced the export");
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await expect(stopBlocks(page)).toContainText("The timer changed in another tab.");
+  await expect(dialog.getByText("WORK-1 ran")).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Description" })).toHaveValue("Traced the export");
+});

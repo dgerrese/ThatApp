@@ -14,7 +14,9 @@
  *
  * A stop, or a start over a running timer, asks the stop dialog how to round
  * first, and the dialog sends the POST while it is still open, so a failure
- * stays in it (#208).
+ * stays in it (#208). The POST names the run the dialog showed; a 409 means
+ * another tab changed the timer since, so this re-reads it and asks again
+ * about what runs now, once (#226).
  */
 import {
   ApiError,
@@ -101,19 +103,34 @@ export async function readTimer(): Promise<void> {
 }
 
 /** Asks how to stop the running timer; a confirmed rounding runs `commit`
- *  while the dialog is open, against the run the dialog named (#226).
+ *  while the dialog is open, against the run the dialog named. A 409 means
+ *  another tab changed the timer since (#226): re-read it, let the dialog
+ *  close, and answer "timer-changed" so the caller asks about what runs now.
  *  Imported lazily: the dialog is only ever needed after a click. */
 async function askHowToStop(
   nextIssueKey: string | undefined,
   commit: (choice: StopChoice, shown: RunningTimer) => Promise<void>,
-): Promise<void> {
+): Promise<"closed" | "timer-changed"> {
   const shown = running;
-  if (!shown) return;
+  if (!shown) return "closed";
   const { confirmStop } = await import("./components/that-stop-dialog");
 
-  await confirmStop(shown.issueKey, nextIssueKey, elapsedSeconds, (choice) =>
-    commit(choice, shown),
-  );
+  let outcome: "closed" | "timer-changed" = "closed";
+  await confirmStop(shown.issueKey, nextIssueKey, elapsedSeconds, async (choice) => {
+    try {
+      await commit(choice, shown);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 409)) throw error;
+      // Without a fresh read a reopened dialog would name the same stale run,
+      // so a failed one leaves the 409 itself in the dialog, as its block.
+      await readTimer().catch(() => {
+        throw error;
+      });
+      outcome = "timer-changed";
+    }
+  });
+
+  return outcome;
 }
 
 /** Starting over a running timer stops it first, so it asks how, the same as
@@ -144,12 +161,15 @@ async function startTimerNow(instanceId: number, issueKey: string): Promise<void
   }
 }
 
-async function stopTimerNow(): Promise<void> {
-  await askHowToStop(undefined, async (choice, shown) => {
+/** `retried` marks the one reask a refused stop gets (#226). */
+async function stopTimerNow(retried = false): Promise<void> {
+  const outcome = await askHowToStop(undefined, async (choice, shown) => {
     const response = await postStopTimer(choice, shown);
     setRunning(null);
     if (response.stopped) announceEntriesChanged();
   });
+  // With nothing running now, the reask returns at once: there is nothing to ask about.
+  if (outcome === "timer-changed" && !retried) await stopTimerNow(true);
 }
 
 export function startTimer(instanceId: number, issueKey: string): Promise<void> {
@@ -157,5 +177,5 @@ export function startTimer(instanceId: number, issueKey: string): Promise<void> 
 }
 
 export function stopTimer(): Promise<void> {
-  return oneAtATime(stopTimerNow);
+  return oneAtATime(() => stopTimerNow());
 }
