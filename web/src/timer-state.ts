@@ -16,7 +16,12 @@
  * first, and the dialog sends the POST while it is still open, so a failure
  * stays in it (#208).
  */
-import { getTimer, startTimer as postStartTimer, stopTimer as postStopTimer } from "./api";
+import {
+  ApiError,
+  getTimer,
+  startTimer as postStartTimer,
+  stopTimer as postStopTimer,
+} from "./api";
 import { announceEntriesChanged } from "./entries-changed";
 import type { RunningTimer, StopChoice } from "./types";
 
@@ -113,15 +118,7 @@ async function askHowToStop(
  *  a stop does; kept running, nothing starts. */
 async function startTimerNow(instanceId: number, issueKey: string): Promise<void> {
   const start = async (choice?: StopChoice): Promise<void> => {
-    let response;
-    try {
-      response = await postStartTimer(instanceId, issueKey, choice);
-    } catch (error) {
-      // A timer started in another tab is unknown here, so this start went out
-      // without a rounding and was refused; re-read it so the next click asks.
-      await readTimer().catch(() => undefined);
-      throw error;
-    }
+    const response = await postStartTimer(instanceId, issueKey, choice);
     setRunning(response.running);
     if (response.stopped) announceEntriesChanged();
   };
@@ -131,7 +128,18 @@ async function startTimerNow(instanceId: number, issueKey: string): Promise<void
 
     return;
   }
-  await start();
+  try {
+    await start();
+  } catch (error) {
+    // A 400 to a start with no rounding means a timer this tab never saw is
+    // running. Re-read it and ask, so the first click is not a silent no-op
+    // (#207). The second call takes the branch above, so it retries at most once.
+    if (!(error instanceof ApiError && error.status === 400)) throw error;
+    await readTimer().catch(() => undefined);
+    if (isRunningTicket(instanceId, issueKey)) return;
+    if (!running) throw error;
+    await startTimerNow(instanceId, issueKey);
+  }
 }
 
 async function stopTimerNow(): Promise<void> {
