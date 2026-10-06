@@ -33,10 +33,29 @@ further down is history and says otherwise in places.
 
 ### 2026-10-06 — read this first
 
-**v1's queue, all normal priority and `status/todo`:** the bugs #208, #207, #226 (in that order, #226
-stacks on both) and #272; then #259, #261, #267 and #253. Re-cut #208's branch from `main`; the local one
-predates #123. **No pull request is open.** Intake and refinement ran on 2026-10-06 — the owner's
-decisions there are in each ticket body and are not to be reopened:
+**Two pull requests wait on the owner, and their merge order is forced.** PR #282 (#208) targets
+`main`; PR #283 (#207) is stacked on it (base `issue-208-failed-stop-dialog-block`). Merge #282 first
+and retarget #283 to `main`, or merge #283 into #208's branch and let #282 carry both.
+
+**#226 is `status/in-progress`, mid-plan, on `issue-226-stale-stop-names-its-timer`** (stacked on
+#207's branch; pushed, no pull request). Plan: `docs/superpowers/plans/2026-10-06-stale-stop-names-its-timer.md`,
+six tasks. Tasks 1–3 are reviewed clean. **Task 4 (`a25870e`) is committed but not reviewed:** it was
+GREEN (timer specs 106/106 on both browsers, `make tsc`) when the end-of-day signal stopped it, and
+`make verify` and mutations 13–18 never ran (Docker Hub DNS failed). Resume there: run mutations
+13–18, `make verify`, write `task-4-report.md`, then the task review; then Tasks 5 (refused switch)
+and 6 (gates). The SDD ledger, mutation log, specs and the `mut.py`/`e2e.sh` runner are in the
+gitignored `.superpowers/sdd/2026-10-06-stale-stop-names-its-timer/` **on this machine only**.
+
+**Codeberg opened #284 on 2026-10-06: hosted Forgejo Actions will be disabled for this repository**,
+citing the pipeline volume and its terms on AI-written code. Unanswered and unlabelled — the owner's
+call. Pull requests may no longer get CI; that bears on #220 (self-hosted runner, v2).
+
+**v1's queue after #226, all normal priority and `status/todo`:** the bug #272; then #259, #261, #267
+and #253. New today, not in the queue: **#280** (`status/needs-refinement`, the owner's request — a
+delete of a pushed entry waits for Push; changes the design of record and needs a design session) and
+**#281** (`status/intake` — the entry dialog's busy state drops focus; #208 fixed the stop dialog's
+half). Intake and refinement ran on 2026-10-06 — the owner's decisions there are in each ticket body
+and are not to be reopened:
 
 - **#273 declined** (`wontfix`). The visual language still says Push becomes Retry after a partial
   failure; the app does not, and that sentence is now stale. A spec fix needs its own ticket, not
@@ -60,9 +79,9 @@ decisions there are in each ticket body and are not to be reopened:
 
 **v1's queue is #208, #207, #226, in that order, all `bug` and `status/todo`.** Refined on 2026-10-05
 from #123's design: #208 shows a failed stop as a dialog block, #207 a failed start as a toast (and no
-toast when the dialog already showed the failure), #226 stacks on both. Re-cut #208's branch from
-`main`; the local one predates #123. **No pull request is open**: the owner merged PR #277 (the first
-retro) on 2026-10-05.
+toast when the dialog already showed the failure), #226 stacks on both. #208 was re-cut from `main` on
+2026-10-06 as `issue-208-failed-stop-dialog-block`; the older local `issue-208-failed-stop-keeps-description`
+has no commits of its own. The owner merged PR #277 (the first retro) on 2026-10-05.
 
 ### The first retro ran on 2026-10-05 — do not reopen its rules
 
@@ -1837,11 +1856,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Left over from the forge move, 2026-09-01:**
 
-- **Local `main` lags the forge and only the owner may move it.** Verified 2026-09-09: it is still at
-  `41b60b1` while remote `main` is at `5446ad1`, eighteen merges ahead — PRs #82, #85, #86, #90, #92,
-  #93, #96, #98, #100, #103, #104, #112, #114, #115, #118, #120, #124 and #125. It is no longer the
-  pre-rename tip, so branching from it no longer produces the old names and the old module path;
-  it is simply behind. **Verify the gap against the API before repeating a number here**, because a
+- **Local `main` lags the forge and only the owner may move it.** Verified 2026-10-06: it is at
+  `4a9115d` while remote `main` is at `b644db0`, 168 commits ahead. Branch from `codeberg/main`, never
+  from local `main`. **Verify the gap against the API before repeating a number here**, because a
   blocked fetch leaves the local `codeberg/*` refs frozen and makes local `git` quietly wrong.
 - ~~**`retro-skill` and `worktrees-without-the-tax` are pushed but have no pull request.**~~
   **`retro-skill` merged as PR #85 on 2026-09-02.** Rebasing it onto `main` first needed the
@@ -1862,10 +1879,9 @@ in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is
 
 **Waiting on the owner:**
 
-- **The intake queue is ten**, and nine of them arrived after the 2026-09-02 triage: #74 survives
-  from it, #97, #101 and #102 came from the 2026-09-06 session, and #105 to #110 came out of #95's
-  reviews on 2026-09-07. The owner triaged the whole queue once already, ticket by ticket — thirteen
-  approved through to `status/needs-refinement`, and #59 declined with `wontfix` and closed.
+- **The intake queue is thirteen**, verified 2026-10-06 against the API: #110, #126, #137, #173, #176,
+  #201, #202, #203, #206, #211, #212, #276 and #281. The owner has triaged the whole queue before,
+  ticket by ticket.
   Approving and declining remain the owner's moves alone.
 - **Whether the owner's other repo mirrors this label set** is still unanswered, and the gap widened
   on 2026-08-20: this repo now has five statuses plus `bug`/`enhancement`/`wontfix`, having deleted
