@@ -34,7 +34,7 @@ further down is history and says otherwise in places.
 ### 2026-10-06 — read this first
 
 **v1's queue, all normal priority and `status/todo`:** the bugs #208, #207, #226 (in that order, #226
-stacks on both) and #272; then #259, #261 and #267. Re-cut #208's branch from `main`; the local one
+stacks on both) and #272; then #259, #261, #267 and #253. Re-cut #208's branch from `main`; the local one
 predates #123. **No pull request is open.** Intake and refinement ran on 2026-10-06 — the owner's
 decisions there are in each ticket body and are not to be reopened:
 
@@ -50,8 +50,11 @@ decisions there are in each ticket body and are not to be reopened:
   falls to `<body>`, by choice.
 - **#272:** all three real-time debounce tests in `search.spec.ts` move to `page.clock`.
 - **#220 moved to v2**, still `status/needs-refinement`, waiting on the host.
-- **#253 (MCP server) moved to v1** at the owner's word, typed `enhancement`, still
-  `status/needs-refinement`. Its body lists the questions refinement must answer.
+- **#253 (MCP server) moved to v1** and refined to `status/todo`, typed `enhancement`. Ten tools
+  over read, entries and the timer — **no push**. Streamable HTTP at `/mcp`, stateless, stdlib
+  JSON-RPC; each tool calls its `/api/*` handler in process. Protection is the `Origin` check only,
+  no token or `THAT_*` variable. An open tab re-reads the timer and entries on focus.
+- **#279 at intake** (raised by the session): the dev stack publishes its port on every network.
 
 ### 2026-10-05 — read this first
 
