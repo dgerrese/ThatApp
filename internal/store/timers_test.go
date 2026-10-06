@@ -33,6 +33,17 @@ func countTimerRows(t *testing.T, s *Store) int {
 	return rows
 }
 
+func countEntryRows(t *testing.T, s *Store) int {
+	t.Helper()
+
+	var rows int
+	if err := s.db.QueryRow(`SELECT count(*) FROM time_entries`).Scan(&rows); err != nil {
+		t.Fatalf("counting entry rows: %v", err)
+	}
+
+	return rows
+}
+
 func TestStartTimerReportsItRunning(t *testing.T) {
 	s := openTestStore(t)
 	inst := createTestInstance(t, s)
@@ -671,6 +682,168 @@ func TestAStaleTimerStoppedByTheUserIsTheMidnightCloseAndStaysHonest(t *testing.
 			}
 			if entry.Day != "2026-09-21" {
 				t.Errorf("entry.Day = %q, want the start's local day", entry.Day)
+			}
+		})
+	}
+}
+
+// A stop or switch confirmed for one run is refused when the row is another
+// run, or gone, and changes nothing (#226). Starts compare as instants, so the
+// same second rendered in another zone still matches.
+func TestACloseConfirmedForAnotherRunIsRefusedAndChangesNothing(t *testing.T) {
+	loc := mustLoadLocation(t, "Europe/Amsterdam")
+	start := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+	at := start.Add(20 * time.Minute)
+
+	tests := []struct {
+		name        string
+		running     bool
+		expected    func(instanceID int64) *Timer
+		wantChanged bool
+	}{
+		{
+			name:        "another key",
+			running:     true,
+			expected:    func(id int64) *Timer { return &Timer{InstanceID: id, IssueKey: "RIDGE-2", StartedAt: start} },
+			wantChanged: true,
+		},
+		{
+			name:        "another instance",
+			running:     true,
+			expected:    func(id int64) *Timer { return &Timer{InstanceID: id + 1, IssueKey: "RIDGE-1", StartedAt: start} },
+			wantChanged: true,
+		},
+		{
+			name:    "another start, one second later",
+			running: true,
+			expected: func(id int64) *Timer {
+				return &Timer{InstanceID: id, IssueKey: "RIDGE-1", StartedAt: start.Add(time.Second)}
+			},
+			wantChanged: true,
+		},
+		{
+			name:        "no row at all",
+			running:     false,
+			expected:    func(id int64) *Timer { return &Timer{InstanceID: id, IssueKey: "RIDGE-1", StartedAt: start} },
+			wantChanged: true,
+		},
+		{
+			name:     "the same run",
+			running:  true,
+			expected: func(id int64) *Timer { return &Timer{InstanceID: id, IssueKey: "RIDGE-1", StartedAt: start} },
+		},
+		{
+			name:     "the same instant in another zone",
+			running:  true,
+			expected: func(id int64) *Timer { return &Timer{InstanceID: id, IssueKey: "RIDGE-1", StartedAt: start.In(loc)} },
+		},
+		{
+			name:     "no expectation",
+			running:  true,
+			expected: func(int64) *Timer { return nil },
+		},
+	}
+
+	for _, path := range []string{"stop", "switch"} {
+		for _, tc := range tests {
+			t.Run(path+"/"+tc.name, func(t *testing.T) {
+				ctx := context.Background()
+				s := openTestStore(t)
+				inst := createTestInstance(t, s)
+				if tc.running {
+					if _, _, _, err := s.StartTimer(ctx, inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
+						t.Fatalf("starting: %v", err)
+					}
+				}
+
+				choice := TimerClose{Round: RoundUp, Comment: "Traced the export", Expected: tc.expected(inst.ID)}
+				var err error
+				if path == "stop" {
+					_, _, err = s.StopTimer(ctx, at, loc, choice)
+				} else {
+					_, _, _, err = s.StartTimer(ctx, inst.ID, "RIDGE-3", at, loc, choice)
+				}
+
+				if !tc.wantChanged {
+					if err != nil {
+						t.Fatalf("err = %v, want the close to go through", err)
+					}
+					if got := countEntryRows(t, s); got != 1 {
+						t.Errorf("entries = %d, want 1: the run closed as today", got)
+					}
+					return
+				}
+
+				if !errors.Is(err, ErrTimerChanged) {
+					t.Fatalf("err = %v, want ErrTimerChanged", err)
+				}
+				if got := countEntryRows(t, s); got != 0 {
+					t.Errorf("entries = %d, want 0: a refused close logs nothing", got)
+				}
+				running, _, err := s.RunningTimer(ctx, at, loc)
+				if err != nil {
+					t.Fatalf("RunningTimer: %v", err)
+				}
+				if !tc.running {
+					if running != nil {
+						t.Errorf("running = %+v, want nothing: a refused %s must not start a timer", running, path)
+					}
+					return
+				}
+				if running == nil || running.IssueKey != "RIDGE-1" || !running.StartedAt.Equal(start) {
+					t.Errorf("running = %+v, want RIDGE-1 from %v untouched", running, start)
+				}
+			})
+		}
+	}
+}
+
+// A stale expectation on a timer whose start day has passed is still refused,
+// before the stop's own midnight close could run; the next read then closes
+// it as the midnight close always does, honest and on its start day (#226).
+func TestAStaleExpectationOnAnOvernightTimerIsRefusedAndTheMidnightCloseStillRuns(t *testing.T) {
+	loc := mustLoadLocation(t, "Europe/Amsterdam")
+	start := time.Date(2026, 9, 21, 23, 37, 0, 0, loc)
+	read := time.Date(2026, 9, 22, 9, 0, 0, 0, loc)
+
+	for _, path := range []string{"stop", "switch"} {
+		t.Run(path, func(t *testing.T) {
+			ctx := context.Background()
+			s := openTestStore(t)
+			inst := createTestInstance(t, s)
+			if _, _, _, err := s.StartTimer(ctx, inst.ID, "RIDGE-1", start, loc, TimerClose{}); err != nil {
+				t.Fatalf("starting: %v", err)
+			}
+
+			choice := TimerClose{
+				Round:    RoundUp,
+				Expected: &Timer{InstanceID: inst.ID, IssueKey: "RIDGE-2", StartedAt: start},
+			}
+			var err error
+			if path == "stop" {
+				_, _, err = s.StopTimer(ctx, read, loc, choice)
+			} else {
+				_, _, _, err = s.StartTimer(ctx, inst.ID, "RIDGE-3", read, loc, choice)
+			}
+			if !errors.Is(err, ErrTimerChanged) {
+				t.Fatalf("err = %v, want ErrTimerChanged", err)
+			}
+			if got := countTimerRows(t, s); got != 1 {
+				t.Errorf("timer rows = %d, want 1: the refusal must leave the overnight timer for the midnight close", got)
+			}
+			if got := countEntryRows(t, s); got != 0 {
+				t.Errorf("entries = %d, want 0", got)
+			}
+
+			running, closed, err := s.RunningTimer(ctx, read, loc)
+			if err != nil {
+				t.Fatalf("RunningTimer: %v", err)
+			}
+			if running != nil {
+				t.Errorf("running = %+v, want nil after the midnight close", running)
+			}
+			if closed == nil || closed.Seconds != 1380 || closed.Day != "2026-09-21" {
+				t.Errorf("closed = %+v, want the honest 1380s on 2026-09-21", closed)
 			}
 		})
 	}
