@@ -1,4 +1,6 @@
+import { messageOf } from "../alert";
 import { iconMarkup } from "../icons";
+import { toast } from "../toast";
 import { isRunningTicket, onTimerChanged, startTimer, stopTimer } from "../timer-state";
 
 /** One id per timer control mounted, so its tooltip's `for` can resolve it on
@@ -113,13 +115,12 @@ export class ThatTimer extends HTMLElement {
           this.getAttribute("key") ?? "",
         );
       }
-    } catch {
-      // Swallowed rather than surfaced: this button paints from
-      // isRunningTicket() alone, never optimistically, so a failed call left
-      // no state here to revert — the control just stays exactly as it was
-      // and a retry is another click away. Whether a failure deserves its own
-      // on-screen message is a design question the timer design does not
-      // answer, so this does not invent one.
+    } catch (error) {
+      // The button paints from isRunningTicket() alone, so a failure left
+      // nothing here to revert; it only needs naming, the way a failed pin
+      // is (#207). A stop or switch the dialog sent never lands here: it
+      // reports in the dialog and resolves on close (#208).
+      toast("error", messageOf(error));
     }
   }
 }

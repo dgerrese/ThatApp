@@ -1347,3 +1347,66 @@ test("after a failed stop the keyboard focus returns to the button that was pres
   await expect(log).toBeEnabled();
   await expect(log).toBeFocused();
 });
+
+/**
+ * #207: a start that fails reports in an error toast, the way a failed pin
+ * does (the toasts design, decisions 2, 4 and 10) — except a switch whose
+ * start fails inside the dialog, which #208's block already reports.
+ */
+const errorToasts = (page: Page) => page.locator("that-toasts that-toast[tone='error']");
+
+test("a start the server refuses with nothing running shows one error toast and leaves the button on start", async ({
+  page,
+}) => {
+  await stubTimer(page);
+  await failTimerPost(page, "start");
+  await page.goto("/today");
+
+  const start = ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" });
+  await start.click();
+
+  await expect(errorToasts(page)).toHaveCount(1);
+  await expect(errorToasts(page)).toContainText("Jira said no.");
+  await expect(page.locator("that-toast")).toHaveCount(1);
+  await expect(start).toBeVisible();
+  await expect(railTimer(page)).toContainText("No timer running");
+});
+
+test("a switch that fails in the dialog shows the block and no toast, after Keep running or Esc too", async ({
+  page,
+}) => {
+  await stubTimer(page);
+  await page.goto("/today");
+
+  const first = ticketRow(page, "WORK-1");
+  const second = ticketRow(page, "WORK-2");
+  await first.getByRole("button", { name: "start timer" }).click();
+  await expect(first.getByRole("button", { name: "stop timer" })).toBeVisible();
+
+  await failTimerPost(page, "start", 2);
+  const dialog = page.getByRole("dialog");
+  const heading = dialog.getByRole("heading");
+
+  await second.getByRole("button", { name: "start timer" }).click();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // Reopening proves the click's promise has settled, so a toast it would
+  // raise is already in the host before the count below.
+  await second.getByRole("button", { name: "start timer" }).click();
+  await expect(heading).toHaveText("Stop WORK-1 and start WORK-2?");
+  await expect(page.locator("that-toast")).toHaveCount(0);
+
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+
+  await second.getByRole("button", { name: "start timer" }).click();
+  await expect(heading).toHaveText("Stop WORK-1 and start WORK-2?");
+  await expect(page.locator("that-toast")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+  await expect(first.getByRole("button", { name: "stop timer" })).toBeVisible();
+});
