@@ -1289,3 +1289,41 @@ test("after a failure, Keep running and Esc still cancel, and the block leaves w
   await expect(page.locator("that-toast")).toHaveCount(0);
   await expect(row.getByRole("button", { name: "stop timer" })).toBeVisible();
 });
+
+test("while a stop is in flight the buttons are disabled, Esc and Enter do nothing, and a failure enables them again", async ({
+  page,
+}) => {
+  await stubTimer(page, { runningFor: 60 });
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let sent = 0;
+  await page.route("**/api/timer/stop", async (route) => {
+    sent++;
+    await held;
+    await route.fulfill({ status: 500, json: { code: "internal_error", message: "Jira said no." } });
+  });
+  await page.goto("/today");
+
+  const dialog = page.getByRole("dialog");
+  const names = ["Keep running", "Discard run", "Log 0:15"];
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" }).click();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect.poll(() => sent).toBe(1);
+
+  for (const name of names) await expect(dialog.getByRole("button", { name })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox", { name: "Description" }).press("Enter");
+  // A repaint tick passes: paint() must not re-enable anything.
+  await page.waitForTimeout(1100);
+  await expect(dialog).toBeVisible();
+  for (const name of names) await expect(dialog.getByRole("button", { name })).toBeDisabled();
+  expect(sent).toBe(1);
+
+  release();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  for (const name of names) await expect(dialog.getByRole("button", { name })).toBeEnabled();
+  await expect(dialog).toBeVisible();
+});

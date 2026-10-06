@@ -32,10 +32,12 @@ export class ThatStopDialog extends HTMLElement {
 
   private dialog: HTMLDialogElement | undefined;
   private ran: HTMLElement | undefined;
+  private keep: HTMLElement | undefined;
   private down: HTMLElement | undefined;
   private up: HTMLElement | undefined;
   private field: HTMLInputElement | undefined;
   private tick: number | undefined;
+  private busy = false;
 
   get comment(): string {
     return this.field?.value.trim() ?? "";
@@ -89,11 +91,17 @@ export class ThatStopDialog extends HTMLElement {
     up.addEventListener("click", () => void this.confirm("up"));
     actions.append(keep, down, up);
 
+    // Esc is a cancel; one arriving while a POST is out would close the dialog under it.
+    dialog.addEventListener("cancel", (event) => {
+      if (this.busy) event.preventDefault();
+    });
+
     dialog.setAttribute("aria-labelledby", heading.id);
     dialog.append(heading, line, label, actions, this.blocks);
     this.append(dialog);
     this.dialog = dialog;
     this.ran = ran;
+    this.keep = keep;
     this.down = down;
     this.up = up;
     this.field = field;
@@ -111,7 +119,9 @@ export class ThatStopDialog extends HTMLElement {
   /** Commits the choice first and closes only once it landed; a failure stays
    *  in the dialog as a block, so the typed description survives a retry. */
   private async confirm(round: Rounding): Promise<void> {
+    if (this.busy) return;
     this.blocks.clear();
+    this.setBusy(true);
     try {
       await this.commit({ round, comment: this.comment });
       this.dialog?.close();
@@ -120,6 +130,16 @@ export class ThatStopDialog extends HTMLElement {
         "error",
         error instanceof ApiError ? error.message : "Could not stop the timer — try again.",
       );
+    } finally {
+      this.setBusy(false);
+    }
+  }
+
+  private setBusy(busy: boolean): void {
+    this.busy = busy;
+    for (const button of [this.keep, this.down, this.up]) {
+      if (busy) button?.setAttribute("disabled", "");
+      else button?.removeAttribute("disabled");
     }
   }
 
