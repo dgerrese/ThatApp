@@ -101,24 +101,26 @@ export async function readTimer(): Promise<void> {
 }
 
 /** Asks how to stop the running timer; a confirmed rounding runs `commit`
- *  while the dialog is open. Imported lazily: the dialog is only ever needed
- *  after a click. */
+ *  while the dialog is open, against the run the dialog named (#226).
+ *  Imported lazily: the dialog is only ever needed after a click. */
 async function askHowToStop(
   nextIssueKey: string | undefined,
-  commit: (choice: StopChoice) => Promise<void>,
+  commit: (choice: StopChoice, shown: RunningTimer) => Promise<void>,
 ): Promise<void> {
-  const issueKey = running?.issueKey;
-  if (issueKey === undefined) return;
+  const shown = running;
+  if (!shown) return;
   const { confirmStop } = await import("./components/that-stop-dialog");
 
-  await confirmStop(issueKey, nextIssueKey, elapsedSeconds, commit);
+  await confirmStop(shown.issueKey, nextIssueKey, elapsedSeconds, (choice) =>
+    commit(choice, shown),
+  );
 }
 
 /** Starting over a running timer stops it first, so it asks how, the same as
  *  a stop does; kept running, nothing starts. */
 async function startTimerNow(instanceId: number, issueKey: string): Promise<void> {
-  const start = async (choice?: StopChoice): Promise<void> => {
-    const response = await postStartTimer(instanceId, issueKey, choice);
+  const start = async (choice?: StopChoice, shown?: RunningTimer): Promise<void> => {
+    const response = await postStartTimer(instanceId, issueKey, choice, shown);
     setRunning(response.running);
     if (response.stopped) announceEntriesChanged();
   };
@@ -143,8 +145,8 @@ async function startTimerNow(instanceId: number, issueKey: string): Promise<void
 }
 
 async function stopTimerNow(): Promise<void> {
-  await askHowToStop(undefined, async (choice) => {
-    const response = await postStopTimer(choice);
+  await askHowToStop(undefined, async (choice, shown) => {
+    const response = await postStopTimer(choice, shown);
     setRunning(null);
     if (response.stopped) announceEntriesChanged();
   });

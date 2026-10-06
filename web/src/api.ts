@@ -5,6 +5,7 @@ import type {
   Entry,
   EntryDraft,
   EntryEdit,
+  ExpectedTimer,
   Instance,
   InstanceDraft,
   IssueSearchResponse,
@@ -202,22 +203,24 @@ export function getTimer(): Promise<TimerStateResponse> {
 }
 
 /** `choice` is how to close the timer already running, which the server
- *  requires when one runs on the same day. */
+ *  requires when one runs on the same day; `expected` is the run that choice
+ *  was confirmed for (#226). */
 export function startTimer(
   instanceId: number,
   issueKey: string,
   choice?: StopChoice,
+  expected?: ExpectedTimer,
 ): Promise<StartTimerResponse> {
   return request<StartTimerResponse>("/api/timer/start", {
     method: "POST",
-    body: JSON.stringify({ instanceId, issueKey, ...choice }),
+    body: JSON.stringify({ instanceId, issueKey, ...choice, expected }),
   });
 }
 
-export function stopTimer(choice: StopChoice): Promise<StopTimerResponse> {
+export function stopTimer(choice: StopChoice, expected: ExpectedTimer): Promise<StopTimerResponse> {
   return request<StopTimerResponse>("/api/timer/stop", {
     method: "POST",
-    body: JSON.stringify(choice),
+    body: JSON.stringify({ ...choice, expected }),
   });
 }
 

@@ -236,6 +236,10 @@ export interface StopChoice {
   comment: string;
 }
 
+/** The run a stop or switch was confirmed for, so the server can refuse it
+ *  once another tab has changed the timer (#226). */
+export type ExpectedTimer = Pick<RunningTimer, "instanceId" | "issueKey" | "startedAt">;
+
 /** What POST /api/timer/start answers with. `discarded` is true when a timer
  *  was running and the rounding confirmed for it came to zero. */
 export interface StartTimerResponse {

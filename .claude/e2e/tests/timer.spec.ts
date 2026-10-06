@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 
 interface StubRunning {
   instanceId: number;
@@ -42,12 +42,19 @@ const GRID_SECONDS = 900;
  * state survives past the page it was created for, and a page.route survives
  * page.reload(), which is what lets the reload test work against it too.
  */
-async function stubTimer(page: Page, options?: { runningFor?: number }): Promise<TimerRecorder> {
+async function stubTimer(
+  page: Page,
+  options?: { runningFor?: number; issueKey?: string },
+): Promise<TimerRecorder> {
   const recorder: TimerRecorder = { stops: [], starts: [], logged: [] };
   let running: StubRunning | null =
     options?.runningFor === undefined
       ? null
-      : { instanceId: 1, issueKey: "WORK-1", startedAt: Date.now() - options.runningFor * 1000 };
+      : {
+          instanceId: 1,
+          issueKey: options.issueKey ?? "WORK-1",
+          startedAt: Date.now() - options.runningFor * 1000,
+        };
   let nextEntryId = 1;
 
   const runningDTO = () =>
@@ -58,6 +65,25 @@ async function stubTimer(page: Page, options?: { runningFor?: number }): Promise
     };
 
   const isRounding = (value: unknown): value is "up" | "down" => value === "up" || value === "down";
+
+  // The store's #226 rule: a close confirmed for another run, or for one no
+  // longer running, is refused and changes nothing. Starts compare as instants.
+  const namesAnotherRun = (expected: unknown): boolean => {
+    if (expected === undefined) return false;
+    const named = expected as Record<string, unknown>;
+
+    return (
+      !running ||
+      named["instanceId"] !== running.instanceId ||
+      named["issueKey"] !== running.issueKey ||
+      Date.parse(String(named["startedAt"])) !== running.startedAt
+    );
+  };
+  const timerChanged = (route: Route) =>
+    route.fulfill({
+      status: 409,
+      json: { code: "timer_changed", message: "The timer changed in another tab." },
+    });
 
   // Closes whatever is running as of `now` on the grid `round` names. Returns
   // the entry, or null — nothing was running, or the rounding came to zero.
@@ -94,6 +120,7 @@ async function stubTimer(page: Page, options?: { runningFor?: number }): Promise
   await page.route("**/api/timer/start", (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     recorder.starts.push(body);
+    if (namesAnotherRun(body["expected"])) return timerChanged(route);
     const wasRunning = running !== null;
     if (wasRunning && !isRounding(body["round"])) {
       return route.fulfill({ status: 400, json: { code: "invalid_request", message: "round" } });
@@ -112,6 +139,7 @@ async function stubTimer(page: Page, options?: { runningFor?: number }): Promise
   await page.route("**/api/timer/stop", (route) => {
     const body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
     recorder.stops.push(body);
+    if (namesAnotherRun(body["expected"])) return timerChanged(route);
     const round = body["round"];
     if (!isRounding(round)) {
       return route.fulfill({ status: 400, json: { code: "invalid_request", message: "round" } });
@@ -313,7 +341,7 @@ test("a stop rounds up in the dialog and the entry carries the seconds and the c
   await expect.poll(() => recorder.logged).toEqual([
     expect.objectContaining({ issueKey: "WORK-1", seconds: 900, comment: "Traced the export" }),
   ]);
-  expect(recorder.stops[0]).toEqual({ round: "up", comment: "Traced the export" });
+  expect(recorder.stops[0]).toEqual(expect.objectContaining({ round: "up", comment: "Traced the export" }));
 });
 
 test("a short run rounded down is discarded and logs nothing", async ({ page }) => {
@@ -1500,4 +1528,46 @@ test("in a stale tab, a switch whose retry fails shows the block, sends two star
   expect(recorder.starts.length + retries).toBe(2);
   await expect(page.locator("that-toast")).toHaveCount(0);
   await expect(railTimer(page)).toContainText("WORK-1");
+});
+
+/**
+ * #226: a stop or switch names the run its dialog was opened for, so a tab
+ * that missed another tab's switch cannot close the wrong timer; the server
+ * refuses it with a 409, and this tab re-reads and asks again, at most once.
+ */
+test("a confirmed switch and a confirmed stop name the run their dialog opened for; a plain start names none", async ({
+  page,
+}) => {
+  const recorder = await stubTimer(page, { runningFor: 60 });
+  await page.goto("/today");
+  const dialog = page.getByRole("dialog");
+
+  await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
+  await expect(dialog.getByRole("heading")).toHaveText("Stop WORK-1 and start WORK-2?");
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await ticketRow(page, "WORK-2").getByRole("button", { name: "stop timer" }).click();
+  await expect(dialog.getByText("WORK-2 ran")).toBeVisible();
+  await dialog.getByRole("button", { name: "Discard run" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(railTimer(page)).toContainText("No timer running");
+
+  await ticketRow(page, "WORK-1").getByRole("button", { name: "start timer" }).click();
+  await expect(ticketRow(page, "WORK-1").getByRole("button", { name: "stop timer" })).toBeVisible();
+
+  expect(recorder.starts).toEqual([
+    expect.objectContaining({
+      issueKey: "WORK-2",
+      round: "up",
+      expected: expect.objectContaining({ instanceId: 1, issueKey: "WORK-1" }),
+    }),
+    expect.not.objectContaining({ expected: expect.anything() }),
+  ]);
+  expect(recorder.stops).toEqual([
+    expect.objectContaining({
+      round: "down",
+      expected: expect.objectContaining({ instanceId: 1, issueKey: "WORK-2" }),
+    }),
+  ]);
 });
