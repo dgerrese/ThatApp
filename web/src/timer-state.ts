@@ -13,7 +13,8 @@
  * module says now".
  *
  * A stop, or a start over a running timer, asks the stop dialog how to round
- * first; the dialog is the only way either reaches the server.
+ * first, and the dialog sends the POST while it is still open, so a failure
+ * stays in it (#208).
  */
 import { getTimer, startTimer as postStartTimer, stopTimer as postStopTimer } from "./api";
 import { announceEntriesChanged } from "./entries-changed";
@@ -94,44 +95,51 @@ export async function readTimer(): Promise<void> {
   if (response.stopped) announceEntriesChanged();
 }
 
-/** The stop dialog's answer for the running timer, or null when it was kept
- *  running. Imported lazily: the dialog is only ever needed after a click. */
-async function askHowToStop(nextIssueKey?: string): Promise<StopChoice | null> {
+/** Asks how to stop the running timer; a confirmed rounding runs `commit`
+ *  while the dialog is open. Imported lazily: the dialog is only ever needed
+ *  after a click. */
+async function askHowToStop(
+  nextIssueKey: string | undefined,
+  commit: (choice: StopChoice) => Promise<void>,
+): Promise<void> {
   const issueKey = running?.issueKey;
-  if (issueKey === undefined) return null;
+  if (issueKey === undefined) return;
   const { confirmStop } = await import("./components/that-stop-dialog");
 
-  return confirmStop(issueKey, nextIssueKey, elapsedSeconds);
+  await confirmStop(issueKey, nextIssueKey, elapsedSeconds, commit);
 }
 
 /** Starting over a running timer stops it first, so it asks how, the same as
  *  a stop does; kept running, nothing starts. */
 async function startTimerNow(instanceId: number, issueKey: string): Promise<void> {
-  let choice: StopChoice | undefined;
+  const start = async (choice?: StopChoice): Promise<void> => {
+    let response;
+    try {
+      response = await postStartTimer(instanceId, issueKey, choice);
+    } catch (error) {
+      // A timer started in another tab is unknown here, so this start went out
+      // without a rounding and was refused; re-read it so the next click asks.
+      await readTimer().catch(() => undefined);
+      throw error;
+    }
+    setRunning(response.running);
+    if (response.stopped) announceEntriesChanged();
+  };
+
   if (running) {
-    const answer = await askHowToStop(issueKey);
-    if (!answer) return;
-    choice = answer;
+    await askHowToStop(issueKey, start);
+
+    return;
   }
-  let response;
-  try {
-    response = await postStartTimer(instanceId, issueKey, choice);
-  } catch (error) {
-    // A timer started in another tab is unknown here, so this start went out
-    // without a rounding and was refused; re-read it so the next click asks.
-    await readTimer().catch(() => undefined);
-    throw error;
-  }
-  setRunning(response.running);
-  if (response.stopped) announceEntriesChanged();
+  await start();
 }
 
 async function stopTimerNow(): Promise<void> {
-  const choice = await askHowToStop();
-  if (!choice) return;
-  const response = await postStopTimer(choice);
-  setRunning(null);
-  if (response.stopped) announceEntriesChanged();
+  await askHowToStop(undefined, async (choice) => {
+    const response = await postStopTimer(choice);
+    setRunning(null);
+    if (response.stopped) announceEntriesChanged();
+  });
 }
 
 export function startTimer(instanceId: number, issueKey: string): Promise<void> {

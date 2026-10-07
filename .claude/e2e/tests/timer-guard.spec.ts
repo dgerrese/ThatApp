@@ -277,7 +277,7 @@ test("after Keep running, the next stop opens the dialog again", async ({ page }
   await expect(page.locator("#that-stop-dialog-heading")).toBeVisible();
 });
 
-test("after a failed stop, the next stop opens the dialog again", async ({ page }) => {
+test("after a failed stop and Keep running, the next stop opens the dialog again", async ({ page }) => {
   await stubTimer(page, { runningFor: 60 });
   // Registered after the stub's own /api/timer/stop route, so it runs first
   // for the one request `times: 1` allows, then falls through to the stub's
@@ -294,6 +294,8 @@ test("after a failed stop, the next stop opens the dialog again", async ({ page 
   await row.getByRole("button", { name: "stop timer" }).click();
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(page.locator("that-stop-dialog that-dialog-blocks that-toast")).toHaveCount(1);
+  await dialog.getByRole("button", { name: "Keep running" }).click();
   await expect(dialog).toHaveCount(0);
 
   await row.getByRole("button", { name: "stop timer" }).click();
