@@ -462,3 +462,129 @@ func TestMCPDeleteEntryFailsClosedWhenTheEntryCannotBeRead(t *testing.T) {
 		t.Errorf("Jira saw %d worklog deletes, want none", env.jira.deleteCalls)
 	}
 }
+
+// Every instant sits within an hour of midnight UTC or of midnight in the
+// configured zone, and each case's UTC date differs from its local one, so a
+// tool that defaulted the day itself — or resolved a named day at UTC midnight
+// — lands on the wrong date.
+func TestMCPCreateEntryLandsOnTheConfiguredZonesDay(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		zone          string
+		instant       time.Time
+		day           string
+		wantDay       string
+		wantStartedAt string
+	}{
+		{
+			name:    "half past midnight UTC is still the afternoon before in Los Angeles",
+			zone:    "America/Los_Angeles",
+			instant: time.Date(2026, 8, 22, 0, 30, 0, 0, time.UTC),
+			wantDay: "2026-08-21", wantStartedAt: "2026-08-21T17:30:00-07:00",
+		},
+		{
+			name:    "half an hour before midnight UTC is already tomorrow in Amsterdam",
+			zone:    "Europe/Amsterdam",
+			instant: time.Date(2026, 8, 21, 23, 30, 0, 0, time.UTC),
+			wantDay: "2026-08-22", wantStartedAt: "2026-08-22T01:30:00+02:00",
+		},
+		{
+			name:    "half past midnight in Auckland is still yesterday in UTC",
+			zone:    "Pacific/Auckland",
+			instant: time.Date(2026, 8, 21, 12, 30, 0, 0, time.UTC),
+			wantDay: "2026-08-22", wantStartedAt: "2026-08-22T00:30:00+12:00",
+		},
+		{
+			name:    "a named day starts at that day's midnight in the zone, not UTC's",
+			zone:    "Pacific/Auckland",
+			instant: time.Date(2026, 8, 21, 12, 30, 0, 0, time.UTC),
+			day:     "2026-08-20",
+			wantDay: "2026-08-20", wantStartedAt: "2026-08-20T00:00:00+12:00",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, db, inst := serverInZone(t, tc.zone, tc.instant)
+			day := ""
+			if tc.day != "" {
+				day = `,"day":"` + tc.day + `"`
+			}
+
+			got := callTool(t, srv, "create_entry", `{"instanceId":`+strconv.FormatInt(inst.ID, 10)+
+				`,"issueKey":"RIDGE-4929","seconds":1800,"comment":"Refinement"`+day+`}`)
+
+			if got.IsError {
+				t.Fatalf("create_entry: %s", got.text())
+			}
+			var dto entryDTO
+			if err := json.Unmarshal([]byte(got.text()), &dto); err != nil {
+				t.Fatalf("decoding %s: %v", got.text(), err)
+			}
+			if dto.Day != tc.wantDay {
+				t.Errorf("day = %q, want %q; UTC would have said %q",
+					dto.Day, tc.wantDay, tc.instant.UTC().Format(dayLayout))
+			}
+			if dto.StartedAt != tc.wantStartedAt {
+				t.Errorf("startedAt = %q, want %q", dto.StartedAt, tc.wantStartedAt)
+			}
+			stored := allEntries(t, db)
+			if len(stored) != 1 || stored[0].Day != tc.wantDay {
+				t.Errorf("stored %+v, want one entry on %s", stored, tc.wantDay)
+			}
+		})
+	}
+}
+
+// The same edit made twice — once through MCP, once through the API — on two
+// entries pushed alike. Push state is derived, never set, so both must read
+// dirty, and neither the worklog id nor pushed_at may move; a body that claims
+// push state is just another body the handler ignores.
+func TestMCPEditAfterAPushReadsDirtyExactlyAsTheAPIDoes(t *testing.T) {
+	for _, tc := range []struct{ name, edit string }{
+		{"a new duration", `"seconds":2700`},
+		{"a new comment", `"comment":"Reworded"`},
+		{
+			"a body that also claims push state",
+			`"seconds":2700,"pushState":"pushed","worklogId":"","pushedAt":"2099-01-01T00:00:00Z"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			srv, db, inst := serverInZone(t, "Europe/Amsterdam", time.Date(2026, 8, 21, 9, 0, 0, 0, time.UTC))
+			viaMCP := markEntryPushed(t, db, seedEntryForPatch(t, db, inst).ID, "wl-mcp")
+			viaAPI := markEntryPushed(t, db, seedEntryForPatch(t, db, inst).ID, "wl-api")
+			// Past the second updated_at and pushed_at are truncated to; see makeEntryDirty.
+			time.Sleep(1100 * time.Millisecond)
+
+			got := callTool(t, srv, "update_entry", `{"id":`+strconv.FormatInt(viaMCP.ID, 10)+`,`+tc.edit+`}`)
+			api := callEntries(t, srv, http.MethodPatch,
+				"/api/entries/"+strconv.FormatInt(viaAPI.ID, 10), `{`+tc.edit+`}`)
+
+			if got.IsError {
+				t.Fatalf("update_entry: %s", got.text())
+			}
+			var throughMCP entryDTO
+			if err := json.Unmarshal([]byte(got.text()), &throughMCP); err != nil {
+				t.Fatalf("decoding %s: %v", got.text(), err)
+			}
+			throughAPI := decodeEntry(t, api)
+			if throughMCP.PushState != "dirty" || throughMCP.PushState != throughAPI.PushState {
+				t.Errorf("pushState through MCP %q, through the API %q; want both dirty",
+					throughMCP.PushState, throughAPI.PushState)
+			}
+
+			stored, err := db.Entry(context.Background(), viaMCP.ID)
+			if err != nil {
+				t.Fatalf("reading entry %d: %v", viaMCP.ID, err)
+			}
+			if stored.WorklogID != "wl-mcp" {
+				t.Errorf("worklog id = %q, want wl-mcp kept", stored.WorklogID)
+			}
+			if stored.PushedAt == nil || !stored.PushedAt.Equal(*viaMCP.PushedAt) {
+				t.Errorf("pushedAt = %v, want %v kept", stored.PushedAt, viaMCP.PushedAt)
+			}
+			if pushStateOf(*stored) != "dirty" {
+				t.Errorf("stored row reads %q, want dirty", pushStateOf(*stored))
+			}
+		})
+	}
+}
