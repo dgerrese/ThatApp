@@ -54,7 +54,9 @@ The ticket's first criterion asks for **both** "answers `initialize`" **and** "n
 - Commits: if `git commit` fails on signing (a locked 1Password vault), retry the same commit with `git -c commit.gpgsign=false commit …` and carry on; note the last signed commit in the report. **Never push.** Never merge into `main`.
 - Branch: `issue-253-mcp-server`, cut from `main` (not from the `issue-259-*` branch checked out at planning time).
 
-## Rulings made before execution (the controller's, reversible — the owner may overturn either of the first two)
+## Rulings made before execution
+
+Rulings 1 and 2 were confirmed by the owner on 2026-10-07. Ruling 2's check is removed when #280 lands. The rest are the controller's, and the owner may reverse them.
 
 1. **Dual-era protocol** — see *Protocol revision* above. `initialize` negotiates among `2025-11-25`, `2025-06-18`, `2025-03-26` (echoing a supported request, otherwise answering `2025-11-25`); a request with `_meta` protocol version is served as 2026-07-28; `server/discover` lists `["2026-07-28","2025-11-25","2025-06-18","2025-03-26"]`. `ping` is answered in both eras (harmless where 2026-07-28 dropped it).
 2. **`delete_entry` refuses an entry that has reached Jira** (a worklog id: pushed *or* dirty). The ticket's decision is that "an assistant can never write to a real Jira instance", but `DELETE /api/entries/{id}` deletes the Jira worklog of such an entry first (`handleDeleteEntry`). The decision is the stronger statement, so the tool refuses with a fixed message and the owner deletes those in the app. It reads the row with `s.db.Entry` before forwarding; a push landing between that read and the DELETE could still reach Jira (marked `ponytail:` in the code; a local-only flag on the handler is the upgrade if that window ever matters).
