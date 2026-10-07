@@ -771,6 +771,19 @@ func TestACloseConfirmedForAnotherRunIsRefusedAndChangesNothing(t *testing.T) {
 					if got := countEntryRows(t, s); got != 1 {
 						t.Errorf("entries = %d, want 1: the run closed as today", got)
 					}
+					if path == "stop" {
+						if got := countTimerRows(t, s); got != 0 {
+							t.Errorf("timer rows = %d, want 0: the stop ended the run", got)
+						}
+						return
+					}
+					running, _, err := s.RunningTimer(ctx, at, loc)
+					if err != nil {
+						t.Fatalf("RunningTimer: %v", err)
+					}
+					if running == nil || running.IssueKey != "RIDGE-3" {
+						t.Errorf("running = %+v, want RIDGE-3 started by the switch", running)
+					}
 					return
 				}
 

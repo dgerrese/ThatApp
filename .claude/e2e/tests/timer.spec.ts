@@ -60,6 +60,8 @@ async function stubTimer(
   const runningDTO = () =>
     running && {
       instanceId: running.instanceId,
+      instanceName: "Acme",
+      instancePosition: 0,
       issueKey: running.issueKey,
       startedAt: new Date(running.startedAt).toISOString(),
     };
@@ -341,7 +343,11 @@ test("a stop rounds up in the dialog and the entry carries the seconds and the c
   await expect.poll(() => recorder.logged).toEqual([
     expect.objectContaining({ issueKey: "WORK-1", seconds: 900, comment: "Traced the export" }),
   ]);
-  expect(recorder.stops[0]).toEqual(expect.objectContaining({ round: "up", comment: "Traced the export" }));
+  expect(recorder.stops[0]).toEqual({
+    round: "up",
+    comment: "Traced the export",
+    expected: { instanceId: 1, issueKey: "WORK-1", startedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) },
+  });
 });
 
 test("a short run rounded down is discarded and logs nothing", async ({ page }) => {
