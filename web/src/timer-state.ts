@@ -134,8 +134,9 @@ async function askHowToStop(
 }
 
 /** Starting over a running timer stops it first, so it asks how, the same as
- *  a stop does; kept running, nothing starts. */
-async function startTimerNow(instanceId: number, issueKey: string): Promise<void> {
+ *  a stop does; kept running, nothing starts. `retried` marks the one retry a
+ *  click gets — #207's re-read or #226's 409 — so no path makes two. */
+async function startTimerNow(instanceId: number, issueKey: string, retried = false): Promise<void> {
   const start = async (choice?: StopChoice, shown?: RunningTimer): Promise<void> => {
     const response = await postStartTimer(instanceId, issueKey, choice, shown);
     setRunning(response.running);
@@ -143,7 +144,11 @@ async function startTimerNow(instanceId: number, issueKey: string): Promise<void
   };
 
   if (running) {
-    await askHowToStop(issueKey, start);
+    const outcome = await askHowToStop(issueKey, start);
+    // Another tab changed the timer (#226), and the re-read says what runs now:
+    // this ticket, done; another, ask about it; nothing, start plainly.
+    if (outcome === "closed" || retried || isRunningTicket(instanceId, issueKey)) return;
+    await startTimerNow(instanceId, issueKey, true);
 
     return;
   }
@@ -152,12 +157,12 @@ async function startTimerNow(instanceId: number, issueKey: string): Promise<void
   } catch (error) {
     // A 400 to a start with no rounding means a timer this tab never saw is
     // running. Re-read it and ask, so the first click is not a silent no-op
-    // (#207). The second call takes the branch above, so it retries at most once.
-    if (!(error instanceof ApiError && error.status === 400)) throw error;
+    // (#207). A retry already spent rethrows instead, so it toasts.
+    if (retried || !(error instanceof ApiError && error.status === 400)) throw error;
     await readTimer().catch(() => undefined);
     if (isRunningTicket(instanceId, issueKey)) return;
     if (!running) throw error;
-    await startTimerNow(instanceId, issueKey);
+    await startTimerNow(instanceId, issueKey, true);
   }
 }
 
