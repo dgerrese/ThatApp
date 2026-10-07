@@ -26,6 +26,8 @@ func main() {
 		log.Fatalf("configuration: %v", err)
 	}
 
+	cfg.Version = version
+
 	sealer, err := crypto.NewSealer(cfg.Secret)
 	if err != nil {
 		log.Fatalf("sealer: %v", err)
