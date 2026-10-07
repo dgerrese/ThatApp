@@ -17,6 +17,9 @@ type Config struct {
 	DBPath   string
 	Secret   []byte
 	Location *time.Location
+	// Version is the release this binary was built as. main sets it from its
+	// build-time version; it is not read from the environment.
+	Version string
 }
 
 // Load reads configuration through getenv and validates it. Callers pass

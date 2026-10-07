@@ -6,6 +6,7 @@ import { iconMarkup } from "./icons";
 import { instanceHue } from "./instance-hue";
 import { announcePushReported } from "./push-reported";
 import { navigate } from "./router";
+import { onTabReturn } from "./tab-return";
 import { currentTimer, elapsedSeconds, onTimerChanged, readTimer, stopTimer } from "./timer-state";
 import type { Entry, PushResponse, RunningTimer } from "./types";
 
@@ -389,6 +390,12 @@ export function startRail(): void {
   onTimerChanged(paintFigures);
   paintTimer();
   void refreshTimer();
+  // #253: whatever an MCP client did while the tab was away. Announcing with
+  // no payload is what has the rail, Today and Week each re-read for themselves.
+  onTabReturn(() => {
+    void refreshTimer();
+    announceEntriesChanged();
+  });
 
   /**
    * Confirms, pushes, then hands the result to whoever is listening for it —

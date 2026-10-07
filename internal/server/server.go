@@ -73,6 +73,9 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 	s.mux.HandleFunc("GET /api/week", s.handleWeek)
 	s.mux.HandleFunc("POST /api/week/fetch", s.handleFetchWeek)
 	s.mux.HandleFunc("/api/", handleAPINotFound)
+	// Every method, not "POST /mcp": the catch-all "/" below would otherwise
+	// take a GET and serve the app shell where the transport asks for a 405.
+	s.mux.HandleFunc("/mcp", s.handleMCP)
 	s.mux.HandleFunc("/", s.handleAsset)
 
 	return s
