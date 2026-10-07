@@ -445,34 +445,6 @@ test("a failed boot read of the timer retries until the rail shows what's actual
   await expect(railTimer(page)).toContainText("WORK-1", { timeout: 10_000 });
 });
 
-/**
- * A timer started from another tab or device is unknown to this one, so its
- * first start goes out with no rounding and the server refuses it. That
- * refusal must re-read the timer, or every later click fails the same way
- * until a reload.
- */
-test("a start refused over a timer this tab never saw re-reads it, so the next click asks to switch", async ({
-  page,
-}) => {
-  const recorder = await stubTimer(page, { runningFor: 60 });
-  await page.route(
-    "**/api/timer",
-    (route) => route.fulfill({ status: 200, json: { running: null, stopped: null } }),
-    { times: 1 },
-  );
-  await page.goto("/today");
-  await expect(railTimer(page)).toContainText("No timer running");
-
-  const start = ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" });
-  await start.click();
-  await expect.poll(() => recorder.starts.length).toBe(1);
-
-  await start.click();
-
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("heading")).toHaveText("Stop WORK-1 and start WORK-2?");
-});
-
 const instanceTable = (page: Page) => page.locator('that-table[sort-id="instance-1"]');
 
 async function rowKeys(page: Page): Promise<string[]> {
@@ -1346,4 +1318,186 @@ test("after a failed stop the keyboard focus returns to the button that was pres
   await expect(stopBlocks(page)).toHaveCount(1);
   await expect(log).toBeEnabled();
   await expect(log).toBeFocused();
+});
+
+/**
+ * #207: a start that fails reports in an error toast, the way a failed pin
+ * does (the toasts design, decisions 2, 4 and 10) — except a switch whose
+ * start fails inside the dialog, which #208's block already reports.
+ */
+const errorToasts = (page: Page) => page.locator("that-toasts that-toast[tone='error']");
+
+test("a start the server refuses with nothing running shows one error toast and leaves the button on start", async ({
+  page,
+}) => {
+  await stubTimer(page);
+  await failTimerPost(page, "start");
+  await page.goto("/today");
+
+  const start = ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" });
+  await start.click();
+
+  await expect(errorToasts(page)).toHaveCount(1);
+  await expect(errorToasts(page)).toContainText("Jira said no.");
+  await expect(page.locator("that-toast")).toHaveCount(1);
+  await expect(start).toBeVisible();
+  await expect(railTimer(page)).toContainText("No timer running");
+});
+
+test("a switch that fails in the dialog shows the block and no toast, after Keep running or Esc too", async ({
+  page,
+}) => {
+  await stubTimer(page);
+  await page.goto("/today");
+
+  const first = ticketRow(page, "WORK-1");
+  const second = ticketRow(page, "WORK-2");
+  await first.getByRole("button", { name: "start timer" }).click();
+  await expect(first.getByRole("button", { name: "stop timer" })).toBeVisible();
+
+  await failTimerPost(page, "start", 2);
+  const dialog = page.getByRole("dialog");
+  const heading = dialog.getByRole("heading");
+
+  await second.getByRole("button", { name: "start timer" }).click();
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // Reopening proves the click's promise has settled, so a toast it would
+  // raise is already in the host before the count below.
+  await second.getByRole("button", { name: "start timer" }).click();
+  await expect(heading).toHaveText("Stop WORK-1 and start WORK-2?");
+  await expect(page.locator("that-toast")).toHaveCount(0);
+
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+
+  await second.getByRole("button", { name: "start timer" }).click();
+  await expect(heading).toHaveText("Stop WORK-1 and start WORK-2?");
+  await expect(page.locator("that-toast")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+  await expect(first.getByRole("button", { name: "stop timer" })).toBeVisible();
+});
+
+/** This tab's boot read says nothing runs, while the stub's timer does. */
+async function staleBootRead(page: Page): Promise<void> {
+  await page.route(
+    "**/api/timer",
+    (route) => route.fulfill({ status: 200, json: { running: null, stopped: null } }),
+    { times: 1 },
+  );
+}
+
+test("in a tab that never saw the running timer, the first click on start asks to switch, and confirming switches", async ({
+  page,
+}) => {
+  const recorder = await stubTimer(page, { runningFor: 60 });
+  await staleBootRead(page);
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("No timer running");
+
+  await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading")).toHaveText("Stop WORK-1 and start WORK-2?");
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+
+  await expect(dialog).toHaveCount(0);
+  await expect(ticketRow(page, "WORK-2").getByRole("button", { name: "stop timer" })).toBeVisible();
+  await expect(railTimer(page)).toContainText("WORK-2");
+  expect(recorder.starts).toEqual([
+    expect.not.objectContaining({ round: expect.anything() }),
+    expect.objectContaining({ issueKey: "WORK-2", round: "up" }),
+  ]);
+  await expect(page.locator("that-toast")).toHaveCount(0);
+});
+
+test("in a stale tab, a start for the ticket already running elsewhere shows stop and asks nothing", async ({
+  page,
+}) => {
+  const recorder = await stubTimer(page, { runningFor: 60 });
+  await staleBootRead(page);
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("No timer running");
+
+  const row = ticketRow(page, "WORK-1");
+  await row.getByRole("button", { name: "start timer" }).click();
+  await expect(row.getByRole("button", { name: "stop timer" })).toBeVisible();
+
+  // The next click is a plain stop: no switch dialog was left open, and the
+  // first click's work is finished.
+  await row.getByRole("button", { name: "stop timer" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading")).toHaveText("Stop the timer?");
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+
+  expect(recorder.starts.length).toBe(1);
+  await expect(page.locator("that-toast")).toHaveCount(0);
+});
+
+test("a refused start whose re-read finds nothing running reports once and sends no second start", async ({
+  page,
+}) => {
+  await stubTimer(page);
+  let starts = 0;
+  await page.route("**/api/timer/start", (route) => {
+    starts += 1;
+    return route.fulfill({
+      status: 400,
+      json: { code: "invalid_request", message: "a timer is running: round is required to stop it" },
+    });
+  });
+  await page.goto("/today");
+
+  const start = ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" });
+  await start.click();
+
+  await expect(page.locator("that-toasts that-toast[tone='error']")).toHaveCount(1);
+  expect(starts).toBe(1);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(start).toBeVisible();
+});
+
+test("a stale tab's start that fails for another reason reports in a toast and does not ask", async ({ page }) => {
+  await stubTimer(page, { runningFor: 60 });
+  await staleBootRead(page);
+  await failTimerPost(page, "start");
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("No timer running");
+
+  await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
+
+  await expect(page.locator("that-toasts that-toast[tone='error']")).toContainText("Jira said no.");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("in a stale tab, a switch whose retry fails shows the block, sends two starts and no third", async ({
+  page,
+}) => {
+  const recorder = await stubTimer(page, { runningFor: 60 });
+  await staleBootRead(page);
+  await page.goto("/today");
+  await expect(railTimer(page)).toContainText("No timer running");
+
+  await ticketRow(page, "WORK-2").getByRole("button", { name: "start timer" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading")).toHaveText("Stop WORK-1 and start WORK-2?");
+
+  let retries = 0;
+  await page.route("**/api/timer/start", (route) => {
+    retries += 1;
+    return route.fulfill({ status: 500, json: { code: "internal_error", message: "Jira said no." } });
+  });
+  await dialog.getByRole("button", { name: "Log 0:15" }).click();
+  await expect(stopBlocks(page)).toHaveCount(1);
+  await dialog.getByRole("button", { name: "Keep running" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  expect(recorder.starts.length + retries).toBe(2);
+  await expect(page.locator("that-toast")).toHaveCount(0);
+  await expect(railTimer(page)).toContainText("WORK-1");
 });

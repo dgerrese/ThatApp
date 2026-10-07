@@ -343,11 +343,10 @@ export function startRail(): void {
 
   const handleStopTimer = (): void => {
     void stopTimer().catch(() => {
-      // Swallowed for the same reason that-timer.ts's own catch is: the
-      // region paints from currentTimer() alone, a failed call changed
-      // nothing, and the button that was just pressed is still right there
-      // to press again. Left uncaught, this would surface as an unhandled
-      // promise rejection instead of a quiet, retryable no-op.
+      // A failed stop already reports in the dialog (#208) and resolves; this
+      // only meets a dialog chunk that would not load. The region paints from
+      // currentTimer() alone, so a failed call changed nothing, and left
+      // uncaught this would surface as an unhandled promise rejection.
     });
   };
 
