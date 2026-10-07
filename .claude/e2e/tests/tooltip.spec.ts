@@ -442,6 +442,93 @@ test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) 
   await expect(tooltip).toBeHidden();
 });
 
+// #267, WCAG 1.4.13 "dismissible": Escape closes a shown tooltip without
+// moving the pointer or focus. #107's click-through test below is what pins
+// pointer-events: none, so it is not repeated here.
+async function mountTriggerAfterButton(page: import("@playwright/test").Page): Promise<void> {
+  await mountTrigger(page);
+  await expect(page.locator("that-tooltip[data-fixture][popover]")).toBeAttached();
+  await page
+    .locator("#trigger")
+    .evaluate((t) =>
+      t.before(
+        Object.assign(document.createElement("button"), { id: "before", textContent: "before" }),
+      ),
+    );
+}
+
+test("Escape closes a tooltip opened by hover, with the pointer still on the trigger", async ({
+  page,
+}) => {
+  await mountTrigger(page);
+  await expect(page.locator("that-tooltip[data-fixture][popover]")).toBeAttached();
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await page.locator("#trigger").hover();
+  await expect(tooltip).toBeVisible();
+
+  await page.keyboard.press("Escape");
+
+  await expect(tooltip).toBeHidden();
+});
+
+test("Escape closes a tooltip opened by keyboard focus, and focus stays on the trigger", async ({
+  page,
+}) => {
+  await mountTriggerAfterButton(page);
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+  await page.locator("#before").focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Tab");
+  await expect(tooltip).toBeVisible();
+
+  await page.keyboard.press("Escape");
+
+  await expect(tooltip).toBeHidden();
+  await expect(page.locator("#trigger")).toBeFocused();
+});
+
+test("a tooltip closed by Escape opens again on the next hover or keyboard focus", async ({
+  page,
+}) => {
+  await mountTriggerAfterButton(page);
+  const tooltip = page.locator("that-tooltip[data-fixture]");
+
+  await page.locator("#trigger").hover();
+  await expect(tooltip).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toBeHidden();
+  await page.mouse.move(0, 0);
+  await page.locator("#trigger").hover();
+  await expect(tooltip).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toBeHidden();
+
+  await page.locator("#before").focus();
+  await page.keyboard.press("Tab");
+  await expect(tooltip).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toBeHidden();
+  await page.keyboard.press("Shift+Tab");
+  await expect(tooltip).toBeHidden();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#trigger")).toBeFocused();
+  await expect(tooltip).toBeVisible();
+});
+
+test("Escape with no tooltip open is left alone", async ({ page }) => {
+  await mountTrigger(page);
+  await page.evaluate(() => {
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape")
+        document.body.dataset["escapePrevented"] = String(event.defaultPrevented);
+    });
+  });
+
+  await page.keyboard.press("Escape");
+
+  await expect(page.locator("body")).toHaveAttribute("data-escape-prevented", "false");
+});
+
 // #107: a tooltip is never interactive, so a click where it sits reaches the
 // element under it. Revealed by keyboard so that moving the pointer to click
 // cannot close it first.
