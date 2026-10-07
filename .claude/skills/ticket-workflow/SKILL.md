@@ -529,6 +529,13 @@ because every task diff was individually correct and only a cross-task read coul
 change touches the frontend or the rig. Paste the output. See
 `superpowers:verification-before-completion` — evidence before assertions, always.
 
+**While Codeberg's hosted CI is stopped, the local run is the only gate.** Codeberg stopped the
+repository's CI for its run volume (#284). The owner set the rule on 2026-10-07: until CI is back,
+run **both** `make verify` and `make test-e2e` before **every** pull request, whatever it touches,
+and paste both results into the body. Pull requests that wait on the owner together are also merged
+on a local scratch branch, which is never pushed, and the full suite runs there once. Batch pushes,
+because each push starts runs. Remove this paragraph when CI is back.
+
 ## Keeping the handoff current
 
 The handoff is two things, and which one you write to depends on what you are recording.
