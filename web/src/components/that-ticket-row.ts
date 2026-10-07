@@ -71,6 +71,7 @@ export class ThatTicketRow extends HTMLElement {
   private readonly summaryId = `that-sum-${++summaryTriggerSequence}`;
   private readonly keyLinkId = `that-key-${summaryTriggerSequence}`;
   private readonly failureId = `that-fail-${summaryTriggerSequence}`;
+  private readonly dotId = `that-dot-${summaryTriggerSequence}`;
   private stopTimerListening: (() => void) | undefined;
 
   connectedCallback(): void {
@@ -469,8 +470,13 @@ export class ThatTicketRow extends HTMLElement {
     const holder = document.createElement("span");
     holder.className = "inline-flex items-center gap-2";
     const dot = document.createElement("span");
-    paintInstanceDot(dot, position, this.getAttribute("instance-name") ?? "");
-    holder.append(dot, label);
+    const name = this.getAttribute("instance-name") ?? "";
+    paintInstanceDot(dot, position, name);
+    dot.id = this.dotId;
+    const tooltip = document.createElement("that-tooltip");
+    tooltip.setAttribute("for", this.dotId);
+    tooltip.textContent = name;
+    holder.append(dot, label, tooltip);
 
     return holder;
   }

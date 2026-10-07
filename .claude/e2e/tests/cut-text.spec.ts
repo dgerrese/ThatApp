@@ -267,7 +267,9 @@ test("a cut rail instance name shows its full text on hover", async ({ page }) =
   await stubEntries(page, [railEntry(longInstanceName)]);
   await page.goto("/today");
   await page.getByText(longInstanceName, { exact: true }).first().hover();
-  await expect(page.locator("that-tooltip", { hasText: longInstanceName })).toBeVisible();
+  await expect(
+    page.locator("#rail-split that-tooltip", { hasText: longInstanceName }),
+  ).toBeVisible();
 });
 
 // #236: the settings cog is the rail's last Tab stop before the split — the

@@ -24,12 +24,12 @@ export function instanceHue(position: number): number {
 /**
  * Marks `element` as carrying an instance's identity colour. The name is set as
  * the accessible label rather than left to the hue, so identity survives a
- * monochrome screen and a colour deficiency both.
+ * monochrome screen and a colour deficiency both. It sets no `title`: a hover
+ * tooltip is the caller's, where the dot is a hover target worth one.
  */
 export function paintInstanceDot(element: HTMLElement, position: number, name: string): void {
   element.classList.add("that-dot");
   element.style.setProperty("--h", String(instanceHue(position)));
-  element.title = name;
   element.setAttribute("role", "img");
   element.setAttribute("aria-label", name);
 }

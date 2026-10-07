@@ -110,7 +110,10 @@ test("pinned issues render above the assigned cards", async ({ page }) => {
   // A pinned row names its instance by dot alone (accessible via role="img"),
   // not as visible row text — the restyle decision this branch shipped without.
   await expect(card.getByRole("img", { name: "Ridgeline" })).toBeVisible();
-  await expect(card.getByText("Ridgeline", { exact: true })).toHaveCount(0);
+  // The dot's own hover tooltip (#259) holds the name too, closed: present, not visible.
+  await expect(
+    card.getByText("Ridgeline", { exact: true }).filter({ visible: true }),
+  ).toHaveCount(0);
 
   // "Above" is a claim about document order, not just co-presence: compare the
   // Pinned card's top edge against the assigned-issues heading's.
