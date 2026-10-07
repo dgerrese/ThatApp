@@ -5,6 +5,7 @@ import type {
   Entry,
   EntryDraft,
   EntryEdit,
+  ExpectedTimer,
   Instance,
   InstanceDraft,
   IssueSearchResponse,
@@ -201,23 +202,36 @@ export function getTimer(): Promise<TimerStateResponse> {
   return request<TimerStateResponse>("/api/timer");
 }
 
+/** The wire contract names exactly these three fields, not the tab's whole run (#226). */
+function expectedBody(expected?: ExpectedTimer): ExpectedTimer | undefined {
+  return (
+    expected && {
+      instanceId: expected.instanceId,
+      issueKey: expected.issueKey,
+      startedAt: expected.startedAt,
+    }
+  );
+}
+
 /** `choice` is how to close the timer already running, which the server
- *  requires when one runs on the same day. */
+ *  requires when one runs on the same day; `expected` is the run that choice
+ *  was confirmed for (#226). */
 export function startTimer(
   instanceId: number,
   issueKey: string,
   choice?: StopChoice,
+  expected?: ExpectedTimer,
 ): Promise<StartTimerResponse> {
   return request<StartTimerResponse>("/api/timer/start", {
     method: "POST",
-    body: JSON.stringify({ instanceId, issueKey, ...choice }),
+    body: JSON.stringify({ instanceId, issueKey, ...choice, expected: expectedBody(expected) }),
   });
 }
 
-export function stopTimer(choice: StopChoice): Promise<StopTimerResponse> {
+export function stopTimer(choice: StopChoice, expected: ExpectedTimer): Promise<StopTimerResponse> {
   return request<StopTimerResponse>("/api/timer/stop", {
     method: "POST",
-    body: JSON.stringify(choice),
+    body: JSON.stringify({ ...choice, expected: expectedBody(expected) }),
   });
 }
 

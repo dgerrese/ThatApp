@@ -109,14 +109,35 @@ func (s *Server) handleGetTimer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// expectedTimerRequest names the run the stop dialog was confirmed for, so a
+// stale tab cannot close a timer another tab started since (#226). StartedAt
+// is a time.Time so a malformed one fails the body's decode, the 400 any
+// malformed field gets.
+type expectedTimerRequest struct {
+	InstanceID int64     `json:"instanceId"`
+	IssueKey   string    `json:"issueKey"`
+	StartedAt  time.Time `json:"startedAt"`
+}
+
+// storeTimer is the expectation as the store compares it: nil when the request
+// named none, which keeps today's unchecked close.
+func (e *expectedTimerRequest) storeTimer() *store.Timer {
+	if e == nil {
+		return nil
+	}
+
+	return &store.Timer{InstanceID: e.InstanceID, IssueKey: e.IssueKey, StartedAt: e.StartedAt}
+}
+
 // startTimerRequest is the body POST /api/timer/start accepts: the timer to
 // start, and — when one is already running — the direction and description
 // the stop dialog confirmed for closing it.
 type startTimerRequest struct {
-	InstanceID int64          `json:"instanceId"`
-	IssueKey   string         `json:"issueKey"`
-	Round      store.Rounding `json:"round"`
-	Comment    string         `json:"comment"`
+	InstanceID int64                 `json:"instanceId"`
+	IssueKey   string                `json:"issueKey"`
+	Round      store.Rounding        `json:"round"`
+	Comment    string                `json:"comment"`
+	Expected   *expectedTimerRequest `json:"expected"`
 }
 
 // startTimerResponse is what POST /api/timer/start answers with: the timer now
@@ -132,7 +153,8 @@ type startTimerResponse struct {
 // starts the new one. Both happen in the store's one transaction, so the
 // response's "stopped" is the entry that switch produced, if any. Round and
 // comment govern only the timer being closed; starting with nothing running
-// ignores them.
+// ignores them. An `expected` run that is not the one running is refused with
+// 409 timer_changed, changing nothing (#226).
 func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 	var req startTimerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -162,7 +184,11 @@ func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	running, stopped, wasRunning, err := s.db.StartTimer(r.Context(), inst.ID, key, s.now(), s.cfg.Location,
-		store.TimerClose{Round: req.Round, Comment: req.Comment})
+		store.TimerClose{Round: req.Round, Comment: req.Comment, Expected: req.Expected.storeTimer()})
+	if errors.Is(err, store.ErrTimerChanged) {
+		writeError(w, http.StatusConflict, "timer_changed", "The timer changed in another tab.")
+		return
+	}
 	if errors.Is(err, store.ErrRoundingRequired) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "a timer is running: round is required to stop it")
 		return
@@ -188,8 +214,9 @@ func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 // stopTimerRequest is the body POST /api/timer/stop requires: the direction
 // the stop dialog confirmed, and its optional description.
 type stopTimerRequest struct {
-	Round   store.Rounding `json:"round"`
-	Comment string         `json:"comment"`
+	Round    store.Rounding        `json:"round"`
+	Comment  string                `json:"comment"`
+	Expected *expectedTimerRequest `json:"expected"`
 }
 
 // stopTimerResponse is what POST /api/timer/stop answers with. Discarded is
@@ -204,7 +231,8 @@ type stopTimerResponse struct {
 // 15-minute grid in the direction the stop dialog confirmed. A malformed body
 // or a round that is neither "up" nor "down" is refused; nothing running still
 // answers 200 with both fields empty, matching the store's own "not an error"
-// reading of that case.
+// reading of that case. An `expected` run that is not the one running is
+// refused with 409 timer_changed, changing nothing (#226).
 func (s *Server) handleStopTimer(w http.ResponseWriter, r *http.Request) {
 	var req stopTimerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -217,7 +245,11 @@ func (s *Server) handleStopTimer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entry, wasRunning, err := s.db.StopTimer(r.Context(), s.now(), s.cfg.Location,
-		store.TimerClose{Round: req.Round, Comment: req.Comment})
+		store.TimerClose{Round: req.Round, Comment: req.Comment, Expected: req.Expected.storeTimer()})
+	if errors.Is(err, store.ErrTimerChanged) {
+		writeError(w, http.StatusConflict, "timer_changed", "The timer changed in another tab.")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "store_failed", "could not stop the timer")
 		return

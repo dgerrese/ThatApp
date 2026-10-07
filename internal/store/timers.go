@@ -40,11 +40,17 @@ const GridSeconds = 900
 var ErrRoundingRequired = errors.New("stopping a timer needs a rounding direction, up or down")
 
 // TimerClose is what the user confirmed in the stop dialog. The zero value
-// is the midnight close's: no direction and no comment.
+// is the midnight close's: no direction, no comment and no expectation.
 type TimerClose struct {
 	Round   Rounding
 	Comment string
+	// Expected is the run the dialog was confirmed for; nil skips the check.
+	Expected *Timer
 }
+
+// ErrTimerChanged refuses a stop or a switch confirmed for a run that is not
+// the one running — another tab switched or stopped the timer since (#226).
+var ErrTimerChanged = errors.New("the running timer is not the one this close was confirmed for")
 
 func roundedSeconds(seconds int, round Rounding) int {
 	if seconds <= 0 {
@@ -229,6 +235,21 @@ func (s *Store) RunningTimer(
 	return nil, entry, commitTimerTx(tx, "closing the overnight timer")
 }
 
+// matchesExpected reports whether row is the run expected names: the same
+// instance, key and start instant. A nil expected matches anything and a nil
+// row nothing. The key alone would miss a ticket stopped and restarted
+// elsewhere; Equal, not ==, so a start rendered in another zone still matches.
+func matchesExpected(row, expected *Timer) bool {
+	if expected == nil {
+		return true
+	}
+
+	return row != nil &&
+		row.InstanceID == expected.InstanceID &&
+		row.IssueKey == expected.IssueKey &&
+		row.StartedAt.Equal(expected.StartedAt)
+}
+
 // StartTimer closes any running timer as StopTimer would, then starts the new
 // one, in one transaction — the switch the row control and the rail both drive.
 // Keeping both in one transaction is what keeps the "exactly one timer" rule
@@ -236,7 +257,9 @@ func (s *Store) RunningTimer(
 // neither exist. wasRunning is true when a timer was running and this call
 // closed it, whether or not that close earned an entry; choice governs how a
 // same-day close lands, and a refusal (ErrRoundingRequired) rolls the whole
-// transaction back, leaving the original timer running untouched.
+// transaction back, leaving the original timer running untouched. A
+// choice.Expected that is not the running row (ErrTimerChanged) refuses before
+// anything is closed.
 func (s *Store) StartTimer(
 	ctx context.Context, instanceID int64, issueKey string, now time.Time, loc *time.Location, choice TimerClose,
 ) (running *Timer, stopped *Entry, wasRunning bool, err error) {
@@ -249,6 +272,9 @@ func (s *Store) StartTimer(
 	existing, err := runningTimerRow(ctx, tx)
 	if err != nil {
 		return nil, nil, false, err
+	}
+	if !matchesExpected(existing, choice.Expected) {
+		return nil, nil, false, ErrTimerChanged
 	}
 
 	var closedEntry *Entry
@@ -279,7 +305,8 @@ func (s *Store) StartTimer(
 // alike — can tell "stopped cleanly" from "there was nothing to stop" without
 // inspecting an error string. choice governs how a same-day close lands; a
 // refusal (ErrRoundingRequired) rolls the transaction back, leaving the timer
-// running.
+// running. A choice.Expected that is not the running row (ErrTimerChanged)
+// refuses before anything is closed.
 func (s *Store) StopTimer(
 	ctx context.Context, now time.Time, loc *time.Location, choice TimerClose,
 ) (stopped *Entry, wasRunning bool, err error) {
@@ -292,6 +319,9 @@ func (s *Store) StopTimer(
 	existing, err := runningTimerRow(ctx, tx)
 	if err != nil {
 		return nil, false, err
+	}
+	if !matchesExpected(existing, choice.Expected) {
+		return nil, false, ErrTimerChanged
 	}
 	if existing == nil {
 		return nil, false, commitTimerTx(tx, "stopping the timer")
