@@ -11,7 +11,7 @@
  * does not bubble to window — never counts as a return.
  */
 export function onTabReturn(handle: () => void): void {
-  let away = false;
+  let away = document.visibilityState === "hidden";
   const back = (): void => {
     if (!away) return;
     away = false;

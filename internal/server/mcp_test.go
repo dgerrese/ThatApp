@@ -115,6 +115,14 @@ func TestMCPTransport(t *testing.T) {
 			wantStatus: http.StatusBadRequest, wantCode: rpcParseError, wantNullID: true,
 		},
 		{
+			name: "a bare number is an invalid request", method: http.MethodPost,
+			body: `5`, wantStatus: http.StatusBadRequest, wantCode: rpcInvalidRequest, wantNullID: true,
+		},
+		{
+			name: "a bare string is an invalid request", method: http.MethodPost,
+			body: `"x"`, wantStatus: http.StatusBadRequest, wantCode: rpcInvalidRequest, wantNullID: true,
+		},
+		{
 			name: "a batch is an invalid request", method: http.MethodPost,
 			body: `[` + ping + `]`, wantStatus: http.StatusBadRequest, wantCode: rpcInvalidRequest, wantNullID: true,
 		},

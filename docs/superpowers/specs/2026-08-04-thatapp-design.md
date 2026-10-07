@@ -214,7 +214,7 @@ POST    /api/timer/stop                  creates a time entry
 
 POST    /api/push?day=YYYY-MM-DD         end-of-day push; per-entry results
 GET     /api/week?start=YYYY-MM-DD       weekly rollup
-POST    /mcp                             MCP (JSON-RPC); tools over the routes above, no push (#253)
+POST    /mcp                             MCP (JSON-RPC); tools over the routes above, no push, week fetch, instances or pins (#253)
 ```
 
 Errors return a JSON body with a stable machine-readable `code` and a human-readable `message`.

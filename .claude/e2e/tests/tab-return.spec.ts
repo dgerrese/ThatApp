@@ -93,6 +93,16 @@ function weekOf(entries: StubEntry[]) {
   };
 }
 
+const jiraTraffic: string[] = [];
+
+test.beforeEach(() => {
+  jiraTraffic.length = 0;
+});
+
+test.afterEach(() => {
+  expect(jiraTraffic).toEqual([]);
+});
+
 async function stubServer(page: Page, entries: StubEntry[] = []): Promise<StubServer> {
   const server: StubServer = { running: null, entries, reads: { timer: 0, entries: 0, week: 0 } };
 
@@ -124,8 +134,14 @@ async function stubServer(page: Page, entries: StubEntry[] = []): Promise<StubSe
     return route.fulfill({ status: 200, json: { today: TODAY, entries: server.entries } });
   });
   await page.route("**/api/week**", (route) => {
-    server.reads.week += 1;
-    return route.fulfill({ status: 200, json: weekOf(server.entries) });
+    const { pathname } = new URL(route.request().url());
+    if (route.request().method() === "GET" && pathname === "/api/week") {
+      server.reads.week += 1;
+      return route.fulfill({ status: 200, json: weekOf(server.entries) });
+    }
+    // Anything else under /api/week (the Jira fetch above all) must not happen on a return.
+    jiraTraffic.push(`${route.request().method()} ${pathname}`);
+    return route.fulfill({ status: 500, json: { error: "not stubbed" } });
   });
 
   return server;
@@ -186,6 +202,9 @@ for (const [how, away] of Object.entries(AWAY)) {
     await away.leave(page);
     writeFromOutside(server, "WORK-2");
     await settle(page);
+    // A second leaving event, now that the write exists: leaving must never read.
+    await away.leave(page);
+    await settle(page);
     // Still away: nothing may have moved yet, or the return is not what moved it.
     await expect(railTimer(page)).toContainText("No timer running");
     await expect(todayRow(page, "WORK-2")).toHaveAttribute("seconds", "0");
@@ -204,6 +223,9 @@ for (const [how, away] of Object.entries(AWAY)) {
     await away.leave(page);
     writeFromOutside(server, "WORK-2");
     await settle(page);
+    // A second leaving event, now that the write exists: leaving must never read.
+    await away.leave(page);
+    await settle(page);
     await expect(weekRow(page, "WORK-2")).toHaveCount(0);
 
     await away.comeBack(page);
@@ -212,6 +234,24 @@ for (const [how, away] of Object.entries(AWAY)) {
     await expect(railTimer(page)).toContainText("WORK-1");
   });
 }
+
+test("a tab opened in the background catches up when it first becomes visible", async ({ page }) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }),
+  );
+  const server = await stubServer(page);
+  await page.goto("/today");
+  await expect(todayRow(page, "WORK-2")).toHaveAttribute("seconds", "0");
+
+  writeFromOutside(server, "WORK-2");
+  await settle(page);
+  await expect(railTimer(page)).toContainText("No timer running");
+
+  await setVisibility(page, "visible");
+
+  await expect(railTimer(page)).toContainText("WORK-1");
+  await expect(todayRow(page, "WORK-2")).toHaveAttribute("seconds", "1800");
+});
 
 for (const path of ["/today", "/week"]) {
   test(`a tab on ${path} that stays visible and focused makes no extra reads`, async ({ page }) => {

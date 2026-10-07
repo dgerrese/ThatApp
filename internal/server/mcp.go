@@ -93,6 +93,11 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 		writeRPCError(w, http.StatusBadRequest, nil, rpcInvalidRequest, "batches are not supported")
 		return
 	}
+	// Valid JSON that is not an object (5, "x") is a malformed request, not a malformed body.
+	if trimmed := bytes.TrimSpace(raw); len(trimmed) > 0 && trimmed[0] != '{' && json.Valid(trimmed) {
+		writeRPCError(w, http.StatusBadRequest, nil, rpcInvalidRequest, "not a JSON-RPC 2.0 request")
+		return
+	}
 	var req rpcRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
 		writeRPCError(w, http.StatusBadRequest, nil, rpcParseError, "the body is not valid JSON")
