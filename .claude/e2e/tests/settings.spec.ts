@@ -1206,6 +1206,15 @@ test.describe("Escape with the instance form open", () => {
     await page.keyboard.press("Shift+Tab");
     const remove = settings.getByRole("button", { name: "Remove Ridgeline", exact: true });
     await expect(remove).toBeFocused();
+    // #267: keyboard focus shows Remove's tooltip, so the first Escape closes only it.
+    const removeTip = settings.locator("that-tooltip", { hasText: "remove instance" });
+    await expect(removeTip).toBeVisible();
+
+    await page.keyboard.press("Escape");
+
+    await expect(removeTip).toBeHidden();
+    await expect(settings.getByLabel("Name", { exact: true })).toBeVisible();
+    await expect(remove).toBeFocused();
 
     await page.keyboard.press("Escape");
 

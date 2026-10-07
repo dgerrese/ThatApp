@@ -954,6 +954,25 @@ test("the row's edit and delete controls carry a tooltip, like cancel beside the
   await expect(deleteTip).toHaveText("delete entry");
 });
 
+// #267: Escape closes a shown tooltip first; the dialog stays for the next one.
+test("Escape closes a tooltip inside the dialog first, and the dialog on the second press", async ({
+  page,
+}) => {
+  await openToday(page, [entry(1, "WORK-412", 3600)]);
+  await trigger(page, "WORK-412").click();
+
+  const editTip = entryRows(page).nth(0).locator("that-tooltip").nth(2);
+  await dialog(page).getByRole("button", { name: "Edit the 09:15 entry" }).hover();
+  await expect(editTip).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(editTip).toBeHidden();
+  await expect(dialog(page)).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog(page)).toHaveCount(0);
+});
+
 /**
  * The header is the instance, the key and the total. The status was there and
  * is not any more — the row that opened this already draws it — and the start

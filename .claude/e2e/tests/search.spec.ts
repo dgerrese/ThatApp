@@ -399,6 +399,29 @@ test.describe("that-issue-search on Today", () => {
     await expect(field).toHaveAttribute("aria-expanded", "false");
   });
 
+  // #267: with focus in the field, Escape closes a shown tooltip first.
+  test("Escape closes a tooltip in the panel first, and the field on the second press", async ({
+    page,
+  }) => {
+    await stubSearch(page, [ridge5140]);
+    await page.goto("/today");
+
+    const field = searchField(page);
+    await field.fill("capacity");
+    const key = resultRow(page, "RIDGE-5140").getByRole("link", { name: "RIDGE-5140" });
+    const tooltip = page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" });
+    await key.hover();
+    await expect(tooltip).toBeVisible();
+    await expect(field).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(tooltip).toBeHidden();
+    await expect(field).toHaveAttribute("aria-expanded", "true");
+
+    await page.keyboard.press("Escape");
+    await expect(field).toHaveAttribute("aria-expanded", "false");
+  });
+
   test("the field's aria-controls names the panel it expands", async ({ page }) => {
     await page.goto("/today");
 
@@ -1536,6 +1559,14 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
     await expect(page.getByText("RIDGE-6001")).toBeVisible();
 
     await field.press("ArrowDown");
+    // #267: the key link's tooltip is open, so the first Escape closes only it.
+    const keyLink = resultRow(page, "RIDGE-6001").getByRole("link", { name: "RIDGE-6001" });
+    const tooltip = page.locator("that-tooltip[for='that-search-key-1']");
+    await expect(tooltip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tooltip).toBeHidden();
+    await expect(keyLink).toBeFocused();
+
     await page.keyboard.press("Escape");
 
     await expect(field).toBeFocused();

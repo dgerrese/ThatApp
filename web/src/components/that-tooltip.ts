@@ -34,6 +34,18 @@ export class ThatTooltip extends HTMLElement {
     if (this.matches(":popover-open")) this.hidePopover();
   };
 
+  // #267, WCAG 1.4.13 "dismissible": Escape closes a shown tooltip without
+  // moving the pointer or focus. Captured on window and stopped there, so where
+  // Escape already means something — a showModal() dialog, the search field —
+  // the first press closes only the tooltip. preventDefault is what holds a
+  // modal dialog open (see that-stop-dialog's holdEscapeWhileBusy).
+  private readonly onEscape = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape" || !this.matches(":popover-open")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.hidePopover();
+  };
+
   connectedCallback(): void {
     this.setAttribute("popover", "manual");
     this.className =
@@ -51,6 +63,7 @@ export class ThatTooltip extends HTMLElement {
     trigger.addEventListener("pointerleave", this.onHide);
     trigger.addEventListener("focus", this.onFocus);
     trigger.addEventListener("blur", this.onHide);
+    window.addEventListener("keydown", this.onEscape, true);
 
     // reveal() places the box once, at show time, from the trigger's rect and
     // this element's own width. A consumer can repaint this element's text —
@@ -76,6 +89,7 @@ export class ThatTooltip extends HTMLElement {
     trigger.removeEventListener("pointerleave", this.onHide);
     trigger.removeEventListener("focus", this.onFocus);
     trigger.removeEventListener("blur", this.onHide);
+    window.removeEventListener("keydown", this.onEscape, true);
   }
 
   private reveal(): void {
