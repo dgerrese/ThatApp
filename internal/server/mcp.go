@@ -137,7 +137,7 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, failure := s.mcpResult(req.Method, params)
+	result, failure := s.mcpResult(r, req.Method, params)
 	if failure != nil {
 		status := http.StatusOK
 		if modern && failure.Code == rpcMethodNotFound {
@@ -150,7 +150,7 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 }
 
 // mcpResult answers one request's method, or names the JSON-RPC error it is.
-func (s *Server) mcpResult(method string, params mcpParams) (any, *rpcError) {
+func (s *Server) mcpResult(r *http.Request, method string, params mcpParams) (any, *rpcError) {
 	switch method {
 	case "initialize":
 		version := mcpLegacyVersions[0]
@@ -171,6 +171,14 @@ func (s *Server) mcpResult(method string, params mcpParams) (any, *rpcError) {
 			"ttlMs":             mcpCacheTTLMs,
 			"cacheScope":        "private",
 		}), nil
+	case "tools/list":
+		return s.mcpResultOf(map[string]any{
+			"tools":      mcpTools,
+			"ttlMs":      mcpCacheTTLMs,
+			"cacheScope": "private",
+		}), nil
+	case "tools/call":
+		return s.mcpCallTool(r, params)
 	default:
 		return nil, &rpcError{Code: rpcMethodNotFound, Message: "no such method: " + method}
 	}

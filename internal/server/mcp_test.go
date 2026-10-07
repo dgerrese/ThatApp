@@ -110,6 +110,11 @@ func TestMCPTransport(t *testing.T) {
 			body: `{"jsonrpc":`, wantStatus: http.StatusBadRequest, wantCode: rpcParseError, wantNullID: true,
 		},
 		{
+			name: "a body over the cap is a parse error", method: http.MethodPost,
+			body:       `{"jsonrpc":"2.0","id":1,"method":"ping","pad":"` + strings.Repeat("x", mcpMaxBody) + `"}`,
+			wantStatus: http.StatusBadRequest, wantCode: rpcParseError, wantNullID: true,
+		},
+		{
 			name: "a batch is an invalid request", method: http.MethodPost,
 			body: `[` + ping + `]`, wantStatus: http.StatusBadRequest, wantCode: rpcInvalidRequest, wantNullID: true,
 		},
