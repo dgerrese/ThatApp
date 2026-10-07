@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-09-30 at end of day**, against the Codeberg API rather than against local git — see
+**Verified on 2026-10-07 at end of day**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -31,57 +31,35 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### 2026-10-06 — read this first
+### 2026-10-07 — read this first
 
-**Two pull requests wait on the owner, and their merge order is forced.** PR #282 (#208) targets
-`main`; PR #283 (#207) is stacked on it (base `issue-208-failed-stop-dialog-block`). Merge #282 first
-and retarget #283 to `main`, or merge #283 into #208's branch and let #282 carry both.
+**Codeberg's hosted CI is stopped for this repository** (#284, its run volume). Until it is back,
+both `make verify` and `make test-e2e` run on this machine before every pull request, and the
+results go into the body. Pull requests that wait together are also tested merged, on a local
+scratch branch that is never pushed. The rule is in `ticket-workflow` through PR #292
+(`[Process]`, open). #220 (a self-hosted runner, v2) is the lasting answer.
 
-**#226 is `status/in-progress`, mid-plan, on `issue-226-stale-stop-names-its-timer`** (stacked on
-#207's branch; pushed, no pull request). Plan: `docs/superpowers/plans/2026-10-06-stale-stop-names-its-timer.md`,
-six tasks. Tasks 1–3 are reviewed clean. **Task 4 (`a25870e`) is committed but not reviewed:** it was
-GREEN (timer specs 106/106 on both browsers, `make tsc`) when the end-of-day signal stopped it, and
-`make verify` and mutations 13–18 never ran (Docker Hub DNS failed). Resume there: run mutations
-13–18, `make verify`, write `task-4-report.md`, then the task review; then Tasks 5 (refused switch)
-and 6 (gates). The SDD ledger, mutation log, specs and the `mut.py`/`e2e.sh` runner are in the
-gitignored `.superpowers/sdd/2026-10-06-stale-stop-names-its-timer/` **on this machine only**.
+**One product pull request waits on the owner: PR #291 (#253, the MCP server)**, which targets
+`main`. Its head `b8f32a6` passed both gates (998 passed). All of today's merges plus #291 together
+gave 1044 passed, 0 failed. `delete_entry` refuses an entry with a Jira worklog, by the owner's
+decision of 2026-10-07. **Remove that check when #280 lands**, because #280 makes a delete of a
+pushed entry wait for Push.
 
-**Codeberg opened #284 on 2026-10-06: hosted Forgejo Actions will be disabled for this repository**,
-citing the pipeline volume and its terms on AI-written code. Unanswered and unlabelled — the owner's
-call. Pull requests may no longer get CI; that bears on #220 (self-hosted runner, v2).
+**Merged today:** #226 (PR #286), #272 (#287), #267 (#288) and #259 (#289), and yesterday's handoff
+(#285). **#261 is closed, rescoped:** the stop dialog commits while it still holds focus, so no
+rebuild of the rail ever happens with focus in the rail. Its branch `issue-261-rail-focus-survives-rebuild`
+holds a helper the owner dropped. Do not revive it.
 
-**v1's queue after #226, all normal priority and `status/todo`:** the bug #272; then #259, #261, #267
-and #253. New today, not in the queue: **#280** (`status/needs-refinement`, the owner's request — a
-delete of a pushed entry waits for Push; changes the design of record and needs a design session) and
-**#281** (`status/intake` — the entry dialog's busy state drops focus; #208 fixed the stop dialog's
-half). Intake and refinement ran on 2026-10-06 — the owner's decisions there are in each ticket body
-and are not to be reopened:
+**v1 still open:** #253 (in review, PR #291), #280 (`status/todo`; a delete of a pushed entry waits
+for Push; needs a design session for how a pending delete looks), #281 (`status/intake`; the entry
+dialog's busy state drops focus).
 
-- **#273 declined** (`wontfix`). The visual language still says Push becomes Retry after a partial
-  failure; the app does not, and that sentence is now stale. A spec fix needs its own ticket, not
-  yet asked for.
-- **#267: Escape only.** Tooltips stay `pointer-events: none` and not hoverable — 1.4.13's
-  "hoverable" is knowingly unmet. Inside a dialog or the search field, the first Escape closes only
-  the tooltip.
-- **#259:** dots lose `title`; `that-tooltip` on hover only, and only in a ticket row and a Week row,
-  where the name is not printed beside the dot. No new Tab stops.
-- **#261:** covers the running timer line too. Focus returns only to the same element; otherwise it
-  falls to `<body>`, by choice.
-- **#272:** all three real-time debounce tests in `search.spec.ts` move to `page.clock`.
-- **#220 moved to v2**, still `status/needs-refinement`, waiting on the host.
-- **#253 (MCP server) moved to v1** and refined to `status/todo`, typed `enhancement`. Ten tools
-  over read, entries and the timer — **no push**. Streamable HTTP at `/mcp`, stateless, stdlib
-  JSON-RPC; each tool calls its `/api/*` handler in process. Protection is the `Origin` check only,
-  no token or `THAT_*` variable. An open tab re-reads the timer and entries on focus.
-- **#279 approved into v2** at `status/needs-refinement`: the dev stack publishes its port on every network.
-
-### 2026-10-05 — read this first
-
-**v1's queue is #208, #207, #226, in that order, all `bug` and `status/todo`.** Refined on 2026-10-05
-from #123's design: #208 shows a failed stop as a dialog block, #207 a failed start as a toast (and no
-toast when the dialog already showed the failure), #226 stacks on both. #208 was re-cut from `main` on
-2026-10-06 as `issue-208-failed-stop-dialog-block`; the older local `issue-208-failed-stop-keeps-description`
-has no commits of its own. The owner merged PR #277 (the first retro) on 2026-10-05.
+**Decisions the owner may still reverse**, recorded on their tickets:
+- #226: one retry per click, shared with #207. A second 409 after it closes the dialog quietly.
+- #267: the tooltip-first Escape applies everywhere, including search-result rows and Settings, so
+  a focused control there takes one extra Escape.
+- #273 was declined on 2026-10-06. The visual language still says Push becomes Retry after a
+  partial failure, which the app does not do. That sentence is stale and needs its own ticket.
 
 ### The first retro ran on 2026-10-05 — do not reopen its rules
 
