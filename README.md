@@ -82,3 +82,23 @@ docker run --rm -v thatapp-data:/data -v "$PWD":/backup alpine tar xzf /backup/t
 ```
 
 Back up `thatapp.env` too — the data is no use without its key.
+
+### Connecting an assistant
+
+ThatApp serves the [Model Context Protocol](https://modelcontextprotocol.io) at `/mcp`, on the same
+port as the app. An assistant connected to it can read your assigned issues, your logged time and
+the timer, log and edit time, and start and stop the timer. It cannot push: worklogs reach Jira only
+from the app's own Push button, and it will not delete an entry that is already in Jira.
+
+To connect Claude Code, using the port you published in step 2:
+
+```shell
+claude mcp add --transport http thatapp http://localhost:8080/mcp
+```
+
+**The same warning as the port applies.** `/mcp` has no login either: anything that can reach the
+port can read and change your logged time through it. It refuses any request a web page sends, but
+that is all it does — keep the `127.0.0.1:` in front of the port.
+
+A tab you left open catches up when you switch back to it, so time logged through the assistant
+shows without a reload.
