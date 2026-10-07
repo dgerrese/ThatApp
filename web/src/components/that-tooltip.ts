@@ -42,7 +42,7 @@ export class ThatTooltip extends HTMLElement {
   private readonly onEscape = (event: KeyboardEvent): void => {
     if (event.key !== "Escape" || !this.matches(":popover-open")) return;
     event.preventDefault();
-    event.stopImmediatePropagation();
+    event.stopPropagation();
     this.hidePopover();
   };
 

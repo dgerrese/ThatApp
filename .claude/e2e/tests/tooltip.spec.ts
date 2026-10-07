@@ -515,6 +515,31 @@ test("a tooltip closed by Escape opens again on the next hover or keyboard focus
   await expect(tooltip).toBeVisible();
 });
 
+test("one Escape closes every open tooltip", async ({ page }) => {
+  await mountTrigger(page, { id: "first", label: "First", text: "first tip" });
+  await mountTrigger(page, { id: "second", label: "Second", text: "second tip" });
+  await expect(page.locator("that-tooltip[for='second'][popover]")).toBeAttached();
+  const first = page.locator("that-tooltip[for='first']");
+  const second = page.locator("that-tooltip[for='second']");
+
+  await page
+    .locator("#first")
+    .evaluate((t) =>
+      t.before(Object.assign(document.createElement("button"), { id: "pre", textContent: "pre" })),
+    );
+
+  await page.locator("#second").hover();
+  await page.locator("#pre").focus();
+  await page.keyboard.press("Tab");
+  await expect(first).toBeVisible();
+  await expect(second).toBeVisible();
+
+  await page.keyboard.press("Escape");
+
+  await expect(first).toBeHidden();
+  await expect(second).toBeHidden();
+});
+
 test("Escape with no tooltip open is left alone", async ({ page }) => {
   await mountTrigger(page);
   await page.evaluate(() => {
