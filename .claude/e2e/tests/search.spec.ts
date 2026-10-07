@@ -136,7 +136,8 @@ function searchField(page: Page) {
 }
 
 /** Installs the fake clock before navigation and pauses it once the page has
- *  loaded, so the debounce fires only when a test advances time (#272). */
+ *  loaded, so the debounce fires only when a test advances time (#272).
+ *  Also installs the in-page search-fetch counter. */
 async function gotoTodayOnPausedClock(page: Page): Promise<void> {
   await page.clock.install();
   await installSearchFetchCounter(page);
@@ -421,10 +422,10 @@ test.describe("that-issue-search on Today", () => {
     expect(await searchFetches(page)).toBe(0);
   });
 
-  // Each keystroke is 20ms of fake time apart — far under the 350ms debounce — so a correct
-  // implementation fires exactly one request after the last one, not one per
-  // keystroke. Moved from the deleted pin form's own coverage: the debounce is
-  // this component's own logic (runSearch/scheduleSearch), not something that
+  // Each keystroke is 20ms of fake time apart — far under the 350ms debounce,
+  // so a correct implementation fires exactly one request after the last one, not
+  // one per keystroke. Moved from the deleted pin form's own coverage: the debounce
+  // is this component's own logic (runSearch/scheduleSearch), not something that
   // left with the form.
   test("rapid keystrokes are coalesced into a single search", async ({ page }) => {
     await stubSearch(page, [ridge5140]);

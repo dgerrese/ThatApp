@@ -37,6 +37,8 @@ when the test says so. **Test-only. No product code changes.**
 
 **Files:** `.claude/e2e/tests/search.spec.ts` only.
 
+**Deviation:** The shipped tests assert an in-page count of search fetches (an `addInitScript` wrapper around `window.fetch`) instead of `stubSearch`'s `calls()`, because the driver-side count read straight after `runFor` passed vacuously (a mutation stayed green).
+
 Add one helper beside `searchField`, and rewrite the three tests. Target shape (adapt names to the
 file; the behaviour is binding):
 
