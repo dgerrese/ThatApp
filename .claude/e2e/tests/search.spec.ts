@@ -135,6 +135,43 @@ function searchField(page: Page) {
   return page.getByRole("textbox", { name: "Search all instances" });
 }
 
+/** Installs the fake clock before navigation and pauses it once the page has
+ *  loaded, so the debounce fires only when a test advances time (#272).
+ *  Also installs the in-page search-fetch counter. */
+async function gotoTodayOnPausedClock(page: Page): Promise<void> {
+  await page.clock.install();
+  await installSearchFetchCounter(page);
+  await page.goto("/today");
+  const now = await page.evaluate(() => Date.now());
+  await page.clock.pauseAt(now + 1_000);
+}
+
+declare global {
+  interface Window {
+    searchFetches: number;
+  }
+}
+
+/** Counts search fetches inside the page, aborted ones included. The driver
+ *  intercepts a request asynchronously, so a count taken there straight after
+ *  `runFor` can miss it; this one is bumped synchronously by the timer
+ *  callback and read by a later `evaluate`, strictly after it. */
+async function installSearchFetchCounter(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    window.searchFetches = 0;
+    const realFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes("/api/issues/search")) window.searchFetches += 1;
+      return realFetch(input, init);
+    };
+  });
+}
+
+function searchFetches(page: Page): Promise<number> {
+  return page.evaluate(() => window.searchFetches);
+}
+
 /** The result row for `key`, scoped from the key's own link — the only
  *  element in a row that names its ticket, since a control's accessible name
  *  is fixed per IssueSearchControl and repeats across every row. Reaches the
@@ -376,28 +413,32 @@ test.describe("that-issue-search on Today", () => {
   });
 
   test("typing fewer than two characters reaches no network", async ({ page }) => {
-    const search = await stubSearch(page, []);
-    await page.goto("/today");
+    await stubSearch(page, []);
+    await gotoTodayOnPausedClock(page);
 
     await searchField(page).fill("r");
-    await page.waitForTimeout(600);
+    await page.clock.runFor(600);
 
-    expect(search.calls()).toBe(0);
+    expect(await searchFetches(page)).toBe(0);
   });
 
-  // Each keystroke is 20ms apart — far under the 350ms debounce — so a correct
-  // implementation fires exactly one request after the last one, not one per
-  // keystroke. Moved from the deleted pin form's own coverage: the debounce is
-  // this component's own logic (runSearch/scheduleSearch), not something that
+  // Each keystroke is 20ms of fake time apart — far under the 350ms debounce,
+  // so a correct implementation fires exactly one request after the last one, not
+  // one per keystroke. Moved from the deleted pin form's own coverage: the debounce
+  // is this component's own logic (runSearch/scheduleSearch), not something that
   // left with the form.
   test("rapid keystrokes are coalesced into a single search", async ({ page }) => {
-    const search = await stubSearch(page, [ridge5140]);
-    await page.goto("/today");
+    await stubSearch(page, [ridge5140]);
+    await gotoTodayOnPausedClock(page);
 
-    await searchField(page).pressSequentially("capacity", { delay: 20 });
+    for (const key of "capacity") {
+      await searchField(page).press(key);
+      await page.clock.runFor(20);
+    }
+    await page.clock.runFor(400);
     await expect(page.getByText("RIDGE-5140")).toBeVisible();
 
-    expect(search.calls()).toBe(1);
+    expect(await searchFetches(page)).toBe(1);
   });
 
   // A pending debounce timer that outlives the panel closing would fire on a
@@ -406,16 +447,16 @@ test.describe("that-issue-search on Today", () => {
   // against. Escape is this component's own way to close, replacing the
   // deleted form's Cancel button.
   test("closing the field within the debounce window makes no request", async ({ page }) => {
-    const search = await stubSearch(page, []);
-    await page.goto("/today");
+    await stubSearch(page, []);
+    await gotoTodayOnPausedClock(page);
 
     const field = searchField(page);
     await field.fill("capacity");
-    // Well inside the 350ms debounce window: the timer it started has not fired.
+    // No fake time has passed, so the 350ms timer it started has not fired.
     await field.press("Escape");
-    await page.waitForTimeout(500);
+    await page.clock.runFor(1_000);
 
-    expect(search.calls()).toBe(0);
+    expect(await searchFetches(page)).toBe(0);
   });
 
   // A second keystroke aborts the first request's fetch. request()'s bare
