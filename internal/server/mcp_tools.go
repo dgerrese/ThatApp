@@ -3,7 +3,10 @@ package server
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -222,8 +225,14 @@ func (s *Server) mcpCallTool(r *http.Request, params mcpParams) (any, *rpcError)
 	if err != nil {
 		return s.mcpToolResult("the arguments do not fit "+tool.Name+"'s input schema: "+err.Error(), true), nil
 	}
-	if tool.Name == "delete_entry" && s.entryReachedJira(r.Context(), args) {
-		return s.mcpToolResult(mcpJiraDeleteRefusal, true), nil
+	if tool.Name == "delete_entry" {
+		reached, err := s.entryReachedJira(r.Context(), args)
+		if err != nil {
+			return s.mcpToolResult("could not read the entry, so it was not deleted", true), nil
+		}
+		if reached {
+			return s.mcpToolResult(mcpJiraDeleteRefusal, true), nil
+		}
 	}
 
 	status, body := s.callAPI(r.Context(), call)
@@ -239,21 +248,28 @@ func (s *Server) mcpCallTool(r *http.Request, params mcpParams) (any, *rpcError)
 }
 
 // entryReachedJira reports whether the entry delete_entry's arguments name has
-// a worklog. An id that does not resolve is left for the handler to answer.
+// a worklog. It fails closed: a missing entry is left for the handler to answer
+// 404, but any other read error stops the delete.
 //
 // ponytail: read before the DELETE, outside pushMu (the handler takes that lock
 // itself), so a push landing in between can still reach Jira; a local-only flag
 // on DELETE /api/entries/{id} closes it if that window ever matters.
-func (s *Server) entryReachedJira(ctx context.Context, args json.RawMessage) bool {
+func (s *Server) entryReachedJira(ctx context.Context, args json.RawMessage) (bool, error) {
 	var named struct {
 		ID int64 `json:"id"`
 	}
 	if json.Unmarshal(args, &named) != nil {
-		return false
+		return false, nil
 	}
 	entry, err := s.db.Entry(ctx, named.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("reading entry %d before deleting it: %w", named.ID, err)
+	}
 
-	return err == nil && entry.WorklogID != ""
+	return entry.WorklogID != "", nil
 }
 
 // callAPI runs one request through the server's own routes, in process, so a

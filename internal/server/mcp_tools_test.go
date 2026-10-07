@@ -444,3 +444,21 @@ func TestMCPListEntriesDefaultsToTheHandlersToday(t *testing.T) {
 		t.Errorf("isError %v, text %s; want today's entry, RIDGE-9", got.IsError, got.text())
 	}
 }
+
+// A closed store is the least contrived read error the helpers allow. Failing
+// open would send the DELETE on, and the handler's own message would differ.
+func TestMCPDeleteEntryFailsClosedWhenTheEntryCannotBeRead(t *testing.T) {
+	env := newEntriesEnv(t)
+	entry := env.createEntry(t, "RIDGE-1", 900, "")
+	env.markPushed(t, entry.ID, "wl-1")
+	_ = env.store.Close()
+
+	got := callTool(t, env.s, "delete_entry", `{"id":`+strconv.FormatInt(entry.ID, 10)+`}`)
+
+	if !got.IsError || got.text() != "could not read the entry, so it was not deleted" {
+		t.Errorf("isError %v, text %q; want the guard's own tool error", got.IsError, got.text())
+	}
+	if env.jira.deleteCalls != 0 {
+		t.Errorf("Jira saw %d worklog deletes, want none", env.jira.deleteCalls)
+	}
+}
