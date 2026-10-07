@@ -68,9 +68,9 @@ export function failuresIn(responses: PushResponse[]): Failures {
  */
 const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap align-middle";
 
-/** One id per row's key link, so its that-tooltip's `for` can resolve it on a
- *  page holding many rows — the same reasoning weekCellSequence below gives
- *  its own triggers (#143). */
+/** One id per row's key link and one per row's instance dot, so each
+ *  that-tooltip's `for` can resolve its trigger on a page holding many rows —
+ *  the same reasoning weekCellSequence below gives its own triggers (#143, #259). */
 let weekKeyLinkSequence = 0;
 let weekDotSequence = 0;
 
