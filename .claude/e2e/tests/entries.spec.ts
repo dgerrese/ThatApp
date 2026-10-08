@@ -1453,3 +1453,60 @@ test("a failed read of the entries is a block", async ({ page }) => {
   // failures that are not one.
   await expect(blocks(page)).toContainText("Could not reach the dashboard server.");
 });
+
+/** #281: disabling the pressed save button drops focus to <body>; the
+ *  dialog returns it once the busy state ends. */
+async function failEntryPosts(page: Page): Promise<void> {
+  await page.route("**/api/entries**", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+
+      return;
+    }
+    await route.fulfill({ status: 502, json: { code: "jira", message: "Jira said no." } });
+  });
+}
+
+test("after a failed save the keyboard focus returns to the save button", async ({ page }) => {
+  await openToday(page);
+  await failEntryPosts(page);
+
+  await trigger(page, "WORK-412").click();
+  await typeDuration(page, "130");
+  const save = dialog(page).getByRole("button", { name: "Add entry" });
+  await save.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(dialog(page)).toContainText("Jira said no.");
+  await expect(save).toBeEnabled();
+  await expect(save).toBeFocused();
+});
+
+test("after a successful save the keyboard focus returns to the save button", async ({ page }) => {
+  const recorder = await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+  await typeDuration(page, "130");
+  const save = dialog(page).getByRole("button", { name: "Add entry" });
+  await save.focus();
+  await page.keyboard.press("Enter");
+
+  await expect.poll(() => recorder.posted.length).toBe(1);
+  await expect(dialogTotal(page)).toHaveText("1h 30m");
+  await expect(save).toBeEnabled();
+  await expect(save).toBeFocused();
+});
+
+test("a save started from the comment field leaves focus in the comment field", async ({ page }) => {
+  await openToday(page);
+  await failEntryPosts(page);
+
+  await trigger(page, "WORK-412").click();
+  await typeDuration(page, "130");
+  const comment = dialog(page).getByPlaceholder("What did you work on?");
+  await comment.fill("csv");
+  await comment.press("Enter");
+
+  await expect(dialog(page)).toContainText("Jira said no.");
+  await expect(comment).toBeFocused();
+});
