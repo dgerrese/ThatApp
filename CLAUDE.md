@@ -168,7 +168,8 @@ Both are worth a table-driven test that a plausible refactor would fail.
 Development goes by Codeberg issues in `DionGerrese/ThatApp`. Every change to the *product* has
 an issue, a branch and a pull request. Changes to how the project is *run* — `CLAUDE.md`,
 `.claude/**`, process documents — need no issue and go in their own pull request; split a change
-that touches both.
+that touches both. A change to user documentation alone, such as `README.md`, needs no issue either:
+it gets a branch and a pull request titled `[Docs]`.
 
 Open tickets carry exactly one `status/*` label; closed ones carry none, because Codeberg already
 records how an issue ended:
