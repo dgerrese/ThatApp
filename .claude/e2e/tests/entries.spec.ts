@@ -1454,8 +1454,7 @@ test("a failed read of the entries is a block", async ({ page }) => {
   await expect(blocks(page)).toContainText("Could not reach the dashboard server.");
 });
 
-/** #281: disabling the pressed save button drops focus to <body>; the
- *  dialog returns it once the busy state ends. */
+/** Every POST to the entries endpoint answers 502; other methods fall through. */
 async function failEntryPosts(page: Page): Promise<void> {
   await page.route("**/api/entries**", async (route) => {
     if (route.request().method() !== "POST") {
@@ -1509,4 +1508,71 @@ test("a save started from the comment field leaves focus in the comment field", 
 
   await expect(dialog(page)).toContainText("Jira said no.");
   await expect(comment).toBeFocused();
+});
+
+test("a save started from the comment field leaves focus there after it succeeds", async ({
+  page,
+}) => {
+  const recorder = await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+  await typeDuration(page, "130");
+  const comment = dialog(page).getByPlaceholder("What did you work on?");
+  await comment.fill("csv");
+  await comment.press("Enter");
+
+  await expect.poll(() => recorder.posted.length).toBe(1);
+  await expect(dialogTotal(page)).toHaveText("1h 30m");
+  await expect(comment).toBeFocused();
+});
+
+test("the save button and the duration field stay disabled while the request runs", async ({
+  page,
+}) => {
+  await openToday(page);
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/entries**", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+
+      return;
+    }
+    await gate;
+    await route.fallback();
+  });
+
+  await trigger(page, "WORK-412").click();
+  await typeDuration(page, "130");
+  const save = dialog(page).getByRole("button", { name: "Add entry" });
+  await save.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(save).toBeDisabled();
+  await expect(durationField(page)).toBeDisabled();
+
+  release();
+
+  await expect(save).toBeEnabled();
+  await expect(durationField(page)).toBeEnabled();
+});
+
+test("after saving an edit the keyboard focus stays on the same button", async ({ page }) => {
+  const recorder = await openToday(page, [
+    entry(1, "WORK-412", 3600, { comment: "morning", startedAt: `${DAY}T09:15:00+02:00` }),
+  ]);
+
+  await trigger(page, "WORK-412").click();
+  await dialog(page).getByRole("button", { name: "Edit the 09:15 entry" }).click();
+  const save = dialog(page).locator("that-button button");
+  await expect(save).toHaveText("Save");
+  await save.focus();
+  await page.keyboard.press("Enter");
+
+  await expect.poll(() => recorder.patched.length).toBe(1);
+  await expect(save).toHaveText("Add entry");
+  await expect(save).toBeEnabled();
+  await expect(save).toBeFocused();
 });
