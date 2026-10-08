@@ -37,20 +37,27 @@ further down is history and says otherwise in places.
 both `make verify` and `make test-e2e` run on this machine before every pull request, and the
 results go into the body. Pull requests that wait together are also tested merged, on a local
 scratch branch that is never pushed. The rule is in `ticket-workflow` through PR #292
-(`[Process]`, open). #220 (a self-hosted runner, v2) is the lasting answer.
+(`[Process]`, merged). #220 (a self-hosted runner, v2) is the lasting answer.
 
-**One product pull request waits on the owner: PR #291 (#253, the MCP server)**, which targets
-`main`. Its head `b8f32a6` passed both gates (998 passed). All of today's merges plus #291 together
-gave 1044 passed, 0 failed. `delete_entry` refuses an entry with a Jira worklog, by the owner's
-decision of 2026-10-07. **Remove that check when #280 lands**, because #280 makes a delete of a
-pushed entry wait for Push.
+**No pull request waits on the owner.** #253 (the MCP server) merged as PR #291. `delete_entry`
+refuses an entry with a Jira worklog, by the owner's decision of 2026-10-07. **Remove that check when
+#280 lands**, because #280 makes a delete of a pushed entry wait for Push.
+
+**Release `v2026.41.1` was built on this machine, not by CI.** Actions are off for the repository
+(`has_actions: false`), so a tag no longer starts `release.yml`. The same script ran locally:
+`REGISTRY_USER=DionGerrese REGISTRY_TOKEN=… docker compose run --build --rm --no-deps -e REGISTRY_USER
+-e REGISTRY_TOKEN app sh scripts/release-image.sh 2026.41.1 codeberg.org/diongerrese/thatapp`, after
+`make build-web`. Then `tea releases create --tag v… --target <sha> --prerelease`. The token needs
+only the *package* permission and repository access **All**, because a token limited to specific
+repositories cannot hold the package permission. It sat in `~/.config/thatapp-release-token` (mode
+600), which the owner may have removed.
 
 **Merged today:** #226 (PR #286), #272 (#287), #267 (#288) and #259 (#289), and yesterday's handoff
 (#285). **#261 is closed, rescoped:** the stop dialog commits while it still holds focus, so no
 rebuild of the rail ever happens with focus in the rail. Its branch `issue-261-rail-focus-survives-rebuild`
 holds a helper the owner dropped. Do not revive it.
 
-**v1 still open:** #253 (in review, PR #291), #280 (`status/todo`; a delete of a pushed entry waits
+**v1 still open:** #280 (`status/todo`; a delete of a pushed entry waits
 for Push; needs a design session for how a pending delete looks), #281 (`status/intake`; the entry
 dialog's busy state drops focus).
 
@@ -100,7 +107,7 @@ owner set that on 2026-09-21, and it reached the skill only today — see the me
 - **At intake, for the owner:** #259, #261, #272 (`bug`, a search test flaky in Firefox), #273 (Push
   never becomes Retry, though the 2026-08-20 design says it does).
 
-**The latest release is `v2026.40.1`** (published 2026-09-29).
+**The latest release is `v2026.41.1`** (published 2026-10-07, a pre-release, built locally — see *2026-10-07 — read this first*).
 
 **Codeberg retargets a stacked PR itself** when its base branch is deleted at merge (seen with #229's
 four children). Check `mergeable` after each merge. A branch whose base merged mid-flight is brought
