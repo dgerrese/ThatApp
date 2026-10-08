@@ -182,12 +182,13 @@ until they say what happens next.
 |---|---|---|
 | A ticket's work | `[#<issue>]` | `[#83] Today's tables sort on every column` |
 | A project-design change (no issue) | `[Process]` | `[Process] A branch built on another open branch is stacked` |
+| A documentation-only change (no issue) | `[Docs]` | `[Docs] README explains how to choose another host port` |
 | The day's handoff | `[Handoff]` | `[Handoff] Record 2026-09-18` (see the `eod` skill) |
 
 The prefix is the first thing read in the open pull request list, and it sorts that list by what
 each PR is before anyone opens one. The ticket number goes in the prefix even though the body says
 `Closes #<n>`, because the list shows titles, not bodies. A pull request opened without a prefix is
-renamed as soon as it is noticed. Set by the owner on 2026-09-18.
+renamed as soon as it is noticed. Set by the owner on 2026-09-18; `[Docs]` added on 2026-10-08.
 
 ### Transitions you may never make yourself
 
