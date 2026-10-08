@@ -42,6 +42,21 @@ docker run -d --name thatapp --restart unless-stopped \
 
 Open <http://localhost:8080>.
 
+**If 8080 is already taken on your machine**, `docker run` stops with an error such as
+`port is already allocated` or `address already in use`. Pick another port and try again:
+
+- Change only the first `8080` in `-p 127.0.0.1:8080:8080` — that is the port on your machine. The
+  second is the port inside the container and always stays `8080`.
+- Any number from 1024 to 65535 works. Numbers below 1024 need administrator rights. Something
+  easy to remember, such as `8090` or `18080`, is a good start.
+- To see which ports are already in use, run `ss -ltn` on Linux, `lsof -iTCP -sTCP:LISTEN -n -P`
+  on macOS, or `netstat -an | findstr LISTENING` on Windows. Or just try the number: if it is
+  taken, you get the same error and pick again.
+
+A container that failed to start still holds its name, so remove it with `docker rm thatapp`
+before you run the command again. With `-p 127.0.0.1:8090:8080`, for example, you open
+<http://localhost:8090> — and use that port everywhere else this README says 8080.
+
 **Keep the `127.0.0.1:` in front of the port.** ThatApp has no login and no defence against
 cross-site requests, so anything that can reach the port can use your Jira tokens.
 `127.0.0.1:8080:8080` makes it reachable from your own machine only; plain `-p 8080:8080` publishes
