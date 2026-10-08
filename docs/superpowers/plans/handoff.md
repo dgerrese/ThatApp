@@ -57,9 +57,11 @@ repositories cannot hold the package permission. It sat in `~/.config/thatapp-re
 rebuild of the rail ever happens with focus in the rail. Its branch `issue-261-rail-focus-survives-rebuild`
 holds a helper the owner dropped. Do not revive it.
 
-**v1 still open:** #280 (`status/todo`; a delete of a pushed entry waits
-for Push; needs a design session for how a pending delete looks), #281 (`status/intake`; the entry
-dialog's busy state drops focus).
+**v1 still open (2026-10-08):** #281 is in review as PR #298 (the entry dialog returns focus to the
+save button after a save; native `disabled` kept by the owner's decision). #280 is `status/blocked`
+on its design session (how a pending delete looks). #297 is a new intake (the comment field is named
+only by its placeholder). The README explains choosing another host port (PR #295, `[Docs]`), and
+documentation-only changes need no issue (PR #296).
 
 **Decisions the owner may still reverse**, recorded on their tickets:
 - #226: one retry per click, shared with #207. A second 409 after it closes the dialog quietly.
