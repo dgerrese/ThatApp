@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -127,8 +129,13 @@ type hookableJira struct {
 	createWorklog func() (string, error)
 	updateStatus  int
 	createID      string
-	lastMethod    string
-	calls         int
+
+	// deleteStatus answers worklog DELETE, 204 when zero; onDelete runs first,
+	// which is the window between Jira confirming and the row going.
+	deleteStatus int
+	onDelete     func()
+	lastMethod   string
+	calls        int
 
 	// deleted is the worklog ids DELETE was asked for, under a mutex because
 	// the delete that records one runs on its own goroutine while a push is
@@ -173,7 +180,14 @@ func newPushEnv(t *testing.T) *pushEnv {
 			env.jira.deleted = append(env.jira.deleted,
 				path.Base(r.URL.Path))
 			env.jira.mu.Unlock()
-			w.WriteHeader(http.StatusNoContent)
+			if env.jira.onDelete != nil {
+				env.jira.onDelete()
+			}
+			status := env.jira.deleteStatus
+			if status == 0 {
+				status = http.StatusNoContent
+			}
+			w.WriteHeader(status)
 		case http.MethodPost:
 			id := env.jira.createID
 			var err error
@@ -239,6 +253,15 @@ func (env *pushEnv) editEntry(t *testing.T, entryID int64, seconds int, comment 
 	}
 
 	return *updated
+}
+
+// markDeleted stands in for DELETE /api/entries/{id} on an entry Jira holds.
+func (env *pushEnv) markDeleted(t *testing.T, entryID int64) {
+	t.Helper()
+
+	if err := env.store.MarkEntryDeleted(context.Background(), entryID, time.Now()); err != nil {
+		t.Fatalf("marking entry %d deleted: %v", entryID, err)
+	}
 }
 
 func (env *pushEnv) createEntry(t *testing.T, issueKey string, seconds int, comment string) store.Entry {
@@ -908,5 +931,118 @@ func TestDeleteDuringAPushMarksTheWorklogThePushCreated(t *testing.T) {
 	}
 	if after.WorklogID != "wl-1" || pushStateOf(*after) != "deleted" {
 		t.Fatalf("entry = worklog %q state %q, want wl-1 and deleted", after.WorklogID, pushStateOf(*after))
+	}
+}
+
+// #280's push half. Jira first and the row only once it confirms, a 404 being
+// confirmation; a refusal keeps the row and its mark for the next push.
+func TestPushDeletesAPendingDelete(t *testing.T) {
+	tests := []struct {
+		name         string
+		dirty        bool
+		deleteStatus int
+		wantStatus   string
+		wantRowGone  bool
+	}{
+		{
+			name: "Jira deletes the worklog, then the row goes", deleteStatus: http.StatusNoContent,
+			wantStatus: "deleted", wantRowGone: true,
+		},
+		{
+			// Review focus 3: the correction the entry carried is moot.
+			name: "an entry edited before its delete is deleted, not corrected", dirty: true,
+			deleteStatus: http.StatusNoContent, wantStatus: "deleted", wantRowGone: true,
+		},
+		{
+			name: "a worklog already gone counts as deleted", deleteStatus: http.StatusNotFound,
+			wantStatus: "deleted", wantRowGone: true,
+		},
+		{
+			name: "a refused delete keeps the row and its mark", deleteStatus: http.StatusInternalServerError,
+			wantStatus: "failed",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			env := newPushEnv(t)
+			env.jira.deleteStatus = test.deleteStatus
+			entry := env.createEntry(t, "RID-1", 3600, "work")
+			env.markPushed(t, entry.ID, "10001")
+			if test.dirty {
+				env.editEntry(t, entry.ID, 5400, "reworded")
+			}
+			env.markDeleted(t, entry.ID)
+
+			resp := env.push(t, entry.Day)
+
+			if len(resp.Results) != 1 || resp.Results[0].Status != test.wantStatus {
+				t.Fatalf("results = %+v, want one %s", resp.Results, test.wantStatus)
+			}
+			if test.wantStatus == "failed" && resp.Results[0].Error == nil {
+				t.Errorf("a failed delete carries no error for the report to name")
+			}
+			if got := env.jira.deletedWorklogs(); len(got) != 1 || got[0] != "10001" {
+				t.Errorf("Jira was asked to delete %v, want [10001]", got)
+			}
+			if env.jira.calls != 1 || env.jira.lastMethod != http.MethodDelete {
+				t.Errorf("Jira saw %d worklog calls, the last a %s; want one DELETE",
+					env.jira.calls, env.jira.lastMethod)
+			}
+
+			after, err := env.store.Entry(t.Context(), entry.ID)
+			gone := errors.Is(err, sql.ErrNoRows)
+			if gone != test.wantRowGone {
+				t.Fatalf("row gone = %v, want %v", gone, test.wantRowGone)
+			}
+			if !gone && pushStateOf(*after) != "deleted" {
+				t.Errorf("state = %q after a refused delete, want deleted so the next push retries",
+					pushStateOf(*after))
+			}
+		})
+	}
+}
+
+// Retry, then idempotence: the push after a refusal tries again, and the push
+// after a success finds no row and asks Jira nothing.
+func TestPushRetriesARefusedDeleteAndThenAsksNothing(t *testing.T) {
+	env := newPushEnv(t)
+	env.jira.deleteStatus = http.StatusInternalServerError
+	entry := env.createEntry(t, "RID-1", 3600, "work")
+	env.markPushed(t, entry.ID, "10001")
+	env.markDeleted(t, entry.ID)
+
+	if got := env.push(t, entry.Day).Results[0].Status; got != "failed" {
+		t.Fatalf("first push status = %q, want failed", got)
+	}
+
+	env.jira.deleteStatus = http.StatusNoContent
+	if got := env.push(t, entry.Day).Results[0].Status; got != "deleted" {
+		t.Fatalf("second push status = %q, want deleted", got)
+	}
+
+	third := env.push(t, entry.Day)
+	if len(third.Results) != 0 {
+		t.Errorf("third push results = %+v, want none", third.Results)
+	}
+	if env.jira.calls != 2 {
+		t.Errorf("Jira saw %d worklog calls over three pushes, want 2", env.jira.calls)
+	}
+}
+
+// Review focus 2. The worklog is gone from Jira and the row survived, so
+// pushing again is the fix — the next attempt's 404 counts as success. Reported
+// as store_failed, the report would tell the user the opposite.
+func TestPushReportsADeleteTheStoreLostAsRetryable(t *testing.T) {
+	env := newPushEnv(t)
+	entry := env.createEntry(t, "RID-1", 3600, "work")
+	env.markPushed(t, entry.ID, "10001")
+	env.markDeleted(t, entry.ID)
+	env.jira.onDelete = func() { _ = env.store.Close() }
+
+	got := env.push(t, entry.Day).Results[0]
+
+	if got.Status != "failed" || got.Error == nil || got.Error.Code != "delete_unrecorded" {
+		t.Fatalf("result = %+v (error %+v), want failed with delete_unrecorded", got, got.Error)
 	}
 }

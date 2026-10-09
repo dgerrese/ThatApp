@@ -145,6 +145,11 @@ func (s *Server) pushInstanceEntries(
 			continue
 		}
 
+		if state == "deleted" {
+			results = append(results, s.deleteWorklogThenEntry(ctx, client, entry, result))
+			continue
+		}
+
 		worklog := jira.Worklog{
 			IssueKey: entry.IssueKey,
 			Started:  entry.StartedAt,
@@ -206,4 +211,40 @@ func (s *Server) pushInstanceEntries(
 	}
 
 	return results
+}
+
+// deleteWorklogThenEntry carries out a delete that waited for the push (#280).
+// Jira goes first and the row only once it confirms, a 404 counting as
+// confirmation: the reverse order would leave a worklog nothing here records. A
+// refusal keeps the row and its mark, so the next push tries again.
+func (s *Server) deleteWorklogThenEntry(
+	ctx context.Context, client *jira.Client, entry store.Entry, result pushResultDTO,
+) pushResultDTO {
+	result.WorklogID = entry.WorklogID
+
+	if err := client.DeleteWorklog(ctx, entry.IssueKey, entry.WorklogID); err != nil &&
+		!errors.Is(err, jira.ErrNotFound) {
+		result.Status = "failed"
+		result.Error = instanceErrorBody(err)
+
+		return result
+	}
+
+	// WithoutCancel for the reason the worklog record above gives. Not
+	// store_failed: that code tells the reader not to push again, and here
+	// pushing again is the fix.
+	if err := s.db.DeleteEntry(context.WithoutCancel(ctx), entry.ID); err != nil {
+		result.Status = "failed"
+		result.Error = &errorBody{
+			Code: "delete_unrecorded",
+			Message: "the worklog was deleted in Jira but the entry could not be removed here; " +
+				"pushing again finishes it",
+		}
+
+		return result
+	}
+
+	result.Status = "deleted"
+
+	return result
 }
