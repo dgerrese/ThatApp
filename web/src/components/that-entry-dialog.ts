@@ -307,13 +307,16 @@ export class ThatEntryDialog extends HTMLElement {
    * dialog always has, deleted-to-empty or not, so it is the fallback. A
    * no-op once focus already landed somewhere inside the dialog — startEditing
    * moves it to the comment field itself, which this must not override.
+   * `preferred` wins over Close while it is still in the dialog: save()
+   * passes the control it disabled, which dropped focus to <body>.
    */
-  private refocusIfLostFromDialog(): void {
+  private refocusIfLostFromDialog(preferred?: Element | null): void {
     const dialog = this.dialog;
     const active = document.activeElement;
     if (!dialog || (active && dialog.contains(active))) return;
 
-    this.closeControl?.focus();
+    if (preferred instanceof HTMLElement && dialog.contains(preferred)) preferred.focus();
+    else this.closeControl?.focus();
   }
 
   private entryList(): HTMLElement {
@@ -630,6 +633,7 @@ export class ThatEntryDialog extends HTMLElement {
 
     const editing = this.editing;
     this.clearNotice();
+    const focused = document.activeElement;
     this.setBusy(true);
     try {
       if (editing) {
@@ -649,6 +653,7 @@ export class ThatEntryDialog extends HTMLElement {
       this.showFailure(error, "Could not save the entry.");
     } finally {
       this.setBusy(false);
+      this.refocusIfLostFromDialog(focused);
     }
   }
 
