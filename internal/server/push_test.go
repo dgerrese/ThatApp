@@ -2,9 +2,7 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -863,13 +861,12 @@ func TestPushDayLeavesARefusedCorrectionDirty(t *testing.T) {
 	}
 }
 
-// TestDeleteWhileAPushIsInFlightStillRemovesTheWorklog is Important 5 of #10's
-// whole-branch review. Delete became a Jira-writing operation on this branch
-// and was left outside the lock the push and the fetch share, so a delete
-// landing while the push was creating the worklog read worklog_id as empty,
-// asked Jira nothing, and dropped the row — leaving time on the timesheet that
-// nothing here can reach.
-func TestDeleteWhileAPushIsInFlightStillRemovesTheWorklog(t *testing.T) {
+// TestDeleteDuringAPushMarksTheWorklogThePushCreated is #10's Important 5 under
+// #280. A delete landing while the push creates the worklog must wait for the
+// lock, then read the worklog id the push recorded and mark the entry — rather
+// than read an empty id and drop the row, which leaves time in Jira nothing
+// here can reach. Jira hears nothing from the delete itself.
+func TestDeleteDuringAPushMarksTheWorklogThePushCreated(t *testing.T) {
 	env := newPushEnv(t)
 	entry := env.createEntry(t, "RID-1", 3600, "work")
 
@@ -902,11 +899,14 @@ func TestDeleteWhileAPushIsInFlightStillRemovesTheWorklog(t *testing.T) {
 		t.Fatal("the delete never answered")
 	}
 
-	if got := env.jira.deletedWorklogs(); len(got) != 1 || got[0] != "wl-1" {
-		t.Fatalf("Jira was asked to delete %v, want [wl-1] — a delete that ran alongside "+
-			"the push left the worklog it created behind in Jira", got)
+	if got := env.jira.deletedWorklogs(); len(got) != 0 {
+		t.Fatalf("Jira was asked to delete %v, want nothing: a delete waits for the push", got)
 	}
-	if _, err := env.store.Entry(context.Background(), entry.ID); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("reading the deleted entry back = %v, want it gone", err)
+	after, err := env.store.Entry(context.Background(), entry.ID)
+	if err != nil {
+		t.Fatalf("reading the entry back = %v, want it kept and marked", err)
+	}
+	if after.WorklogID != "wl-1" || pushStateOf(*after) != "deleted" {
+		t.Fatalf("entry = worklog %q state %q, want wl-1 and deleted", after.WorklogID, pushStateOf(*after))
 	}
 }

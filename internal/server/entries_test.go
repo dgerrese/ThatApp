@@ -1220,94 +1220,241 @@ func (env *entriesEnv) delete(t *testing.T, entryID int64) *httptest.ResponseRec
 		"/api/entries/"+strconv.FormatInt(entryID, 10), "")
 }
 
-// TestDeleteEntryRemovesTheWorklogFirst is #10's delete-side counterpart to
-// #9's push: the local row must go only once Jira confirms the worklog is
-// gone, a 404 counting as confirmation because the outcome already matches
-// the intent. "any other refusal" uses a 500 rather than 401 so the fake maps
-// through jira.ErrUnreachable to instanceErrorFor's 502 — the codebase's
-// existing mapping for "Jira could not be reached", which is what a refusal
-// this test doesn't otherwise characterise should be read as.
-func TestDeleteEntryRemovesTheWorklogFirst(t *testing.T) {
+func (env *entriesEnv) restore(t *testing.T, entryID int64) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return callEntries(t, env.s, http.MethodPost,
+		"/api/entries/"+strconv.FormatInt(entryID, 10)+"/restore", "")
+}
+
+// stored reads one entry back, failing the test if it is gone.
+func (env *entriesEnv) stored(t *testing.T, entryID int64) store.Entry {
+	t.Helper()
+
+	entry, err := env.store.Entry(t.Context(), entryID)
+	if err != nil {
+		t.Fatalf("reading entry %d back: %v", entryID, err)
+	}
+
+	return *entry
+}
+
+// #280: a delete waits for the push like every other change to Jira. Only an
+// entry Jira has never seen goes at once; one it holds is marked, and Jira
+// hears nothing until the push.
+func TestDeleteEntryWaitsForPush(t *testing.T) {
 	tests := []struct {
-		name         string
-		worklogID    string
-		deleteStatus int
-		wantStatus   int
-		wantCalls    int
-		wantRowGone  bool
+		name        string
+		pushed      bool
+		dirty       bool
+		wantRowGone bool
 	}{
-		{
-			name:        "a local-only entry asks Jira nothing",
-			worklogID:   "",
-			wantStatus:  http.StatusNoContent,
-			wantCalls:   0,
-			wantRowGone: true,
-		},
-		{
-			name:         "a pushed entry deletes the worklog, then the row",
-			worklogID:    "10001",
-			deleteStatus: http.StatusNoContent,
-			wantStatus:   http.StatusNoContent,
-			wantCalls:    1,
-			wantRowGone:  true,
-		},
-		{
-			name:         "a worklog already gone is confirmation, not a failure",
-			worklogID:    "10001",
-			deleteStatus: http.StatusNotFound,
-			wantStatus:   http.StatusNoContent,
-			wantCalls:    1,
-			wantRowGone:  true,
-		},
-		{
-			name:         "any other refusal keeps the row",
-			worklogID:    "10001",
-			deleteStatus: http.StatusInternalServerError,
-			wantStatus:   http.StatusBadGateway,
-			wantCalls:    1,
-			wantRowGone:  false,
-		},
-		// A scope refusal is the failure this app actually meets: the
-		// configured token cannot write worklogs, and Jira answers 401. The
-		// message instanceErrorFor produces for it ("credentials rejected") is
-		// known to be misleading for a scope refusal — that is #79's fix, not
-		// this ticket's — so this case only pins the property #10 owns: the
-		// row survives, so the delete can be tried again once the token is
-		// fixed.
-		{
-			name:         "a refused delete keeps the row so it can be tried again",
-			worklogID:    "10001",
-			deleteStatus: http.StatusUnauthorized,
-			wantStatus:   http.StatusUnauthorized,
-			wantCalls:    1,
-			wantRowGone:  false,
-		},
+		{name: "an unpushed entry goes at once", wantRowGone: true},
+		{name: "a pushed entry is marked", pushed: true},
+		{name: "an entry edited since its push is marked", pushed: true, dirty: true},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			env := newEntriesEnv(t)
-			env.jira.deleteStatus = test.deleteStatus
-
 			entry := env.createEntry(t, "RID-1", 3600, "")
-			if test.worklogID != "" {
-				env.markPushed(t, entry.ID, test.worklogID)
+			if test.pushed {
+				env.markPushed(t, entry.ID, "10001")
+			}
+			if test.dirty {
+				makeEntryDirty(t, env.store, entry.ID, 5400, "reworded")
 			}
 
 			rec := env.delete(t, entry.ID)
 
-			if rec.Code != test.wantStatus {
-				t.Fatalf("status = %d, want %d (body %s)", rec.Code, test.wantStatus, rec.Body)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want 204 (body %s)", rec.Code, rec.Body)
 			}
-			if env.jira.deleteCalls != test.wantCalls {
-				t.Fatalf("Jira saw %d deletes, want %d", env.jira.deleteCalls, test.wantCalls)
+			if env.jira.deleteCalls != 0 {
+				t.Fatalf("Jira saw %d deletes, want none: a delete waits for the push", env.jira.deleteCalls)
 			}
 
-			_, err := env.store.Entry(t.Context(), entry.ID)
+			after, err := env.store.Entry(t.Context(), entry.ID)
 			gone := errors.Is(err, sql.ErrNoRows)
 			if gone != test.wantRowGone {
 				t.Fatalf("row gone = %v, want %v", gone, test.wantRowGone)
 			}
+			if gone {
+				return
+			}
+			if got := pushStateOf(*after); got != "deleted" {
+				t.Fatalf("state = %q, want deleted", got)
+			}
 		})
+	}
+}
+
+func TestListEntriesCarriesAPendingDelete(t *testing.T) {
+	env := newEntriesEnv(t)
+	entry := env.createEntry(t, "RID-1", 3600, "")
+	env.markPushed(t, entry.ID, "10001")
+	env.delete(t, entry.ID)
+
+	got := decodeEntries(t, callEntries(t, env.s, http.MethodGet,
+		"/api/entries?from=2026-08-31&to=2026-08-31", ""))
+
+	if len(got) != 1 || got[0].PushState != "deleted" {
+		t.Fatalf("entries = %+v, want the one entry, pushState deleted", got)
+	}
+}
+
+func TestDeletingAPendingDeleteAgainChangesNothing(t *testing.T) {
+	env := newEntriesEnv(t)
+	entry := env.createEntry(t, "RID-1", 3600, "")
+	env.markPushed(t, entry.ID, "10001")
+
+	first := time.Date(2026, 8, 31, 17, 0, 0, 0, time.UTC)
+	env.s.now = func() time.Time { return first }
+	env.delete(t, entry.ID)
+
+	env.s.now = func() time.Time { return first.Add(time.Hour) }
+	rec := env.delete(t, entry.ID)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("second delete status = %d, want 204", rec.Code)
+	}
+	if after := env.stored(t, entry.ID); after.DeletedAt == nil || !after.DeletedAt.Equal(first) {
+		t.Fatalf("DeletedAt = %v, want the first delete's %v", after.DeletedAt, first)
+	}
+	if env.jira.deleteCalls != 0 {
+		t.Fatalf("Jira saw %d deletes, want none", env.jira.deleteCalls)
+	}
+}
+
+// Restore is what makes the deferred delete safe to offer. The state comes back
+// because the delete wrote nothing but the mark — Task 1 pins that at the
+// store; this pins it through the two requests a person makes.
+func TestRestoreReturnsTheEarlierPushState(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		dirty bool
+		want  string
+	}{
+		{"a pushed entry comes back pushed", false, "pushed"},
+		{"an edited entry comes back dirty", true, "dirty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newEntriesEnv(t)
+			entry := env.createEntry(t, "RID-1", 3600, "")
+			env.markPushed(t, entry.ID, "10001")
+			if tc.dirty {
+				makeEntryDirty(t, env.store, entry.ID, 5400, "reworded")
+			}
+			before := env.stored(t, entry.ID)
+			env.delete(t, entry.ID)
+
+			rec := env.restore(t, entry.ID)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200 (body %s)", rec.Code, rec.Body)
+			}
+			if got := decodeEntry(t, rec); got.ID != entry.ID || got.PushState != tc.want {
+				t.Fatalf("restored %+v, want entry %d in state %s", got, entry.ID, tc.want)
+			}
+			after := env.stored(t, entry.ID)
+			if after.DeletedAt != nil {
+				t.Errorf("DeletedAt = %v after the restore, want nil", *after.DeletedAt)
+			}
+			if !after.UpdatedAt.Equal(before.UpdatedAt) {
+				t.Errorf("UpdatedAt = %v, want %v untouched", after.UpdatedAt, before.UpdatedAt)
+			}
+			if env.jira.deleteCalls != 0 {
+				t.Errorf("Jira saw %d deletes, want none", env.jira.deleteCalls)
+			}
+		})
+	}
+}
+
+func TestRestoreAMissingEntryIsNotFound(t *testing.T) {
+	env := newEntriesEnv(t)
+
+	for _, target := range []string{"/api/entries/404/restore", "/api/entries/abc/restore"} {
+		t.Run(target, func(t *testing.T) {
+			assertRejected(t, callEntries(t, env.s, http.MethodPost, target, ""),
+				http.StatusNotFound, "not_found")
+		})
+	}
+}
+
+func TestRestoreRefusesAnEntryNotWaitingToBeDeleted(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		pushed bool
+	}{
+		{"an unpushed entry", false},
+		{"a pushed entry never deleted", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newEntriesEnv(t)
+			entry := env.createEntry(t, "RID-1", 3600, "")
+			if tc.pushed {
+				env.markPushed(t, entry.ID, "10001")
+			}
+
+			assertRejected(t, env.restore(t, entry.ID), http.StatusConflict, "entry_not_pending_delete")
+		})
+	}
+}
+
+func TestPatchAPendingDeleteIsAConflict(t *testing.T) {
+	env := newEntriesEnv(t)
+	entry := env.createEntry(t, "RID-1", 3600, "first go")
+	env.markPushed(t, entry.ID, "10001")
+	env.delete(t, entry.ID)
+	before := env.stored(t, entry.ID)
+
+	rec := callEntries(t, env.s, http.MethodPatch,
+		"/api/entries/"+strconv.FormatInt(entry.ID, 10), `{"seconds":1800}`)
+
+	assertRejected(t, rec, http.StatusConflict, "entry_pending_delete")
+	after := env.stored(t, entry.ID)
+	if after.Seconds != 3600 || !after.UpdatedAt.Equal(before.UpdatedAt) {
+		t.Fatalf("entry = %ds updated %v, want 3600s and %v untouched",
+			after.Seconds, after.UpdatedAt, before.UpdatedAt)
+	}
+}
+
+// Review focus 1. A push deletes the worklog and then the row under pushMu; a
+// restore landing between the two would answer 200 for a row about to vanish.
+// The lock is held here by hand, standing in for that push.
+func TestRestoreWaitsForTheLockAPushHolds(t *testing.T) {
+	env := newEntriesEnv(t)
+	entry := env.createEntry(t, "RID-1", 3600, "")
+	env.markPushed(t, entry.ID, "10001")
+	env.delete(t, entry.ID)
+
+	env.s.pushMu.Lock()
+	answered := make(chan int, 1)
+	go func() {
+		rec := httptest.NewRecorder()
+		env.s.ServeHTTP(rec, httptest.NewRequest(http.MethodPost,
+			"/api/entries/"+strconv.FormatInt(entry.ID, 10)+"/restore", nil))
+		answered <- rec.Code
+	}()
+
+	select {
+	case code := <-answered:
+		env.s.pushMu.Unlock()
+		t.Fatalf("restore answered %d while a push held the lock", code)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	if err := env.store.DeleteEntry(t.Context(), entry.ID); err != nil {
+		t.Fatalf("deleting the row as the push would: %v", err)
+	}
+	env.s.pushMu.Unlock()
+
+	select {
+	case code := <-answered:
+		if code != http.StatusNotFound {
+			t.Fatalf("restore = %d, want 404: the push removed the row first", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the restore never answered")
 	}
 }

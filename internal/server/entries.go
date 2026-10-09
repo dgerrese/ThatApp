@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/jira"
 	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
@@ -325,6 +324,11 @@ func (s *Server) handleUpdateEntry(w http.ResponseWriter, r *http.Request) {
 		writeEntryStoreError(w, err, "could not read the entry")
 		return
 	}
+	if pushStateOf(*existing) == "deleted" {
+		writeError(w, http.StatusConflict, "entry_pending_delete",
+			"the entry is waiting to be deleted at the next push; restore it first")
+		return
+	}
 
 	var req updateEntryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -367,25 +371,21 @@ func (s *Server) handleUpdateEntry(w http.ResponseWriter, r *http.Request) {
 		s.entryDTOFrom(*entry, instances[entry.InstanceID], positions[entry.InstanceID]))
 }
 
-// handleDeleteEntry removes logged time, and the Jira worklog with it.
-//
-// Jira goes first and the local row goes only once it confirms: the reverse
-// order would leave a worklog nothing here records, which is time on a timesheet
-// with no way left to reach it. A 404 is confirmation rather than a failure —
-// the outcome already matches the intent.
+// handleDeleteEntry removes logged time. An entry Jira holds a worklog for is
+// only marked: the next push deletes the worklog, as it carries every other
+// change to Jira, and until then the entry can be restored. One Jira has never
+// seen goes at once. Deleting an entry already marked changes nothing.
 func (s *Server) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 	id, ok := idFromPath(w, r, "no such entry")
 	if !ok {
 		return
 	}
 
-	// The push's and the fetch's lock, held from the read that decides whether
-	// this entry has a worklog through to the row going. Deleting became a
-	// Jira-writing operation with #10, and outside the lock it reads an entry a
-	// push is halfway through: worklog_id still empty, so nothing is deleted in
-	// Jira, and the row the push was about to record it in is gone. Held across
-	// the read for that reason — a lock taken around the Jira call alone would
-	// be guarding a decision already made on stale state.
+	// The push's lock, held from the read that decides whether this entry has
+	// a worklog through to the write. Outside it, a delete reads an entry a
+	// push is halfway through — worklog_id still empty — and drops the row the
+	// push was about to record its new worklog in, leaving time in Jira that
+	// nothing here can reach.
 	s.pushMu.Lock()
 	defer s.pushMu.Unlock()
 
@@ -396,24 +396,13 @@ func (s *Server) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if entry.WorklogID != "" {
-		inst, err := s.db.Instance(r.Context(), entry.InstanceID)
-		if err != nil {
-			writeEntryStoreError(w, err, "could not read the entry's instance")
+		if err := s.db.MarkEntryDeleted(r.Context(), id, s.now()); err != nil {
+			writeEntryStoreError(w, err, "could not delete the entry")
 			return
 		}
+		w.WriteHeader(http.StatusNoContent)
 
-		client, err := s.clients.forInstance(r.Context(), inst)
-		if err != nil {
-			writeInstanceError(w, err)
-			return
-		}
-
-		if err := client.DeleteWorklog(
-			r.Context(), entry.IssueKey, entry.WorklogID,
-		); err != nil && !errors.Is(err, jira.ErrNotFound) {
-			writeInstanceError(w, err)
-			return
-		}
+		return
 	}
 
 	if err := s.db.DeleteEntry(r.Context(), id); err != nil {
@@ -422,6 +411,46 @@ func (s *Server) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleRestoreEntry takes back a delete that is waiting for the push and
+// answers with the entry in the push state it had before — the delete wrote
+// nothing but the mark. Under the push's lock, so a restore cannot land between
+// a push deleting the worklog and deleting the row: it waits, and then finds
+// the row gone.
+func (s *Server) handleRestoreEntry(w http.ResponseWriter, r *http.Request) {
+	id, ok := idFromPath(w, r, "no such entry")
+	if !ok {
+		return
+	}
+
+	s.pushMu.Lock()
+	defer s.pushMu.Unlock()
+
+	entry, err := s.db.Entry(r.Context(), id)
+	if err != nil {
+		writeEntryStoreError(w, err, "could not read the entry")
+		return
+	}
+	if pushStateOf(*entry) != "deleted" {
+		writeError(w, http.StatusConflict, "entry_not_pending_delete",
+			"the entry is not waiting to be deleted")
+		return
+	}
+
+	instances, positions, ok := s.instanceIndex(w, r)
+	if !ok {
+		return
+	}
+
+	restored, err := s.db.RestoreEntry(r.Context(), id)
+	if err != nil {
+		writeEntryStoreError(w, err, "could not restore the entry")
+		return
+	}
+
+	writeJSON(w, http.StatusOK,
+		s.entryDTOFrom(*restored, instances[restored.InstanceID], positions[restored.InstanceID]))
 }
 
 // writeEntryStoreError turns the store's missing-row error into a 404 and
