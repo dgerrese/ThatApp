@@ -1057,6 +1057,7 @@ func TestDeleteEntryAnswersANonNumericIDAsMissing(t *testing.T) {
 func TestPushStateOfDerivesFromTheTwoColumnsAndUpdatedAt(t *testing.T) {
 	base := time.Date(2026, 8, 31, 10, 0, 0, 0, time.UTC)
 	pushed := base.Add(time.Minute)
+	deleted := base.Add(2 * time.Minute)
 
 	cases := []struct {
 		name  string
@@ -1095,6 +1096,29 @@ func TestPushStateOfDerivesFromTheTwoColumnsAndUpdatedAt(t *testing.T) {
 		{
 			name:  "a pushed_at without a worklog id is not a push",
 			entry: store.Entry{PushedAt: &base, UpdatedAt: base},
+			want:  "unpushed",
+		},
+		{
+			name:  "pushed, then deleted",
+			entry: store.Entry{WorklogID: "10123", PushedAt: &pushed, UpdatedAt: base, DeletedAt: &deleted},
+			want:  "deleted",
+		},
+		{
+			// Whatever Jira holds, the push's next act is to delete it.
+			name:  "edited after the push, then deleted",
+			entry: store.Entry{WorklogID: "10123", PushedAt: &base, UpdatedAt: pushed, DeletedAt: &deleted},
+			want:  "deleted",
+		},
+		{
+			name:  "a worklog id with no pushed_at, then deleted",
+			entry: store.Entry{WorklogID: "10123", UpdatedAt: base, DeletedAt: &deleted},
+			want:  "deleted",
+		},
+		{
+			// An unpushed delete removes the row, so this row should not exist;
+			// if it does, Jira holds nothing and the push must still create.
+			name:  "a deleted_at without a worklog id is not a pending delete",
+			entry: store.Entry{UpdatedAt: base, DeletedAt: &deleted},
 			want:  "unpushed",
 		},
 	}

@@ -30,6 +30,10 @@ import (
 // entry Jira overwrote stays clean too: it is Jira's copy, not an edit of it.
 // Whether an entry is unpushed, clean or dirty is computed from those two and
 // UpdatedAt on every read, never stored as a flag.
+//
+// DeletedAt is set while a delete waits for the push (#280). Only an entry with
+// a worklog is ever marked — one Jira has never seen is removed at once — and
+// the mark is the only column a delete or a restore writes.
 type Entry struct {
 	ID         int64
 	InstanceID int64
@@ -42,6 +46,7 @@ type Entry struct {
 	PushedAt   *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	DeletedAt  *time.Time
 }
 
 // EntryInput carries the fields a caller supplies when logging time. Day and
@@ -61,7 +66,7 @@ type EntryInput struct {
 // time.Time, which arrives as a full timestamp — "2026-08-21T00:00:00Z" for a
 // local date of "2026-08-21". The cast hands back the text as stored.
 const entryColumns = `id, instance_id, issue_key, CAST(day AS TEXT) AS day, started_at, seconds,
-	comment, worklog_id, pushed_at, created_at, updated_at`
+	comment, worklog_id, pushed_at, created_at, updated_at, deleted_at`
 
 func scanEntry(row scanner) (*Entry, error) {
 	var (
@@ -69,13 +74,14 @@ func scanEntry(row scanner) (*Entry, error) {
 		comment   sql.NullString
 		worklogID sql.NullString
 		pushedAt  sql.NullString
+		deletedAt sql.NullString
 		startedAt string
 		createdAt string
 		updatedAt string
 	)
 	if err := row.Scan(
 		&entry.ID, &entry.InstanceID, &entry.IssueKey, &entry.Day, &startedAt, &entry.Seconds,
-		&comment, &worklogID, &pushedAt, &createdAt, &updatedAt,
+		&comment, &worklogID, &pushedAt, &createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -98,12 +104,22 @@ func scanEntry(row scanner) (*Entry, error) {
 		*field.into = parsed
 	}
 
-	if pushedAt.Valid {
-		parsed, err := time.Parse(time.RFC3339, pushedAt.String)
-		if err != nil {
-			return nil, fmt.Errorf("parsing pushed_at %q: %w", pushedAt.String, err)
+	for _, field := range []struct {
+		column string
+		text   sql.NullString
+		into   **time.Time
+	}{
+		{"pushed_at", pushedAt, &entry.PushedAt},
+		{"deleted_at", deletedAt, &entry.DeletedAt},
+	} {
+		if !field.text.Valid {
+			continue
 		}
-		entry.PushedAt = &parsed
+		parsed, err := time.Parse(time.RFC3339, field.text.String)
+		if err != nil {
+			return nil, fmt.Errorf("parsing %s %q: %w", field.column, field.text.String, err)
+		}
+		*field.into = &parsed
 	}
 
 	return &entry, nil
@@ -412,4 +428,37 @@ func (s *Store) Entry(ctx context.Context, id int64) (*Entry, error) {
 	}
 
 	return entry, nil
+}
+
+// MarkEntryDeleted records that the entry's delete waits for the next push. A
+// second call keeps the first stamp. It writes deleted_at and nothing else:
+// updated_at and pushed_at are what the push state is read from, and leaving
+// them alone is what lets RestoreEntry hand back exactly the state the entry
+// had — pushed stays pushed, dirty stays dirty. A missing id yields an error
+// wrapping sql.ErrNoRows.
+func (s *Store) MarkEntryDeleted(ctx context.Context, id int64, at time.Time) error {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE time_entries SET deleted_at = COALESCE(deleted_at, ?) WHERE id = ?`,
+		at.UTC().Truncate(time.Second).Format(time.RFC3339), id)
+	if err != nil {
+		return fmt.Errorf("marking entry %d deleted: %w", id, err)
+	}
+
+	return errNoRowsIfUnaffected(result, "marking entry deleted", id)
+}
+
+// RestoreEntry takes back a delete that is waiting for the push and returns
+// the row. Like MarkEntryDeleted it touches no other column. A missing id
+// yields an error wrapping sql.ErrNoRows.
+func (s *Store) RestoreEntry(ctx context.Context, id int64) (*Entry, error) {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE time_entries SET deleted_at = NULL WHERE id = ?`, id)
+	if err != nil {
+		return nil, fmt.Errorf("restoring entry %d: %w", id, err)
+	}
+	if err := errNoRowsIfUnaffected(result, "restoring entry", id); err != nil {
+		return nil, err
+	}
+
+	return s.Entry(ctx, id)
 }

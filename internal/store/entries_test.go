@@ -743,3 +743,109 @@ func TestRecordWorklogMarkingPushedIfUnchanged(t *testing.T) {
 		})
 	}
 }
+
+// samePushColumns fails the test when got differs from want in any column the
+// push state is read from.
+func samePushColumns(t *testing.T, when string, want, got Entry) {
+	t.Helper()
+
+	if got.WorklogID != want.WorklogID {
+		t.Errorf("%s: WorklogID = %q, want %q", when, got.WorklogID, want.WorklogID)
+	}
+	if !got.UpdatedAt.Equal(want.UpdatedAt) {
+		t.Errorf("%s: UpdatedAt = %v, want %v", when, got.UpdatedAt, want.UpdatedAt)
+	}
+	switch {
+	case (got.PushedAt == nil) != (want.PushedAt == nil):
+		t.Errorf("%s: PushedAt = %v, want %v", when, got.PushedAt, want.PushedAt)
+	case got.PushedAt != nil && want.PushedAt != nil && !got.PushedAt.Equal(*want.PushedAt):
+		t.Errorf("%s: PushedAt = %v, want %v", when, *got.PushedAt, *want.PushedAt)
+	}
+}
+
+// Restore returns an entry to exactly the state it had, with nothing
+// remembered, only because marking and clearing deleted_at move neither
+// updated_at nor pushed_at. A refactor that stamps updated_at on every write
+// would turn every restored entry dirty.
+func TestDeletedAtLeavesThePushColumnsAlone(t *testing.T) {
+	updated := time.Date(2026, 10, 9, 9, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name      string
+		worklogID string
+		pushedAt  any
+	}{
+		{"pushed and clean", "10001", updated.Add(time.Hour).Format(time.RFC3339)},
+		{"pushed, then edited", "10002", updated.Add(-time.Hour).Format(time.RFC3339)},
+		{"a worklog with no mark", "10003", nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := openTestStore(t)
+			inst := createTestInstance(t, s)
+			ctx := context.Background()
+
+			created := createTestEntry(t, s, EntryInput{
+				InstanceID: inst.ID, IssueKey: "RIDGE-1", Day: "2026-10-09",
+				StartedAt: updated, Seconds: 900,
+			})
+			if _, err := s.db.Exec(
+				`UPDATE time_entries SET worklog_id = ?, pushed_at = ?, updated_at = ? WHERE id = ?`,
+				tc.worklogID, tc.pushedAt, updated.Format(time.RFC3339), created.ID,
+			); err != nil {
+				t.Fatalf("putting the entry in state %q: %v", tc.name, err)
+			}
+			before, err := s.Entry(ctx, created.ID)
+			if err != nil {
+				t.Fatalf("reading the entry: %v", err)
+			}
+
+			first := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+			if err := s.MarkEntryDeleted(ctx, created.ID, first); err != nil {
+				t.Fatalf("MarkEntryDeleted() returned error: %v", err)
+			}
+			marked, err := s.Entry(ctx, created.ID)
+			if err != nil {
+				t.Fatalf("reading the marked entry: %v", err)
+			}
+			if marked.DeletedAt == nil || !marked.DeletedAt.Equal(first) {
+				t.Fatalf("DeletedAt = %v, want %v", marked.DeletedAt, first)
+			}
+			samePushColumns(t, "after the mark", *before, *marked)
+
+			if err := s.MarkEntryDeleted(ctx, created.ID, first.Add(time.Hour)); err != nil {
+				t.Fatalf("a second MarkEntryDeleted() returned error: %v", err)
+			}
+			again, err := s.Entry(ctx, created.ID)
+			if err != nil {
+				t.Fatalf("reading the twice-marked entry: %v", err)
+			}
+			if again.DeletedAt == nil || !again.DeletedAt.Equal(first) {
+				t.Errorf("DeletedAt = %v after a second delete, want the first stamp %v",
+					again.DeletedAt, first)
+			}
+
+			restored, err := s.RestoreEntry(ctx, created.ID)
+			if err != nil {
+				t.Fatalf("RestoreEntry() returned error: %v", err)
+			}
+			if restored.DeletedAt != nil {
+				t.Errorf("DeletedAt = %v after the restore, want nil", *restored.DeletedAt)
+			}
+			samePushColumns(t, "after the restore", *before, *restored)
+		})
+	}
+}
+
+func TestDeletedAtOnAMissingEntryIsErrNoRows(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+
+	if err := s.MarkEntryDeleted(ctx, 404, time.Now()); !errors.Is(err, sql.ErrNoRows) {
+		t.Errorf("MarkEntryDeleted(404) = %v, want sql.ErrNoRows", err)
+	}
+	if _, err := s.RestoreEntry(ctx, 404); !errors.Is(err, sql.ErrNoRows) {
+		t.Errorf("RestoreEntry(404) = %v, want sql.ErrNoRows", err)
+	}
+}

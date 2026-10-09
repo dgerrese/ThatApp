@@ -39,19 +39,26 @@ type entryDTO struct {
 	PushState        string `json:"pushState"`
 }
 
-// pushStateOf reports whether an entry has reached Jira, and whether what Jira
-// holds is current. It is computed from worklog_id, pushed_at and updated_at on
-// every read rather than stored, which is what makes a repeated push idempotent
-// for free.
+// pushStateOf reports whether an entry has reached Jira, whether what Jira
+// holds is current, and whether a delete is waiting for the push. It is
+// computed from worklog_id, deleted_at, pushed_at and updated_at on every read
+// rather than stored, which is what makes a repeated push idempotent for free.
 //
 // A worklog id is the whole of "it reached Jira": an entry carrying one but no
 // pushed_at is dirty, not unpushed. That is the state a push leaves behind when
 // an edit lands while Jira is answering — the worklog exists and holds the older
 // text — and reading it as unpushed is what would have the next push create a
 // second worklog for the same time.
+//
+// A pending delete outranks dirty and pushed: whatever Jira holds, the push's
+// next act is to delete it. Unpushed outranks it, because Jira holds nothing
+// for such a row and its delete removes the row instead of marking it.
 func pushStateOf(e store.Entry) string {
 	if e.WorklogID == "" {
 		return "unpushed"
+	}
+	if e.DeletedAt != nil {
+		return "deleted"
 	}
 	if e.PushedAt == nil || e.UpdatedAt.After(*e.PushedAt) {
 		return "dirty"
