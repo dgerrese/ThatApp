@@ -1354,7 +1354,7 @@ func TestRestoreReturnsTheEarlierPushState(t *testing.T) {
 				t.Fatalf("status = %d, want 200 (body %s)", rec.Code, rec.Body)
 			}
 			if got := decodeEntry(t, rec); got.ID != entry.ID || got.PushState != tc.want {
-				t.Fatalf("restored %+v, want entry %d in state %s", got, entry.ID, tc.want)
+				t.Errorf("restored %+v, want entry %d in state %s", got, entry.ID, tc.want)
 			}
 			after := env.stored(t, entry.ID)
 			if after.DeletedAt != nil {
