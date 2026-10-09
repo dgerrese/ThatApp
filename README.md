@@ -63,6 +63,45 @@ cross-site requests, so anything that can reach the port can use your Jira token
 it to every network you are on. Binding to your own machine keeps other machines out, but it does
 not stop a malicious web page open in your own browser from sending requests to it.
 
+### Or: a hostname instead of a port
+
+If you run [docker-hoster](https://github.com/thisisdevelopment/docker-hoster), you can skip the
+published port and open ThatApp by name, at <http://thatapp.docker>. docker-hoster watches your
+containers and writes each one's address and hostname into your machine's `/etc/hosts`. **Without
+docker-hoster running, this setup gives you an app you cannot reach.**
+
+Add one line to `thatapp.env`, so the app listens on port 80 and the address needs no port:
+
+```shell
+THAT_ADDR=:80
+```
+
+Then start it:
+
+```shell
+docker network create thatapp-net
+docker run -d --name thatapp --restart unless-stopped \
+  --network thatapp-net \
+  --hostname thatapp.docker \
+  -v thatapp-data:/data \
+  --env-file thatapp.env \
+  codeberg.org/diongerrese/thatapp:latest
+```
+
+- **The network is required.** docker-hoster ignores containers on Docker's default `bridge`
+  network, because that network gives them no DNS names. Any network you create yourself works.
+- `--hostname thatapp.docker` is the name docker-hoster writes into `/etc/hosts`. It also adds
+  `thatapp.containers.docker`, from the container name.
+- Without the `THAT_ADDR` line the app listens on 8080, at <http://thatapp.docker:8080>.
+
+There is no `-p`, so nothing is published on your machine's ports. The container's address is on a
+Docker network that only your own machine can reach — Docker 28 and newer block other machines
+from it. The same warning as the port still applies: a malicious web page open in your own browser
+can send requests to it.
+
+Everywhere else this README says `http://localhost:8080`, use `http://thatapp.docker`. To upgrade or
+restore, run this `docker run` again instead of the one above; the network is created only once.
+
 ### 3. Upgrade
 
 Releases are named `YYYY.WW.N` — year, ISO week, and the release number within that week. To move to
