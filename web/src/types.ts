@@ -105,7 +105,9 @@ export interface Entry {
   seconds: number;
   comment: string;
   /** Derived server-side from worklog_id, pushed_at and updated_at — never stored. */
-  pushState: "unpushed" | "pushed" | "dirty";
+  /** Derived server-side from worklog_id, deleted_at, pushed_at and updated_at — never stored.
+   *  `deleted` is a delete waiting for the push (#280): shown, restorable, and counted in no total. */
+  pushState: "unpushed" | "pushed" | "dirty" | "deleted";
 }
 
 /**
@@ -144,7 +146,7 @@ export interface PushResult {
   entryId: number;
   issueKey: string;
   instanceId: number;
-  status: "pushed" | "skipped" | "failed";
+  status: "pushed" | "skipped" | "failed" | "deleted";
   worklogId?: string;
   error?: { code: string; message: string };
 }
@@ -184,17 +186,18 @@ export interface WeekFetchResponse {
 
 /**
  * One ticket's time on one day. `pushState` is null exactly when the cell is
- * empty, which keeps "nothing logged" from becoming a fourth state.
+ * empty, which keeps "nothing logged" from becoming a fourth state. A cell holding
+ * only pending deletes has `seconds: 0` and `pushState: "deleted"`.
  */
 export interface WeekCell {
   seconds: number;
-  pushState: "unpushed" | "pushed" | "dirty" | null;
+  pushState: "unpushed" | "pushed" | "dirty" | "deleted" | null;
 }
 
 export interface WeekDay {
   day: string;
   seconds: number;
-  pushState: "unpushed" | "pushed" | "dirty" | null;
+  pushState: "unpushed" | "pushed" | "dirty" | "deleted" | null;
 }
 
 export interface WeekRow {

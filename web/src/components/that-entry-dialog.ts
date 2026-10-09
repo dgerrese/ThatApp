@@ -3,14 +3,14 @@ import "./that-confirm";
 import "./that-dialog-blocks";
 import "./that-duration";
 
-import { ApiError, createEntry, deleteEntry, listEntries, updateEntry } from "../api";
+import { ApiError, createEntry, deleteEntry, listEntries, restoreEntry, updateEntry } from "../api";
 import { COMMENT_FIELD_CLASS, confirmDestructive } from "./that-confirm";
 import { cutTextTooltip } from "../cut-text-tooltip";
 import { announceEntriesChanged } from "../entries-changed";
 import { longDay, totalFigure } from "../format";
 import { iconMarkup } from "../icons";
 import { paintInstanceDot } from "../instance-hue";
-import { PUSH_MARKS, knownPushState, type PushMark } from "../push-marks";
+import { PUSH_MARKS, countsInTotals, knownPushState, type PushMark } from "../push-marks";
 import type { Entry } from "../types";
 import type { ThatDialogBlocks } from "./that-dialog-blocks";
 import type { ThatDuration } from "./that-duration";
@@ -53,15 +53,25 @@ let dialogSequence = 0;
  * to this string turned ink under the pointer. Neither specificity nor class
  * order can fix that; only not stating both can.
  */
-const ICON_BUTTON_BASE =
-  "text-ink-muted hover:bg-hover focus-visible:bg-hover flex size-[34px] shrink-0 " +
+const ICON_BUTTON_FRAME =
+  "hover:bg-hover focus-visible:bg-hover flex size-[34px] shrink-0 " +
   "cursor-pointer items-center justify-center rounded-sm";
+
+const ICON_BUTTON_BASE = `text-ink-muted ${ICON_BUTTON_FRAME}`;
 
 const ICON_BUTTON = `${ICON_BUTTON_BASE} hover:text-ink focus-visible:text-ink`;
 
 /** Delete is the one irreversible thing on a row, and the only control in the
  *  app that announces itself before it is pressed. */
 const ICON_BUTTON_DESTRUCTIVE = `${ICON_BUTTON_BASE} hover:text-failed focus-visible:text-failed`;
+
+/** Restore is ink at rest, as the design session drew it: it is the one
+ *  control on a struck row, and muted would sink it into the strike. */
+const ICON_BUTTON_RESTORE = `text-ink ${ICON_BUTTON_FRAME}`;
+
+/** A pending delete's duration and comment: struck, in the muted ink, with the
+ *  strike itself in the faint mark colour (#280, option C). */
+const STRUCK = ["text-ink-muted", "line-through", "decoration-ink-faint"];
 
 /** The prototype's `.etitle`: the day line and the summary beneath the
  *  identity row both wear it, so the two lines read as one register. */
@@ -467,7 +477,9 @@ export class ThatEntryDialog extends HTMLElement {
     const empty = this.empty;
     if (!list || !total || !empty) return;
 
-    total.textContent = totalFigure(this.entries.reduce((sum, entry) => sum + entry.seconds, 0));
+    total.textContent = totalFigure(
+      this.entries.filter(countsInTotals).reduce((sum, entry) => sum + entry.seconds, 0),
+    );
 
     const hasEntries = this.entries.length > 0;
     empty.hidden = hasEntries;
@@ -481,6 +493,7 @@ export class ThatEntryDialog extends HTMLElement {
    * where it is the only thing telling two entries of the same length apart.
    */
   private entryRow(entry: Entry): HTMLElement {
+    const pending = entry.pushState === "deleted";
     const row = document.createElement("li");
     row.className = "flex items-center gap-3 rounded-sm px-2.5 py-2";
     // The whole of what says which entry the foot form is bound to, now that no
@@ -493,6 +506,7 @@ export class ThatEntryDialog extends HTMLElement {
     const duration = document.createElement("span");
     duration.className = "that-tnum font-mono w-[68px] shrink-0 font-bold";
     duration.textContent = totalFigure(entry.seconds);
+    if (pending) duration.classList.add(...STRUCK);
 
     const commentId = `that-entry-comment-${this.sequence}-${entry.id}`;
     const comment = document.createElement("span");
@@ -506,33 +520,53 @@ export class ThatEntryDialog extends HTMLElement {
       comment.classList.add("text-ink-muted");
       comment.textContent = "No comment";
     }
+    if (pending) comment.classList.add(...STRUCK);
 
-    const editId = `that-entry-edit-${this.sequence}-${entry.id}`;
-
+    const time = clockTime(entry.startedAt);
     const actions = document.createElement("div");
     actions.className = "flex shrink-0 items-center gap-1.5";
-    actions.append(
-      ...rowAction(
-        "edit",
-        `Edit the ${clockTime(entry.startedAt)} entry`,
-        "edit entry",
-        false,
-        editId,
-        () => {
-          this.startEditing(entry);
-        },
-      ),
-      ...rowAction(
-        "trash",
-        `Delete the ${clockTime(entry.startedAt)} entry`,
-        "delete entry",
-        true,
-        `that-entry-delete-${this.sequence}-${entry.id}`,
-        () => {
-          void this.confirmAndDelete(entry);
-        },
-      ),
-    );
+    if (pending) {
+      // The edit slot stays, empty, so Restore lands exactly where Delete was
+      // and nothing in the row moves.
+      const editSlot = document.createElement("span");
+      editSlot.className = "size-[34px] shrink-0";
+      actions.append(
+        editSlot,
+        ...rowAction(
+          "undo",
+          `Restore the ${time} entry`,
+          "restore entry",
+          ICON_BUTTON_RESTORE,
+          this.restoreId(entry),
+          () => {
+            void this.restore(entry);
+          },
+        ),
+      );
+    } else {
+      actions.append(
+        ...rowAction(
+          "edit",
+          `Edit the ${time} entry`,
+          "edit entry",
+          ICON_BUTTON,
+          `that-entry-edit-${this.sequence}-${entry.id}`,
+          () => {
+            this.startEditing(entry);
+          },
+        ),
+        ...rowAction(
+          "trash",
+          `Delete the ${time} entry`,
+          "delete entry",
+          ICON_BUTTON_DESTRUCTIVE,
+          this.deleteId(entry),
+          () => {
+            void this.confirmAndDelete(entry);
+          },
+        ),
+      );
+    }
 
     // The popover rides inside the row rather than beside it. It is closed —
     // and so `display: none` — until it is shown, and open it is in the top
@@ -585,6 +619,7 @@ export class ThatEntryDialog extends HTMLElement {
     } else if (state.shape !== undefined) {
       const shape = document.createElement("span");
       shape.className = state.shape;
+      if (state.markup !== undefined) shape.innerHTML = state.markup;
       holder.append(shape);
     }
 
@@ -653,9 +688,15 @@ export class ThatEntryDialog extends HTMLElement {
   }
 
   private async confirmAndDelete(entry: Entry): Promise<void> {
+    const logged = `${totalFigure(entry.seconds)} logged at ${clockTime(entry.startedAt)}`;
+    // An entry Jira holds waits for the push and can be restored until then;
+    // one it does not goes now. Neither wording names Jira (#280, decision 9).
+    const waits = entry.pushState === "pushed" || entry.pushState === "dirty";
     const confirmed = await confirmDestructive({
       heading: "Delete this entry?",
-      body: `${totalFigure(entry.seconds)} logged at ${clockTime(entry.startedAt)} will be removed.`,
+      body: waits
+        ? `${logged} will be deleted at the next push. You can restore it until then.`
+        : `${logged} will be removed.`,
       confirmLabel: "Delete",
     });
     if (!confirmed) return;
@@ -664,13 +705,40 @@ export class ThatEntryDialog extends HTMLElement {
     try {
       await deleteEntry(entry.id);
       // An entry being edited that is then deleted leaves the foot form bound
-      // to a row that no longer exists, and Save would 404.
+      // to a row that is gone or can no longer be edited.
       if (this.editing?.id === entry.id) this.stopEditing();
       await this.afterMutation();
-      this.refocusIfLostFromDialog();
+      this.focusOrFallback(this.restoreId(entry));
     } catch (error) {
       this.showFailure(error, "Could not delete the entry.");
     }
+  }
+
+  private async restore(entry: Entry): Promise<void> {
+    this.clearNotice();
+    try {
+      await restoreEntry(entry.id);
+      await this.afterMutation();
+      this.focusOrFallback(this.deleteId(entry));
+    } catch (error) {
+      this.showFailure(error, "Could not restore the entry.");
+    }
+  }
+
+  private deleteId(entry: Entry): string {
+    return `that-entry-delete-${this.sequence}-${entry.id}`;
+  }
+
+  private restoreId(entry: Entry): string {
+    return `that-entry-restore-${this.sequence}-${entry.id}`;
+  }
+
+  /** Delete and Restore share a slot, so after either the other is where focus
+   *  goes; a row that is gone falls back to Close. */
+  private focusOrFallback(id: string): void {
+    const control = this.dialog?.querySelector<HTMLElement>(`#${id}`);
+    if (control) control.focus();
+    else this.refocusIfLostFromDialog();
   }
 
   private async afterMutation(): Promise<void> {
@@ -719,14 +787,14 @@ export class ThatEntryDialog extends HTMLElement {
  * An icon-only control on a row, with its `.tip` popover — the same shape
  * `cancelEditControl` uses beside it. The mark is aria-hidden by construction,
  * so the name has to be the label; the tooltip is never that name, which is
- * why its words are the plain "edit entry" / "delete entry" rather than the
+ * why its words are the plain "edit entry" / "delete entry" / "restore entry" rather than the
  * aria-label's time-specific sentence.
  */
 function rowAction(
-  icon: "edit" | "trash",
+  icon: "edit" | "trash" | "undo",
   description: string,
   words: string,
-  destructive: boolean,
+  className: string,
   id: string,
   act: () => void,
 ): HTMLElement[] {
@@ -734,7 +802,7 @@ function rowAction(
   button.type = "button";
   button.id = id;
   button.setAttribute("aria-label", description);
-  button.className = destructive ? ICON_BUTTON_DESTRUCTIVE : ICON_BUTTON;
+  button.className = className;
   button.innerHTML = iconMarkup(icon, 17);
   button.addEventListener("click", act);
 

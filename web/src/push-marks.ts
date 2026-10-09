@@ -13,12 +13,22 @@ export interface PushMark {
   words: string;
   /** The colour. Every shape draws in `currentColor`, so it is named once. */
   tone: string;
-  /** A drawn silhouette: disc, ring, triangle — one each, so no two states
-   *  are told apart by hue alone. */
+  /** A drawn silhouette: disc, ring, triangle, slashed ring — one each, so no
+   *  two states are told apart by hue alone. */
   shape?: string;
+  /** SVG drawn inside the shape's box, for the one mark a border cannot draw. */
+  markup?: string;
   /** Or a real icon, for the one state only a roomy consumer draws. */
   icon?: "success";
 }
+
+/** #280's slashed ring: dirty's ring with a slash stopping at its inner edge,
+ *  like a "no entry" sign, as the design session of 2026-10-08 drew it. */
+const SLASHED_RING =
+  '<svg class="block" width="9" height="9" viewBox="0 0 9 9" aria-hidden="true">' +
+  '<circle cx="4.5" cy="4.5" r="3.75" fill="none" stroke="currentColor" stroke-width="1.5"/>' +
+  '<path d="M2.15 6.85 6.85 2.15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+  "</svg>";
 
 /**
  * The words are the same in every place a mark shows, because a state that is
@@ -43,6 +53,13 @@ export const PUSH_MARKS = {
     tone: "text-failed",
     shape: "size-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-current",
   },
+  deleted: {
+    words: "deleted at next push",
+    // Dirty's hue: Jira holds this time, and what Jira holds is now wrong.
+    tone: "text-dirty",
+    shape: "size-[9px]",
+    markup: SLASHED_RING,
+  },
   pushed: {
     words: "pushed",
     tone: "text-running",
@@ -59,4 +76,10 @@ export const PUSH_MARKS = {
  */
 export function knownPushState<S extends MarkedPushState>(state: S): S | "unpushed" {
   return Object.hasOwn(PUSH_MARKS, state) ? state : "unpushed";
+}
+
+/** Whether an entry counts in a total. A pending delete does not: every total
+ *  says what Jira will hold once the push has run (#280). */
+export function countsInTotals(entry: Pick<Entry, "pushState">): boolean {
+  return entry.pushState !== "deleted";
 }
