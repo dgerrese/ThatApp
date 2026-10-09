@@ -2456,7 +2456,7 @@ In the push button's click handler, the confirmation's sum becomes (ruling 7):
       const seconds = due.filter(countsInTotals).reduce((sum, entry) => sum + entry.seconds, 0);
 ```
 
-Add to this task's e2e spec: with one pushed entry of 1h and one pending delete of 30m on the day, plus one unpushed 15m entry, the rail push confirmation's body reads `2 entries totalling 0:15` (match the exact figure format `totalFigure` produces). `isPending` is unchanged; extend `isPending`'s comment: "never sent, sent and edited since, or deleted and waiting for the push to say so."
+Add to this task's e2e spec: with one pushed entry of 1h and one pending delete of 30m on the day, plus one unpushed 15m entry, the rail push confirmation's body reads `2 entries totalling 0h 15m will be sent to 1 site.`. `isPending` is unchanged; extend `isPending`'s comment: "never sent, sent and edited since, or deleted and waiting for the push to say so."
 
 - [ ] **Step 6: The push report.** In `web/src/push-report.ts`, in `pushReportLines` add `const deleted = all.filter((line) => line.result.status === "deleted");` beside `pushed`, and the success return's message becomes `pushedLine(pushed.length, deleted.length)`. Add at the end of the file:
 
@@ -2480,9 +2480,9 @@ function pushedLine(pushed: number, deleted: number): string {
   5. `paintFigures` over `lastEntries` again → Today e2e red on `#rail-total`.
   6. `isPending` as `entry.pushState === "unpushed" || entry.pushState === "dirty"` → red on `1 entry to push` (both Today tests).
   7. The confirmation's sum over `due` again → red on the confirmation's total.
-  7. `pushedLine` ignores `deleted` → push-report unit red.
-  8. Put `delete_unrecorded` in the `stranded` filter (`code === "store_failed" || code === "delete_unrecorded"`) → the guard red.
-  9. Filter `regions.entries` too (`regions.entries = entries.filter(countsInTotals)`) → off-list e2e red.
+  8. `pushedLine` ignores `deleted` → push-report unit red.
+  9. Put `delete_unrecorded` in the `stranded` filter (`code === "store_failed" || code === "delete_unrecorded"`) → the guard red.
+  10. Filter `regions.entries` too (`regions.entries = entries.filter(countsInTotals)`) → off-list e2e red.
 
 - [ ] **Step 9: Commit.**
 
