@@ -645,6 +645,9 @@ func TestFetchWeekLeavesAPendingDeleteAlone(t *testing.T) {
 		t.Errorf("created %d, updated %d, keptLocal %+v; want nothing done and nothing reported",
 			body.Created, body.Updated, body.KeptLocal)
 	}
+	if len(body.Failures) != 0 {
+		t.Errorf("failures = %+v, want none: the fetch tried to re-create the worklog", body.Failures)
+	}
 	stored := allEntries(t, db)
 	if len(stored) != 1 {
 		t.Fatalf("stored %d entries, want the one: the worklog was re-created", len(stored))
