@@ -416,3 +416,39 @@ test("opening Today again places the cards afresh", async ({ page }) => {
   await expect(rowsOf(page, "Alpha")).toHaveCount(1); // wait
   expect(await stackOf(page, "Charlie")).toBe("left");
 });
+
+test("a Refresh that succeeds after a failed one draws the cards and places them afresh", async ({ page }) => {
+  let calls = 0;
+  let pinsRefreshes = 0;
+  let pinsAnsweredSecondRefresh: () => void = () => undefined;
+  const pinsSettled = new Promise<void>((resolve) => {
+    pinsAnsweredSecondRefresh = resolve;
+  });
+  await page.route("**/api/pins**", async (route) => {
+    const refreshed = new URL(route.request().url()).searchParams.get("refresh") === "1";
+    await route.fulfill({ status: 200, json: [] });
+    if (refreshed && (pinsRefreshes += 1) === 2) pinsAnsweredSecondRefresh();
+  });
+  await page.route("**/api/issues", async (route) => {
+    calls += 1;
+    if (calls === 2) {
+      await route.fulfill({ status: 500, json: { code: "store_failed", message: "could not read the stored instances" } });
+      return;
+    }
+    // The pins answer lands first, while the earlier failure still stands.
+    if (calls === 3) await pinsSettled;
+    await route.fulfill({ status: 200, json: { instances: calls === 1 ? instances(2, 1, 1) : instances(1, 1, 1) } });
+  });
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+  const refresh = page.getByRole("button", { name: "Refresh" });
+
+  await refresh.click();
+  // Enabled again once both reads settle. Not the alert: before #305 the pins answer could land
+  // second and wipe it, which would make this guard flaky on the unfixed code.
+  await expect(refresh).toBeEnabled(); // wait
+  await refresh.click();
+
+  await expect.soft(rowsOf(page, "Alpha")).toHaveCount(1);
+  // Charlie sat right beside Alpha's two rows; placed afresh from one row each, a tie sends it left.
+  expect.soft(await stackOf(page, "Charlie")).toBe("left");
+});

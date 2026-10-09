@@ -109,6 +109,9 @@ interface Regions {
   offListSignal: AbortSignal;
   pinsCachedAt: Date | null;
   issuesCachedAt: Date | null;
+  /** Whether the last issues read failed. Its alert in `results` is the only report of the
+   *  failure, so no redraw may replace it until a read succeeds (#305). */
+  issuesFailed: boolean;
   /** True once the assigned read (refreshResults) has settled at least once,
    *  success or failure. The three mount reads (entries, pins, assigned) are
    *  concurrent and entries is local and fast, so before this the assigned
@@ -344,6 +347,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     offListSignal: offListAbort.signal,
     pinsCachedAt: null,
     issuesCachedAt: null,
+    issuesFailed: false,
     assignedSettled: false,
     totals: new Map(),
     totalsEpoch: 0,
@@ -989,11 +993,13 @@ async function refreshResults(regions: Regions, options?: { restack?: boolean })
     // are in hand rather than at the press: the pins answer may land first,
     // and its redraw from the old issues must not be what places the cards.
     if (options?.restack) regions.stackOf = new Map();
+    regions.issuesFailed = false;
     renderResponse(regions, response);
   } catch (error) {
     regions.assignedSettled = true;
     regions.refresh.hidden = false;
     regions.issuesCachedAt = null;
+    regions.issuesFailed = true;
     regions.results.replaceChildren(alertFor("error", messageOf(error)));
     // renderResponse is what would otherwise unblock this — see its own
     // trailing call — but a failed read never reaches it. The off-list
@@ -1058,6 +1064,11 @@ async function refreshEverything(regions: Regions, options?: { restack?: boolean
 }
 
 function renderResponse(regions: Regions, response: IssuesResponse): void {
+  if (regions.issuesFailed) {
+    renderOffListSection(regions);
+
+    return;
+  }
   if (response.instances.length === 0) {
     // No instances means no pins either — the cascade took them with the last
     // instance — so the whole left/right layout would be two controls with
