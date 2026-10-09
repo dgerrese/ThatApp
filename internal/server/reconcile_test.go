@@ -24,6 +24,13 @@ func TestReconcileWorklog(t *testing.T) {
 			UpdatedAt: pushedAt.Add(time.Minute),
 		}
 	}
+	// pendingDelete marks an entry the user deleted; the push has not run yet.
+	pendingDelete := func(local *store.Entry) *store.Entry {
+		deletedAt := pushedAt.Add(2 * time.Hour)
+		local.DeletedAt = &deletedAt
+
+		return local
+	}
 
 	tests := []struct {
 		name    string
@@ -75,6 +82,20 @@ func TestReconcileWorklog(t *testing.T) {
 			name:    "clean, and the worklog carries no update time at all",
 			updated: time.Time{},
 			local:   clean(pushedAt.Add(-time.Hour)),
+			want:    actionLeave,
+		},
+		{
+			// The delete wins: overwriting would bring back time the user removed.
+			name:    "the local entry waits to be deleted, and the worklog is younger",
+			updated: pushedAt.Add(3 * time.Hour),
+			local:   pendingDelete(clean(pushedAt.Add(-time.Hour))),
+			want:    actionLeave,
+		},
+		{
+			// Not keep-local either: that reports it, and there is nothing to choose.
+			name:    "the local entry was edited, then deleted",
+			updated: pushedAt.Add(3 * time.Hour),
+			local:   pendingDelete(dirty()),
 			want:    actionLeave,
 		},
 	}

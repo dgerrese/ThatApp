@@ -1,6 +1,6 @@
-import type { ReportLine } from "./fetch-report";
-import { toast } from "./toast";
-import type { PushResponse, PushResult } from "./types";
+import type { ReportLine } from "./fetch-report.ts";
+import { toast } from "./toast.ts";
+import type { PushResponse, PushResult } from "./types.ts";
 
 /**
  * The one rendering of a finished push, shared by every view that can trigger
@@ -37,12 +37,13 @@ export function pushReportLines(
   );
   const failed = all.filter((line) => line.result.status === "failed");
   const pushed = all.filter((line) => line.result.status === "pushed");
+  const deleted = all.filter((line) => line.result.status === "deleted");
 
   if (failed.length === 0 && unanswered.length === 0) {
     return [
       {
         tone: "success",
-        message: `Pushed ${String(pushed.length)} ${pushed.length === 1 ? "entry" : "entries"}.`,
+        message: pushedLine(pushed.length, deleted.length),
         items: [],
       },
     ];
@@ -98,4 +99,12 @@ export function showPushReport(lines: ReportLine[]): void {
 /** A week push covers several days, so "RIDGE-204 failed" does not say where to look. */
 function label(day: string, result: PushResult, options: PushReportOptions): string {
   return options.nameDays === true ? `${day} · ${result.issueKey}` : result.issueKey;
+}
+
+/** "Pushed 2 entries." — and the deletes beside them when there were any, the
+ *  way the fetch report words its two counts. */
+function pushedLine(pushed: number, deleted: number): string {
+  const entries = `${String(pushed)} ${pushed === 1 ? "entry" : "entries"}`;
+
+  return deleted === 0 ? `Pushed ${entries}.` : `Pushed ${entries} and deleted ${String(deleted)}.`;
 }

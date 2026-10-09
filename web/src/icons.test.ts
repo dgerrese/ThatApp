@@ -105,3 +105,11 @@ test("plug and check are transcribed from the prototype's #p-plug and #p-check",
   );
   assert.match(iconMarkup("check"), /<path d="M4\.5 12\.6 9\.6 17\.7 19\.5 6\.9"\/>/);
 });
+
+test("undo is transcribed from the design session's #m-undo", () => {
+  // Pasted verbatim from .superpowers/brainstorm/333584-1791464716/content/01-dialog-row.html.
+  assert.match(
+    iconMarkup("undo"),
+    /<path d="M9 6\.5 4\.5 11 9 15\.5"\/><path d="M4\.5 11h10a5 5 0 0 1 0 10h-3"\/>/,
+  );
+});

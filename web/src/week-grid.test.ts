@@ -44,12 +44,11 @@ function row(overrides: Partial<WeekRow> & { byDay?: Record<number, WeekCell> } 
 }
 
 function rollup(rows: WeekRow[], byDay: Record<number, Partial<WeekDay>> = {}): WeekRollup {
-  const days = DAYS.map((day, index) => ({
-    day,
-    seconds: rows.reduce((sum, r) => sum + (r.cells[index]?.seconds ?? 0), 0),
-    pushState: null,
-    ...byDay[index],
-  }));
+  const days = DAYS.map((day, index): WeekDay => {
+    const seconds = rows.reduce((sum, r) => sum + (r.cells[index]?.seconds ?? 0), 0);
+
+    return { day, seconds, pushState: seconds > 0 ? "pushed" : null, ...byDay[index] };
+  });
 
   return {
     start: "2026-09-07",
@@ -276,4 +275,64 @@ test("a cell opens the entries dialog for its own ticket and day", () => {
       day: "2026-09-08",
     },
   ]);
+});
+
+test("a cell holding a pending delete wears the slashed ring beside its figure", () => {
+  const grid = weekGrid(
+    rollup([row({ byDay: { 1: { seconds: 5400, pushState: "deleted" } } })]),
+    noFailures(),
+    noop,
+  );
+  const button = cellButton(grid, 0, 1);
+  const mark = button.querySelector("span[aria-hidden='true']");
+
+  assert.ok(mark?.classList.contains("text-dirty"), "the mark is not in dirty's hue");
+  assert.ok(mark?.querySelector("svg circle"), "the mark is not the slashed ring");
+  assert.equal(button.textContent, "1h 30m");
+  assert.equal(
+    button.getAttribute("aria-label"),
+    "ABC-1, Tue 8, 1h 30m, deleted at next push, click to edit",
+  );
+  assert.equal(
+    button.parentElement?.querySelector("that-tooltip")?.textContent,
+    "1h 30m · deleted at next push · click to edit",
+  );
+});
+
+test("a cell whose only entries wait to be deleted keeps its dash and wears the mark", () => {
+  const grid = weekGrid(
+    rollup([row({ byDay: { 2: { seconds: 0, pushState: "deleted" } } })]),
+    noFailures(),
+    noop,
+  );
+  const button = cellButton(grid, 0, 2);
+
+  assert.ok(button.querySelector("span[aria-hidden='true'] svg"), "the emptied cell lost its mark");
+  assert.equal(button.textContent, "—");
+  assert.equal(button.querySelector(".text-ink-muted")?.textContent, "—", "the dash is not muted");
+  assert.equal(
+    button.getAttribute("aria-label"),
+    "ABC-1, Wed 9, no time logged, deleted at next push, click to edit",
+  );
+  assert.equal(
+    button.parentElement?.querySelector("that-tooltip")?.textContent,
+    "No time logged · deleted at next push · click to edit",
+  );
+});
+
+test("a day whose only entries wait to be deleted shows a muted dash wearing the mark", () => {
+  const grid = weekGrid(
+    rollup([row({ byDay: { 2: { seconds: 0, pushState: "deleted" } } })], {
+      2: { pushState: "deleted" },
+    }),
+    noFailures(),
+    noop,
+  );
+  const wednesday = footCells(grid)[2];
+  const mark = wednesday?.querySelector("[role='img']");
+
+  assert.equal(mark?.getAttribute("aria-label"), "deleted at next push");
+  assert.ok(mark?.querySelector("svg"), "the day's mark is not the slashed ring");
+  assert.ok(wednesday?.classList.contains("text-ink-muted"), "the emptied day is not muted");
+  assert.equal(wednesday?.lastChild?.textContent, "—");
 });

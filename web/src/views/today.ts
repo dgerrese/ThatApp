@@ -19,6 +19,7 @@ import { clockTime, totalFigure } from "../format";
 import { paintInstanceDot } from "../instance-hue";
 import { openSettings } from "../open-settings";
 import { pageHeading } from "../page-heading";
+import { countsInTotals } from "../push-marks";
 import { pushReportLines, showPushReport } from "../push-report";
 import { onPushReported } from "../push-reported";
 import { setRailPeriod, TODAY_PERIOD } from "../rail";
@@ -439,6 +440,7 @@ async function refreshTotals(regions: Regions, fresh?: Entry[]): Promise<void> {
   regions.entries = entries;
   regions.totals = new Map();
   for (const entry of entries) {
+    if (!countsInTotals(entry)) continue;
     const id = totalKey(entry.instanceId, entry.issueKey);
     regions.totals.set(id, (regions.totals.get(id) ?? 0) + entry.seconds);
   }

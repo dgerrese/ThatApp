@@ -601,3 +601,60 @@ func TestFetchWeekAfterAPushReportsNothingUpdated(t *testing.T) {
 			"push coming back, and reporting it as an update reads as an alarm", body.Created, body.Updated)
 	}
 }
+
+// #280: a fetch must not re-create, overwrite or un-mark a pending delete. The
+// remote copy here is younger and has moved a day, so every other rule would
+// rewrite the row.
+func TestFetchWeekLeavesAPendingDeleteAlone(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Amsterdam")
+	if err != nil {
+		t.Fatalf("loading zone: %v", err)
+	}
+
+	jiraSrv := newFetchJiraServer(t, "me-1")
+	jiraSrv.searchIssues = []string{"WORK-1"}
+	srv := jiraSrv.start()
+
+	s, db, sealer := fetchEnv(t, "Europe/Amsterdam", time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC))
+	inst := seedInstance(t, db, sealer, "Work", "", srv.URL)
+
+	entry := seedEntry(t, db, store.EntryInput{
+		InstanceID: inst.ID, IssueKey: "WORK-1", Day: "2026-09-02",
+		StartedAt: time.Date(2026, 9, 2, 9, 0, 0, 0, loc), Seconds: 1800, Comment: "old",
+	})
+	marked := markEntryPushed(t, db, entry.ID, "wl-D")
+	if err := db.MarkEntryDeleted(context.Background(), entry.ID,
+		time.Date(2026, 9, 2, 11, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("marking the entry deleted: %v", err)
+	}
+
+	jiraSrv.worklogs["WORK-1"] = []rawWorklog{{
+		id: "wl-D", accountID: "me-1",
+		started: time.Date(2026, 9, 3, 10, 0, 0, 0, loc),
+		updated: marked.UpdatedAt.Add(time.Hour),
+		seconds: 5400,
+	}}
+
+	rec := callFetchWeek(t, s, "/api/week/fetch?start=2026-08-31")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeFetchWeek(t, rec)
+
+	if body.Created != 0 || body.Updated != 0 || len(body.KeptLocal) != 0 {
+		t.Errorf("created %d, updated %d, keptLocal %+v; want nothing done and nothing reported",
+			body.Created, body.Updated, body.KeptLocal)
+	}
+	if len(body.Failures) != 0 {
+		t.Errorf("failures = %+v, want none: the fetch tried to re-create the worklog", body.Failures)
+	}
+	stored := allEntries(t, db)
+	if len(stored) != 1 {
+		t.Fatalf("stored %d entries, want the one: the worklog was re-created", len(stored))
+	}
+	after := stored[0]
+	if after.Seconds != 1800 || after.Day != "2026-09-02" || pushStateOf(after) != "deleted" {
+		t.Errorf("entry = %ds on %s in state %q, want 1800s on 2026-09-02, still deleted",
+			after.Seconds, after.Day, pushStateOf(after))
+	}
+}

@@ -181,6 +181,12 @@ export function deleteEntry(id: number): Promise<void> {
   return request<void>(`/api/entries/${id}`, { method: "DELETE" });
 }
 
+/** Takes back a delete that is waiting for the push (#280), answering with the
+ *  entry in the push state it had before. */
+export function restoreEntry(id: number): Promise<Entry> {
+  return request<Entry>(`/api/entries/${id}/restore`, { method: "POST" });
+}
+
 /**
  * A Monday-to-Sunday rollup, pre-aggregated. An absent `start` means the current
  * week's Monday resolved in THAT_TIMEZONE — the same reason listEntries' bounds

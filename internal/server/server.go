@@ -66,6 +66,7 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 	s.mux.HandleFunc("POST /api/entries", s.handleCreateEntry)
 	s.mux.HandleFunc("PATCH /api/entries/{id}", s.handleUpdateEntry)
 	s.mux.HandleFunc("DELETE /api/entries/{id}", s.handleDeleteEntry)
+	s.mux.HandleFunc("POST /api/entries/{id}/restore", s.handleRestoreEntry)
 	s.mux.HandleFunc("GET /api/timer", s.handleGetTimer)
 	s.mux.HandleFunc("POST /api/timer/start", s.handleStartTimer)
 	s.mux.HandleFunc("POST /api/timer/stop", s.handleStopTimer)

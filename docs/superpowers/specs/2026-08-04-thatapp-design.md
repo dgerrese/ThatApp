@@ -117,7 +117,8 @@ CREATE TABLE time_entries (
   worklog_id     VARCHAR(32),            -- NULL until pushed to Jira
   pushed_at      DATETIME,               -- NULL until pushed
   created_at     DATETIME NOT NULL,
-  updated_at     DATETIME NOT NULL
+  updated_at     DATETIME NOT NULL,
+  deleted_at     DATETIME                -- set while a delete waits for the push (#280)
 );
 CREATE INDEX idx_entries_day ON time_entries(day);
 CREATE INDEX idx_entries_issue_day ON time_entries(instance_id, issue_key, day);
@@ -171,20 +172,30 @@ An entry's push state is derived, never stored as a separate flag:
 | State | Condition | Push action |
 |---|---|---|
 | Unpushed | `worklog_id IS NULL` | `POST` worklog, store returned ID, set `pushed_at` |
-| Pushed, clean | `worklog_id NOT NULL AND updated_at <= pushed_at` | none |
-| Pushed, dirty | `worklog_id NOT NULL AND updated_at > pushed_at` | `PUT` worklog, set `pushed_at` |
+| Pushed, clean | `worklog_id NOT NULL AND deleted_at IS NULL AND updated_at <= pushed_at` | none |
+| Pushed, dirty | `worklog_id NOT NULL AND deleted_at IS NULL AND (pushed_at IS NULL OR updated_at > pushed_at)` | `PUT` worklog, set `pushed_at` |
+| Pending delete | `worklog_id NOT NULL AND deleted_at IS NOT NULL` | `DELETE` worklog (a Jira `404` counts as success), then delete the row |
 
-Deleting an entry that has a `worklog_id` deletes the corresponding Jira worklog first; the local
-row is removed only once Jira confirms. Deletion of an unpushed entry is purely local.
+Deleting an entry waits for the push, like every other change to Jira (#280). An entry with a
+`worklog_id` is only marked: `deleted_at` is set, no request goes to Jira, and from then on it
+counts in no total — not the entry dialog's, Today's, the rail's or Week's. Until the push it can
+be restored (`POST /api/entries/:id/restore`), which clears `deleted_at` and nothing else. Setting
+and clearing `deleted_at` never touches `updated_at` or `pushed_at`, so a restored entry is back in
+exactly the state it had: pushed stays pushed, dirty stays dirty. An entry without a `worklog_id`
+has nothing in Jira, and its delete removes the row at once; an unpushed row never carries
+`deleted_at`. A pending delete cannot be edited (`PATCH` answers `409`; restore it first), and a
+week fetch leaves it alone — the delete wins over whatever Jira returns for its worklog.
 
-Because state is derived, pushing the same day repeatedly is safe and idempotent.
+Because state is derived, pushing the same day repeatedly is safe and idempotent: a second push
+after a successful delete finds no row and makes no request for it.
 
 ### Partial failure
 
 A push covering several instances may succeed for some and fail for others. It is **not**
 all-or-nothing and it is not transactional across instances. Each entry is pushed independently;
-the response reports per-entry success or failure with the error. Entries that failed keep
-`worklog_id IS NULL` and are retried by the next push. The UI must show which entries did not
+the response reports per-entry success or failure with the error. Entries that failed keep what made
+them due — `worklog_id IS NULL` for a create, a stale `pushed_at` for an update, `deleted_at` (and
+the row) for a delete — and are retried by the next push. The UI must show which entries did not
 make it rather than reporting a blanket success.
 
 ## API surface
@@ -207,6 +218,7 @@ GET     /api/entries?from=&to=
 POST    /api/entries
 PATCH   /api/entries/:id
 DELETE  /api/entries/:id
+POST    /api/entries/:id/restore         take back a delete waiting for the push (#280)
 
 GET     /api/timer
 POST    /api/timer/start

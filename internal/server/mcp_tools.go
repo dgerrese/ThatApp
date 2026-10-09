@@ -3,21 +3,13 @@ package server
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
 )
-
-// mcpJiraDeleteRefusal is delete_entry's answer for an entry Jira holds a
-// worklog for: the API would delete that worklog too, and no tool writes to Jira.
-const mcpJiraDeleteRefusal = "This entry has reached Jira, and deleting it would delete its Jira " +
-	"worklog too. Only ThatApp itself may do that: delete it there."
 
 // apiRequest is the /api request a tool call stands for — what the browser
 // would send for the same thing.
@@ -65,9 +57,10 @@ var mcpTools = []mcpTool{
 	{
 		Name: "list_entries",
 		Description: "Logged time entries in an inclusive date range, oldest first. Each has its push " +
-			"state: unpushed (not in Jira yet), pushed, or dirty (edited since its push). Dates are " +
-			"YYYY-MM-DD in the server's timezone (THAT_TIMEZONE), and both default to today there; the " +
-			"response's today field names that date.",
+			"state: unpushed (not in Jira yet), pushed, dirty (edited since its push), or deleted " +
+			"(its Jira worklog is deleted at the user's next push; it counts in no total and can be " +
+			"restored in the app until then). Dates are YYYY-MM-DD in the server's timezone " +
+			"(THAT_TIMEZONE), and both default to today there; the response's today field names that date.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"from":` + dayProperty +
 			`,"to":` + dayProperty + `},"additionalProperties":false}`),
 		request: queryRequest("/api/entries", "from", "to"),
@@ -75,8 +68,8 @@ var mcpTools = []mcpTool{
 	{
 		Name: "get_week",
 		Description: "A Monday-to-Sunday rollup of logged time: per issue per day, with day totals and " +
-			"each cell's push state. start must be a Monday, YYYY-MM-DD; it defaults to this week's " +
-			"Monday in the server's timezone (THAT_TIMEZONE).",
+			"each cell's push state. Entries waiting to be deleted count in no total. start must be a " +
+			"Monday, YYYY-MM-DD; it defaults to this week's Monday in the server's timezone (THAT_TIMEZONE).",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"start":` + dayProperty +
 			`},"additionalProperties":false}`),
 		request: queryRequest("/api/week", "start"),
@@ -113,8 +106,9 @@ var mcpTools = []mcpTool{
 	},
 	{
 		Name: "delete_entry",
-		Description: "Delete an entry that has not reached Jira. An entry that has (pushed or dirty) is " +
-			"refused: deleting it would delete its Jira worklog, which only ThatApp itself may do.",
+		Description: "Delete an entry. One not yet in Jira is removed at once. One that has reached Jira " +
+			"(pushed or dirty) is marked deleted: its Jira worklog is deleted at the user's next push, " +
+			"and the user can restore it in the app until then. Nothing is written to Jira by this tool.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer","minimum":1}},` +
 			`"required":["id"],"additionalProperties":false}`),
 		request: entryRequest(http.MethodDelete, false),
@@ -225,16 +219,6 @@ func (s *Server) mcpCallTool(r *http.Request, params mcpParams) (any, *rpcError)
 	if err != nil {
 		return s.mcpToolResult("the arguments do not fit "+tool.Name+"'s input schema: "+err.Error(), true), nil
 	}
-	if tool.Name == "delete_entry" {
-		reached, err := s.entryReachedJira(r.Context(), args)
-		if err != nil {
-			return s.mcpToolResult("could not read the entry, so it was not deleted", true), nil
-		}
-		if reached {
-			return s.mcpToolResult(mcpJiraDeleteRefusal, true), nil
-		}
-	}
-
 	status, body := s.callAPI(r.Context(), call)
 	if status >= http.StatusBadRequest {
 		return s.mcpToolResult(apiMessageIn(status, body), true), nil
@@ -245,31 +229,6 @@ func (s *Server) mcpCallTool(r *http.Request, params mcpParams) (any, *rpcError)
 	}
 
 	return s.mcpToolResult(text, false), nil
-}
-
-// entryReachedJira reports whether the entry delete_entry's arguments name has
-// a worklog. It fails closed: a missing entry is left for the handler to answer
-// 404, but any other read error stops the delete.
-//
-// ponytail: read before the DELETE, outside pushMu (the handler takes that lock
-// itself), so a push landing in between can still reach Jira; a local-only flag
-// on DELETE /api/entries/{id} closes it if that window ever matters.
-func (s *Server) entryReachedJira(ctx context.Context, args json.RawMessage) (bool, error) {
-	var named struct {
-		ID int64 `json:"id"`
-	}
-	if json.Unmarshal(args, &named) != nil {
-		return false, nil
-	}
-	entry, err := s.db.Entry(ctx, named.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("reading entry %d before deleting it: %w", named.ID, err)
-	}
-
-	return entry.WorklogID != "", nil
 }
 
 // callAPI runs one request through the server's own routes, in process, so a

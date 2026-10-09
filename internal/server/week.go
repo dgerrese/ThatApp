@@ -8,14 +8,28 @@ import (
 	"codeberg.org/DionGerrese/ThatApp/internal/store"
 )
 
-// pushStateRank orders the three derived states by how much they still need
-// doing. A cell is a sum of entries that can disagree, and the marker it shows
-// is the worst of them — imprecise, and never falsely reassuring, which is the
-// side to err on when the reader is about to submit a timesheet.
+// pushStateRank orders the derived states by how much they still need doing. A
+// cell is a sum of entries that can disagree, and the marker it shows is the
+// worst of them — imprecise, and never falsely reassuring, which is the side to
+// err on when the reader is about to submit a timesheet.
 //
 // unpushed outranks dirty deliberately: dirty time is in Jira and merely stale,
-// unpushed time is not there at all.
-var pushStateRank = map[string]int{"pushed": 0, "dirty": 1, "unpushed": 2}
+// unpushed time is not there at all. deleted sits between them, the owner's
+// order (#280): Jira holds time it should not, which outranks stale text.
+var pushStateRank = map[string]int{"pushed": 0, "dirty": 1, "deleted": 2, "unpushed": 3}
+
+// countedSeconds is the time a cell or a day shows. A pending delete is left
+// out: every total says what Jira will hold once the push has run.
+func countedSeconds(entries []store.Entry) int {
+	seconds := 0
+	for _, entry := range entries {
+		if pushStateOf(entry) != "deleted" {
+			seconds += entry.Seconds
+		}
+	}
+
+	return seconds
+}
 
 // worstPushState reports the state a cell or a day shows, or nil when it holds
 // no entries at all — which is what makes the JSON field null rather than a
@@ -35,9 +49,9 @@ func worstPushState(entries []store.Entry) *string {
 	return &worst
 }
 
-// weekCellDTO is one ticket's time on one day. PushState is nil exactly when the
-// cell holds no entries, which is what keeps "empty" from being a fourth state
-// the browser has to know about.
+// weekCellDTO is one ticket's time on one day, pending deletes left out.
+// PushState is nil exactly when the cell holds no entries; a cell holding only
+// pending deletes has Seconds 0 and PushState "deleted".
 type weekCellDTO struct {
 	Seconds   int     `json:"seconds"`
 	PushState *string `json:"pushState"`
@@ -250,10 +264,7 @@ func rollUp(
 	}
 
 	for i, day := range days {
-		seconds := 0
-		for _, entry := range byDay[i] {
-			seconds += entry.Seconds
-		}
+		seconds := countedSeconds(byDay[i])
 		rollup.Days[i] = weekDayDTO{Day: day, Seconds: seconds, PushState: worstPushState(byDay[i])}
 		rollup.Seconds += seconds
 	}
@@ -268,10 +279,7 @@ func rollUp(
 			Cells:            make([]weekCellDTO, daysInWeek),
 		}
 		for i, cell := range byCell[key] {
-			seconds := 0
-			for _, entry := range cell {
-				seconds += entry.Seconds
-			}
+			seconds := countedSeconds(cell)
 			row.Cells[i] = weekCellDTO{Seconds: seconds, PushState: worstPushState(cell)}
 			row.Seconds += seconds
 		}
