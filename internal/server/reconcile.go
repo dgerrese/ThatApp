@@ -26,7 +26,9 @@ const (
 // reconcileWorklog decides what one worklog does to the entry that claims it.
 //
 // Youngest wins — measured against the later of the entry's updated_at and
-// pushed_at — with two deliberate exceptions.
+// pushed_at — with three deliberate exceptions.
+//
+// A pending delete is left alone whatever the timestamps say (#280).
 //
 // A dirty entry always wins, whatever the timestamps say. Following youngest-wins
 // there would discard an edit the user typed and never sent, which is the one
@@ -40,6 +42,13 @@ const (
 func reconcileWorklog(remote jira.RemoteWorklog, local *store.Entry) fetchAction {
 	if local == nil {
 		return actionCreate
+	}
+
+	// The delete wins over anything Jira says: the user asked for this worklog
+	// to go, and overwriting the row would bring back time they removed. The
+	// push's DELETE settles it, a 404 included.
+	if pushStateOf(*local) == "deleted" {
+		return actionLeave
 	}
 
 	if pushStateOf(*local) == "dirty" {
