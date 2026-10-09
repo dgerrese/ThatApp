@@ -201,24 +201,104 @@ test("a successful connection test states Connected and the time it was taken", 
   await expect(health).toHaveText(/^Connected · \d{2}:\d{2}$/);
   await expect(health).toHaveCSS("color", "oklch(0.75 0.15 150)");
   await expect(health.locator("svg")).toHaveAttribute("width", "15");
+  // One more round trip, so a toast the answer raised would have landed by now.
+  await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+  await expect(page.locator("that-toasts that-toast")).toHaveCount(0);
+});
+
+test("while a test runs, the health slot reads Testing… in muted ink with no mark, and Test is disabled", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await stubInstancesApi(page, { testStatus: 200 });
+  const settings = await openSettings(page);
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+  const row = settings.getByRole("listitem").filter({ hasText: "Work" });
+  const testButton = row.getByRole("button", { name: "Test Work" });
+
+  const held = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+  await testButton.click();
+  await held.arrived;
+
+  const health = row.locator("[data-row-health]");
+  await expect.soft(health).toHaveText("Testing…");
+  await expect.soft(health).toHaveCSS("color", "oklch(0.725 0.012 55)");
+  await expect.soft(health.locator("svg")).toHaveCount(0);
+  await expect.soft(testButton).toBeDisabled();
+  await expect.soft(row.locator("that-alert")).toHaveCount(0);
+
+  held.release();
+  await expect(health).toHaveText(/^Connected · /);
+  await expect(testButton).toBeEnabled();
 });
 
 // Success and failure must be distinguishable, which is the whole point of a
 // test button that asserts identity rather than a 2xx.
 test("a rejected connection test reports the failure", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
   await stubInstancesApi(page, { testStatus: 401 });
   const settings = await openSettings(page);
   await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+  const row = settings.getByRole("listitem").filter({ hasText: "Work" });
 
-  await settings.getByRole("button", { name: "Test Work" }).click();
+  await row.getByRole("button", { name: "Test Work" }).click();
 
-  await expect(settings.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
-  await expect(settings.getByText(/Connected ·/)).toBeHidden();
-  await expect(settings.getByText("Not tested")).toBeHidden();
-  // #123: a Test connection failure stays inline in the dialog, never a toast.
-  await expect(settings.locator("that-alert", { hasText: "Jira did not accept the API token" })).toBeVisible();
-  await expect(page.locator("that-toast")).toHaveCount(0);
+  const health = row.locator("[data-row-health]");
+  await expect(health).toHaveText(/^Not connected · \d{2}:\d{2}$/);
+  await expect.soft(health).toHaveCSS("color", "oklch(0.72 0.17 25)");
+  await expect.soft(health.locator("svg")).toHaveAttribute("width", "15");
+  await expect.soft(health.locator("svg path").first()).toHaveAttribute("d", "M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6");
+
+  // #301: the verdict is inline, the failure's message is an error toast.
+  const toasts = page.locator("that-toasts that-toast");
+  await expect.soft(toasts.first()).toContainText(
+    "Could not connect to Work: Jira did not accept the API token for this request; check the token and its scopes",
+  );
+  await expect.soft(toasts.first()).toHaveAttribute("tone", "error");
+  await expect.soft(toasts.first().locator("[data-countdown]")).toHaveCount(0);
+  // One more round trip, so a second toast would have landed by now.
+  await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+  await expect.soft(toasts).toHaveCount(1);
+  await expect.soft(settings.locator("[data-row-status]")).toHaveCount(0);
+  await expect.soft(settings.locator("li[data-instance-id] that-alert")).toHaveCount(0);
 });
+
+async function rowBoxes(settings: Locator): Promise<number[]> {
+  const boxes: number[] = [];
+  for (const name of ["Ridgeline", "Northwind"]) {
+    const box = await settings.getByRole("listitem").filter({ hasText: name }).boundingBox();
+    if (!box) throw new Error(`${name}'s row did not lay out`);
+    boxes.push(box.y, box.height);
+  }
+
+  return boxes;
+}
+
+for (const [outcome, answer] of [
+  ["passes", { status: 200, json: { accountId: "a", displayName: "Dion" } }],
+  ["fails", { status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } }],
+] as const) {
+  test(`a test that ${outcome} moves neither its row nor the row below it`, async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline"), listed(2, "Northwind")]);
+    const held = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+    const settings = await openSettings(page);
+    const row = settings.getByRole("listitem").filter({ hasText: "Ridgeline" });
+    const testButton = row.getByRole("button", { name: "Test Ridgeline" });
+    await expect(row.locator("[data-row-health]")).toHaveText("Not tested");
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    const before = await rowBoxes(settings);
+
+    await testButton.click();
+    await held.arrived;
+    expect.soft(await rowBoxes(settings), "while the test runs").toEqual(before);
+
+    held.release(answer);
+    await expect(testButton).toBeEnabled();
+    expect.soft(await rowBoxes(settings), "after the answer").toEqual(before);
+  });
+}
 
 test("removing an instance asks first, and cancelling changes nothing", async ({ page }) => {
   const stub = await stubInstancesApi(page, { testStatus: 200 });
@@ -503,10 +583,8 @@ test("editing an instance to add its site URL clears the missing-URL warning", a
   await expect(page.getByText("This instance has no site URL")).toBeHidden();
 });
 
-// A reused row keeps its status node so an in-flight test survives a reconcile
-// (see the test above this comment's sibling in the suite), but that same
-// preservation must not let a *completed* result outlive the edit that
-// invalidated it.
+// A token edit must not leave a verdict about the old token behind (#301: the
+// failure toast stays — it closes only when closed).
 test("saving over a failed connection test clears the stale result", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 401 });
   await openSettings(page);
@@ -518,14 +596,14 @@ test("saving over a failed connection test clears the stale result", async ({ pa
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Test" }).click();
-  await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
+  const health = page.locator("[data-row-health]");
+  await expect(health).toHaveText(/^Not connected · /);
 
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("API token", { exact: true }).fill("corrected-secret");
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeHidden();
-  await expect(page.getByText("Not tested")).toBeVisible();
+  await expect(health).toHaveText("Not tested");
 });
 
 // Before this branch, entering edit mode destroyed the list, so no Remove
@@ -1348,7 +1426,8 @@ test.describe("instance rows", () => {
     await arrived;
     await settings.getByRole("button", { name: "Close" }).click();
     await page.getByRole("button", { name: "Settings", exact: true }).click();
-    await expect(settings.locator("[data-row-health]")).toHaveText("Not tested");
+    await expect(settings.locator("[data-row-health]")).toHaveText("Testing…");
+    await expect(settings.getByRole("button", { name: "Test Ridgeline" })).toBeDisabled();
 
     answer();
     await expect(settings.locator("[data-row-health]")).toHaveText(/^Connected · /);

@@ -311,11 +311,12 @@ function setRowEditDisabled(instanceId: number, disabled: boolean): void {
  * a stored verdict is a claim about credentials that can be revoked outside
  * this app (#89).
  */
-type Verdict = { ok: true; at: Date } | { ok: false; at: Date; message: string };
+type Verdict = { ok: boolean; at: Date };
 const verdicts = new Map<number, Verdict>();
-// The test each instance is waiting on. Forgetting a verdict drops its entry, so
-// an answer arriving after a save or a removal is discarded rather than written
-// back — onto a changed token, or onto whichever instance is given the freed id.
+// The test each instance is waiting on, which is what paints Testing…. Forgetting
+// a verdict drops its entry, so an answer arriving after a save or a removal is
+// discarded rather than written back — onto a changed token, or onto whichever
+// instance is given the freed id.
 const pendingTests = new Map<number, symbol>();
 
 const HEALTH_CLASS = "inline-flex shrink-0 items-center gap-1.5 text-sm";
@@ -360,7 +361,7 @@ function instanceRow(regions: Regions, instance: Instance, position: number): HT
   name.className = "text-ink text-lg font-medium";
   const host = document.createElement("span");
   host.dataset["rowHost"] = "";
-  host.className = "text-ink-muted font-mono text-sm";
+  host.className = "text-ink-muted truncate font-mono text-sm";
   identity.append(name, host);
 
   const health = document.createElement("span");
@@ -374,14 +375,10 @@ function instanceRow(regions: Regions, instance: Instance, position: number): HT
   actions.append(test, testTip, edit, editTip, remove, removeTip);
 
   line.append(dot, identity, health, actions);
-
-  const status = document.createElement("div");
-  status.className = "mt-2 empty:mt-0";
-  status.dataset["rowStatus"] = "";
-  row.append(line, status);
+  row.append(line);
 
   test.addEventListener("click", () => {
-    void runConnectionTest(state.instance, test, row);
+    void runConnectionTest(state.instance);
   });
   edit.addEventListener("click", () => {
     showForm(regions, state.instance, edit);
@@ -462,29 +459,35 @@ function patchRow(row: HTMLElement, instance: Instance, position: number): void 
   }
 }
 
-/**
- * The drawing's two health states. A failed verdict is not drawn yet, so the
- * server's own message stays in the alert beneath the row, as it did before.
- */
+/** The health slot's four states (#301). The test writes nothing else, so the
+ *  row never changes height. */
 function paintVerdict(row: HTMLElement, instanceId: number): void {
   const health = row.querySelector<HTMLElement>("[data-row-health]");
-  const status = row.querySelector<HTMLElement>("[data-row-status]");
-  if (!health || !status) return;
+  const test = row.querySelector<HTMLButtonElement>('[data-row-action="test"]');
+  if (!health || !test) return;
 
+  const testing = pendingTests.has(instanceId);
   const verdict = verdicts.get(instanceId);
-  status.replaceChildren();
-  if (!verdict) {
+  test.disabled = testing;
+  if (testing || !verdict) {
     health.className = `${HEALTH_CLASS} text-ink-muted`;
-    health.textContent = "Not tested";
-  } else if (verdict.ok) {
-    health.className = `${HEALTH_CLASS} text-running`;
-    // No aria-label: the check is decoration beside the words that name the state.
-    health.innerHTML = iconMarkup("check", 15);
-    health.append(`Connected · ${clockTime(verdict.at)}`);
-  } else {
-    health.className = HEALTH_CLASS;
-    health.replaceChildren();
-    status.append(alertFor("error", verdict.message));
+    health.textContent = testing ? "Testing…" : "Not tested";
+
+    return;
+  }
+
+  health.className = `${HEALTH_CLASS} ${verdict.ok ? "text-running" : "text-failed"}`;
+  // No aria-label: the mark is decoration beside the words that name the state.
+  health.innerHTML = iconMarkup(verdict.ok ? "check" : "failed", 15);
+  health.append(`${verdict.ok ? "Connected" : "Not connected"} · ${clockTime(verdict.at)}`);
+}
+
+// Settings may have been closed and reopened since the row was built, which
+// built a new one; a closed dialog has none.
+function paintLiveVerdict(instanceId: number): void {
+  const live = document.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
+  if (live) {
+    paintVerdict(live, instanceId);
   }
 }
 
@@ -516,35 +519,24 @@ function forgetVerdict(regions: Regions, instanceId: number): void {
   }
 }
 
-async function runConnectionTest(
-  instance: Instance,
-  trigger: HTMLButtonElement,
-  row: HTMLElement,
-): Promise<void> {
+async function runConnectionTest(instance: Instance): Promise<void> {
   const pending = Symbol();
   pendingTests.set(instance.id, pending);
-  trigger.disabled = true;
-  row
-    .querySelector<HTMLElement>("[data-row-status]")
-    ?.replaceChildren(alertFor("warning", "Testing…"));
+  paintLiveVerdict(instance.id);
 
-  let verdict: Verdict;
+  let failure: string | undefined;
   try {
     await testInstance(instance.id);
-    verdict = { ok: true, at: new Date() };
   } catch (error) {
-    verdict = { ok: false, at: new Date(), message: messageOf(error) };
-  } finally {
-    trigger.disabled = false;
+    failure = messageOf(error);
   }
 
   if (pendingTests.get(instance.id) !== pending) return;
   pendingTests.delete(instance.id);
-  verdicts.set(instance.id, verdict);
-  // Settings may have been closed and reopened meanwhile, which built a new row.
-  const live = document.querySelector<HTMLElement>(`li[data-instance-id="${instance.id}"]`);
-  if (live) {
-    paintVerdict(live, instance.id);
+  verdicts.set(instance.id, { ok: failure === undefined, at: new Date() });
+  paintLiveVerdict(instance.id);
+  if (failure !== undefined) {
+    toast("error", `Could not connect to ${instance.name}: ${failure}`);
   }
 }
 
