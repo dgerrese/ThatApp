@@ -97,13 +97,21 @@ entry pushed to Jira and then edited locally, where Jira's copy is stale. It ren
 ring, never filled, so shape carries the distinction alongside hue and it cannot be mistaken for
 a primary action.
 
+**Deleted at next push** shares Dirty's hue and token: a pending delete is time Jira holds and Jira
+is now wrong about, which is Dirty's reason for its hue (#280). Its shape is Dirty's ring with a
+slash inside it, a "no entry" sign — drawn as SVG on a 9×9 box, a circle of radius 3.75 and a slash
+from (2.15, 6.85) to (6.85, 2.15), both stroked 1.5 with round caps, the slash stopping at the
+ring's inner edge. It is the one mark drawn as SVG; disc, ring and triangle stay CSS-drawn. Ring
+against slashed ring is a distinction of shape, as ring against disc is, so it too survives a
+monochrome screen. In a week grid it ranks under not pushed and over edited since pushed.
+
 Amber and red are deliberately different things: amber says *warning* — an entry not yet sent is
 one instance, data the shell is showing from cache while offline is another — red says *sent and
 refused*. **Neither ever rests on colour alone** — the guarantee is that much and no more. In an
 alert the triangle and the words carry it; where a surface has room for neither, a week grid's
 cell being the case, each state takes a silhouette of its own instead. Either way the distinction
 survives a monochrome screen and a red-green deficiency both. Dirty's distinction from
-not-pushed — ring against fill — relies on shape alone because the shapes are inherently distinct,
+not-pushed — ring against fill — and deleted-at-next-push's from dirty — slashed ring against ring — rely on shape alone because the shapes are inherently distinct,
 unlike amber and red's shared triangle, which needs words to tell them apart.
 
 ### The `-rail` variants
