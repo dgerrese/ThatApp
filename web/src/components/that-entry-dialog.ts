@@ -722,6 +722,11 @@ export class ThatEntryDialog extends HTMLElement {
       this.focusOrFallback(this.deleteId(entry));
     } catch (error) {
       this.showFailure(error, "Could not restore the entry.");
+      // Another tab restored it, or a push removed it: the row on screen is stale.
+      if (error instanceof ApiError && (error.status === 404 || error.status === 409)) {
+        await this.reload();
+        this.refocusIfLostFromDialog();
+      }
     }
   }
 

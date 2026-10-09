@@ -24,6 +24,8 @@ interface StubEntry {
 interface Recorder {
   deleted: number[];
   restored: number[];
+  /** Another tab got there first: the next restore changes the stub's state, then refuses. */
+  raceRestore?: "restored elsewhere" | "removed by a push";
 }
 
 const DAY = "2026-08-22";
@@ -85,6 +87,14 @@ async function stubEntries(page: Page, seed: StubEntry[]): Promise<Recorder> {
     }
     if (request.method() === "POST" && url.pathname.endsWith("/restore") && found) {
       recorder.restored.push(id);
+      if (recorder.raceRestore === "restored elsewhere") {
+        found.pushState = "pushed";
+      } else if (recorder.raceRestore === "removed by a push") {
+        entries.splice(entries.indexOf(found), 1);
+        await route.fulfill({ status: 404, json: { code: "not_found", message: "no such entry" } });
+
+        return;
+      }
       const earlier = before.get(id);
       if (found.pushState !== "deleted" || earlier === undefined) {
         await route.fulfill({
@@ -220,6 +230,36 @@ test("restore brings the entry, its earlier state and the dialog's total back", 
   await expect(row.locator("span.font-mono")).toHaveCSS("text-decoration-line", "none");
   await expect(dialog(page).locator("#that-entry-dialog-total")).toHaveText("1h 30m");
   await expect(row.getByRole("button", { name: "Delete the 09:15 entry" })).toBeFocused();
+});
+
+test("a restore another tab already made refuses, and the row is drawn as it now stands", async ({
+  page,
+}) => {
+  const recorder = await openToday(page, [entry(1, "WORK-412", 5400, "deleted")]);
+  await trigger(page, "WORK-412").click();
+  const row = rows(page).nth(0);
+  await expect(row.locator("span.font-mono")).toHaveCSS("text-decoration-line", "line-through");
+
+  recorder.raceRestore = "restored elsewhere";
+  await row.getByRole("button", { name: "Restore the 09:15 entry" }).click();
+
+  await expect(dialog(page).getByText("the entry is not waiting to be deleted")).toBeVisible();
+  await expect(row.locator("span.font-mono")).toHaveCSS("text-decoration-line", "none");
+  await expect(row.getByRole("button", { name: "Delete the 09:15 entry" })).toBeVisible();
+  await expect(row.getByRole("button", { name: /Restore/ })).toHaveCount(0);
+});
+
+test("a restore of an entry a push already removed refuses, and the row is gone", async ({ page }) => {
+  const recorder = await openToday(page, [entry(1, "WORK-412", 5400, "deleted")]);
+  await trigger(page, "WORK-412").click();
+  await expect(rows(page)).toHaveCount(1);
+
+  recorder.raceRestore = "removed by a push";
+  await rows(page).nth(0).getByRole("button", { name: "Restore the 09:15 entry" }).click();
+
+  await expect(dialog(page).getByText("no such entry")).toBeVisible();
+  await expect(rows(page)).toHaveCount(0);
+  await expect(dialog(page).getByRole("button", { name: "Close" })).toBeFocused();
 });
 
 test("the confirm says when the delete happens: at the next push for an entry Jira holds, now for one it does not", async ({
