@@ -104,7 +104,6 @@ export interface Entry {
   startedAt: string;
   seconds: number;
   comment: string;
-  /** Derived server-side from worklog_id, pushed_at and updated_at — never stored. */
   /** Derived server-side from worklog_id, deleted_at, pushed_at and updated_at — never stored.
    *  `deleted` is a delete waiting for the push (#280): shown, restorable, and counted in no total. */
   pushState: "unpushed" | "pushed" | "dirty" | "deleted";

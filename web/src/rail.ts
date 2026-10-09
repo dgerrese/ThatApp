@@ -56,9 +56,10 @@ export const TODAY_PERIOD: RailPeriod = {
   pushLabel: "Push worklogs",
 };
 
-// Everything that is not pushed is pending: never sent, or sent and edited
+// Everything that is not pushed is pending: never sent, sent and edited
 // since, or deleted and waiting for the push to say so. The server's push
-// sweeps both (internal/server/push.go), and the two filters below drifted from it because each was written by hand — #121.
+// sweeps all three (internal/server/push.go), and the two filters below
+// drifted from it because each was written by hand — #121.
 const isPending = (entry: Entry): boolean => entry.pushState !== "pushed";
 
 // One counter for every cut-text id the rail hands out (#143): the split's

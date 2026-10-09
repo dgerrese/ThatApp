@@ -787,8 +787,8 @@ export class ThatEntryDialog extends HTMLElement {
  * An icon-only control on a row, with its `.tip` popover — the same shape
  * `cancelEditControl` uses beside it. The mark is aria-hidden by construction,
  * so the name has to be the label; the tooltip is never that name, which is
- * why its words are the plain "edit entry" / "delete entry" / "restore entry" rather than the
- * aria-label's time-specific sentence.
+ * why its words are the plain "edit entry" / "delete entry" / "restore entry"
+ * rather than the aria-label's time-specific sentence.
  */
 function rowAction(
   icon: "edit" | "trash" | "undo",
