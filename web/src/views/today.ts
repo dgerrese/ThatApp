@@ -307,7 +307,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   results.append(cardHolding(loadingLine()));
   // Stacks rather than a grid of cards (#144): a grid row is as tall as its
   // tallest card, which left a hole beside a tall card that a short one fitted.
-  const stacks: [HTMLElement, HTMLElement] = [cardStack(), cardStack()];
+  const stacks: [HTMLElement, HTMLElement] = [cardStack(false), cardStack(true)];
 
   const assignedSection = document.createElement("section");
   assignedSection.setAttribute("aria-labelledby", ASSIGNED_HEADING_ID);
@@ -1248,11 +1248,12 @@ function cardHolding(node: Node): HTMLElement {
   return card;
 }
 
-/** One of the two columns the instance cards stack in. Hidden while empty, so one column — or one
- *  instance — leaves no gap for the other. */
-function cardStack(): HTMLElement {
+/** One of the two columns the instance cards stack in. The right one hides while empty, so one
+ *  column leaves no gap; the left one never does, or a lone right-stack card would auto-place into
+ *  column 1 and jump left. */
+function cardStack(hiddenWhenEmpty: boolean): HTMLElement {
   const stack = document.createElement("div");
-  stack.className = "flex min-w-0 flex-col gap-4 empty:hidden";
+  stack.className = `flex min-w-0 flex-col gap-4${hiddenWhenEmpty ? " empty:hidden" : ""}`;
 
   return stack;
 }

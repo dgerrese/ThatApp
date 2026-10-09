@@ -369,6 +369,16 @@ test("an instance that leaves on a redraw moves no other card", async ({ page })
   expect(await stackOf(page, "Charlie")).toBe("left");
 });
 
+test("a card left alone in the right stack stays in the right half", async ({ page }) => {
+  // Alpha and Charlie on the left, Bravo alone on the right. Both left cards leave on the redraw.
+  await stubIssues(page, instances(1, 3, 1), instances(1, 3, 1).filter((group) => group.name === "Bravo"));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(card(page, "Alpha")).toHaveCount(0); // wait
+  expect(await stackOf(page, "Bravo")).toBe("right");
+});
+
 test("Refresh places the cards afresh, from the issues it fetched", async ({ page }) => {
   let releaseIssues: (() => void) | undefined;
   const issuesHeld = new Promise<void>((resolve) => {
