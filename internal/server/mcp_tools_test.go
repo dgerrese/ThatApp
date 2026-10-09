@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strconv"
@@ -335,16 +337,16 @@ func TestMCPUnknownToolIsAProtocolError(t *testing.T) {
 	}
 }
 
-// Ruling 2: deleting an entry Jira holds a worklog for would delete that
-// worklog, and no tool writes to Jira. newEntriesEnv's fake counts deletes.
+// #280: a delete only marks an entry Jira holds, so delete_entry may delete
+// any entry and still never write to Jira. newEntriesEnv's fake counts deletes.
 func TestMCPDeleteEntryNeverReachesJira(t *testing.T) {
 	for _, tc := range []struct {
 		name                string
 		pushed, editedSince bool
 	}{
-		{"an entry never pushed is deleted", false, false},
-		{"an entry pushed to Jira is refused", true, false},
-		{"an entry edited since its push is refused", true, true},
+		{"an entry never pushed is removed", false, false},
+		{"an entry pushed to Jira waits for the next push", true, false},
+		{"an entry edited since its push waits for the next push", true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env := newEntriesEnv(t)
@@ -358,20 +360,45 @@ func TestMCPDeleteEntryNeverReachesJira(t *testing.T) {
 
 			got := callTool(t, env.s, "delete_entry", `{"id":`+strconv.FormatInt(entry.ID, 10)+`}`)
 
-			if got.IsError != tc.pushed {
-				t.Errorf("isError = %v, want %v; text %q", got.IsError, tc.pushed, got.text())
-			}
-			if tc.pushed && got.text() != mcpJiraDeleteRefusal {
-				t.Errorf("text = %q, want %q", got.text(), mcpJiraDeleteRefusal)
+			if got.IsError || got.text() != "No Content" {
+				t.Errorf("isError %v, text %q; want No Content", got.IsError, got.text())
 			}
 			if env.jira.deleteCalls != 0 {
 				t.Errorf("Jira saw %d worklog deletes, want none", env.jira.deleteCalls)
 			}
-			_, err := env.store.Entry(context.Background(), entry.ID)
-			if stillStored := err == nil; stillStored != tc.pushed {
-				t.Errorf("entry still stored = %v, want %v", stillStored, tc.pushed)
+			after, err := env.store.Entry(context.Background(), entry.ID)
+			if !tc.pushed {
+				if !errors.Is(err, sql.ErrNoRows) {
+					t.Errorf("reading the entry back = %v, want it gone", err)
+				}
+				return
+			}
+			if err != nil || pushStateOf(*after) != "deleted" {
+				t.Errorf("entry = %+v (err %v), want it kept, waiting to be deleted", after, err)
 			}
 		})
+	}
+}
+
+// The listing tools are the API's own bodies, so a pending delete reads there
+// exactly as it does for the browser: in the list, and in no total.
+func TestMCPListingToolsShowAPendingDeleteAsTheAPIDoes(t *testing.T) {
+	env := newEntriesEnv(t)
+	entry := env.createEntry(t, "RIDGE-1", 3600, "")
+	env.markPushed(t, entry.ID, "wl-1")
+	callTool(t, env.s, "delete_entry", `{"id":`+strconv.FormatInt(entry.ID, 10)+`}`)
+
+	listed := callTool(t, env.s, "list_entries", `{"from":"2026-08-31","to":"2026-08-31"}`)
+	if !strings.Contains(listed.text(), `"pushState":"deleted"`) {
+		t.Errorf("list_entries = %s, want the entry with pushState deleted", listed.text())
+	}
+
+	var week weekRollupDTO
+	if err := json.Unmarshal([]byte(callTool(t, env.s, "get_week", `{"start":"2026-08-31"}`).text()), &week); err != nil {
+		t.Fatalf("decoding get_week: %v", err)
+	}
+	if week.Seconds != 0 || week.Days[0].PushState == nil || *week.Days[0].PushState != "deleted" {
+		t.Errorf("get_week total %d, Monday %v; want 0 and deleted", week.Seconds, week.Days[0].PushState)
 	}
 }
 
@@ -442,24 +469,6 @@ func TestMCPListEntriesDefaultsToTheHandlersToday(t *testing.T) {
 
 	if got.IsError || !strings.Contains(got.text(), `"issueKey":"RIDGE-9"`) {
 		t.Errorf("isError %v, text %s; want today's entry, RIDGE-9", got.IsError, got.text())
-	}
-}
-
-// A closed store is the least contrived read error the helpers allow. Failing
-// open would send the DELETE on, and the handler's own message would differ.
-func TestMCPDeleteEntryFailsClosedWhenTheEntryCannotBeRead(t *testing.T) {
-	env := newEntriesEnv(t)
-	entry := env.createEntry(t, "RIDGE-1", 900, "")
-	env.markPushed(t, entry.ID, "wl-1")
-	_ = env.store.Close()
-
-	got := callTool(t, env.s, "delete_entry", `{"id":`+strconv.FormatInt(entry.ID, 10)+`}`)
-
-	if !got.IsError || got.text() != "could not read the entry, so it was not deleted" {
-		t.Errorf("isError %v, text %q; want the guard's own tool error", got.IsError, got.text())
-	}
-	if env.jira.deleteCalls != 0 {
-		t.Errorf("Jira saw %d worklog deletes, want none", env.jira.deleteCalls)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -24,6 +25,9 @@ func entryInState(state string) store.Entry {
 		return store.Entry{WorklogID: "1", PushedAt: &pushed, UpdatedAt: pushed}
 	case "dirty":
 		return store.Entry{WorklogID: "1", PushedAt: &pushed, UpdatedAt: pushed.Add(time.Hour)}
+	case "deleted":
+		deleted := pushed.Add(2 * time.Hour)
+		return store.Entry{WorklogID: "1", PushedAt: &pushed, UpdatedAt: pushed, DeletedAt: &deleted}
 	}
 
 	panic("unknown state " + state)
@@ -46,6 +50,12 @@ func TestWorstPushState(t *testing.T) {
 		{"dirty and unpushed reads unpushed", []string{"dirty", "unpushed"}, "unpushed"},
 		{"unpushed beats dirty whatever the order", []string{"unpushed", "dirty"}, "unpushed"},
 		{"all three reads unpushed", []string{"pushed", "dirty", "unpushed"}, "unpushed"},
+		{"one deleted", []string{"deleted"}, "deleted"},
+		{"pushed and deleted reads deleted", []string{"pushed", "deleted"}, "deleted"},
+		{"deleted beats dirty whatever the order", []string{"deleted", "dirty"}, "deleted"},
+		{"dirty and deleted reads deleted", []string{"dirty", "deleted"}, "deleted"},
+		{"unpushed beats deleted", []string{"deleted", "unpushed"}, "unpushed"},
+		{"all four reads unpushed", []string{"pushed", "dirty", "deleted", "unpushed"}, "unpushed"},
 	}
 
 	for _, tc := range cases {
@@ -545,5 +555,54 @@ func TestWeekCellStateIsTheWorstOfItsEntries(t *testing.T) {
 	}
 	if got.Days[0].PushState == nil || *got.Days[0].PushState != "unpushed" {
 		t.Fatalf("day state: got %v, want unpushed", got.Days[0].PushState)
+	}
+}
+
+// #280: every total says what Jira will hold after the push. Monday holds a
+// pushed hour and a pending-delete half hour; Tuesday holds only a pending
+// delete, which still marks its cell and its day — that is how the grid tells
+// it from a day with nothing on it.
+func TestWeekLeavesPendingDeletesOutOfItsTotals(t *testing.T) {
+	srv, db, inst := serverInZone(t, "Europe/Amsterdam", time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC))
+	ctx := context.Background()
+
+	seed := func(day string, hour, seconds int, deleted bool) {
+		t.Helper()
+		entry := seedEntry(t, db, store.EntryInput{
+			InstanceID: inst.ID, IssueKey: "WORK-1", Day: day,
+			StartedAt: time.Date(2026, 9, 7, hour, 0, 0, 0, time.UTC), Seconds: seconds,
+		})
+		if _, err := db.RecordWorklogMarkingPushedIfUnchanged(
+			ctx, entry.ID, "w-"+strconv.FormatInt(entry.ID, 10), time.Now().UTC(), entry.UpdatedAt,
+		); err != nil {
+			t.Fatalf("marking entry pushed: %v", err)
+		}
+		if deleted {
+			if err := db.MarkEntryDeleted(ctx, entry.ID, time.Now()); err != nil {
+				t.Fatalf("marking entry deleted: %v", err)
+			}
+		}
+	}
+	seed("2026-09-07", 9, 3600, false)
+	seed("2026-09-07", 11, 1800, true)
+	seed("2026-09-08", 9, 900, true)
+
+	got := decodeWeek(t, callWeek(t, srv, "/api/week?start=2026-09-07"))
+
+	monday, tuesday := got.Rows[0].Cells[0], got.Rows[0].Cells[1]
+	if monday.Seconds != 3600 || monday.PushState == nil || *monday.PushState != "deleted" {
+		t.Errorf("Monday cell = %d %v, want 3600 deleted", monday.Seconds, monday.PushState)
+	}
+	if tuesday.Seconds != 0 || tuesday.PushState == nil || *tuesday.PushState != "deleted" {
+		t.Errorf("Tuesday cell = %d %v, want 0 deleted", tuesday.Seconds, tuesday.PushState)
+	}
+	if got.Days[0].Seconds != 3600 || got.Days[1].Seconds != 0 {
+		t.Errorf("day totals = %d, %d; want 3600, 0", got.Days[0].Seconds, got.Days[1].Seconds)
+	}
+	if got.Days[1].PushState == nil || *got.Days[1].PushState != "deleted" {
+		t.Errorf("Tuesday's day state = %v, want deleted", got.Days[1].PushState)
+	}
+	if got.Rows[0].Seconds != 3600 || got.Seconds != 3600 {
+		t.Errorf("row total %d, week total %d; want 3600 and 3600", got.Rows[0].Seconds, got.Seconds)
 	}
 }
