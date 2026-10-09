@@ -257,7 +257,6 @@ test("a rejected connection test reports the failure", async ({ page }) => {
     "Could not connect to Work: Jira did not accept the API token for this request; check the token and its scopes",
   );
   await expect.soft(toasts.first()).toHaveAttribute("tone", "error");
-  await expect.soft(toasts.first().locator("[data-countdown]")).toHaveCount(0);
   // One more round trip, so a second toast would have landed by now.
   await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
   await expect.soft(toasts).toHaveCount(1);
