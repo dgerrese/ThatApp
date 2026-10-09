@@ -318,7 +318,6 @@ test("a failing test at phone width moves neither its row nor the row below it",
   held.release({ status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } });
   await expect(row.locator("[data-row-health] svg")).toBeVisible();
   const after = await rowBoxes(settings, names);
-  console.log(`PHONE360 before=${JSON.stringify(before)} during=${JSON.stringify(during)} after=${JSON.stringify(after)}`);
 
   expect.soft(during, "while the test runs").toEqual(before);
   expect.soft(after, "after the answer").toEqual(before);
