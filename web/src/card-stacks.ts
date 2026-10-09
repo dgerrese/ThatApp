@@ -35,3 +35,34 @@ export function placeInStacks(
 
   return placement;
 }
+
+/** True while the results grid draws two columns. The 80rem container query in its class decides;
+ *  this reads the verdict rather than restating the number. */
+export function showsTwoStacks(grid: HTMLElement): boolean {
+  return getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).length === 2;
+}
+
+/**
+ * Makes `elements` the first children of `stack`, in order, moving each one that is elsewhere.
+ * `moveBefore` moves a card without the disconnect a plain insert fires, so no row rebuilds and a
+ * focused control keeps focus — that-table's reorder() has the same reasoning, and the same
+ * fallback for an engine without it.
+ */
+export function moveIntoStack(stack: HTMLElement, elements: readonly HTMLElement[]): void {
+  // Typed here, not through the ParentNode augmentation in that-table.ts: the unit-test
+  // project compiles this file without that one.
+  const mover: Pick<HTMLElement, "insertBefore"> & {
+    moveBefore?(node: Node, child: Node | null): void;
+  } = stack;
+
+  elements.forEach((element, index) => {
+    const current = stack.children[index] ?? null;
+    if (current === element) return;
+
+    if (mover.moveBefore) {
+      mover.moveBefore(element, current);
+    } else {
+      stack.insertBefore(element, current);
+    }
+  });
+}
