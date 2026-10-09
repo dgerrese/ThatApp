@@ -3,7 +3,7 @@
 **Date:** 2026-09-03
 **Supersedes:** nothing — it applies
 [`2026-09-03-visual-language-design.md`](2026-09-03-visual-language-design.md) to two views
-**Superseded by:** nothing
+**Superseded by:** nothing. *Layout* decision 2 was amended on 2026-10-09 by #144 (two stacks).
 
 The language settles the vocabulary. This settles what Today and Week are built out of it.
 
@@ -26,9 +26,18 @@ Settings is **not** in this ticket. It is being redesigned under #89.
 1. **Every view centres and names its own cap.** Listings cap at `120rem`; a form-shaped view names a
    reading measure instead. It must be written as an explicit value — `max-w-3xl` already means
    48rem, per the language's decision 8.
-2. **Instance cards are one across, and two from `xl`. Never three.** Two instances is the real case;
-   a third column would only fill if a third Jira were added, and it would pay for it out of the
-   summary.
+2. **Instance cards are one across, and two stacks from `xl`. Never three.** Two instances is the
+   real case; a third column would only fill if a third Jira were added, and it would pay for it
+   out of the summary. From `xl`, measured against the content column, the cards go into two column
+   stacks, not a grid. Each card goes, in instance position order, to the stack that is shorter at
+   that moment, and a tie goes left. A grid row is as tall as its tallest card, and with one tall
+   card it left a hole beside it that a short card would have filled (#144). A card keeps its stack
+   on every redraw: a pin added or removed, the pins arriving late, the tab returning, the network
+   returning. Placement is computed again only when Today is opened or Refresh is pressed. An
+   instance with no stack yet goes to the shorter one. Document order follows the stacks, the left
+   one top to bottom and then the right, so focus and reading order match the screen. Below `xl`
+   the cards are one column in instance order. The Pinned / off-list grid above them holds two
+   fixed sections, not a list of cards, and stays a grid.
 3. On a 2560px screen this gives the rail, 1920px of content and equal margin either side. At the cap
    each of two columns measures 918px.
 
@@ -122,7 +131,8 @@ which says the same thing where it matters.
 ## Acceptance criteria
 
 - No view caps below `120rem`, and content is centred at any width.
-- Instance cards are one across below `xl` and two above it, never three.
+- Instance cards are one across below `xl` and in two stacks above it, each to the shorter stack in
+  instance order, never three.
 - In every card, a header cell and the cells beneath it share one left edge, and every instance card
   has a header row. **Worth an end-to-end assertion rather than an eye.**
 - Controls are vertically centred in their rows and the row height is unchanged from a text-only row.
