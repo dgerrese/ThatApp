@@ -503,6 +503,11 @@ after PR #162 (#19) was opened against `main` while built on #157's branch, and 
 was run with hand-written prompts instead — it worked, but it threw away accumulated wording for no
 benefit and made every dispatch a fresh invention.
 
+**Every implementer and reviewer dispatch tells the subagent to load `ponytail:ponytail`.** The
+plugin reaches the session through a hook at start-up; a dispatch does not rely on that reaching the
+subagent, so it names the skill. `CLAUDE.md` says what ponytail governs here and what it does not.
+Set by the owner on 2026-10-09.
+
 **Tick the ticket's acceptance criteria as the reviews confirm them**, and untick anything a later
 pass shows has regressed. Asked for by the owner on 2026-09-09, during #117. **The tick follows a
 review, never an implementer's claim** — that is the whole point of it, and it is why the criteria
@@ -525,6 +530,8 @@ that carries the state.
 **The whole-branch review is not optional.** All seven of ticket 1's task reviews passed while the
 branch still contained a Critical defect — `docker compose up` served a 404 on a fresh clone —
 because every task diff was individually correct and only a cross-task read could see it.
+It runs `ponytail:ponytail-review` over the branch diff as well, so over-building is hunted on the
+whole branch and not only per task; what it finds is handled like any other review finding.
 
 `make verify` must be green before the pull request is opened, and `make test-e2e` too when the
 change touches the frontend or the rig. Paste the output. See
