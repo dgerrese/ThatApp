@@ -208,3 +208,54 @@ test("cards in both stacks share one key column", async ({ page }) => {
     );
   expect.soft(new Set(offsets).size).toBe(1);
 });
+
+test("crossing the breakpoint switches between one column and two stacks without a reload", async ({ page }) => {
+  await stubIssues(page, instances(1, 3, 1));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+  await page.evaluate(() => Object.assign(window, { stacksE2eMarker: true }));
+
+  await page.setViewportSize(NARROW);
+  await expect.poll(() => headingOrder(page)).toEqual(["Alpha", "Bravo", "Charlie"]);
+
+  await page.setViewportSize(WIDE);
+  await expect.poll(() => headingOrder(page)).toEqual(["Alpha", "Charlie", "Bravo"]);
+  expect.soft(await page.evaluate(() => "stacksE2eMarker" in window)).toBe(true);
+});
+
+test("opened below the breakpoint, the cards are placed shortest first when they first get two stacks", async ({
+  page,
+}) => {
+  await stubIssues(page, instances(3, 1, 1));
+  await openToday(page, NARROW, "Alpha", "Bravo", "Charlie");
+
+  await page.setViewportSize(WIDE);
+  await expect.poll(() => stackOf(page, "Bravo")).toBe("right");
+  expect.soft(await stackOf(page, "Charlie")).toBe("right");
+  expect.soft(await isBelow(page, "Bravo", "Charlie")).toBe(true);
+});
+
+test("a redraw at one column does not restack the cards when they widen again", async ({ page }) => {
+  await stubIssues(page, instances(2, 1, 1), instances(1, 1, 1));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+
+  await page.setViewportSize(NARROW);
+  await expect.poll(() => stackOf(page, "Bravo")).toBe("left"); // wait
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(rowsOf(page, "Alpha")).toHaveCount(1); // wait
+
+  // Placed afresh, three one-row cards would tie and send Charlie left.
+  await page.setViewportSize(WIDE);
+  await expect.poll(() => stackOf(page, "Bravo")).toBe("right"); // wait
+  expect(await stackOf(page, "Charlie")).toBe("right");
+});
+
+test("a focused row keeps its focus when the cards switch between one column and two stacks", async ({ page }) => {
+  await stubIssues(page, instances(1, 3, 1));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+  const link = page.getByRole("link", { name: "BRAVO-2", exact: true });
+  await link.focus();
+
+  await page.setViewportSize(NARROW);
+  await expect.poll(() => headingOrder(page)).toEqual(["Alpha", "Bravo", "Charlie"]); // wait
+  await expect(link).toBeFocused();
+});

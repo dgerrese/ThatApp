@@ -347,6 +347,18 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     totals: new Map(),
     totalsEpoch: 0,
   };
+  // A container query fires no event, so the results grid's own column count
+  // is watched instead. A frame later: moving cards inside the callback would
+  // resize the element it observes and trip ResizeObserver's loop limit.
+  const breakpointWatch = new ResizeObserver(() => {
+    requestAnimationFrame(() => {
+      if (showsTwoStacks(results) !== regions.twoStacks) arrangeCards(regions);
+    });
+  });
+  breakpointWatch.observe(results);
+  registerTeardown(() => {
+    breakpointWatch.disconnect();
+  });
   refresh.addEventListener("click", () => {
     void refreshEverything(regions);
   });
