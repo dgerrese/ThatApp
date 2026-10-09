@@ -164,6 +164,12 @@ export class ThatTable extends HTMLElement {
     this.stopTimerListening = undefined;
   }
 
+  // Today moves a whole instance card between its two stacks with moveBefore
+  // (#144). Without this the move runs disconnectedCallback and
+  // connectedCallback, and connectedCallback's replaceChildren would rebuild
+  // every row inside — dropping the focus moveBefore exists to keep.
+  connectedMoveCallback(): void {}
+
   private observe(): void {
     this.observer?.observe(this.body, {
       childList: true,

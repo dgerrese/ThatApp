@@ -6,6 +6,7 @@ import "../components/that-table";
 import "../components/that-ticket-row";
 import "../components/that-timer";
 import { alignKeyColumn } from "../key-column";
+import { moveIntoStack, placeInStacks, showsTwoStacks, type Stack } from "../card-stacks";
 
 import { alertFor, messageOf } from "../alert";
 import { createPin, deletePin, listEntries, listIssues, listPins, searchIssues } from "../api";
@@ -44,6 +45,12 @@ interface OffListInfo {
   url: string;
 }
 
+/** An instance card as the stacks hold it: its section, and the instance it shows. */
+interface StackCard {
+  id: number;
+  element: HTMLElement;
+}
+
 /**
  * The regions that outlive a fetch, plus the two caches (pins, the last issues
  * response) needed to re-render them without a new request. All of it is
@@ -67,6 +74,16 @@ interface Regions {
   assignedSection: HTMLElement;
   refresh: HTMLElement;
   results: HTMLElement;
+  /** The two column stacks inside `results` that the instance cards go into (#144). Detached
+   *  while `results` shows a message instead of cards. */
+  stacks: [HTMLElement, HTMLElement];
+  /** The instance cards last rendered, in instance position order. */
+  cards: StackCard[];
+  /** Each instance's stack, kept across every redraw so that none moves a card. Empty when Today
+   *  opens, and emptied by Refresh — the only two moments placement starts over. */
+  stackOf: Map<number, Stack>;
+  /** Whether the cards were last arranged in two stacks, so a resize acts only on a crossing. */
+  twoStacks: boolean;
   /** One banner above both lists, per the design spec's singular "the
    *  warning" — not one per list. See renderCombinedStale. */
   stale: HTMLElement;
@@ -281,12 +298,17 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   });
 
   const results = document.createElement("div");
-  // One card across, two from the point the content column can hold two
-  // without taking it out of the summary. Never three: see the design's
-  // layout decision 2. The breakpoint is a container query against the region
-  // in index.html, not the window, so the rail costs the grid nothing.
+  // One column of cards, two stacks from the point the content column can
+  // hold two without taking it out of the summary. Never three: see the
+  // design's layout decision 2. The breakpoint is a container query against
+  // the region in index.html, not the window, so the rail costs the grid
+  // nothing — and this class is the one place it is written: showsTwoStacks
+  // reads the grid's verdict.
   results.className = "grid grid-cols-1 gap-4 @min-[80rem]:grid-cols-2";
   results.append(cardHolding(loadingLine()));
+  // Stacks rather than a grid of cards (#144): a grid row is as tall as its
+  // tallest card, which left a hole beside a tall card that a short one fitted.
+  const stacks: [HTMLElement, HTMLElement] = [cardStack(false), cardStack(true)];
 
   const assignedSection = document.createElement("section");
   assignedSection.setAttribute("aria-labelledby", ASSIGNED_HEADING_ID);
@@ -309,6 +331,10 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     assignedSection,
     refresh,
     results,
+    stacks,
+    cards: [],
+    stackOf: new Map(),
+    twoStacks: false,
     stale,
     pins: [],
     lastIssues: null,
@@ -322,8 +348,20 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     totals: new Map(),
     totalsEpoch: 0,
   };
+  // A container query fires no event, so the results grid's own column count
+  // is watched instead. A frame later: moving cards inside the callback would
+  // resize the element it observes and trip ResizeObserver's loop limit.
+  const breakpointWatch = new ResizeObserver(() => {
+    requestAnimationFrame(() => {
+      if (showsTwoStacks(results) !== regions.twoStacks) arrangeCards(regions);
+    });
+  });
+  breakpointWatch.observe(results);
+  registerTeardown(() => {
+    breakpointWatch.disconnect();
+  });
   refresh.addEventListener("click", () => {
-    void refreshEverything(regions);
+    void refreshEverything(regions, { restack: true });
   });
 
   // "online" fires when the *network* comes back. A server that restarts while
@@ -938,7 +976,7 @@ function pinnedKeysOf(regions: Regions): Set<string> {
  *  this function's: the initial mount calls this alone, while the button is
  *  still hidden, and the shared Refresh must stay disabled until the pins
  *  call settles too. */
-async function refreshResults(regions: Regions): Promise<void> {
+async function refreshResults(regions: Regions, options?: { restack?: boolean }): Promise<void> {
   try {
     // The cards already on screen stay put while this is in flight: a list that
     // blinks out and back is indistinguishable from one that broke.
@@ -946,6 +984,11 @@ async function refreshResults(regions: Regions): Promise<void> {
     regions.lastIssues = response;
     regions.issuesCachedAt = cachedAt;
     regions.assignedSettled = true;
+    // Refresh is one of the two moments the cards are placed afresh (#144) —
+    // Today opening is the other, with a fresh regions. Here, once the issues
+    // are in hand rather than at the press: the pins answer may land first,
+    // and its redraw from the old issues must not be what places the cards.
+    if (options?.restack) regions.stackOf = new Map();
     renderResponse(regions, response);
   } catch (error) {
     regions.assignedSettled = true;
@@ -1000,12 +1043,15 @@ function renderCombinedStale(regions: Regions): void {
   regions.stale.hidden = false;
 }
 
-async function refreshEverything(regions: Regions): Promise<void> {
+async function refreshEverything(regions: Regions, options?: { restack?: boolean }): Promise<void> {
   regions.refresh.setAttribute("disabled", "");
   try {
     // Settled rather than all: a failing pins refresh must not stop the assigned
     // cards updating, and each already renders its own failure.
-    await Promise.allSettled([refreshResults(regions), refreshPins(regions, { refresh: true })]);
+    await Promise.allSettled([
+      refreshResults(regions, options),
+      refreshPins(regions, { refresh: true }),
+    ]);
   } finally {
     regions.refresh.removeAttribute("disabled");
   }
@@ -1029,23 +1075,60 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
   }
 
   regions.refresh.hidden = false;
-  regions.results.replaceChildren(
-    // The index is the instance's position in created_at order, which is what
-    // the hue ramp is keyed off: the store lists instances in that order and
-    // the fan-out preserves it. /api/issues carries no position of its own,
-    // unlike a pin or a search hit.
-    ...response.instances.map((group, position) => instanceSection(group, position, regions.pins)),
-  );
+  // The index is the instance's position in created_at order, which is what
+  // the hue ramp is keyed off: the store lists instances in that order and
+  // the fan-out preserves it. /api/issues carries no position of its own,
+  // unlike a pin or a search hit.
+  regions.cards = response.instances.map((group, position) => ({
+    id: group.id,
+    element: instanceSection(group, position, regions.pins),
+  }));
+  const [left, right] = regions.stacks;
+  left.replaceChildren(...regions.cards.map((card) => card.element));
+  right.replaceChildren();
+  regions.results.replaceChildren(left, right);
 
   // The results grid, not the whole view: one shared key column across the
-  // instance cards, which is what makes them agree with each other, and the
-  // property lands on the one element that holds all of them and nothing else.
-  // After insertion, not before — an element outside the document has no
-  // layout, so every key in it would measure zero.
+  // instance cards in both stacks, which is what makes them agree with each
+  // other. After insertion, not before — an element outside the document has
+  // no layout, so every key in it would measure zero. And before the cards
+  // are measured for their stacks, since the key column's width moves where a
+  // summary wraps.
   alignKeyColumn(regions.results);
+  arrangeCards(regions);
 
   paintTotals(regions);
   renderOffListSection(regions);
+}
+
+/**
+ * Puts the instance cards into their stacks: one column in instance order below the breakpoint;
+ * above it, each card in its remembered stack and every other card in the shorter one (#144).
+ * Every card goes into the left stack first — that is the one column, and it is where a card is
+ * measured at a column's width before it is placed.
+ */
+function arrangeCards(regions: Regions): void {
+  const [left, right] = regions.stacks;
+  if (!left.isConnected) return;
+
+  regions.twoStacks = showsTwoStacks(regions.results);
+  moveIntoStack(
+    left,
+    regions.cards.map((card) => card.element),
+  );
+  if (!regions.twoStacks) return;
+
+  const gap = Number.parseFloat(getComputedStyle(left).rowGap) || 0;
+  regions.stackOf = placeInStacks(
+    regions.cards.map((card) => ({ id: card.id, height: card.element.offsetHeight + gap })),
+    regions.stackOf,
+  );
+  moveIntoStack(
+    right,
+    regions.cards
+      .filter((card) => regions.stackOf.get(card.id) === "right")
+      .map((card) => card.element),
+  );
 }
 
 /**
@@ -1165,4 +1248,14 @@ function cardHolding(node: Node): HTMLElement {
   card.append(node);
 
   return card;
+}
+
+/** One of the two columns the instance cards stack in. The right one hides while empty, so one
+ *  column leaves no gap; the left one never does, or a lone right-stack card would auto-place into
+ *  column 1 and jump left. */
+function cardStack(hiddenWhenEmpty: boolean): HTMLElement {
+  const stack = document.createElement("div");
+  stack.className = `flex min-w-0 flex-col gap-4${hiddenWhenEmpty ? " empty:hidden" : ""}`;
+
+  return stack;
 }
