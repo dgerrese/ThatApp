@@ -5,6 +5,7 @@ import "./components/that-confirm";
 import { alertFor, messageOf } from "./alert";
 import { createInstance, deleteInstance, listInstances, testInstance, updateInstance } from "./api";
 import { confirmDestructive } from "./components/that-confirm";
+import { cutTextTooltip } from "./cut-text-tooltip";
 import { announceEntriesChanged } from "./entries-changed";
 import { clockTime } from "./format";
 import { iconMarkup } from "./icons";
@@ -361,11 +362,15 @@ function instanceRow(regions: Regions, instance: Instance, position: number): HT
   name.className = "text-ink text-lg font-medium";
   const host = document.createElement("span");
   host.dataset["rowHost"] = "";
+  host.id = `that-instance-host-${String(instance.id)}`;
+  // Its own Tab stop, cut or not (#236); `when-cut` keeps the tooltip shut otherwise.
+  host.tabIndex = 0;
   host.className = "text-ink-muted truncate font-mono text-sm";
-  identity.append(name, host);
+  identity.append(name, host, cutTextTooltip(host.id, hostLine(instance)));
 
   const health = document.createElement("span");
   health.dataset["rowHealth"] = "";
+  health.setAttribute("aria-live", "polite");
 
   const actions = document.createElement("div");
   actions.className = "flex shrink-0 gap-1";
@@ -430,6 +435,8 @@ function patchRow(row: HTMLElement, instance: Instance, position: number): void 
   const host = row.querySelector<HTMLElement>("[data-row-host]");
   if (host) {
     host.textContent = hostLine(instance);
+    const hostTip = host.nextElementSibling;
+    if (hostTip) hostTip.textContent = hostLine(instance);
   }
   for (const button of row.querySelectorAll<HTMLElement>("[data-row-action]")) {
     const action = button.dataset["rowAction"];

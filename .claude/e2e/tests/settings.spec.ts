@@ -156,7 +156,7 @@ test("an instance can be added and appears in the list", async ({ page }) => {
   // exact: true disambiguates from the shell's persistent "ThatApp"
   // heading, which the default substring match would otherwise also resolve.
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
-  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
+  await expect(page.locator("[data-row-host]", { hasText: "example.atlassian.net · me@example.com" })).toBeVisible();
 });
 
 /**
@@ -264,9 +264,9 @@ test("a rejected connection test reports the failure", async ({ page }) => {
   await expect.soft(settings.locator("li[data-instance-id] that-alert")).toHaveCount(0);
 });
 
-async function rowBoxes(settings: Locator): Promise<number[]> {
+async function rowBoxes(settings: Locator, names = ["Ridgeline", "Northwind"]): Promise<number[]> {
   const boxes: number[] = [];
-  for (const name of ["Ridgeline", "Northwind"]) {
+  for (const name of names) {
     const box = await settings.getByRole("listitem").filter({ hasText: name }).boundingBox();
     if (!box) throw new Error(`${name}'s row did not lay out`);
     boxes.push(box.y, box.height);
@@ -299,6 +299,70 @@ for (const [outcome, answer] of [
   });
 }
 
+test("a failing test at phone width moves neither its row nor the row below it", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await stubListed(page, [listed(1, "North Wind"), listed(2, "Ridgeline")]);
+  const held = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+  const settings = await openSettings(page);
+  const names = ["North Wind", "Ridgeline"];
+  const row = settings.getByRole("listitem").filter({ hasText: "North Wind" });
+  const testButton = row.getByRole("button", { name: "Test North Wind" });
+  await expect(row.locator("[data-row-health]")).toHaveText("Not tested");
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  const before = await rowBoxes(settings, names);
+
+  await testButton.click();
+  await held.arrived;
+  const during = await rowBoxes(settings, names);
+
+  held.release({ status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } });
+  await expect(row.locator("[data-row-health] svg")).toBeVisible();
+  const after = await rowBoxes(settings, names);
+  console.log(`PHONE360 before=${JSON.stringify(before)} during=${JSON.stringify(during)} after=${JSON.stringify(after)}`);
+
+  expect.soft(during, "while the test runs").toEqual(before);
+  expect.soft(after, "after the answer").toEqual(before);
+});
+
+// A tooltip opens on keyboard focus only (#107), so the host is reached by a
+// real Shift+Tab from the Test button that follows it.
+async function focusHostByKeyboard(page: Page, settings: Locator): Promise<void> {
+  await settings.locator('[data-row-action="test"]').focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(settings.locator("[data-row-host]")).toBeFocused();
+}
+
+test("the host line of a cut row is a Tab stop that opens its full text", async ({ page }) => {
+  const email = `${"a-very-long-local-part-".repeat(12)}@example.com`;
+  await stubListed(page, [{ ...listed(1, "Ridgeline"), email }]);
+  const settings = await openSettings(page);
+  const host = settings.locator("[data-row-host]");
+  await expect(host).toHaveAttribute("tabindex", "0");
+
+  await focusHostByKeyboard(page, settings);
+
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(`ridgeline.atlassian.net · ${email}`);
+});
+
+test("the host line of a row that fits opens no tooltip", async ({ page }) => {
+  await stubListed(page, [listed(1, "Ridgeline")]);
+  const settings = await openSettings(page);
+
+  await focusHostByKeyboard(page, settings);
+
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
+test("the health slot is a polite live region", async ({ page }) => {
+  await stubListed(page, [listed(1, "Ridgeline")]);
+  const settings = await openSettings(page);
+
+  await expect(settings.locator("[data-row-health]")).toHaveAttribute("aria-live", "polite");
+});
+
 test("removing an instance asks first, and cancelling changes nothing", async ({ page }) => {
   const stub = await stubInstancesApi(page, { testStatus: 200 });
   await openSettings(page);
@@ -314,7 +378,7 @@ test("removing an instance asks first, and cancelling changes nothing", async ({
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
   await expect(dialog).toBeHidden();
-  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
+  await expect(page.locator("[data-row-host]", { hasText: "example.atlassian.net · me@example.com" })).toBeVisible();
   expect(stub.deleteCount()).toBe(0);
 });
 
@@ -343,7 +407,7 @@ test("pressing Escape cancels the removal", async ({ page }) => {
 
   await expect(confirmDialog(page)).toBeHidden();
   await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
-  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
+  await expect(page.locator("[data-row-host]", { hasText: "example.atlassian.net · me@example.com" })).toBeVisible();
   expect(stub.deleteCount()).toBe(0);
 });
 
@@ -440,7 +504,7 @@ test("editing can be cancelled", async ({ page }) => {
 
   await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit Work", exact: true })).toBeFocused();
-  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
+  await expect(page.locator("[data-row-host]", { hasText: "example.atlassian.net · me@example.com" })).toBeVisible();
 });
 
 test("saving an edit returns focus to that row's Edit button", async ({ page }) => {
