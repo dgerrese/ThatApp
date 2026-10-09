@@ -257,3 +257,135 @@ test("deleting an unpushed entry removes its row at once", async ({ page }) => {
   await expect(rows(page)).toHaveCount(1);
   await expect(dialog(page).getByRole("button", { name: /Restore/ })).toHaveCount(0);
 });
+
+test("a ticket whose only time today is a pending delete reads Log 0:00, and the rail still has it to push", async ({
+  page,
+}) => {
+  await openToday(page, [entry(1, "WORK-412", 5400, "deleted")]);
+
+  await expect(trigger(page, "WORK-412")).toHaveText("Log0:00");
+  await expect(page.locator("#rail-total")).toHaveText("0h 00m");
+  await expect(page.locator("#rail-unpushed")).toHaveText("1 entry to push");
+  await expect(page.getByRole("button", { name: "Push worklogs" })).toBeEnabled();
+});
+
+test("deleting and restoring move Today's row and the rail out and back", async ({ page }) => {
+  await openToday(page, [entry(1, "WORK-412", 5400, "pushed")]);
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+  await expect(page.locator("#rail-unpushed")).toHaveText("Nothing to push");
+  await trigger(page, "WORK-412").click();
+
+  await confirmDelete(page, "09:15");
+
+  await expect(trigger(page, "WORK-412")).toHaveText("Log0:00");
+  await expect(page.locator("#rail-total")).toHaveText("0h 00m");
+  await expect(page.locator("#rail-unpushed")).toHaveText("1 entry to push");
+
+  await rows(page).nth(0).getByRole("button", { name: "Restore the 09:15 entry" }).click();
+
+  await expect(trigger(page, "WORK-412")).toHaveText("Log1:30");
+  await expect(page.locator("#rail-total")).toHaveText("1h 30m");
+  await expect(page.locator("#rail-unpushed")).toHaveText("Nothing to push");
+});
+
+// Review focus 4: the off-list row is the only way back to the dialog for a
+// ticket that is neither assigned nor pinned, so it must survive its only
+// entry being marked.
+test("an off-list ticket whose only entry is a pending delete keeps its row", async ({ page }) => {
+  await openToday(page, [entry(1, "WORK-777", 3600, "deleted")]);
+
+  const offList = page.getByRole("region", { name: "Logged today, not on your list" });
+  await expect(offList.getByText("WORK-777")).toBeVisible();
+  await expect(trigger(page, "WORK-777")).toHaveText("Log0:00");
+});
+
+test("the rail's push confirmation counts a pending delete as an entry but not in its total", async ({
+  page,
+}) => {
+  await openToday(page, [
+    entry(1, "WORK-412", 3600, "pushed"),
+    entry(2, "WORK-412", 1800, "deleted", "11:00"),
+    entry(3, "WORK-412", 900, "unpushed", "13:00"),
+  ]);
+
+  await page.getByRole("button", { name: "Push worklogs" }).click();
+
+  await expect(page.getByRole("dialog")).toContainText(
+    "2 entries totalling 0h 15m will be sent to 1 site.",
+  );
+});
+
+const WEEK = {
+  start: "2026-09-07",
+  end: "2026-09-13",
+  prevStart: "2026-08-31",
+  nextStart: "2026-09-14",
+  weekNumber: 37,
+  days: [
+    { day: "2026-09-07", seconds: 7200, pushState: "pushed" },
+    { day: "2026-09-08", seconds: 5400, pushState: "deleted" },
+    { day: "2026-09-09", seconds: 0, pushState: "deleted" },
+    { day: "2026-09-10", seconds: 0, pushState: null },
+    { day: "2026-09-11", seconds: 0, pushState: null },
+    { day: "2026-09-12", seconds: 0, pushState: null },
+    { day: "2026-09-13", seconds: 0, pushState: null },
+  ],
+  rows: [
+    {
+      instanceId: 1,
+      instanceName: "Ridgeline",
+      instancePosition: 0,
+      issueKey: "WORK-412",
+      url: "https://work.atlassian.net/browse/WORK-412",
+      cells: [
+        { seconds: 7200, pushState: "pushed" },
+        { seconds: 5400, pushState: "deleted" },
+        { seconds: 0, pushState: "deleted" },
+        { seconds: 0, pushState: null },
+        { seconds: 0, pushState: null },
+        { seconds: 0, pushState: null },
+        { seconds: 0, pushState: null },
+      ],
+      seconds: 12600,
+    },
+  ],
+  seconds: 12600,
+};
+
+test("Week marks a cell holding a pending delete, and an emptied cell keeps its dash with the mark", async ({
+  page,
+}) => {
+  await page.route("**/api/entries**", (route) =>
+    route.fulfill({ status: 200, json: { today: "2026-09-07", entries: [] } }),
+  );
+  await page.route("**/api/week**", (route) => route.fulfill({ status: 200, json: WEEK }));
+  await page.goto("/week");
+
+  const cells = page.locator("tbody tr", { hasText: "WORK-412" }).locator("td");
+  const tuesday = cells.nth(1).locator("button");
+  const wednesday = cells.nth(2).locator("button");
+
+  await expect(tuesday).toHaveAttribute(
+    "aria-label",
+    "WORK-412, Tue 8, 1h 30m, deleted at next push, click to edit",
+  );
+  await expect(tuesday.locator("svg circle")).toHaveCount(1);
+
+  await expect(wednesday).toHaveText("—");
+  await expect(wednesday.locator("svg circle")).toHaveCount(1);
+  await expect(wednesday).toHaveAttribute(
+    "aria-label",
+    "WORK-412, Wed 9, no time logged, deleted at next push, click to edit",
+  );
+  await wednesday.hover();
+  await expect(cells.nth(2).locator("that-tooltip")).toHaveText(
+    "No time logged · deleted at next push · click to edit",
+  );
+
+  const foot = page.locator("tfoot td");
+  const emptiedDay = foot.nth(2);
+  await expect(emptiedDay.getByRole("img")).toHaveAttribute("aria-label", "deleted at next push");
+  await expect(emptiedDay.getByRole("img").locator("svg circle")).toHaveCount(1);
+  await expect(emptiedDay).toHaveCSS("color", INK_MUTED_LIGHT);
+  await expect(emptiedDay).toContainText("—");
+});

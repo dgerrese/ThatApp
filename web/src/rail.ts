@@ -4,6 +4,7 @@ import { announceEntriesChanged, onEntriesChanged } from "./entries-changed";
 import { elapsedFigure, totalFigure } from "./format";
 import { iconMarkup } from "./icons";
 import { instanceHue } from "./instance-hue";
+import { countsInTotals } from "./push-marks";
 import { announcePushReported } from "./push-reported";
 import { navigate } from "./router";
 import { onTabReturn } from "./tab-return";
@@ -56,8 +57,8 @@ export const TODAY_PERIOD: RailPeriod = {
 };
 
 // Everything that is not pushed is pending: never sent, or sent and edited
-// since. The server's push sweeps both (internal/server/push.go), and the two
-// filters below drifted from it because each was written by hand — #121.
+// since, or deleted and waiting for the push to say so. The server's push
+// sweeps both (internal/server/push.go), and the two filters below drifted from it because each was written by hand — #121.
 const isPending = (entry: Entry): boolean => entry.pushState !== "pushed";
 
 // One counter for every cut-text id the rail hands out (#143): the split's
@@ -170,8 +171,9 @@ export function startRail(): void {
   const paintFigures = (): void => {
     if (!painted) return;
 
-    const slices = sliceByInstance(lastEntries);
-    let seconds = lastEntries.reduce((sum, entry) => sum + entry.seconds, 0);
+    const counted = lastEntries.filter(countsInTotals);
+    const slices = sliceByInstance(counted);
+    let seconds = counted.reduce((sum, entry) => sum + entry.seconds, 0);
 
     if (currentPeriod === TODAY_PERIOD) {
       const running = currentTimer();
@@ -453,7 +455,7 @@ export function startRail(): void {
       const days = [...new Set(due.map((entry) => entry.day))].sort();
 
       const { confirmDestructive } = await import("./components/that-confirm");
-      const seconds = due.reduce((sum, entry) => sum + entry.seconds, 0);
+      const seconds = due.filter(countsInTotals).reduce((sum, entry) => sum + entry.seconds, 0);
       const label = `${String(due.length)} ${due.length === 1 ? "entry" : "entries"}`;
       const sites = new Set(due.map((entry) => entry.instanceId)).size;
       const across = days.length === 1 ? "" : ` across ${String(days.length)} days`;

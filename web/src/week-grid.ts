@@ -2,7 +2,7 @@ import { CARD_SURFACE_CLASSES } from "./card-surface.ts";
 import type { EntryTicket } from "./components/that-entry-dialog.ts";
 import { totalFigure } from "./format.ts";
 import { paintInstanceDot } from "./instance-hue.ts";
-import { PUSH_MARKS, knownPushState } from "./push-marks.ts";
+import { PUSH_MARKS, knownPushState, type PushMark } from "./push-marks.ts";
 import type { PushResponse, WeekCell, WeekDay, WeekRollup, WeekRow } from "./types.ts";
 import { dayHeading, weekLabel } from "./week-label.ts";
 
@@ -251,12 +251,12 @@ type PushState = WeekCell["pushState"];
 function markerFor(
   pushState: PushState,
   failed: boolean,
-): { className: string; words: string } | undefined {
+): { className: string; words: string; markup: string | undefined } | undefined {
   const state = knownPushState(failed ? "failed" : (pushState ?? "pushed"));
   if (state === "pushed") return undefined;
-  const mark = PUSH_MARKS[state];
+  const mark: PushMark = PUSH_MARKS[state];
 
-  return { className: `${mark.tone} ${mark.shape}`, words: mark.words };
+  return { className: `${mark.tone} ${mark.shape ?? ""}`, words: mark.words, markup: mark.markup };
 }
 
 /** Every state's own words, `pushed` included: it draws no marker, but a
@@ -306,9 +306,13 @@ function ticketCell(
   td.className = `h-[46px] text-right align-middle ${dayIndex === 0 ? "" : "pl-[10px]"}`;
 
   const id = `that-week-cell-${String(++weekCellSequence)}`;
-  const empty = cell.seconds === 0;
+  // Empty means no entries at all. A cell holding only pending deletes shows no
+  // time either, but keeps its mark and opens to edit, so it never reads as a
+  // day with nothing on it (#280).
+  const empty = cell.pushState === null;
   const words = pushWords(cell.pushState, failed);
-  const figure = empty ? "—" : totalFigure(cell.seconds);
+  const figure = cell.seconds === 0 ? "—" : totalFigure(cell.seconds);
+  const spoken = cell.seconds === 0 ? "no time logged" : figure;
   const dayLabel = dayHeading(day, dayIndex);
 
   const trigger = document.createElement("button");
@@ -328,7 +332,7 @@ function ticketCell(
     "aria-label",
     empty
       ? `${row.issueKey}, ${dayLabel}, no time logged, click to add`
-      : `${row.issueKey}, ${dayLabel}, ${figure}, ${words}, click to edit`,
+      : `${row.issueKey}, ${dayLabel}, ${spoken}, ${words}, click to edit`,
   );
   trigger.addEventListener("click", () => {
     openEntry({
@@ -364,11 +368,12 @@ function ticketCell(
       const mark = document.createElement("span");
       mark.className = `shrink-0 ${marker.className}`;
       mark.setAttribute("aria-hidden", "true");
+      if (marker.markup !== undefined) mark.innerHTML = marker.markup;
       trigger.append(mark);
     }
     // .fig: the drawing's mono face for a real figure.
     const fig = document.createElement("span");
-    fig.className = "font-mono";
+    fig.className = cell.seconds === 0 ? "text-ink-muted" : "font-mono";
     fig.textContent = figure;
     trigger.append(fig);
   }
@@ -378,7 +383,7 @@ function ticketCell(
   tooltip.setAttribute("anchor", "end");
   tooltip.textContent = empty
     ? "No time logged · click to add"
-    : `${figure} · ${words} · click to edit`;
+    : `${cell.seconds === 0 ? "No time logged" : figure} · ${words} · click to edit`;
 
   td.append(trigger, tooltip);
 
@@ -390,14 +395,15 @@ function ticketCell(
  *  is a tab stop, though, so a keyboard reader still reaches the tooltip that
  *  names the state. Wears .fig (mono) even at zero — unlike a day cell's own
  *  em dash, the footer's keeps the class regardless, per the drawing's tfoot
- *  markup. */
+ *  markup. A day holding only pending deletes is a muted dash that still wears
+ *  its mark, like such a cell. */
 function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCellElement {
   const td = document.createElement("td");
   // Same reasoning as ticketCell's td: the footer's Ticket cell is also a
   // `<th>`, so Monday's own `.grid td + td` gap never fires for it either.
   td.className = `py-3 text-right align-middle font-mono ${isFirst ? "" : "pl-[10px]"}`;
 
-  if (day.seconds === 0) {
+  if (day.pushState === null) {
     td.classList.add("text-ink-muted");
     td.textContent = "—";
 
@@ -415,6 +421,7 @@ function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCell
     mark.setAttribute("role", "img");
     mark.setAttribute("aria-label", marker.words);
     mark.className = `${FOOT_MARKER} ${marker.className}`;
+    if (marker.markup !== undefined) mark.innerHTML = marker.markup;
 
     const tooltip = document.createElement("that-tooltip");
     tooltip.setAttribute("for", mark.id);
@@ -423,7 +430,8 @@ function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCell
     td.append(mark, tooltip);
   }
 
-  td.append(document.createTextNode(totalFigure(day.seconds)));
+  if (day.seconds === 0) td.classList.add("text-ink-muted");
+  td.append(document.createTextNode(day.seconds === 0 ? "—" : totalFigure(day.seconds)));
 
   return td;
 }
