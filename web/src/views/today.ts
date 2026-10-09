@@ -360,7 +360,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
     breakpointWatch.disconnect();
   });
   refresh.addEventListener("click", () => {
-    void refreshEverything(regions);
+    void refreshEverything(regions, { restack: true });
   });
 
   // "online" fires when the *network* comes back. A server that restarts while
@@ -974,7 +974,7 @@ function pinnedKeysOf(regions: Regions): Set<string> {
  *  this function's: the initial mount calls this alone, while the button is
  *  still hidden, and the shared Refresh must stay disabled until the pins
  *  call settles too. */
-async function refreshResults(regions: Regions): Promise<void> {
+async function refreshResults(regions: Regions, options?: { restack?: boolean }): Promise<void> {
   try {
     // The cards already on screen stay put while this is in flight: a list that
     // blinks out and back is indistinguishable from one that broke.
@@ -982,6 +982,11 @@ async function refreshResults(regions: Regions): Promise<void> {
     regions.lastIssues = response;
     regions.issuesCachedAt = cachedAt;
     regions.assignedSettled = true;
+    // Refresh is one of the two moments the cards are placed afresh (#144) —
+    // Today opening is the other, with a fresh regions. Here, once the issues
+    // are in hand rather than at the press: the pins answer may land first,
+    // and its redraw from the old issues must not be what places the cards.
+    if (options?.restack) regions.stackOf = new Map();
     renderResponse(regions, response);
   } catch (error) {
     regions.assignedSettled = true;
@@ -1036,12 +1041,15 @@ function renderCombinedStale(regions: Regions): void {
   regions.stale.hidden = false;
 }
 
-async function refreshEverything(regions: Regions): Promise<void> {
+async function refreshEverything(regions: Regions, options?: { restack?: boolean }): Promise<void> {
   regions.refresh.setAttribute("disabled", "");
   try {
     // Settled rather than all: a failing pins refresh must not stop the assigned
     // cards updating, and each already renders its own failure.
-    await Promise.allSettled([refreshResults(regions), refreshPins(regions, { refresh: true })]);
+    await Promise.allSettled([
+      refreshResults(regions, options),
+      refreshPins(regions, { refresh: true }),
+    ]);
   } finally {
     regions.refresh.removeAttribute("disabled");
   }

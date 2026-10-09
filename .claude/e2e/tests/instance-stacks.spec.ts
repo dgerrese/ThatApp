@@ -259,3 +259,150 @@ test("a focused row keeps its focus when the cards switch between one column and
   await expect.poll(() => headingOrder(page)).toEqual(["Alpha", "Bravo", "Charlie"]); // wait
   await expect(link).toBeFocused();
 });
+
+test("the pins arriving after the issues move no card", async ({ page }) => {
+  let releasePins: (() => void) | undefined;
+  const pinsHeld = new Promise<void>((resolve) => {
+    releasePins = resolve;
+  });
+  await page.route("**/api/pins**", async (route) => {
+    await pinsHeld;
+    await route.fulfill({ status: 200, json: [pinFor(501, 0, "ALPHA-2")] });
+  });
+  await stubIssues(page, instances(2, 1, 1));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+  expect.soft(await stackOf(page, "Charlie")).toBe("right");
+
+  releasePins?.();
+  await expect(rowsOf(page, "Alpha")).toHaveCount(1); // wait
+  expect.soft(await stackOf(page, "Charlie")).toBe("right");
+});
+
+test("pinning a ticket moves no card", async ({ page }) => {
+  await stubPinStore(page, []);
+  await stubIssues(page, instances(2, 1, 1));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+
+  await page.getByRole("button", { name: "Pin ALPHA-2", exact: true }).click();
+  await expect(rowsOf(page, "Alpha")).toHaveCount(1); // wait
+  expect(await stackOf(page, "Charlie")).toBe("right");
+});
+
+test("unpinning a ticket moves no card", async ({ page }) => {
+  await stubPinStore(page, [pinFor(501, 0, "ALPHA-2")]);
+  // The issues wait for the pins, so the cards are first placed with ALPHA-2 already in Pinned:
+  // three one-row cards, Charlie on the left.
+  let releaseIssues: (() => void) | undefined;
+  const issuesHeld = new Promise<void>((resolve) => {
+    releaseIssues = resolve;
+  });
+  await page.route("**/api/issues", async (route) => {
+    await issuesHeld;
+    await route.fulfill({ status: 200, json: { instances: instances(2, 1, 1) } });
+  });
+  await page.setViewportSize(WIDE);
+  await page.goto("/today");
+  await expect(page.getByRole("region", { name: "Pinned" }).locator("that-ticket-row")).toHaveCount(1); // wait
+  releaseIssues?.();
+  await expect(card(page, "Charlie")).toBeVisible(); // wait
+  expect.soft(await stackOf(page, "Charlie")).toBe("left");
+
+  // Placed afresh, Alpha's two rows would send Charlie right.
+  await page.getByRole("button", { name: "Unpin ALPHA-2", exact: true }).click();
+  await expect(rowsOf(page, "Alpha")).toHaveCount(2); // wait
+  expect.soft(await stackOf(page, "Charlie")).toBe("left");
+});
+
+test("coming back to a stale Today moves no card", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/api/issues", async (route) => {
+    calls += 1;
+    if (calls === 1) {
+      await route.fulfill({
+        status: 200,
+        headers: { "X-THAT-Cached-At": new Date().toISOString() },
+        json: { instances: instances(2, 1, 1) },
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, json: { instances: instances(1, 1, 1) } });
+  });
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+  await expect(page.getByText("no connection to the server")).toBeVisible(); // wait
+
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+  });
+  await expect(rowsOf(page, "Alpha")).toHaveCount(1); // wait
+  expect(await stackOf(page, "Charlie")).toBe("right");
+});
+
+test("the network returning moves no card", async ({ page }) => {
+  await stubIssues(page, instances(2, 1, 1), instances(1, 1, 1));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(rowsOf(page, "Alpha")).toHaveCount(1); // wait
+  expect(await stackOf(page, "Charlie")).toBe("right");
+});
+
+test("an instance that appears on a redraw goes to the shorter stack", async ({ page }) => {
+  // Alpha's eight rows outweigh Bravo and Charlie together, so Delta joins them on the right.
+  await stubIssues(page, instances(8, 1, 1), instances(8, 1, 1, 1));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(card(page, "Delta")).toBeVisible(); // wait
+  expect.soft(await stackOf(page, "Delta")).toBe("right");
+  expect.soft(await isBelow(page, "Charlie", "Delta")).toBe(true);
+});
+
+test("an instance that leaves on a redraw moves no other card", async ({ page }) => {
+  // Alpha and Charlie on the left, Bravo alone on the right. Placed afresh without Bravo,
+  // Charlie would go right.
+  await stubIssues(page, instances(1, 3, 1), instances(1, 3, 1).filter((group) => group.name !== "Bravo"));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(card(page, "Bravo")).toHaveCount(0); // wait
+  expect(await stackOf(page, "Charlie")).toBe("left");
+});
+
+test("Refresh places the cards afresh, from the issues it fetched", async ({ page }) => {
+  let releaseIssues: (() => void) | undefined;
+  const issuesHeld = new Promise<void>((resolve) => {
+    releaseIssues = resolve;
+  });
+  let calls = 0;
+  await page.route("**/api/issues", async (route) => {
+    calls += 1;
+    if (calls > 1) await issuesHeld;
+    await route.fulfill({ status: 200, json: { instances: calls > 1 ? instances(1, 1, 1) : instances(2, 1, 1) } });
+  });
+  // Refresh rereads the pins with ?refresh=1. That answer adds a pin no card holds, so its arrival
+  // shows in Pinned and changes no card.
+  await page.route("**/api/pins**", async (route) => {
+    const refreshed = new URL(route.request().url()).searchParams.get("refresh") === "1";
+    await route.fulfill({ status: 200, json: refreshed ? [pinFor(501, 0, "ALPHA-99")] : [] });
+  });
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+
+  await page.getByRole("button", { name: "Refresh" }).click();
+  // The pins answer lands first and redraws the cards from the issues already held.
+  await expect(page.getByRole("region", { name: "Pinned" }).locator("that-ticket-row")).toHaveCount(1); // wait
+  releaseIssues?.();
+  await expect(rowsOf(page, "Alpha")).toHaveCount(1); // wait
+  expect(await stackOf(page, "Charlie")).toBe("left");
+});
+
+test("opening Today again places the cards afresh", async ({ page }) => {
+  await stubIssues(page, instances(2, 1, 1), instances(1, 1, 1));
+  await openToday(page, WIDE, "Alpha", "Bravo", "Charlie");
+
+  await page.getByRole("link", { name: "Week", exact: true }).click();
+  await expect(page).toHaveURL(/\/week$/); // wait
+  await page.getByRole("link", { name: "Today", exact: true }).click();
+  await expect(rowsOf(page, "Alpha")).toHaveCount(1); // wait
+  expect(await stackOf(page, "Charlie")).toBe("left");
+});
