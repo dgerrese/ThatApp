@@ -40,8 +40,8 @@ scratch branch that is never pushed. The rule is in `ticket-workflow` through PR
 (`[Process]`, merged). #220 (a self-hosted runner, v2) is the lasting answer.
 
 **No pull request waits on the owner.** #253 (the MCP server) merged as PR #291. `delete_entry`
-refuses an entry with a Jira worklog, by the owner's decision of 2026-10-07. **Remove that check when
-#280 lands**, because #280 makes a delete of a pushed entry wait for Push.
+refused an entry with a Jira worklog, by the owner's decision of 2026-10-07. #280 (PR #304) removes
+that check, because a delete of a pushed entry now waits for Push.
 
 **Release `v2026.41.1` was built on this machine, not by CI.** Actions are off for the repository
 (`has_actions: false`), so a tag no longer starts `release.yml`. The same script ran locally:
@@ -58,8 +58,10 @@ rebuild of the rail ever happens with focus in the rail. Its branch `issue-261-r
 holds a helper the owner dropped. Do not revive it.
 
 **v1 still open (2026-10-08):** #281 is in review as PR #298 (the entry dialog returns focus to the
-save button after a save; native `disabled` kept by the owner's decision). #280 is `status/blocked`
-on its design session (how a pending delete looks). #297 is a new intake (the comment field is named
+save button after a save; native `disabled` kept by the owner's decision). **#280 is in review as
+PR #304 (2026-10-09)**: a delete of a pushed entry marks it (`deleted_at`), the next push deletes the
+worklog, and Restore takes it back until then. Its design session was held on 2026-10-08. Seven
+decisions the owner may reverse are in the PR body and on the ticket. #297 is a new intake (the comment field is named
 only by its placeholder). The README explains choosing another host port (PR #295, `[Docs]`), and
 documentation-only changes need no issue (PR #296).
 
