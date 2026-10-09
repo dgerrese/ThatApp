@@ -63,7 +63,7 @@ The spec decides behaviour and drawing; these are the places it is silent. The c
 4. **409 codes:** `PATCH` on a pending delete → `entry_pending_delete`; restore of an entry not pending delete → `entry_not_pending_delete`.
 5. **Focus:** after a deferred delete, focus goes to that row's Restore (it sits where Delete was); after a restore, to that row's Delete. A row that is gone (an unpushed delete) falls back to Close, as today.
 6. **Restore is drawn in `text-ink` at rest**, as the drawing (option C) has it; the other row glyphs stay `text-ink-muted`.
-7. **The rail's push confirmation is not changed.** Its `N entries totalling X` still sums every pending entry, deletes included. The design does not list it among the totals; the wording is the owner's to revisit.
+7. **The rail's push confirmation leaves pending deletes out of its total.** Its `N entries totalling X` still counts every pending entry in `N`, deletes included, because each one is work the push sends; but `X` sums only `countsInTotals` entries, because the design's decision 2 says a pending delete counts in no total. Set by the controller on 2026-10-09; the owner may reverse it.
 8. **No `restore_entry` MCP tool.** The spec does not ask for one, and `TestMCPToolsListIsExactlyTheTen` pins ten.
 
 ## Review Focus
@@ -2450,7 +2450,13 @@ In `web/src/rail.ts`, import `countsInTotals` from `"./push-marks"`; the first t
     let seconds = counted.reduce((sum, entry) => sum + entry.seconds, 0);
 ```
 
-`isPending` and the push confirmation are unchanged (ruling 7); extend `isPending`'s comment: "never sent, sent and edited since, or deleted and waiting for the push to say so."
+In the push button's click handler, the confirmation's sum becomes (ruling 7):
+
+```ts
+      const seconds = due.filter(countsInTotals).reduce((sum, entry) => sum + entry.seconds, 0);
+```
+
+Add to this task's e2e spec: with one pushed entry of 1h and one pending delete of 30m on the day, plus one unpushed 15m entry, the rail push confirmation's body reads `2 entries totalling 0:15` (match the exact figure format `totalFigure` produces). `isPending` is unchanged; extend `isPending`'s comment: "never sent, sent and edited since, or deleted and waiting for the push to say so."
 
 - [ ] **Step 6: The push report.** In `web/src/push-report.ts`, in `pushReportLines` add `const deleted = all.filter((line) => line.result.status === "deleted");` beside `pushed`, and the success return's message becomes `pushedLine(pushed.length, deleted.length)`. Add at the end of the file:
 
@@ -2473,6 +2479,7 @@ function pushedLine(pushed: number, deleted: number): string {
   4. Drop the `countsInTotals` line in `refreshTotals` → Today e2e red on `Log0:00`.
   5. `paintFigures` over `lastEntries` again → Today e2e red on `#rail-total`.
   6. `isPending` as `entry.pushState === "unpushed" || entry.pushState === "dirty"` → red on `1 entry to push` (both Today tests).
+  7. The confirmation's sum over `due` again → red on the confirmation's total.
   7. `pushedLine` ignores `deleted` → push-report unit red.
   8. Put `delete_unrecorded` in the `stranded` filter (`code === "store_failed" || code === "delete_unrecorded"`) → the guard red.
   9. Filter `regions.entries` too (`regions.entries = entries.filter(countsInTotals)`) → off-list e2e red.
