@@ -62,8 +62,9 @@ save button after a save; native `disabled` kept by the owner's decision). **#28
 PR #304 (2026-10-09)**: a delete of a pushed entry marks it (`deleted_at`), the next push deletes the
 worklog, and Restore takes it back until then. Its design session was held on 2026-10-08. Seven
 decisions the owner may reverse are in the PR body and on the ticket. **#144 is in review as PR
-#306 (2026-10-09)**: Today's instance cards pack into two stacks, shortest first. **#301** (`status/todo`)
-is next. **#305** is a new intake (a pins answer after a failed Refresh hides its error). #297 is a new intake (the comment field is named
+#306 (2026-10-09)**: Today's instance cards pack into two stacks, shortest first. **#301 is in review as PR #308 (2026-10-09)**:
+a connection test changes only the row's health slot. **#307** is a new intake (a flaky tab-return
+test). **#305** is a new intake (a pins answer after a failed Refresh hides its error). #297 is a new intake (the comment field is named
 only by its placeholder). The README explains choosing another host port (PR #295, `[Docs]`), and
 documentation-only changes need no issue (PR #296).
 
