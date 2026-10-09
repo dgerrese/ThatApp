@@ -63,8 +63,8 @@ PR #304 (2026-10-09)**: a delete of a pushed entry marks it (`deleted_at`), the 
 worklog, and Restore takes it back until then. Its design session was held on 2026-10-08. Seven
 decisions the owner may reverse are in the PR body and on the ticket. **#144 is in review as PR
 #306 (2026-10-09)**: Today's instance cards pack into two stacks, shortest first. **#301 is in review as PR #308 (2026-10-09)**:
-a connection test changes only the row's health slot. **#297, #305, #307 and #309** were approved on 2026-10-09 and
-are at `status/needs-refinement` (#307 and #309 are flaky tab-return and tooltip tests). The four open product PRs (#298, #304, #306, #308) merge together
+a connection test changes only the row's health slot. **#305 is in review as PR #310 (2026-10-09).** **#297, #307 and #309** were approved on
+2026-10-09 and are with the peer session for refinement (#307 and #309 are flaky tab-return and tooltip tests). The four open product PRs (#298, #304, #306, #308) merge together
 cleanly and pass the gates together, apart from #309's flake. **#305** is a new intake (a pins answer after a failed Refresh hides its error). #297 is a new intake (the comment field is named
 only by its placeholder). The README explains choosing another host port (PR #295, `[Docs]`), and
 documentation-only changes need no issue (PR #296).
