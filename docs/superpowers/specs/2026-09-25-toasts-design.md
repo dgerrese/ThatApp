@@ -17,11 +17,14 @@ owner settled on the browser companion on 2026-09-25 (screens under
 1. **Push and fetch reports become toasts, every line of them, lists included.** A mixed report is not
    split between a toast and the page: each report line is its own toast, carrying its own list.
 2. **A failed one-off action becomes a toast.** A pin or unpin that failed, a fetch or refresh request
-   that threw, a Settings save that fails after its form has closed, and a timer start that failed (#207).
+   that threw, a Settings save that fails after its form has closed, a timer start that failed (#207), and a Settings connection test that failed (#301).
 3. **Everything else stays where it is.** State messages — the stale banner, "could not be read" standing
    where a list would be, an instance with no site URL — describe something that stays true, and stay
-   inline. So does Settings' *Test connection* result, in its row, and the instance form's own error: that
-   form is a card on the page, not a dialog.
+   inline. So does Settings' *Test connection* verdict, in its row's health slot, and the instance form's
+   own error: that form is a card on the page, not a dialog. *Amended by #301 on 2026-10-09:* the failed
+   test's message left the row for an error toast (decision 2), because the alert beneath the row moved
+   every row below it. The verdict — `Not tested`, `Testing…`, `Connected · HH:MM`, `Not connected · HH:MM`
+   — stays inline.
 4. **A success fades; a warning or an error stays until it is closed.** A success toast leaves after about
    4 seconds, and the countdown pauses while the pointer or focus is on it. Warnings and errors never time
    out, and they survive moving between views. There is no history: the only way a toast leaves early is
@@ -40,7 +43,7 @@ owner settled on the browser companion on 2026-09-25 (screens under
 9. **The tone rule does not change.** The tone colours the mark; the words stay in ordinary ink; the mark
    carries its `aria-label` ("Done", "Warning", "Failed"), exactly as `that-alert` does now.
 10. **The wording of every message is unchanged.** Those were settled with the owner ticket by ticket;
-    moving them into a new container does not reopen them.
+    moving them into a new container does not reopen them. #301 is the one exception: the failed connection test's message gained the save-failure toast's prefix, as `Could not connect to <name>: <message>`, because a toast outside the row must name the instance.
 
 **Not settled here, deliberately:** the phone layout. The owner will decide it later; until then the stack
 keeps its desktop placement at every width.
@@ -110,7 +113,8 @@ Verified against `main` at `432dbd7`. The ticket's original list of eight places
 | `today.ts`, `week.ts` "could not be read" in place of content | state | stays inline |
 | `today.ts` stale banner | state | stays inline |
 | `settings.ts` no site URL; list could not be read | state | stays inline |
-| `settings.ts` *Test connection* | result in its row | stays inline |
+| `settings.ts` *Test connection* | verdict in its row's health slot | stays inline |
+| `settings.ts` *Test connection* failure | the failure's message (#301) | toast |
 | `settings.ts` instance form error | form on the page | stays inline |
 | `rail.ts` `showPushError` | the drawn rail line | stays |
 

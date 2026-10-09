@@ -156,7 +156,7 @@ test("an instance can be added and appears in the list", async ({ page }) => {
   // exact: true disambiguates from the shell's persistent "ThatApp"
   // heading, which the default substring match would otherwise also resolve.
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
-  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
+  await expect(page.locator("[data-row-host]", { hasText: "example.atlassian.net · me@example.com" })).toBeVisible();
 });
 
 /**
@@ -201,23 +201,165 @@ test("a successful connection test states Connected and the time it was taken", 
   await expect(health).toHaveText(/^Connected · \d{2}:\d{2}$/);
   await expect(health).toHaveCSS("color", "oklch(0.75 0.15 150)");
   await expect(health.locator("svg")).toHaveAttribute("width", "15");
+  // One more round trip, so a toast the answer raised would have landed by now.
+  await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+  await expect(page.locator("that-toasts that-toast")).toHaveCount(0);
+});
+
+test("while a test runs, the health slot reads Testing… in muted ink with no mark, and Test is disabled", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await stubInstancesApi(page, { testStatus: 200 });
+  const settings = await openSettings(page);
+  await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+  const row = settings.getByRole("listitem").filter({ hasText: "Work" });
+  const testButton = row.getByRole("button", { name: "Test Work" });
+
+  const held = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+  await testButton.click();
+  await held.arrived;
+
+  const health = row.locator("[data-row-health]");
+  await expect.soft(health).toHaveText("Testing…");
+  await expect.soft(health).toHaveCSS("color", "oklch(0.725 0.012 55)");
+  await expect.soft(health.locator("svg")).toHaveCount(0);
+  await expect.soft(testButton).toBeDisabled();
+  await expect.soft(row.locator("that-alert")).toHaveCount(0);
+
+  held.release();
+  await expect(health).toHaveText(/^Connected · /);
+  await expect(testButton).toBeEnabled();
 });
 
 // Success and failure must be distinguishable, which is the whole point of a
 // test button that asserts identity rather than a 2xx.
 test("a rejected connection test reports the failure", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
   await stubInstancesApi(page, { testStatus: 401 });
   const settings = await openSettings(page);
   await addInstance(page);
+  await expect(page.getByText("Work", { exact: true })).toBeVisible();
+  const row = settings.getByRole("listitem").filter({ hasText: "Work" });
 
-  await settings.getByRole("button", { name: "Test Work" }).click();
+  await row.getByRole("button", { name: "Test Work" }).click();
 
-  await expect(settings.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
-  await expect(settings.getByText(/Connected ·/)).toBeHidden();
-  await expect(settings.getByText("Not tested")).toBeHidden();
-  // #123: a Test connection failure stays inline in the dialog, never a toast.
-  await expect(settings.locator("that-alert", { hasText: "Jira did not accept the API token" })).toBeVisible();
-  await expect(page.locator("that-toast")).toHaveCount(0);
+  const health = row.locator("[data-row-health]");
+  await expect(health).toHaveText(/^Not connected · \d{2}:\d{2}$/);
+  await expect.soft(health).toHaveCSS("color", "oklch(0.72 0.17 25)");
+  await expect.soft(health.locator("svg")).toHaveAttribute("width", "15");
+  await expect.soft(health.locator("svg path").first()).toHaveAttribute("d", "M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6");
+
+  // #301: the verdict is inline, the failure's message is an error toast.
+  const toasts = page.locator("that-toasts that-toast");
+  await expect.soft(toasts.first()).toContainText(
+    "Could not connect to Work: Jira did not accept the API token for this request; check the token and its scopes",
+  );
+  await expect.soft(toasts.first()).toHaveAttribute("tone", "error");
+  // One more round trip, so a second toast would have landed by now.
+  await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+  await expect.soft(toasts).toHaveCount(1);
+  await expect.soft(settings.locator("[data-row-status]")).toHaveCount(0);
+  await expect.soft(settings.locator("li[data-instance-id] that-alert")).toHaveCount(0);
+});
+
+async function rowBoxes(settings: Locator, names = ["Ridgeline", "Northwind"]): Promise<number[]> {
+  const boxes: number[] = [];
+  for (const name of names) {
+    const box = await settings.getByRole("listitem").filter({ hasText: name }).boundingBox();
+    if (!box) throw new Error(`${name}'s row did not lay out`);
+    boxes.push(box.y, box.height);
+  }
+
+  return boxes;
+}
+
+for (const [outcome, answer] of [
+  ["passes", { status: 200, json: { accountId: "a", displayName: "Dion" } }],
+  ["fails", { status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } }],
+] as const) {
+  test(`a test that ${outcome} moves neither its row nor the row below it`, async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline"), listed(2, "Northwind")]);
+    const held = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+    const settings = await openSettings(page);
+    const row = settings.getByRole("listitem").filter({ hasText: "Ridgeline" });
+    const testButton = row.getByRole("button", { name: "Test Ridgeline" });
+    await expect(row.locator("[data-row-health]")).toHaveText("Not tested");
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    const before = await rowBoxes(settings);
+
+    await testButton.click();
+    await held.arrived;
+    expect.soft(await rowBoxes(settings), "while the test runs").toEqual(before);
+
+    held.release(answer);
+    await expect(testButton).toBeEnabled();
+    expect.soft(await rowBoxes(settings), "after the answer").toEqual(before);
+  });
+}
+
+test("a failing test at phone width moves neither its row nor the row below it", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await stubListed(page, [listed(1, "North Wind"), listed(2, "Ridgeline")]);
+  const held = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+  const settings = await openSettings(page);
+  const names = ["North Wind", "Ridgeline"];
+  const row = settings.getByRole("listitem").filter({ hasText: "North Wind" });
+  const testButton = row.getByRole("button", { name: "Test North Wind" });
+  await expect(row.locator("[data-row-health]")).toHaveText("Not tested");
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  const before = await rowBoxes(settings, names);
+
+  await testButton.click();
+  await held.arrived;
+  const during = await rowBoxes(settings, names);
+
+  held.release({ status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } });
+  await expect(row.locator("[data-row-health] svg")).toBeVisible();
+  const after = await rowBoxes(settings, names);
+
+  expect.soft(during, "while the test runs").toEqual(before);
+  expect.soft(after, "after the answer").toEqual(before);
+});
+
+// A tooltip opens on keyboard focus only (#107), so the host is reached by a
+// real Shift+Tab from the Test button that follows it.
+async function focusHostByKeyboard(page: Page, settings: Locator): Promise<void> {
+  await settings.locator('[data-row-action="test"]').focus();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(settings.locator("[data-row-host]")).toBeFocused();
+}
+
+test("the host line of a cut row is a Tab stop that opens its full text", async ({ page }) => {
+  const email = `${"a-very-long-local-part-".repeat(12)}@example.com`;
+  await stubListed(page, [{ ...listed(1, "Ridgeline"), email }]);
+  const settings = await openSettings(page);
+  const host = settings.locator("[data-row-host]");
+  await expect(host).toHaveAttribute("tabindex", "0");
+
+  await focusHostByKeyboard(page, settings);
+
+  const visible = page.locator("that-tooltip:visible");
+  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveText(`ridgeline.atlassian.net · ${email}`);
+});
+
+test("the host line of a row that fits opens no tooltip", async ({ page }) => {
+  await stubListed(page, [listed(1, "Ridgeline")]);
+  const settings = await openSettings(page);
+
+  await focusHostByKeyboard(page, settings);
+
+  await expect(page.locator("that-tooltip:visible")).toHaveCount(0);
+});
+
+test("the health slot is a polite live region", async ({ page }) => {
+  await stubListed(page, [listed(1, "Ridgeline")]);
+  const settings = await openSettings(page);
+
+  await expect(settings.locator("[data-row-health]")).toHaveAttribute("aria-live", "polite");
 });
 
 test("removing an instance asks first, and cancelling changes nothing", async ({ page }) => {
@@ -235,7 +377,7 @@ test("removing an instance asks first, and cancelling changes nothing", async ({
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
   await expect(dialog).toBeHidden();
-  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
+  await expect(page.locator("[data-row-host]", { hasText: "example.atlassian.net · me@example.com" })).toBeVisible();
   expect(stub.deleteCount()).toBe(0);
 });
 
@@ -264,7 +406,7 @@ test("pressing Escape cancels the removal", async ({ page }) => {
 
   await expect(confirmDialog(page)).toBeHidden();
   await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
-  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
+  await expect(page.locator("[data-row-host]", { hasText: "example.atlassian.net · me@example.com" })).toBeVisible();
   expect(stub.deleteCount()).toBe(0);
 });
 
@@ -361,7 +503,7 @@ test("editing can be cancelled", async ({ page }) => {
 
   await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit Work", exact: true })).toBeFocused();
-  await expect(page.getByText("example.atlassian.net · me@example.com")).toBeVisible();
+  await expect(page.locator("[data-row-host]", { hasText: "example.atlassian.net · me@example.com" })).toBeVisible();
 });
 
 test("saving an edit returns focus to that row's Edit button", async ({ page }) => {
@@ -503,10 +645,8 @@ test("editing an instance to add its site URL clears the missing-URL warning", a
   await expect(page.getByText("This instance has no site URL")).toBeHidden();
 });
 
-// A reused row keeps its status node so an in-flight test survives a reconcile
-// (see the test above this comment's sibling in the suite), but that same
-// preservation must not let a *completed* result outlive the edit that
-// invalidated it.
+// A token edit must not leave a verdict about the old token behind (#301: the
+// failure toast stays — it closes only when closed).
 test("saving over a failed connection test clears the stale result", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 401 });
   await openSettings(page);
@@ -518,14 +658,14 @@ test("saving over a failed connection test clears the stale result", async ({ pa
   await expect(page.getByText("Work", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Test" }).click();
-  await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeVisible();
+  const health = page.locator("[data-row-health]");
+  await expect(health).toHaveText(/^Not connected · /);
 
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("API token", { exact: true }).fill("corrected-secret");
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await expect(page.getByText("Jira did not accept the API token for this request; check the token and its scopes")).toBeHidden();
-  await expect(page.getByText("Not tested")).toBeVisible();
+  await expect(health).toHaveText("Not tested");
 });
 
 // Before this branch, entering edit mode destroyed the list, so no Remove
@@ -1348,7 +1488,8 @@ test.describe("instance rows", () => {
     await arrived;
     await settings.getByRole("button", { name: "Close" }).click();
     await page.getByRole("button", { name: "Settings", exact: true }).click();
-    await expect(settings.locator("[data-row-health]")).toHaveText("Not tested");
+    await expect(settings.locator("[data-row-health]")).toHaveText("Testing…");
+    await expect(settings.getByRole("button", { name: "Test Ridgeline" })).toBeDisabled();
 
     answer();
     await expect(settings.locator("[data-row-health]")).toHaveText(/^Connected · /);
@@ -1395,6 +1536,94 @@ test.describe("instance rows", () => {
     // The stub numbers by list length, so this one is given id 1 again — as SQLite would.
     await addInstance(page);
     await expect(settings.locator("[data-row-health]")).toHaveText("Not tested");
+  });
+
+  test("a save landing after Settings was reopened mid-test leaves the row Not tested", async ({ page }) => {
+    await stubInstancesApi(page, { testStatus: 200 });
+    const settings = await openSettings(page);
+    await addInstance(page);
+    await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+    const heldTest = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+    await settings.getByRole("button", { name: "Test Work" }).click();
+    await heldTest.arrived;
+
+    const heldSave = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+    await settings.getByRole("button", { name: "Edit Work" }).click();
+    await page.getByLabel("API token", { exact: true }).fill("corrected-secret");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await heldSave.arrived;
+
+    await settings.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    const health = settings.locator("[data-row-health]");
+    await expect(health).toHaveText("Testing…");
+
+    heldSave.release();
+    await expect(settings.getByRole("button", { name: "Edit Work" })).toBeEnabled();
+    await expect.soft(health).toHaveText("Not tested");
+    await expect.soft(settings.getByRole("button", { name: "Test Work" })).toBeEnabled();
+
+    // The answer to the test the save made stale: a failure, discarded.
+    const tested = page.waitForResponse("**/api/instances/*/test");
+    heldTest.release({
+      status: 401,
+      json: { code: "credentials_rejected", message: "Jira did not accept the API token" },
+    });
+    await tested;
+    // One more round trip, so the app's own promise chain has settled the late answer.
+    await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+    await expect.soft(health).toHaveText("Not tested");
+    await expect.soft(page.locator("that-toasts that-toast")).toHaveCount(0);
+  });
+
+  test("a failed verdict survives closing and reopening, without a second toast", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    await page.route("**/api/instances/*/test", (route) =>
+      route.fulfill({ status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } }),
+    );
+    const settings = await openSettings(page);
+
+    await settings.getByRole("button", { name: "Test Ridgeline" }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText(/^Not connected · /);
+    await expect(page.locator("that-toasts that-toast")).toHaveCount(1);
+
+    await settings.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect.soft(settings.locator("[data-row-health]")).toHaveText(/^Not connected · /);
+    // One more round trip, so a toast the reopen raised would have landed by now.
+    await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+    await expect.soft(page.locator("that-toasts that-toast")).toHaveCount(1);
+  });
+
+  test("a failure answered after Settings closed still raises its toast", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    const held = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+    const settings = await openSettings(page);
+
+    await settings.getByRole("button", { name: "Test Ridgeline" }).click();
+    await held.arrived;
+    await settings.getByRole("button", { name: "Close" }).click();
+    await expect(settings).toBeHidden();
+
+    held.release({ status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } });
+    await expect(page.locator("that-toasts that-toast[tone='error']")).toContainText(
+      "Could not connect to Ridgeline: Jira did not accept the API token",
+    );
+  });
+
+  test("a failing test leaves the no-site-URL warning in place", async ({ page }) => {
+    await stubListed(page, [{ ...listed(1, "Ridgeline"), siteUrl: "" }]);
+    await page.route("**/api/instances/*/test", (route) =>
+      route.fulfill({ status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } }),
+    );
+    const settings = await openSettings(page);
+    const warning = settings.getByText("This instance has no site URL");
+    await expect(warning).toBeVisible();
+
+    await settings.getByRole("button", { name: "Test Ridgeline" }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText(/^Not connected · /);
+    await expect(warning).toBeVisible();
   });
 });
 

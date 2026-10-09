@@ -250,6 +250,22 @@ total the rail can describe; Settings has neither. It is a cog beside the wordma
 right — a 34px box whose hover wash ends on the rail's content edge — and it opens Settings as a
 modal dialog over whichever view is mounted, so the rail keeps describing a real period underneath.
 
+**An instance row's health slot has four states** (#301, 2026-10-09). Testing a connection writes this
+slot and nothing else, so the row never changes height and no row below it moves. The host line
+truncates with an ellipsis rather than wrapping, so a long host cannot grow the row either.
+
+| State | Text | Tone | Mark |
+| --- | --- | --- | --- |
+| Not tested | `Not tested` | `--color-ink-muted` | none |
+| Testing | `Testing…` | `--color-ink-muted` | none |
+| Connected | `Connected · 14:22` | `--color-running` | the check, 15px |
+| Not connected | `Not connected · 14:23` | `--color-failed` | the `failed` circle with a cross, 15px |
+
+Not connected wears a mark because no state rests on colour alone, and the time of the test, as
+Connected does, so a failure that predates a token change reads as old. Its message is an error toast,
+`Could not connect to <name>: <message>`, that stays until it is closed; a pass raises none. The test
+button is disabled while its test runs.
+
 | State | Fill | Ink | Weight |
 | --- | --- | --- | --- |
 | Current | `--color-rail-active` | `--color-rail-ink` | 700 |
