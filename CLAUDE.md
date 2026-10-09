@@ -131,6 +131,16 @@ the next line does.
 **Naming** — a function's name must let a reader predict what it returns without opening it. Bare
 verbs (`process`, `handle`, `build`) and direction-hiding nouns fail that test.
 
+**Ponytail** — the `ponytail` plugin, enabled for this repository in `.claude/settings.json`, sets how
+code is written here: understand the change first, then take the smallest thing that works — reuse
+what the repository already has, then the standard library, then the platform, before writing new
+code. It shortens the solution, never the reading. It never overrides this file: the hard
+constraints, the tests *Where correctness lives* asks for, test-driven development with mutation (the
+`ticket-workflow` skill), validation, error handling and accessibility all stand as written, and
+ponytail's own "one small check" testing rule is replaced by them. A deliberate shortcut with a known
+limit is marked with a `ponytail:` comment naming the limit and what replaces it — a comment that
+earns its place under the rule above.
+
 ## Environment
 
 Configuration is read from the environment at boot and validated; the server refuses to start on
