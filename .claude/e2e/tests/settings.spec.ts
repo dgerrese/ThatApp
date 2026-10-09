@@ -1474,6 +1474,94 @@ test.describe("instance rows", () => {
     await addInstance(page);
     await expect(settings.locator("[data-row-health]")).toHaveText("Not tested");
   });
+
+  test("a save landing after Settings was reopened mid-test leaves the row Not tested", async ({ page }) => {
+    await stubInstancesApi(page, { testStatus: 200 });
+    const settings = await openSettings(page);
+    await addInstance(page);
+    await expect(page.getByText("Work", { exact: true })).toBeVisible();
+
+    const heldTest = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+    await settings.getByRole("button", { name: "Test Work" }).click();
+    await heldTest.arrived;
+
+    const heldSave = await holdNextRequest(page, "**/api/instances/*", "PATCH");
+    await settings.getByRole("button", { name: "Edit Work" }).click();
+    await page.getByLabel("API token", { exact: true }).fill("corrected-secret");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await heldSave.arrived;
+
+    await settings.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    const health = settings.locator("[data-row-health]");
+    await expect(health).toHaveText("Testing…");
+
+    heldSave.release();
+    await expect(settings.getByRole("button", { name: "Edit Work" })).toBeEnabled();
+    await expect.soft(health).toHaveText("Not tested");
+    await expect.soft(settings.getByRole("button", { name: "Test Work" })).toBeEnabled();
+
+    // The answer to the test the save made stale: a failure, discarded.
+    const tested = page.waitForResponse("**/api/instances/*/test");
+    heldTest.release({
+      status: 401,
+      json: { code: "credentials_rejected", message: "Jira did not accept the API token" },
+    });
+    await tested;
+    // One more round trip, so the app's own promise chain has settled the late answer.
+    await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+    await expect.soft(health).toHaveText("Not tested");
+    await expect.soft(page.locator("that-toasts that-toast")).toHaveCount(0);
+  });
+
+  test("a failed verdict survives closing and reopening, without a second toast", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    await page.route("**/api/instances/*/test", (route) =>
+      route.fulfill({ status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } }),
+    );
+    const settings = await openSettings(page);
+
+    await settings.getByRole("button", { name: "Test Ridgeline" }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText(/^Not connected · /);
+    await expect(page.locator("that-toasts that-toast")).toHaveCount(1);
+
+    await settings.getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect.soft(settings.locator("[data-row-health]")).toHaveText(/^Not connected · /);
+    // One more round trip, so a toast the reopen raised would have landed by now.
+    await page.evaluate(() => fetch("/api/health").then((response) => response.text()));
+    await expect.soft(page.locator("that-toasts that-toast")).toHaveCount(1);
+  });
+
+  test("a failure answered after Settings closed still raises its toast", async ({ page }) => {
+    await stubListed(page, [listed(1, "Ridgeline")]);
+    const held = await holdNextRequest(page, "**/api/instances/*/test", "POST");
+    const settings = await openSettings(page);
+
+    await settings.getByRole("button", { name: "Test Ridgeline" }).click();
+    await held.arrived;
+    await settings.getByRole("button", { name: "Close" }).click();
+    await expect(settings).toBeHidden();
+
+    held.release({ status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } });
+    await expect(page.locator("that-toasts that-toast[tone='error']")).toContainText(
+      "Could not connect to Ridgeline: Jira did not accept the API token",
+    );
+  });
+
+  test("a failing test leaves the no-site-URL warning in place", async ({ page }) => {
+    await stubListed(page, [{ ...listed(1, "Ridgeline"), siteUrl: "" }]);
+    await page.route("**/api/instances/*/test", (route) =>
+      route.fulfill({ status: 401, json: { code: "credentials_rejected", message: "Jira did not accept the API token" } }),
+    );
+    const settings = await openSettings(page);
+    const warning = settings.getByText("This instance has no site URL");
+    await expect(warning).toBeVisible();
+
+    await settings.getByRole("button", { name: "Test Ridgeline" }).click();
+    await expect(settings.locator("[data-row-health]")).toHaveText(/^Not connected · /);
+    await expect(warning).toBeVisible();
+  });
 });
 
 test.describe("the instance form", () => {

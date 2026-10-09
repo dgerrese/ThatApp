@@ -510,13 +510,10 @@ function hostLine(instance: Instance): string {
 // invisible to any comparison of the reconciled Instance — patchRow cannot see
 // it. Forgetting here, scoped to the one instance just saved, reaches that case
 // and never touches a sibling row's own test in flight.
-function forgetVerdict(regions: Regions, instanceId: number): void {
+function forgetVerdict(instanceId: number): void {
   verdicts.delete(instanceId);
   pendingTests.delete(instanceId);
-  const row = regions.listSlot.querySelector<HTMLElement>(`li[data-instance-id="${instanceId}"]`);
-  if (row) {
-    paintVerdict(row, instanceId);
-  }
+  paintLiveVerdict(instanceId);
 }
 
 async function runConnectionTest(instance: Instance): Promise<void> {
@@ -558,7 +555,7 @@ async function removeInstance(
     await deleteInstance(instance.id);
     markChanged(regions);
     // SQLite gives a freed id to the next instance created (no AUTOINCREMENT).
-    forgetVerdict(regions, instance.id);
+    forgetVerdict(instance.id);
     await refresh(regions);
 
     // The list persists beside the form now, so Remove is reachable while that
@@ -710,7 +707,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     }
 
     if (editing) {
-      forgetVerdict(regions, editing.id);
+      forgetVerdict(editing.id);
     }
     // After the finally: hideForm hands focus to the Edit that opened this form,
     // and a disabled button cannot take it. Reset only the form this save came
