@@ -64,11 +64,16 @@ rule (PR #302, `[Process]`) and the README's docker-hoster section (PR #299, `[D
 each of those left for the owner to reverse are in its PR body and on its ticket, and in
 [`handoff/2026-10-09.md`](handoff/2026-10-09.md).
 
-**Still open in v1:** #297 (the comment field is named only by its placeholder), #307 (a flaky
-tab-return test in Firefox) and #309 (a flaky tooltip test in Chromium, beside #212). All three were
-approved on 2026-10-09 and are at `status/needs-refinement`, handed to the peer session `thatapp-d4`
-for refinement. The owner's word: when the peer hands one back at `status/todo`, it may be started.
-#309 may share a cause with #212.
+**Still open in v1, all refined on 2026-10-12 and at `status/todo`.** The peer `thatapp-d4` never
+refined them and no longer runs. Each waits for the owner's word to start. Bugs first: #307, #309,
+then #297.
+- **#307** (`bug`): `onTabReturn` counts a window `focus` while hidden as a return. The fix is in the
+  product: focus counts only while visible. A probe reproduced the flake 6 of 6.
+- **#309** (`bug`): `tooltip.spec.ts`'s `mountTrigger` returns before the tooltip chunk upgrades, so a
+  Chromium hover can land with no listener. The helper waits for `[popover]`; that covers #212's tests
+  too. The product half is intake **#313** (v2): Chromium drops `:hover` on the trigger at the
+  upgrade, cause unknown.
+- **#297**: a visually hidden native `<label for>` reading "Description", the stop dialog's word.
 
 **Ponytail is part of how code is written here** (owner, 2026-10-09; `CLAUDE.md` and
 `ticket-workflow`): every implementer and reviewer dispatch loads `ponytail:ponytail`, and the
