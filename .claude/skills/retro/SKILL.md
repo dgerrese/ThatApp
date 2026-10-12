@@ -65,7 +65,7 @@ curl -sS "https://codeberg.org/api/v1/repos/DionGerrese/ThatApp/issues?state=ope
 Any count, status or "still open" claim gets re-checked against the forge before it enters a
 finding — a retro whose first number is wrong spends the rest of its credibility defending itself.
 **Check it against the forge, not against local git:** if `git fetch` cannot authenticate, the
-`codeberg/*` refs stay frozen at the last successful fetch and local git will answer confidently
+remote-tracking refs stay frozen at the last successful fetch and local git will answer confidently
 with yesterday's world. `tea` and the API carry a token rather than the SSH key, so they keep
 working when git does not.
 
