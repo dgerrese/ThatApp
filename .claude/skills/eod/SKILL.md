@@ -101,10 +101,11 @@ is one space-separated string and the number is `index` — so do not mix the tw
 Branch state, which the rest of the skill depends on:
 
 ```shell
+remote=$(git config --get branch.main.remote)   # the forge remote; not always named codeberg
 for b in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
-  unmerged=$(git rev-list --count codeberg/main..$b)
-  if git ls-remote --exit-code --heads codeberg "$b" >/dev/null 2>&1; then
-    [ "$(git ls-remote --heads codeberg "$b" | cut -f1)" = "$(git rev-parse "$b")" ] \
+  unmerged=$(git rev-list --count "$remote/main"..$b)
+  if git ls-remote --exit-code --heads "$remote" "$b" >/dev/null 2>&1; then
+    [ "$(git ls-remote --heads "$remote" "$b" | cut -f1)" = "$(git rev-parse "$b")" ] \
       && state=in-sync || state=DIVERGED
   else
     state=absent
@@ -126,6 +127,7 @@ work that a shutdown routine has no business making.
 Secure it first, so the rule that nothing lives only on this machine still holds:
 
 ```shell
+remote=$(git config --get branch.main.remote)   # the forge remote; not always named codeberg
 tmp=$(mktemp -u /tmp/eod-index.XXXXXX)
 GIT_INDEX_FILE="$tmp" git read-tree HEAD
 GIT_INDEX_FILE="$tmp" git add -A                       # everything, untracked included
@@ -134,15 +136,17 @@ snap=$(git commit-tree "$tree" -p HEAD -m "eod snapshot $(date +%F)")
 rm -f "$tmp"
 
 [ -n "$snap" ] || { echo "no snapshot built — do not push"; exit 1; }
-git push codeberg "$snap:refs/eod/$(date +%F)/$(git branch --show-current)"
+git push "$remote" "${snap}:refs/eod/$(date +%F)/$(git branch --show-current)"
 ```
 
 **Do not use `git stash create` here.** It looks like the obvious tool and it silently drops every
 untracked file — a brand-new module, a new test file, an entire new directory. Measured on
 2026-09-01: with one tracked edit and one untracked file present, `git stash create` produced a
 commit containing **zero** of the untracked work. Worse, when the *only* changes are untracked it
-returns an empty string, and `"$snap:refs/..."` then collapses to `":refs/..."` — which is git's
-refspec for **deleting** the remote ref. Hence the emptiness guard above; keep it.
+returns an empty string, and `"${snap}:refs/..."` then collapses to `":refs/..."` — which is git's
+refspec for **deleting** the remote ref. Hence the emptiness guard above; keep it. Keep the braces
+too: this machine's shell is zsh, which reads `$snap:r` as a modifier and pushed `<sha>efs/eod/…` on
+2026-10-06. Added by the 2026-10-12 retro, which also stopped naming the remote `codeberg`.
 
 The temp index is what makes this safe: `GIT_INDEX_FILE` points `git add -A` at a throwaway index,
 so the real index and the working tree are never touched. Verified on 2026-09-01 — the snapshot
@@ -189,7 +193,7 @@ commits nothing outside the handoff, so stop and say so: the session lands the r
 branch, and then this phase resumes. Added by the 2026-10-05 retro, after the 2026-09-21
 in-progress-first rule stayed in a day file for nine days.
 
-Then commit on `handoff-<today>`, cut from `codeberg/main`, reusing it if it already exists.
+Then commit on `handoff-<today>`, cut from `main` on the remote, reusing it if it already exists.
 
 ---
 
@@ -199,7 +203,7 @@ After this phase, **no work exists only on this machine.** "Unpushed branches" i
 finding — if one appears in the report, this phase failed and that is an error to raise, not an item
 for the owner's list.
 
-**Push a branch when it has at least one commit not in `codeberg/main` and its remote is `absent` or
+**Push a branch when it has at least one commit not in `main` on the remote and its remote is `absent` or
 `DIVERGED`.** A branch whose commits are all contained in `main` holds nothing at risk; pushing it
 manufactures a remote branch for zero commits. Skipping it is the rule working, not a gap.
 
@@ -257,7 +261,7 @@ default. The bind-mounted database under `./data` survives either way (#73).
 What is left for the owner, with the command for each:
 
 - Branches pushed but carrying **no pull request**
-- Branches **fully merged** into `codeberg/main` and droppable — `git branch -d <name>`
+- Branches **fully merged** into `main` on the remote and droppable — `git branch -d <name>`
 - **Open pull requests** waiting on them
 - **Label anomalies** — open issues with no `status/*`, closed ones still carrying one
 - **Peer sessions** seen, and left alone

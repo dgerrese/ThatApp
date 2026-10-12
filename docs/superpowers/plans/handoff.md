@@ -74,16 +74,18 @@ for refinement. The owner's word: when the peer hands one back at `status/todo`,
 `ticket-workflow`): every implementer and reviewer dispatch loads `ponytail:ponytail`, and the
 whole-branch review also runs `ponytail:ponytail-review`.
 
-**Implementer subagents sometimes stop with background work still running** (twice on 2026-10-09).
-Stop them with `TaskStop` once their report is in, or they can hold the shared e2e rig while the next
-task runs.
-
 **Decisions the owner may still reverse**, recorded on their tickets:
 - #226: one retry per click, shared with #207. A second 409 after it closes the dialog quietly.
 - #267: the tooltip-first Escape applies everywhere, including search-result rows and Settings, so
   a focused control there takes one extra Escape.
 - #273 was declined on 2026-10-06. The visual language still says Push becomes Retry after a
   partial failure, which the app does not do. That sentence is stale and needs its own ticket.
+
+### The second retro ran on 2026-10-12 — do not reopen its rules
+
+[`retros/2026-10-12-retro.md`](../retros/2026-10-12-retro.md). Both proposals approved: eod reads the
+remote name from `branch.main.remote` and writes `${snap}` (zsh ate `$snap:r` on 2026-10-06); and a
+task is not over until its subagent's background work is stopped, before the next dispatch.
 
 ### The first retro ran on 2026-10-05 — do not reopen its rules
 
