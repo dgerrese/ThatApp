@@ -363,6 +363,10 @@ is not redrafted later.
 4. **`superpowers:subagent-driven-development`** — executes the plan with a fresh subagent per task
    and a two-stage review after each. `superpowers:executing-plans` is the batched alternative when
    human checkpoints are wanted instead.
+   **A task is not over while its subagent still runs.** When an implementer or reviewer reports,
+   check `ListAgents` and stop any background work it left with `TaskStop` before the next dispatch.
+   Left running, it holds the shared e2e rig and can resume under the next task. On 2026-10-09 this
+   happened three times, on #144 and #305. Set by the 2026-10-12 retro.
 5. **`superpowers:test-driven-development`** — governs every implementation task. RED before GREEN,
    and the failing output belongs in the task report; a task that cannot show it is not done.
    **RED fails on the assertion, for the reason the test names** — a compile error, a missing export
