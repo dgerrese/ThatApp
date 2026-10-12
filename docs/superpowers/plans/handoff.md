@@ -81,6 +81,12 @@ whole-branch review also runs `ponytail:ponytail-review`.
 - #273 was declined on 2026-10-06. The visual language still says Push becomes Retry after a
   partial failure, which the app does not do. That sentence is stale and needs its own ticket.
 
+### The second retro ran on 2026-10-12 — do not reopen its rules
+
+[`retros/2026-10-12-retro.md`](../retros/2026-10-12-retro.md). Both proposals approved: eod reads the
+remote name from `branch.main.remote` and writes `${snap}` (zsh ate `$snap:r` on 2026-10-06); and a
+task is not over until its subagent's background work is stopped, before the next dispatch.
+
 ### The first retro ran on 2026-10-05 — do not reopen its rules
 
 [`retros/2026-10-05-retro.md`](../retros/2026-10-05-retro.md). The owner approved all eight
