@@ -5,6 +5,8 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 // it. /today is stubbed empty and used only to load the real bundle and
 // stylesheet — and it carries tooltips of its own now, which is why every
 // locator below asks for the one this spec mounted, by data-fixture.
+// Tests mount only after Today's empty state has rendered, because a later
+// render moves a mounted trigger.
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/issues", (route) =>
     route.fulfill({ status: 200, json: { instances: [] } }),
@@ -12,8 +14,13 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/entries**", (route) =>
     route.fulfill({ status: 200, json: { today: "2026-09-09", entries: [] } }),
   );
-  await page.goto("/today");
+  await openToday(page);
 });
+
+async function openToday(page: Page): Promise<void> {
+  await page.goto("/today");
+  await expect(page.getByText("No Jira instances yet.")).toBeVisible();
+}
 
 async function mountTrigger(
   page: import("@playwright/test").Page,
@@ -152,6 +159,29 @@ test("a hover straight after mountTrigger opens the tooltip, even when its chunk
   await mountTrigger(page);
   await page.locator("#trigger").hover();
 
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+});
+
+// #309, second cause: the fixture trigger sits after Today's own content, so
+// Today's first render, landing after a hover, moves it out from under the
+// pointer and pointerleave closes the tooltip. openToday waits that render out.
+test("a hover after openToday stays open, even when Today's issues answer arrives late", async ({
+  page,
+}) => {
+  await page.route("**/api/issues", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.fulfill({ status: 200, json: { instances: [] } });
+  });
+  await openToday(page);
+
+  await mountTrigger(page);
+  const trigger = page.locator("#trigger");
+  await trigger.hover();
+  const hovered = await trigger.boundingBox();
+  // wait: Today's late render has landed by now, whichever way the test ran.
+  await expect(page.getByText("No Jira instances yet.")).toBeVisible();
+
+  expect(await trigger.boundingBox()).toEqual(hovered);
   await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
 });
 
