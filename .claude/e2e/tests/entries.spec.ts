@@ -1223,8 +1223,7 @@ test("the comment field is named Description by its own label", async ({ page })
   await expect(comment).toHaveAttribute("placeholder", "What did you work on?");
 
   const id = await comment.getAttribute("id");
-  expect(id).toBeTruthy();
-  await expect(dialog(page).locator(`label[for="${id ?? ""}"]`)).toHaveClass(/\bsr-only\b/);
+  await expect(dialog(page).locator(`label[for="${id ?? ""}"]`)).toHaveCSS("position", "absolute");
   expect(
     await page.evaluate((each) => document.querySelectorAll(`[id="${each}"]`).length, id),
   ).toBe(1);
