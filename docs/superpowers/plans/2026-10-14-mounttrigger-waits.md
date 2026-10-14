@@ -164,3 +164,95 @@ Run `make lint`. Expected: clean.
 git add .claude/e2e/tests/tooltip.spec.ts
 git commit -m "test(tooltip): mountTrigger waits for the upgrade (#309)"
 ```
+
+---
+
+## Amendment, 2026-10-14 — a second cause, found at the gates
+
+The full `make test-e2e` on Task 1's head (`5e463f1`) failed once: `[chromium] tooltip.spec.ts` "Escape closes a tooltip opened by hover…", `toBeVisible()`, `Received: hidden`. The tooltip carried `popover="manual"` (upgraded) and `data-side="above"` (so `reveal()` ran): it opened, then closed.
+
+A probe (not committed) confirmed the cause. The fixture trigger is appended to `body` after Today's own content, at y=720, the window's bottom edge. `hover()` scrolls it to y=699. When Today's issues answer lands *after* the hover, the empty state renders, the trigger moves back to y=720, the pointer is no longer on it, and `pointerleave` closes the tooltip. With `/api/issues` delayed 1500 ms: 6 of 6 failed, both browsers. Answered at once: 6 of 6 passed.
+
+**Ruling 3 (the owner may reverse it):** this is fixed on this branch, in the test, because it is the ticket's own symptom ("the hover tooltip sometimes never opens") and the ticket's last criterion asks for a green `make test-e2e`. The product does not change: a tooltip that closes when its trigger moves away from the pointer is correct.
+
+### Task 2: Tests mount only after Today's first render
+
+**Files:**
+- Modify: `.claude/e2e/tests/tooltip.spec.ts` (the `beforeEach`; one new helper; one new test)
+
+**Interfaces:**
+- Consumes: `mountTrigger(page)`, `routeTooltipChunk` (Task 1).
+- Produces, inside the spec only: `openToday(page: Page): Promise<void>` — navigates to `/today` and resolves once Today's empty state has rendered.
+
+- [ ] **Step 1: Probe which of Today's reads move the trigger**
+
+Write a throwaway spec, `.claude/e2e/tests/zz-probe.spec.ts` (never committed). For each of `**/api/issues`, `**/api/entries**`, `**/api/pins**` and `**/api/timer`, one test delays only that route by 1500 ms (fulfilling `issues` with `{ instances: [] }`, `entries` with `{ today: "2026-09-09", entries: [] }`, and letting `pins` and `timer` continue to the real server with `route.continue()`), goes to `/today`, waits for the empty-state paragraph only when issues is *not* the delayed one, mounts the fixture as `mountTrigger` does, records `#trigger`'s `boundingBox()`, waits 2000 ms, records it again. Run it with `--repeat-each=2`, both browsers. Record in the report which reads move the trigger. Delete the probe.
+
+**If any read other than `/api/issues` moves the trigger, stop and report NEEDS_CONTEXT with the numbers.** Do not choose a different wait yourself.
+
+- [ ] **Step 2: Write the failing test**
+
+Add after the test Task 1 added:
+
+```ts
+// #309, second cause: the fixture trigger sits after Today's own content, so
+// Today's first render, landing after a hover, moves it out from under the
+// pointer and pointerleave closes the tooltip. openToday waits that render out.
+test("a hover after openToday stays open, even when Today's issues answer arrives late", async ({
+  page,
+}) => {
+  await page.route("**/api/issues", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.fulfill({ status: 200, json: { instances: [] } });
+  });
+  await openToday(page);
+
+  await mountTrigger(page);
+  await page.locator("#trigger").hover();
+
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+});
+```
+
+And the helper, above `mountTrigger`, as a bare navigation for now:
+
+```ts
+async function openToday(page: Page): Promise<void> {
+  await page.goto("/today");
+}
+```
+
+Replace `await page.goto("/today");` in the `beforeEach` with `await openToday(page);`.
+
+- [ ] **Step 3: Run it to verify it fails**
+
+Run `-g "issues answer arrives late"`, both browsers. Expected: FAIL in both on `toBeVisible()`, `Received: hidden`.
+
+- [ ] **Step 4: Make `openToday` wait**
+
+```ts
+async function openToday(page: Page): Promise<void> {
+  await page.goto("/today");
+  await expect(page.getByText("No Jira instances yet.")).toBeVisible();
+}
+```
+
+Update the spec's opening comment (the one above `beforeEach`) with one sentence: tests mount only after Today's empty state has rendered, because a later render moves a mounted trigger.
+
+- [ ] **Step 5: Verify and mutate**
+
+1. Run the new test with `--repeat-each=10`, both browsers. Expected: 20 of 20 pass.
+2. Run the whole `tooltip.spec.ts`, both browsers. Expected: all pass.
+3. Run the whole `tooltip.spec.ts` with `--repeat-each=3`, both browsers. Expected: all pass. Quote the summary line.
+4. Mutation: delete the wait line from `openToday`. Run the new test. Expected: red on `toBeVisible()` in both browsers. Restore.
+
+- [ ] **Step 6: Gate**
+
+Run `make lint`. Expected: clean.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add .claude/e2e/tests/tooltip.spec.ts
+git commit -m "test(tooltip): mount only after Today's first render (#309)"
+```
