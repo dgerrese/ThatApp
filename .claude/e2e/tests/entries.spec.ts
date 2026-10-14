@@ -1212,6 +1212,24 @@ test("the duration input and comment field carry the drawn padding", async ({ pa
   await expect(comment).toHaveCSS("padding-right", "12px");
 });
 
+// #297: a placeholder is not a label (WCAG 3.3.2). A hidden native label gives
+// the field the stop dialog's word for it, and nothing on screen changes.
+test("the comment field is named Description by its own label", async ({ page }) => {
+  await openToday(page);
+
+  await trigger(page, "WORK-412").click();
+
+  const comment = dialog(page).getByRole("textbox", { name: "Description" });
+  await expect(comment).toHaveAttribute("placeholder", "What did you work on?");
+
+  const id = await comment.getAttribute("id");
+  expect(id).toBeTruthy();
+  await expect(dialog(page).locator(`label[for="${id ?? ""}"]`)).toHaveClass(/\bsr-only\b/);
+  expect(
+    await page.evaluate((each) => document.querySelectorAll(`[id="${each}"]`).length, id),
+  ).toBe(1);
+});
+
 /**
  * `.durgroup input` wears Chivo Mono with tabular figures — #117 task 11, D4:
  * figures are set in the mono face throughout the app, and the duration field
