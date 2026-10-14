@@ -208,11 +208,18 @@ test("a hover after openToday stays open, even when Today's issues answer arrive
   await openToday(page);
 
   await mountTrigger(page);
-  await page.locator("#trigger").hover();
+  const trigger = page.locator("#trigger");
+  await trigger.hover();
+  const hovered = await trigger.boundingBox();
+  // wait: Today's late render has landed by now, whichever way the test ran.
+  await expect(page.getByText("No Jira instances yet.")).toBeVisible();
 
+  expect(await trigger.boundingBox()).toEqual(hovered);
   await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
 });
 ```
+
+The box comparison is the guard: `toBeVisible()` alone passes at once, before a late render can close the tooltip (found by the first Task 2 dispatch).
 
 And the helper, above `mountTrigger`, as a bare navigation for now:
 
@@ -226,7 +233,7 @@ Replace `await page.goto("/today");` in the `beforeEach` with `await openToday(p
 
 - [ ] **Step 3: Run it to verify it fails**
 
-Run `-g "issues answer arrives late"`, both browsers. Expected: FAIL in both on `toBeVisible()`, `Received: hidden`.
+Run `-g "issues answer arrives late"`, both browsers. Expected: FAIL in both on the `boundingBox()` `toEqual`, with `y` 699 expected and 720 received.
 
 - [ ] **Step 4: Make `openToday` wait**
 
@@ -244,7 +251,7 @@ Update the spec's opening comment (the one above `beforeEach`) with one sentence
 1. Run the new test with `--repeat-each=10`, both browsers. Expected: 20 of 20 pass.
 2. Run the whole `tooltip.spec.ts`, both browsers. Expected: all pass.
 3. Run the whole `tooltip.spec.ts` with `--repeat-each=3`, both browsers. Expected: all pass. Quote the summary line.
-4. Mutation: delete the wait line from `openToday`. Run the new test. Expected: red on `toBeVisible()` in both browsers. Restore.
+4. Mutation: delete the wait line from `openToday`. Run the new test. Expected: red on the `boundingBox()` `toEqual` in both browsers. Restore.
 
 - [ ] **Step 6: Gate**
 
