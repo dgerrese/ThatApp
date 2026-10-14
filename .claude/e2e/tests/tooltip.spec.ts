@@ -5,8 +5,10 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 // it. /today is stubbed empty and used only to load the real bundle and
 // stylesheet — and it carries tooltips of its own now, which is why every
 // locator below asks for the one this spec mounted, by data-fixture.
-// Tests mount only after Today's empty state has rendered, because a later
-// render moves a mounted trigger.
+// The router resets window scroll once a view's render resolves, so a hover
+// that scrolled the off-screen trigger into view before then loses it. Tests
+// mount only after Today's empty state, which is written in the same task as
+// that reset.
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/issues", (route) =>
     route.fulfill({ status: 200, json: { instances: [] } }),
@@ -154,7 +156,7 @@ test("a hover straight after mountTrigger opens the tooltip, even when its chunk
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await fulfill();
   });
-  await page.reload();
+  await openToday(page);
 
   await mountTrigger(page);
   await page.locator("#trigger").hover();
@@ -162,9 +164,9 @@ test("a hover straight after mountTrigger opens the tooltip, even when its chunk
   await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
 });
 
-// #309, second cause: the fixture trigger sits after Today's own content, so
-// Today's first render, landing after a hover, moves it out from under the
-// pointer and pointerleave closes the tooltip. openToday waits that render out.
+// #309, second cause: the router's scroll reset after Today's render, landing
+// after a hover, puts the fixture trigger back below the fold, out from under
+// the pointer, and pointerleave closes the tooltip. openToday waits it out.
 test("a hover after openToday stays open, even when Today's issues answer arrives late", async ({
   page,
 }) => {
@@ -176,8 +178,10 @@ test("a hover after openToday stays open, even when Today's issues answer arrive
 
   await mountTrigger(page);
   const trigger = page.locator("#trigger");
+  const before = await trigger.boundingBox();
   await trigger.hover();
   const hovered = await trigger.boundingBox();
+  expect(hovered?.y).toBeLessThan(before?.y ?? 0);
   // wait: Today's late render has landed by now, whichever way the test ran.
   await expect(page.getByText("No Jira instances yet.")).toBeVisible();
 

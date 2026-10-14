@@ -171,7 +171,9 @@ git commit -m "test(tooltip): mountTrigger waits for the upgrade (#309)"
 
 The full `make test-e2e` on Task 1's head (`5e463f1`) failed once: `[chromium] tooltip.spec.ts` "Escape closes a tooltip opened by hover…", `toBeVisible()`, `Received: hidden`. The tooltip carried `popover="manual"` (upgraded) and `data-side="above"` (so `reveal()` ran): it opened, then closed.
 
-A probe (not committed) confirmed the cause. The fixture trigger is appended to `body` after Today's own content, at y=720, the window's bottom edge. `hover()` scrolls it to y=699. When Today's issues answer lands *after* the hover, the empty state renders, the trigger moves back to y=720, the pointer is no longer on it, and `pointerleave` closes the tooltip. With `/api/issues` delayed 1500 ms: 6 of 6 failed, both browsers. Answered at once: 6 of 6 passed.
+A probe (not committed) confirmed the cause. The fixture trigger is appended to `body` after Today's own content, at y=720, the window's bottom edge. `hover()` scrolls it to y=699. When a navigation's render resolves *after* the hover, the router calls `resetContentScroll()` (`web/src/router.ts`), which does `window.scrollTo(0, 0)`; from `md:` up `main#content` scrolls inside itself, so the trigger is back at y=720, the pointer is no longer on it, and `pointerleave` closes the tooltip. Today's empty state is written in the same task as that reset, which is why waiting for it is the settle signal.
+
+Corrected on 2026-10-14 by the whole-branch re-review; the first wording blamed the render. With `/api/issues` delayed 1500 ms: 6 of 6 failed, both browsers. Answered at once: 6 of 6 passed.
 
 **Ruling 3 (the owner may reverse it):** this is fixed on this branch, in the test, because it is the ticket's own symptom ("the hover tooltip sometimes never opens") and the ticket's last criterion asks for a green `make test-e2e`. The product does not change: a tooltip that closes when its trigger moves away from the pointer is correct.
 
