@@ -23,13 +23,42 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-10-09 at end of day**, against the Codeberg API rather than against local git — see
+**Verified on 2026-10-14, at a stop for a system upgrade**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
 > **The forge changed on 2026-09-01.** Issue and pull-request numbers below were verified against
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
+
+### 2026-10-14 — read this first
+
+**An autopilot run on v1 stopped mid-ticket for a system upgrade.** Day file:
+[`handoff/2026-10-14.md`](handoff/2026-10-14.md).
+
+**Open pull requests, all waiting on the owner:**
+- **PR #315** (#307): a window `focus` counts as a tab return only while the document is visible.
+- **PR #317** (#309): `tooltip.spec`'s hover tests wait for the tooltip's upgrade **and** for the
+  router's scroll reset. The second race was found at the gates: the fixture trigger sits just below
+  the fold, `hover()` scrolls the window, and `router.ts`'s `resetContentScroll()` after a
+  navigation's render scrolls it back, away from the pointer. Three rulings the owner may reverse are
+  in its body and on the ticket.
+- **PR #314** — the 2026-10-12 handoff. Today's handoff PR is stacked on it.
+
+#315 and #317 are independent and were tested merged on a local scratch branch: `make verify` OK,
+`make test-e2e` 1156 passed, 0 failed.
+
+**#297 is in progress, not yet a pull request.** Branch `issue-297-description-label` (pushed at this
+stop, head `8f81a0a`) is finished and reviewed: the task review and the whole-branch review both
+approved, and the whole-branch fix wave (the hidden label checked by computed style) was re-reviewed
+as ready. Four of five acceptance criteria are ticked on the ticket. **What is left:** run
+`make verify` and `make test-e2e` on `8f81a0a` (the run was stopped for the upgrade), tick the
+criterion "the label is `sr-only`: nothing on screen changes", and open the PR `[#297] …` with both
+gate results. No screenshots: nothing on screen changes. Test it merged with #315 and #317 too, per
+the rule while CI is stopped.
+
+**Intake #316** (raised today, v1): `tooltip.spec`'s `mountFixed` and `mountCutText` have the upgrade
+race, not the scroll race. The owner's to approve.
 
 ### 2026-10-07 — read this first
 
@@ -39,7 +68,7 @@ results go into the body. Pull requests that wait together are also tested merge
 scratch branch that is never pushed. The rule is in `ticket-workflow` through PR #292
 (`[Process]`, merged). #220 (a self-hosted runner, v2) is the lasting answer.
 
-**No pull request waits on the owner.** #253 (the MCP server) merged as PR #291. `delete_entry`
+**No pull request waited on the owner then** (superseded by *2026-10-14 — read this first*). #253 (the MCP server) merged as PR #291. `delete_entry`
 refused an entry with a Jira worklog, by the owner's decision of 2026-10-07. #280 (PR #304, merged 2026-10-09) removed
 that check, because a delete of a pushed entry now waits for Push.
 
@@ -57,18 +86,14 @@ repositories cannot hold the package permission. It sat in `~/.config/thatapp-re
 rebuild of the rail ever happens with focus in the rail. Its branch `issue-261-rail-focus-survives-rebuild`
 holds a helper the owner dropped. Do not revive it.
 
-**v1 at the end of 2026-10-09.** **No pull request waits on the owner.** Merged today: #281 (PR #298),
+**v1 at the end of 2026-10-09.** **No pull request waited on the owner then** (superseded by *2026-10-14 — read this first*). Merged today: #281 (PR #298),
 #280 (PR #304, the deferred delete), #144 (PR #306, two card stacks), #301 (PR #308, the connection
 test changes only the health slot), #305 (PR #310, a failed Refresh keeps its alert), the ponytail
 rule (PR #302, `[Process]`) and the README's docker-hoster section (PR #299, `[Docs]`). The decisions
 each of those left for the owner to reverse are in its PR body and on its ticket, and in
 [`handoff/2026-10-09.md`](handoff/2026-10-09.md).
 
-**Still open in v1:** #297 (the comment field is named only by its placeholder), #307 (a flaky
-tab-return test in Firefox) and #309 (a flaky tooltip test in Chromium, beside #212). All three were
-approved on 2026-10-09 and are at `status/needs-refinement`, handed to the peer session `thatapp-d4`
-for refinement. The owner's word: when the peer hands one back at `status/todo`, it may be started.
-#309 may share a cause with #212.
+**v1's three refined tickets were worked on 2026-10-14** — see *2026-10-14 — read this first* above.
 
 **Ponytail is part of how code is written here** (owner, 2026-10-09; `CLAUDE.md` and
 `ticket-workflow`): every implementer and reviewer dispatch loads `ponytail:ponytail`, and the
