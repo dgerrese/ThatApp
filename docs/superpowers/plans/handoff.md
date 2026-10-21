@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-10-21, at the end of an autopilot run**, against the Codeberg API rather than against local git — see
+**Verified on 2026-10-21, at end of day**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -33,44 +33,24 @@ further down is history and says otherwise in places.
 
 ### 2026-10-21 — read this first
 
-**An autopilot run on v1 shipped #297 as PR #319** and found nothing else to take. Day file:
-[`handoff/2026-10-21.md`](handoff/2026-10-21.md).
+**Two autopilot runs on v1.** Day file: [`handoff/2026-10-21.md`](handoff/2026-10-21.md).
 
-**No pull request waits on the owner.** The owner merged PR #319 (#297), PR #317 (#309) and PR #315
-(#307) on 2026-10-21, after both were tested merged with `main` (`make verify` OK, `make test-e2e`
-1158 passed, 0 failed). Both handoffs (#314, #318) merged too. The three closed tickets lost their
-`status/in-progress` label by hand.
+**One pull request waits on the owner: PR #320 (#316).** `mountFixed` and `mountCutText` in
+`tooltip.spec.ts` wait for the tooltip upgrade, with one late-chunk test each. The two decisions it
+leaves the owner to reverse are in its body. Gates on `ddadf08`: `make verify` OK, `make test-e2e`
+1162 passed, 0 failed. **#316 is v1's last open ticket**; merging #320 empties v1.
 
-**PR #320 (#316) waits on the owner.** `mountFixed` and `mountCutText` wait for the tooltip upgrade, with one late-chunk test each; both decisions it leaves the owner to reverse are in its body. It is v1's last open ticket.
+**Merged on 2026-10-21:** PR #315 (#307), PR #317 (#309), PR #319 (#297, shipped by the first run),
+and the handoffs PR #314 and PR #318. Their tickets lost `status/in-progress` by hand. The owner
+approved #316 and it was refined in an attended session the same day.
 
-### 2026-10-14 — read this first
+**Labels are clean**, checked across all 183 issues at end of day.
 
-**An autopilot run on v1 stopped mid-ticket for a system upgrade.** Day file:
+### 2026-10-14 — superseded
+
+Everything the 2026-10-14 block listed as open (PRs #314, #315, #317, the unfinished #297 and intake
+#316) merged or shipped on 2026-10-21. Its narrative is in
 [`handoff/2026-10-14.md`](handoff/2026-10-14.md).
-
-**Open pull requests, all waiting on the owner:**
-- **PR #315** (#307): a window `focus` counts as a tab return only while the document is visible.
-- **PR #317** (#309): `tooltip.spec`'s hover tests wait for the tooltip's upgrade **and** for the
-  router's scroll reset. The second race was found at the gates: the fixture trigger sits just below
-  the fold, `hover()` scrolls the window, and `router.ts`'s `resetContentScroll()` after a
-  navigation's render scrolls it back, away from the pointer. Three rulings the owner may reverse are
-  in its body and on the ticket.
-- **PR #314** — the 2026-10-12 handoff. Today's handoff PR is stacked on it.
-
-#315 and #317 are independent and were tested merged on a local scratch branch: `make verify` OK,
-`make test-e2e` 1156 passed, 0 failed.
-
-**#297 is in progress, not yet a pull request.** Branch `issue-297-description-label` (pushed at this
-stop, head `8f81a0a`) is finished and reviewed: the task review and the whole-branch review both
-approved, and the whole-branch fix wave (the hidden label checked by computed style) was re-reviewed
-as ready. Four of five acceptance criteria are ticked on the ticket. **What is left:** run
-`make verify` and `make test-e2e` on `8f81a0a` (the run was stopped for the upgrade), tick the
-criterion "the label is `sr-only`: nothing on screen changes", and open the PR `[#297] …` with both
-gate results. No screenshots: nothing on screen changes. Test it merged with #315 and #317 too, per
-the rule while CI is stopped.
-
-**Intake #316** (raised today, v1): `tooltip.spec`'s `mountFixed` and `mountCutText` have the upgrade
-race, not the scroll race. The owner's to approve.
 
 ### 2026-10-07 — read this first
 
@@ -80,7 +60,7 @@ results go into the body. Pull requests that wait together are also tested merge
 scratch branch that is never pushed. The rule is in `ticket-workflow` through PR #292
 (`[Process]`, merged). #220 (a self-hosted runner, v2) is the lasting answer.
 
-**No pull request waited on the owner then** (superseded by *2026-10-14 — read this first*). #253 (the MCP server) merged as PR #291. `delete_entry`
+**No pull request waited on the owner then** (superseded by *2026-10-21 — read this first*). #253 (the MCP server) merged as PR #291. `delete_entry`
 refused an entry with a Jira worklog, by the owner's decision of 2026-10-07. #280 (PR #304, merged 2026-10-09) removed
 that check, because a delete of a pushed entry now waits for Push.
 
@@ -98,14 +78,14 @@ repositories cannot hold the package permission. It sat in `~/.config/thatapp-re
 rebuild of the rail ever happens with focus in the rail. Its branch `issue-261-rail-focus-survives-rebuild`
 holds a helper the owner dropped. Do not revive it.
 
-**v1 at the end of 2026-10-09.** **No pull request waited on the owner then** (superseded by *2026-10-14 — read this first*). Merged today: #281 (PR #298),
+**v1 at the end of 2026-10-09.** **No pull request waited on the owner then** (superseded by *2026-10-21 — read this first*). Merged today: #281 (PR #298),
 #280 (PR #304, the deferred delete), #144 (PR #306, two card stacks), #301 (PR #308, the connection
 test changes only the health slot), #305 (PR #310, a failed Refresh keeps its alert), the ponytail
 rule (PR #302, `[Process]`) and the README's docker-hoster section (PR #299, `[Docs]`). The decisions
 each of those left for the owner to reverse are in its PR body and on its ticket, and in
 [`handoff/2026-10-09.md`](handoff/2026-10-09.md).
 
-**v1's three refined tickets were worked on 2026-10-14** — see *2026-10-14 — read this first* above.
+**v1's three refined tickets were worked on 2026-10-14** — see *2026-10-21 — read this first* above.
 
 **Ponytail is part of how code is written here** (owner, 2026-10-09; `CLAUDE.md` and
 `ticket-workflow`): every implementer and reviewer dispatch loads `ponytail:ponytail`, and the
