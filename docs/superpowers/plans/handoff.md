@@ -41,7 +41,7 @@ further down is history and says otherwise in places.
 1158 passed, 0 failed). Both handoffs (#314, #318) merged too. The three closed tickets lost their
 `status/in-progress` label by hand.
 
-**v1 holds one open ticket: intake #316**, the owner's to approve. Nothing is at `status/todo` or in progress.
+**v1 holds one open ticket: #316, refined and at `status/todo`** (2026-10-21). It waits for the owner's word to start.
 
 ### 2026-10-14 — read this first
 
