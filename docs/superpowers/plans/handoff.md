@@ -36,14 +36,12 @@ further down is history and says otherwise in places.
 **An autopilot run on v1 shipped #297 as PR #319** and found nothing else to take. Day file:
 [`handoff/2026-10-21.md`](handoff/2026-10-21.md).
 
-**Open pull requests, all waiting on the owner:**
-- **PR #317** (#309): see *2026-10-14* below for its three rulings.
-- **PR #319** (#297): a hidden native label "Description" names the entry dialog's comment field.
+**No pull request waits on the owner.** The owner merged PR #319 (#297), PR #317 (#309) and PR #315
+(#307) on 2026-10-21, after both were tested merged with `main` (`make verify` OK, `make test-e2e`
+1158 passed, 0 failed). Both handoffs (#314, #318) merged too. The three closed tickets lost their
+`status/in-progress` label by hand.
 
-#317 and #319 are independent and were tested merged with `main` on a local scratch branch:
-`make verify` OK, `make test-e2e` 1158 passed, 0 failed. #315 (#307) and both handoffs merged today.
-
-**Intake #316** is still the owner's to approve. v1 holds no `status/todo` ticket.
+**v1 holds one open ticket: intake #316**, the owner's to approve. Nothing is at `status/todo` or in progress.
 
 ### 2026-10-14 — read this first
 
