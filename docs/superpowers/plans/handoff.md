@@ -23,13 +23,27 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-10-14, at a stop for a system upgrade**, against the Codeberg API rather than against local git — see
+**Verified on 2026-10-21, at the end of an autopilot run**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
 > **The forge changed on 2026-09-01.** Issue and pull-request numbers below were verified against
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
+
+### 2026-10-21 — read this first
+
+**An autopilot run on v1 shipped #297 as PR #319** and found nothing else to take. Day file:
+[`handoff/2026-10-21.md`](handoff/2026-10-21.md).
+
+**Open pull requests, all waiting on the owner:**
+- **PR #317** (#309): see *2026-10-14* below for its three rulings.
+- **PR #319** (#297): a hidden native label "Description" names the entry dialog's comment field.
+
+#317 and #319 are independent and were tested merged with `main` on a local scratch branch:
+`make verify` OK, `make test-e2e` 1158 passed, 0 failed. #315 (#307) and both handoffs merged today.
+
+**Intake #316** is still the owner's to approve. v1 holds no `status/todo` ticket.
 
 ### 2026-10-14 — read this first
 
