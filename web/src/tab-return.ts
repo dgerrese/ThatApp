@@ -9,6 +9,10 @@
  * the first would cost two reads and the second a read for nothing. Neither
  * listener captures, so focus moving between controls inside the page — which
  * does not bubble to window — never counts as a return.
+ *
+ * A focus while the document is hidden is not a return: the window can hold
+ * focus while the tab reports itself hidden. Skipping it leaves `away` set, so
+ * the visibilitychange to visible still reads (#307).
  */
 export function onTabReturn(handle: () => void): void {
   let away = document.visibilityState === "hidden";
@@ -25,5 +29,7 @@ export function onTabReturn(handle: () => void): void {
   window.addEventListener("blur", () => {
     away = true;
   });
-  window.addEventListener("focus", back);
+  window.addEventListener("focus", () => {
+    if (document.visibilityState === "visible") back();
+  });
 }

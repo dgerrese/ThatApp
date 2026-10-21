@@ -253,6 +253,28 @@ test("a tab opened in the background catches up when it first becomes visible", 
   await expect(todayRow(page, "WORK-2")).toHaveAttribute("seconds", "1800");
 });
 
+test("a focus while the tab is hidden is not a return, so becoming visible still catches up", async ({ page }) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }),
+  );
+  const server = await stubServer(page);
+  await page.goto("/today");
+  await expect(todayRow(page, "WORK-2")).toHaveAttribute("seconds", "0");
+  await expect(railTimer(page)).toContainText("No timer running");
+
+  // A real window focus can reach a hidden tab: the browser window has focus
+  // while the page reports itself hidden.
+  await dispatchOnWindow(page, "focus");
+  writeFromOutside(server, "WORK-2");
+  await settle(page);
+  await expect(railTimer(page)).toContainText("No timer running");
+
+  await setVisibility(page, "visible");
+
+  await expect(railTimer(page)).toContainText("WORK-1");
+  await expect(todayRow(page, "WORK-2")).toHaveAttribute("seconds", "1800");
+});
+
 for (const path of ["/today", "/week"]) {
   test(`a tab on ${path} that stays visible and focused makes no extra reads`, async ({ page }) => {
     const server = await stubServer(page, [entry(1, "WORK-1", 3600)]);
