@@ -1,10 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 // This spec builds its own trigger and tooltip in the running app rather than
 // driving a view: what it is about is the component, not any one consumer of
 // it. /today is stubbed empty and used only to load the real bundle and
 // stylesheet — and it carries tooltips of its own now, which is why every
 // locator below asks for the one this spec mounted, by data-fixture.
+// The router resets window scroll once a view's render resolves, so a hover
+// that scrolled the off-screen trigger into view before then loses it. Tests
+// mount only after Today's empty state, which is written in the same task as
+// that reset.
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/issues", (route) =>
     route.fulfill({ status: 200, json: { instances: [] } }),
@@ -12,8 +16,13 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/entries**", (route) =>
     route.fulfill({ status: 200, json: { today: "2026-09-09", entries: [] } }),
   );
-  await page.goto("/today");
+  await openToday(page);
 });
+
+async function openToday(page: Page): Promise<void> {
+  await page.goto("/today");
+  await expect(page.getByText("No Jira instances yet.")).toBeVisible();
+}
 
 async function mountTrigger(
   page: import("@playwright/test").Page,
@@ -38,6 +47,32 @@ async function mountTrigger(
 
     document.body.append(trigger, tooltip);
   }, options);
+  await expect(
+    page.locator(`that-tooltip[data-fixture][for="${options.id}"][popover]`),
+  ).toBeAttached();
+}
+
+// The chunk's filename carries a build hash this spec cannot predict, so this
+// finds it by what it contains — fetching every script for real and
+// inspecting the body — rather than by name.
+async function routeTooltipChunk(
+  page: Page,
+  onChunk: (route: Route, fulfill: () => Promise<void>) => Promise<void>,
+): Promise<void> {
+  const base = process.env["THAT_BASE_URL"] ?? "http://that-e2e:8080";
+  await page.route("**/*.js", async (route) => {
+    const requested = new URL(route.request().url());
+    const response = await fetch(`${base}${requested.pathname}${requested.search}`);
+    const body = await response.text();
+    const fulfill = () =>
+      route.fulfill({
+        status: response.status,
+        body,
+        contentType: response.headers.get("content-type") ?? "text/javascript",
+      });
+    if (body.includes('customElements.define("that-tooltip"')) await onChunk(route, fulfill);
+    else await fulfill();
+  });
 }
 
 /**
@@ -47,16 +82,11 @@ async function mountTrigger(
  * offline PWA's service worker. Un-upgraded, it is display: inline with a
  * real box, and its text renders as page content: a ticket row's own pin
  * control carries one reading "pin ticket" — an inline control, which keeps
- * its tooltip under Decision 12 where Today's Refresh no longer does. The
- * chunk's filename carries a build hash this spec cannot predict, so the
- * block below finds it by what it contains — fetching every script for real
- * and inspecting the body — rather than by name.
+ * its tooltip under Decision 12 where Today's Refresh no longer does.
  */
 test("a that-tooltip that never upgrades stays invisible, not printed into the page", async ({
   page,
 }) => {
-  const base = process.env["THAT_BASE_URL"] ?? "http://that-e2e:8080";
-
   // One issue is enough to render a ticket row, and its pin control is what
   // carries the real that-tooltip this test needs — that-ticket-row.ts is
   // part of Today's own chunk, not that-tooltip's, so blocking the latter
@@ -78,20 +108,7 @@ test("a that-tooltip that never upgrades stays invisible, not printed into the p
   );
   await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
 
-  await page.route("**/*.js", async (route) => {
-    const requested = new URL(route.request().url());
-    const response = await fetch(`${base}${requested.pathname}${requested.search}`);
-    const body = await response.text();
-    if (body.includes('customElements.define("that-tooltip"')) {
-      await route.abort("failed");
-      return;
-    }
-    await route.fulfill({
-      status: response.status,
-      body,
-      contentType: response.headers.get("content-type") ?? "text/javascript",
-    });
-  });
+  await routeTooltipChunk(page, (route) => route.abort("failed"));
 
   await page.reload();
   // .first(): #143 gave the summary its own cut-text that-tooltip, which
@@ -125,6 +142,51 @@ test("hovering a trigger shows the tooltip, and pointerleave hides it again", as
   // is what the component listens for.
   await page.mouse.move(0, 0);
   await expect(tooltip).toBeHidden();
+});
+
+// #309: the tooltip listens for pointerenter only once its split chunk has
+// upgraded it, and Chromium sends no second pointerenter to a resting pointer.
+// A hover that lands before the upgrade never opens it, so mountTrigger has to
+// wait for the upgrade. The delay stands in for a chunk that arrives late
+// under load.
+test("a hover straight after mountTrigger opens the tooltip, even when its chunk arrives late", async ({
+  page,
+}) => {
+  await routeTooltipChunk(page, async (_route, fulfill) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await fulfill();
+  });
+  await openToday(page);
+
+  await mountTrigger(page);
+  await page.locator("#trigger").hover();
+
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+});
+
+// #309, second cause: the router's scroll reset after Today's render, landing
+// after a hover, puts the fixture trigger back below the fold, out from under
+// the pointer, and pointerleave closes the tooltip. openToday waits it out.
+test("a hover after openToday stays open, even when Today's issues answer arrives late", async ({
+  page,
+}) => {
+  await page.route("**/api/issues", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.fulfill({ status: 200, json: { instances: [] } });
+  });
+  await openToday(page);
+
+  await mountTrigger(page);
+  const trigger = page.locator("#trigger");
+  const before = await trigger.boundingBox();
+  await trigger.hover();
+  const hovered = await trigger.boundingBox();
+  expect(hovered?.y).toBeLessThan(before?.y ?? 0);
+  // wait: Today's late render has landed by now, whichever way the test ran.
+  await expect(page.getByText("No Jira instances yet.")).toBeVisible();
+
+  expect(await trigger.boundingBox()).toEqual(hovered);
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
 });
 
 // #246 made the tooltip overflow-visible, for its arrow, which lifted the UA's
@@ -447,7 +509,6 @@ test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) 
 // pointer-events: none, so it is not repeated here.
 async function mountTriggerAfterButton(page: import("@playwright/test").Page): Promise<void> {
   await mountTrigger(page);
-  await expect(page.locator("that-tooltip[data-fixture][popover]")).toBeAttached();
   await page
     .locator("#trigger")
     .evaluate((t) =>
@@ -461,7 +522,6 @@ test("Escape closes a tooltip opened by hover, with the pointer still on the tri
   page,
 }) => {
   await mountTrigger(page);
-  await expect(page.locator("that-tooltip[data-fixture][popover]")).toBeAttached();
   const tooltip = page.locator("that-tooltip[data-fixture]");
   await page.locator("#trigger").hover();
   await expect(tooltip).toBeVisible();
@@ -518,7 +578,6 @@ test("a tooltip closed by Escape opens again on the next hover or keyboard focus
 test("one Escape closes every open tooltip", async ({ page }) => {
   await mountTrigger(page, { id: "first", label: "First", text: "first tip" });
   await mountTrigger(page, { id: "second", label: "Second", text: "second tip" });
-  await expect(page.locator("that-tooltip[for='second'][popover]")).toBeAttached();
   const first = page.locator("that-tooltip[for='first']");
   const second = page.locator("that-tooltip[for='second']");
 
