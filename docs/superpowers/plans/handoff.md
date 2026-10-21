@@ -41,7 +41,7 @@ further down is history and says otherwise in places.
 1158 passed, 0 failed). Both handoffs (#314, #318) merged too. The three closed tickets lost their
 `status/in-progress` label by hand.
 
-**v1 holds one open ticket: #316, refined and at `status/todo`** (2026-10-21). It waits for the owner's word to start.
+**PR #320 (#316) waits on the owner.** `mountFixed` and `mountCutText` wait for the tooltip upgrade, with one late-chunk test each; both decisions it leaves the owner to reverse are in its body. It is v1's last open ticket.
 
 ### 2026-10-14 — read this first
 
