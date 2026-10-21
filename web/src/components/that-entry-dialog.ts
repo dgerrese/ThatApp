@@ -380,6 +380,7 @@ export class ThatEntryDialog extends HTMLElement {
     const comment = document.createElement("input");
     comment.type = "text";
     comment.placeholder = "What did you work on?";
+    comment.id = `that-entry-dialog-comment-${String(this.sequence)}`;
     // text-sm, matching the duration field beside it rather than the
     // prototype's 15px — the drawing's padding is transcribed, in the same
     // ticket that raises the button and the duration field beside it, but the
@@ -406,7 +407,14 @@ export class ThatEntryDialog extends HTMLElement {
     });
     this.submit = submit;
 
-    row.append(duration, comment, submit, ...this.cancelEditControl());
+    // #297: sr-only is absolutely positioned, so it is no flex item and the
+    // row's gap and the drawn 38px bar are untouched.
+    const label = document.createElement("label");
+    label.htmlFor = comment.id;
+    label.className = "sr-only";
+    label.textContent = "Description";
+
+    row.append(duration, label, comment, submit, ...this.cancelEditControl());
 
     return row;
   }
