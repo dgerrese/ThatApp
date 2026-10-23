@@ -312,7 +312,25 @@ async function mountFixed(
     },
     { id, css, attrs, text },
   );
+  await expect(
+    page.locator(`that-tooltip[data-fixture][for="${id}"][popover]`),
+  ).toBeAttached();
 }
+
+test("a hover straight after mountFixed opens the tooltip, even when its chunk arrives late", async ({
+  page,
+}) => {
+  await routeTooltipChunk(page, async (_route, fulfill) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await fulfill();
+  });
+  await openToday(page);
+
+  await mountFixed(page, "late-trigger", "top: 300px; left: 300px;", {});
+  await page.locator("#late-trigger").hover();
+
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+});
 
 for (const c of [
   { name: "above, centred", css: "top: 300px; left: 300px;", attrs: {}, side: "above" },
@@ -953,10 +971,28 @@ async function mountCutText(
     },
     { text, width },
   );
+  await expect(
+    page.locator('that-tooltip[data-fixture][for="cut-text"][popover]'),
+  ).toBeAttached();
 }
 
 const longText =
   "A summary long enough that no reasonable column shows all of it, so the ellipsis engages";
+
+test("a hover straight after mountCutText opens the tooltip, even when its chunk arrives late", async ({
+  page,
+}) => {
+  await routeTooltipChunk(page, async (_route, fulfill) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await fulfill();
+  });
+  await openToday(page);
+
+  await mountCutText(page, longText, 120);
+  await page.locator("#cut-text").hover();
+
+  await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
+});
 
 test("a when-cut tooltip opens on hover of cut text and wraps", async ({ page }) => {
   await mountCutText(page, longText, 120);
