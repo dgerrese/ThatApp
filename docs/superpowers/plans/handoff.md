@@ -38,7 +38,9 @@ Day file: [`handoff/2026-10-26.md`](handoff/2026-10-26.md).
 **No pull request waits on the owner.** PR #324 (#322) merged on 2026-10-26: the release script
 sets `:stable` on a stable release, and the README runs and upgrades from `:stable`. **The Releases
 milestone has no open tickets** (0 open, 2 closed). It is still open; closing it is the owner's call.
-No milestone has a ticket at `status/todo`.
+No milestone has a ticket at `status/todo`. **Intake is empty**: the owner reviewed all of it on
+2026-10-26 (results in the day file). A new milestone, **Week view**, holds #326 and #327.
+**Owner's rule (on #176):** every failure says *what* went wrong — no generic "Something went wrong.".
 
 **Milestones are feature sets now**, not `v1` and `v2` (PR #323). Both are closed. An autopilot run
 needs the owner to name a milestone.
