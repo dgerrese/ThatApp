@@ -35,10 +35,19 @@ further down is history and says otherwise in places.
 
 Day file: [`handoff/2026-10-26.md`](handoff/2026-10-26.md).
 
-**No pull request waits on the owner.** PR #324 (#322) merged on 2026-10-26: the release script
+**One pull request waits on the owner: PR #328 (#206, `[Process]`)**, the happy-dom convention in
+`CLAUDE.md`. Gates on `7ce1a93`: `make verify` OK, `make test-e2e` 1162 passed.
+
+**Refinement of all open tickets is under way, ticket by ticket with the owner.** #202, #203 and
+#211 are at `status/todo`; it stopped at #212 (open question: 40 or 100 runs; recommended 100).
+Research drafts for every remaining ticket are in
+[`handoff/2026-10-26-refinement/`](handoff/2026-10-26-refinement/); resume from them, and put each
+draft's questions to the owner before rewriting a body.
+
+PR #324 (#322) merged on 2026-10-26: the release script
 sets `:stable` on a stable release, and the README runs and upgrades from `:stable`. **The Releases
 milestone has no open tickets** (0 open, 2 closed). It is still open; closing it is the owner's call.
-No milestone has a ticket at `status/todo`. **Intake is empty**: the owner reviewed all of it on
+Three tickets are at `status/todo`: #202 and #203 (Test and lint gates) and #211 (`priority/low`). **Intake is empty**: the owner reviewed all of it on
 2026-10-26 (results in the day file). A new milestone, **Week view**, holds #326 and #327.
 **Owner's rule (on #176):** every failure says *what* went wrong — no generic "Something went wrong.".
 
