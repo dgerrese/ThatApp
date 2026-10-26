@@ -35,9 +35,10 @@ further down is history and says otherwise in places.
 
 Day file: [`handoff/2026-10-26.md`](handoff/2026-10-26.md).
 
-**One pull request waits on the owner: PR #324 (#322).** It adds the `:stable` channel to the
-release script and moves the README to it. **Releases is the only milestone with work in it**, and
-#322 is its last open ticket.
+**No pull request waits on the owner.** PR #324 (#322) merged on 2026-10-26: the release script
+sets `:stable` on a stable release, and the README runs and upgrades from `:stable`. **The Releases
+milestone has no open tickets** (0 open, 2 closed). It is still open; closing it is the owner's call.
+No milestone has a ticket at `status/todo`.
 
 **Milestones are feature sets now**, not `v1` and `v2` (PR #323). Both are closed. An autopilot run
 needs the owner to name a milestone.
@@ -56,9 +57,8 @@ REGISTRY_USER=DionGerrese REGISTRY_TOKEN="$(cat ~/.config/thatapp-release-token)
 tea releases create --tag v<YYYY.WW.N> --target <sha> --title <YYYY.WW.N> --note-file <notes>   # add --prerelease for a pre-release
 ```
 
-Ask the owner whether a release is stable. Until PR #324 merges, the script ignores `stable`; set
-the tag by hand with `docker buildx imagetools create -t codeberg.org/diongerrese/thatapp:stable
-codeberg.org/diongerrese/thatapp:<YYYY.WW.N>`, as for `v2026.44.1`.
+Ask the owner whether a release is stable. `v2026.44.1` got its `:stable` tag by hand, before the
+script could set it.
 
 ### 2026-10-21 — superseded
 
