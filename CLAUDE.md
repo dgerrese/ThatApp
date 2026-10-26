@@ -119,7 +119,9 @@ about what was attempted. Table-driven tests with `t.Run` subtests, using `httpt
 
 **TypeScript** — `strict` with `noUncheckedIndexedAccess`. Do not weaken `tsconfig.json`, and do
 not reach for `any`, `as any` or a non-null assertion to get past a type error; the error is
-usually right.
+usually right. A node test asserts on a value read from a happy-dom element (`=== null`,
+`.textContent`, `getAttribute`), never on the element itself: a failing `assert.equal(element, …)`
+serialises the node for its message and exhausted 26 GB of memory instead of failing (#206).
 
 **No test ever contacts a real Jira instance.** Jira client tests run against an `httptest.Server`
 standing in for the API.
