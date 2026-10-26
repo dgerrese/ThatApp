@@ -40,8 +40,8 @@ build-web: install-web ## Build the frontend into web/dist
 
 # The release path as CI runs it on a version tag, pushing to a throwaway registry
 # inside the container instead of Codeberg.
-image: build-web ## Dry-run the release image build and push
-	$(APP) sh scripts/release-image.sh 0000.01.1 localhost:5000/thatapp
+image: build-web ## Dry-run the release image build and push, stable path
+	$(APP) sh scripts/release-image.sh 0000.01.1 localhost:5000/thatapp stable
 
 test-go: ## Run the Go test suite
 	$(APP) go test ./...
