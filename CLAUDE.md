@@ -207,8 +207,11 @@ that does not work is a worse state than work that does not exist — so two `pr
 are not a tie when one of them is a defect. The scope is exclusive, and **normal priority carries no
 label at all** — an unlabelled ticket is normal, not
 untriaged, so there is no `priority/normal` to add. Priority is the owner's to set; suggest, do not
-relabel. Every open issue also carries a **milestone**, `v1` or `v2`; that is a separate question
-from priority, and the milestone descriptions on Codeberg say what each one admits.
+relabel. Every open issue also carries a **milestone**, a scoped feature set in the way of an epic;
+that is a separate question from priority, and the milestone descriptions on Codeberg say what each
+one admits. A new ticket goes into the milestone whose description fits it. A ticket that fits none
+is raised with the owner, because a new milestone is theirs to create. The owner retired the
+release-shaped `v1` and `v2` for feature sets on 2026-10-26.
 
 **Cutting the branch is what moves a ticket to `status/in-progress`.** The trigger is the branch
 existing, not a judgement about how far the work has got: a ticket with `issue-<n>-<slug>` pushed is
@@ -285,8 +288,8 @@ optional.
 **Invoke the `autopilot` skill when the owner hands the board over and leaves** — "work the board",
 "carry on without me", "keep going while I'm out". It wraps `ticket-workflow` without altering it,
 and settles the three things that skill leaves to someone in the room: tickets are taken from the
-active milestone in priority order, a blocker parks its own ticket rather than stopping the run, and
-a question is either a blocker or a recorded default. The run is the owner's to start; never assume
+milestone the owner names, in priority order; a blocker parks its own ticket rather than stopping
+the run; and a question is either a blocker or a recorded default. The run is the owner's to start; never assume
 one. Outside a run, **blocked stays the hard stop described above.**
 
 `docs/superpowers/plans/handoff.md` is where a session resumes from: current state, decisions not to

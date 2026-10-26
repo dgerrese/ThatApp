@@ -121,7 +121,8 @@ ticket against a design, so it has no answer until the milestone has a scope to 
 Until the owner settles that scope, a ticket in such a milestone carries no type label — not a
 provisional one — and it is typed only once the scope exists. Which milestones those are is the
 owner's call, not something to infer from a milestone's description. Set on 2026-09-16, when v2's
-scope was still open and its seven `enhancement` labels came off.
+scope was still open and its seven `enhancement` labels came off. Since 2026-10-26 every milestone
+is a feature set whose description the owner approved as its scope, so none is undetermined now.
 
 ### Priority: `priority/high` and `priority/low`
 
@@ -149,8 +150,8 @@ tea issues edit <n> --remove-labels priority/low      # back to normal
 ```
 
 **Priority is the owner's call, not a reading of the ticket.** Raise a suggestion; do not relabel a
-ticket's priority unasked. Milestone and priority are also different questions — v1 says a thing has
-to be right before the app ships, `priority/high` says it should be picked up first, and a ticket can
+ticket's priority unasked. Milestone and priority are also different questions — a milestone says which feature set a ticket
+belongs to, `priority/high` says it should be picked up first, and a ticket can
 easily be one without the other.
 
 **Priority is read first, and `bug` breaks the tie inside a band.** Settled by the owner on

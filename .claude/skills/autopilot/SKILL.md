@@ -20,15 +20,10 @@ that the owner opened, every rule here is inert and `CLAUDE.md` reads as written
 ## Preflight
 
 1. Read `docs/superpowers/plans/handoff.md`.
-2. Resolve the milestone. **Never hardcode a name** — `v1` will not exist forever:
-
-   ```shell
-   # the active milestone: the oldest still open
-   tea api "repos/{owner}/{repo}/milestones?state=open" \
-     | python3 -c "import sys,json;print(sorted(json.load(sys.stdin),key=lambda m:m['id'])[0]['title'])"
-   ```
-
-   The owner may name one instead ("work the board on v2"); that wins.
+2. Resolve the milestone. **The owner names it** when they start the run ("work the board on
+   Releases"). Milestones are feature sets, none of them the active one, so a run with no name asks
+   which one and does not start until it has the answer. Set by the owner on 2026-10-26, when `v1`
+   and `v2` were retired for feature milestones.
 3. List that milestone's `status/in-progress` **and** `status/todo` tickets. **In-progress comes
    first: finish what is started before starting anything new.** Order each group the same way:
    `priority/high`, then unlabelled, then `priority/low`, and **inside a band a `bug` comes before a
@@ -116,7 +111,7 @@ Then stop. Do not run `eod` off the back of it — the owner signals that separa
 | Thought | Reality |
 |---|---|
 | "It's in progress, so someone else has it" | In-progress goes first. Resume it from its branch. |
-| "The queue is empty, v2 has plenty" | A run is one milestone. Report and stop. |
+| "The queue is empty, another milestone has plenty" | A run is one milestone. Report and stop. |
 | "This ticket needs one small design decision — I can infer it" | A drawing you cannot point at is a blocker. Block it. |
 | "This `needs-refinement` ticket is nearly refined already" | Refinement is attended work. Leave it. |
 | "The branch is green and the owner would obviously merge it" | The merge is the owner's, always. |
