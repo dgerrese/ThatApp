@@ -82,7 +82,8 @@ static binary — the built frontend and zoneinfo embedded — for linux/amd64 a
 crane assembles each as a single layer (the binary and the CA bundle) on an empty base, then
 pushes both under one multi-arch index. No Docker daemon is involved, which is what lets
 Codeberg's runners publish it (#122). The Dockerfile holds only the `dev` and `webdev` stages the
-Compose stack runs. A named volume holds the SQLite database file.
+Compose stack runs. A named volume holds the SQLite database file. The index is tagged with its
+version and `latest` on every release, and also `stable` when the release is stable (#322).
 
 ## Data model
 

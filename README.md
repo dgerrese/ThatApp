@@ -37,7 +37,7 @@ docker run -d --name thatapp --restart unless-stopped \
   -p 127.0.0.1:8080:8080 \
   -v thatapp-data:/data \
   --env-file thatapp.env \
-  codeberg.org/diongerrese/thatapp:latest
+  codeberg.org/diongerrese/thatapp:stable
 ```
 
 Open <http://localhost:8080>.
@@ -97,7 +97,7 @@ docker run -d --name thatapp --restart unless-stopped \
   --hostname thatapp.docker \
   -v thatapp-data:/data \
   --env-file thatapp.env \
-  codeberg.org/diongerrese/thatapp:latest
+  codeberg.org/diongerrese/thatapp:stable
 ```
 
 - **The network is required.** docker-hoster ignores containers on Docker's default `bridge`
@@ -120,7 +120,7 @@ itself, so the app needs no extra network, hostname or `THAT_ADDR`:
 docker run -d --name thatapp --restart unless-stopped \
   -v thatapp-data:/data \
   --env-file thatapp.env \
-  codeberg.org/diongerrese/thatapp:latest
+  codeberg.org/diongerrese/thatapp:stable
 ```
 
 The app is then at <http://thatapp.orb.local>. If it does not answer, check that **Allow access to
@@ -128,16 +128,21 @@ container domains & IPs** is on, in OrbStack's Settings → Network.
 
 ### 3. Upgrade
 
-Releases are named `YYYY.WW.N` — year, ISO week, and the release number within that week. To move to
-the newest:
+Releases are named `YYYY.WW.N` — year, ISO week, and the release number within that week.
+
+> Two tags follow new releases. `stable` moves only on a release marked stable, and it is the one
+> to run. `latest` moves on every release, pre-releases included, so it gets changes before they
+> are called stable.
+
+To move to the newest stable release:
 
 ```shell
-docker pull codeberg.org/diongerrese/thatapp:latest
+docker pull codeberg.org/diongerrese/thatapp:stable
 docker stop thatapp && docker rm thatapp
 ```
 
 then run the command from step 2 again. Your data is in the `thatapp-data` volume and is upgraded
-in place when the app starts. To stay on one release, use its tag instead of `latest`, for example
+in place when the app starts. To stay on one release, use its tag instead of `stable`, for example
 `codeberg.org/diongerrese/thatapp:2026.38.1`.
 
 ### Backing up
