@@ -103,12 +103,12 @@ stable_before=$(crane digest "$repo:stable" 2>/dev/null || true)
 
 crane index append -m "$repo:$version-amd64" -m "$repo:$version-arm64" -t "$repo:$version"
 crane tag "$repo:$version" latest
-[ "$channel" = stable ] && crane tag "$repo:$version" stable
 
 for arch in amd64 arm64; do
 	crane manifest "$repo:latest" | grep -q "\"architecture\":\"$arch\"" || fail "index is missing $arch"
 done
 if [ "$channel" = stable ]; then
+	crane tag "$repo:$version" stable
 	[ "$(crane digest "$repo:stable" 2>/dev/null || true)" = "$(crane digest "$repo:$version")" ] || fail "stable does not point at $version"
 	echo "release-image: pushed $repo:$version, $repo:latest and $repo:stable"
 else

@@ -130,9 +130,9 @@ container domains & IPs** is on, in OrbStack's Settings → Network.
 
 Releases are named `YYYY.WW.N` — year, ISO week, and the release number within that week.
 
-> Two tags follow new releases. `stable` moves only on a release marked stable, and it is the one
-> to run. `latest` moves on every release, pre-releases included, so it gets changes before they
-> are called stable.
+Two tags follow new releases. `stable` moves only on a release marked stable, and it is the one
+to run. `latest` moves on every release, pre-releases included, so it gets changes before they
+are called stable.
 
 To move to the newest stable release:
 

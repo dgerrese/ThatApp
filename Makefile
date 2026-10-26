@@ -38,7 +38,7 @@ install-web: ## Install frontend dependencies into the web-node-modules volume
 build-web: install-web ## Build the frontend into web/dist
 	$(WEB) npm run build
 
-# The release path as CI runs it on a version tag, pushing to a throwaway registry
+# The stable release path, pushing to a throwaway registry
 # inside the container instead of Codeberg.
 image: build-web ## Dry-run the release image build and push, stable path
 	$(APP) sh scripts/release-image.sh 0000.01.1 localhost:5000/thatapp stable
