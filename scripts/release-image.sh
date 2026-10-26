@@ -1,21 +1,27 @@
 #!/bin/sh
 # Assembles the release image for linux/amd64 and linux/arm64 and pushes it as
-# one index to REPO:VERSION and REPO:latest.
+# one index to REPO:VERSION and REPO:latest, and also to REPO:stable when the
+# third argument is `stable`.
 #
 # There is no `docker build`: Codeberg's runners have no Docker daemon, and an
 # image that is one static binary on an empty base needs no build stage, only a
 # layer. crane assembles and pushes it without a daemon.
 #
-# usage: release-image.sh VERSION REPO    (web/dist must already be built)
+# usage: release-image.sh VERSION REPO [stable]    (web/dist must already be built)
 #
 # A localhost REPO gets a throwaway registry started here unless one is already
 # listening, which is how pull requests and `make image` run this exact path
 # without touching Codeberg.
 set -eu
 
-usage="usage: release-image.sh YYYY.WW.N REPO"
+usage="usage: release-image.sh YYYY.WW.N REPO [stable]"
 version=${1:?$usage}
 repo=${2:?$usage}
+channel=${3:-}
+if [ $# -gt 3 ] || { [ $# -eq 3 ] && [ "$channel" != stable ]; }; then
+	echo "$usage" >&2
+	exit 2
+fi
 
 # The case rejects anything but digits and dots first, so a multi-line value
 # cannot slip one good line past grep.
@@ -93,10 +99,19 @@ for arch in amd64 arm64; do
 	[ "$(crane export "$repo:$version-$arch" - | tar -tf - | sed 's:/$::' | LC_ALL=C sort)" = "$expected" ] || fail "$arch image holds more than the binary and CA bundle"
 done
 
+stable_before=$(crane digest "$repo:stable" 2>/dev/null || true)
+
 crane index append -m "$repo:$version-amd64" -m "$repo:$version-arm64" -t "$repo:$version"
 crane tag "$repo:$version" latest
 
 for arch in amd64 arm64; do
 	crane manifest "$repo:latest" | grep -q "\"architecture\":\"$arch\"" || fail "index is missing $arch"
 done
-echo "release-image: pushed $repo:$version and $repo:latest"
+if [ "$channel" = stable ]; then
+	crane tag "$repo:$version" stable
+	[ "$(crane digest "$repo:stable" 2>/dev/null || true)" = "$(crane digest "$repo:$version")" ] || fail "stable does not point at $version"
+	echo "release-image: pushed $repo:$version, $repo:latest and $repo:stable"
+else
+	[ "$(crane digest "$repo:stable" 2>/dev/null || true)" = "$stable_before" ] || fail "a pre-release moved stable"
+	echo "release-image: pushed $repo:$version and $repo:latest"
+fi

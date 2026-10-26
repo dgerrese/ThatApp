@@ -41,8 +41,9 @@ jobs:
 
       - name: Dry run
         if: github.event_name == 'pull_request'
-        run: sh scripts/release-image.sh 0000.01.1 localhost:5000/thatapp
+        run: sh scripts/release-image.sh 0000.01.1 localhost:5000/thatapp stable
 
+      # A tag push cannot read the release's pre-release flag, so CI publishes pre-releases only; a stable release runs on this machine.
       - name: Publish
         if: github.event_name == 'push'
         env:
