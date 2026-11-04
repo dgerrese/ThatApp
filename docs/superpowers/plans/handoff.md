@@ -1909,6 +1909,10 @@ impossible `day` with an unknown instance id answers 400 on current code and 404
 
 ## Still open
 
+- **Team reporting design is uncommitted on this machine:** `docs/superpowers/specs/2026-11-04-team-view-design.md`
+  belongs on #336's branch, which needs the owner's go-ahead. Copy it off this machine or commit it
+  there before the machine is left.
+
 Resolved bullets were retired from this section on 2026-09-01; what they were worth keeping for is
 in *Facts worth not rediscovering* and in the day logs under `handoff/`. What is below is open.
 
