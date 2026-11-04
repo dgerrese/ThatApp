@@ -43,8 +43,8 @@ Day file: [`handoff/2026-10-26.md`](handoff/2026-10-26.md).
 `status/todo`, then #325, #176, #110, #126 and #53 (2026-11-04). Closed `wontfix` on 2026-11-04:
 #220 (Codeberg disabled Actions; the owner may move CI to GitHub) and #313 (rare cold-load re-hover).
 **Every non-design question is answered.** The owner's decisions for tickets that still need a
-design session are comments on those tickets. Sessions due: #326 + #327 together, #300, #331, #290,
-#268, #131 + #332, #13, #111, #133, #132, #334, #330, #333. #130 is parked by the owner. New today:
+design session are comments on those tickets. Design sessions done and at `status/todo`: #326, #327, #300, #331, #290, #268; #131 + #332 written,
+pending their builder check. Still due: #13, #111, #133, #132, #334, #330, #333. #130 is parked by the owner. New today:
 #331, #332, #334, and #335 (stale Push-becomes-Retry sentence, approved and at `status/todo`). Detail in [`handoff/2026-11-04.md`](handoff/2026-11-04.md).
 Research drafts for every remaining ticket are in
 [`handoff/2026-10-26-refinement/`](handoff/2026-10-26-refinement/); resume from them, and put each
