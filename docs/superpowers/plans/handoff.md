@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-10-26**, against the Codeberg API rather than against local git — see
+**Verified on 2026-11-04**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -31,30 +31,37 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### 2026-10-26 — read this first
+### 2026-11-04 — read this first
 
-Day file: [`handoff/2026-10-26.md`](handoff/2026-10-26.md).
+Day file: [`handoff/2026-11-04.md`](handoff/2026-11-04.md). Two sessions worked this checkout today:
+refinement and design sessions (this block), and the Team reporting brainstorm (thatapp-a6).
 
-**One pull request waits on the owner: PR #328 (#206, `[Process]`)**, the happy-dom convention in
-`CLAUDE.md`. Gates on `7ce1a93`: `make verify` OK, `make test-e2e` 1162 passed.
+**Four pull requests wait on the owner:** PR #341 (`[Docs]`, the Team reporting design), PR #329
+(`[Handoff]` 2026-10-26), the 2026-11-04 `[Handoff]` PR, and PR #328 (`[Process]`, #206's happy-dom
+convention). **The 2026-11-04 handoff is stacked on #329**: its branch `handoff-2026-11-04` was cut
+from `handoff-2026-10-26`, so its PR targets that branch. Merge it into #329's branch, then #329 into
+`main`; if #329 merges first, retarget the 2026-11-04 PR to `main`.
 
-**Refinement of all open tickets is under way, ticket by ticket with the owner.** Refined so far:
-#202, #203, #211 (2026-10-26) and #212, #47, #137, #201, #198, #279, #43 (2026-11-04), all at
-`status/todo`, then #325, #176, #110, #126 and #53 (2026-11-04). Closed `wontfix` on 2026-11-04:
-#220 (Codeberg disabled Actions; the owner may move CI to GitHub) and #313 (rare cold-load re-hover).
-**Every non-design question is answered.** The owner's decisions for tickets that still need a
-design session are comments on those tickets. Design sessions done and at `status/todo`: #326, #327, #300, #331, #290, #268; #131 + #332 written,
-pending their builder check. Still due: #13, #111, #133, #132, #334, #330, #333. #130 is parked by the owner. New today:
-#331, #332, #334, and #335 (stale Push-becomes-Retry sentence, approved and at `status/todo`). Detail in [`handoff/2026-11-04.md`](handoff/2026-11-04.md).
-Research drafts for every remaining ticket are in
-[`handoff/2026-10-26-refinement/`](handoff/2026-10-26-refinement/); resume from them, and put each
-draft's questions to the owner before rewriting a body.
+**The board on 2026-11-04 (API-checked).** Intake is empty. In progress: #206 (PR #328).
+- **`status/todo` (26):** #43, #47, #53, #110, #126, #131, #137, #176, #198, #201, #202, #203, #211,
+  #212, #268, #279, #290, #300, #325, #326, #327, #330, #331, #332, #334, #335. Each body holds the
+  owner's decisions; design-session mockups are named in the bodies and live only on this machine,
+  in `.superpowers/brainstorm/48100-1793790116/content/` (git-ignored).
+- **`status/needs-refinement` (11):** #13, #111, #133 and #333 still need a design session; #132 is
+  mid-session (decisions so far in its 2026-11-04 comment; open: the worklog dialog for a meeting);
+  #130 is **parked** by the owner; #336–#340 are the new Team reporting milestone.
+- Closed `wontfix` on 2026-11-04: #220 (Codeberg disabled Actions) and #313.
+
+**Stacking that the bodies record:** #326 and #290 build on #325 (`issue_cache`); #331 on #300;
+#332 on #131; #131's estimate row on #290; #132 on #334. #326 and #327 edit the same grid.
+
+**Owner's rules set on 2026-11-04 live in the tickets, not in process documents**: each is a design
+decision for one ticket. None changes how the project is run.
 
 PR #324 (#322) merged on 2026-10-26: the release script
 sets `:stable` on a stable release, and the README runs and upgrades from `:stable`. **The Releases
 milestone has no open tickets** (0 open, 2 closed). It is still open; closing it is the owner's call.
-Three tickets are at `status/todo`: #202 and #203 (Test and lint gates) and #211 (`priority/low`). **Intake is empty**: the owner reviewed all of it on
-2026-10-26 (results in the day file). A new milestone, **Week view**, holds #326 and #327. **Polish** (vague name on purpose, owner 2026-11-04) holds #333, the Rovo joke feature: visual only, reset on reload.
+A new milestone, **Week view**, holds #326 and #327. **Polish** (vague name on purpose, owner 2026-11-04) holds #333, the Rovo joke feature: visual only, reset on reload.
 **Owner's rule (on #176):** every failure says *what* went wrong — no generic "Something went wrong.".
 
 **Milestones are feature sets now**, not `v1` and `v2` (PR #323). Both are closed. An autopilot run
@@ -114,7 +121,7 @@ scratch branch that is never pushed. The rule is in `ticket-workflow` through PR
 refused an entry with a Jira worklog, by the owner's decision of 2026-10-07. #280 (PR #304, merged 2026-10-09) removed
 that check, because a delete of a pushed entry now waits for Push.
 
-**Release `v2026.41.1` was built on this machine, not by CI.** (Its recipe is superseded by the one in *2026-10-26 — read this first*, which adds the `stable` channel.) Actions are off for the repository
+**Release `v2026.41.1` was built on this machine, not by CI.** (Its recipe is superseded by the one in *2026-11-04 — read this first*, which adds the `stable` channel.) Actions are off for the repository
 (`has_actions: false`), so a tag no longer starts `release.yml`. The same script ran locally:
 `REGISTRY_USER=DionGerrese REGISTRY_TOKEN=… docker compose run --build --rm --no-deps -e REGISTRY_USER
 -e REGISTRY_TOKEN app sh scripts/release-image.sh 2026.41.1 codeberg.org/diongerrese/thatapp`, after
@@ -193,7 +200,7 @@ owner set that on 2026-09-21, and it reached the skill only today — see the me
 - **At intake, for the owner:** #259, #261, #272 (`bug`, a search test flaky in Firefox), #273 (Push
   never becomes Retry, though the 2026-08-20 design says it does).
 
-**The latest release is `v2026.44.1`** (published 2026-10-26, the first stable release, built locally — see *2026-10-26 — read this first*).
+**The latest release is `v2026.44.1`** (published 2026-10-26, the first stable release, built locally — see *2026-11-04 — read this first*).
 
 **Codeberg retargets a stacked PR itself** when its base branch is deleted at merge (seen with #229's
 four children). Check `mergeable` after each merge. A branch whose base merged mid-flight is brought
