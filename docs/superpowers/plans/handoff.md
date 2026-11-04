@@ -38,8 +38,14 @@ Day file: [`handoff/2026-10-26.md`](handoff/2026-10-26.md).
 **One pull request waits on the owner: PR #328 (#206, `[Process]`)**, the happy-dom convention in
 `CLAUDE.md`. Gates on `7ce1a93`: `make verify` OK, `make test-e2e` 1162 passed.
 
-**Refinement of all open tickets is under way, ticket by ticket with the owner.** #202, #203 and
-#211 are at `status/todo`; it stopped at #212 (open question: 40 or 100 runs; recommended 100).
+**Refinement of all open tickets is under way, ticket by ticket with the owner.** Refined so far:
+#202, #203, #211 (2026-10-26) and #212, #47, #137, #201, #198, #279, #43 (2026-11-04), all at
+`status/todo`, then #325, #176, #110, #126 and #53 (2026-11-04). Closed `wontfix` on 2026-11-04:
+#220 (Codeberg disabled Actions; the owner may move CI to GitHub) and #313 (rare cold-load re-hover).
+**Every non-design question is answered.** The owner's decisions for tickets that still need a
+design session are comments on those tickets. Sessions due: #326 + #327 together, #300, #331, #290,
+#268, #131 + #332, #13, #111, #133, #132, #334, #330, #333. #130 is parked by the owner. New today:
+#331, #332, #334. Detail in [`handoff/2026-11-04.md`](handoff/2026-11-04.md).
 Research drafts for every remaining ticket are in
 [`handoff/2026-10-26-refinement/`](handoff/2026-10-26-refinement/); resume from them, and put each
 draft's questions to the owner before rewriting a body.
@@ -48,7 +54,7 @@ PR #324 (#322) merged on 2026-10-26: the release script
 sets `:stable` on a stable release, and the README runs and upgrades from `:stable`. **The Releases
 milestone has no open tickets** (0 open, 2 closed). It is still open; closing it is the owner's call.
 Three tickets are at `status/todo`: #202 and #203 (Test and lint gates) and #211 (`priority/low`). **Intake is empty**: the owner reviewed all of it on
-2026-10-26 (results in the day file). A new milestone, **Week view**, holds #326 and #327.
+2026-10-26 (results in the day file). A new milestone, **Week view**, holds #326 and #327. **Polish** (vague name on purpose, owner 2026-11-04) holds #333, the Rovo joke feature: visual only, reset on reload.
 **Owner's rule (on #176):** every failure says *what* went wrong — no generic "Something went wrong.".
 
 **Milestones are feature sets now**, not `v1` and `v2` (PR #323). Both are closed. An autopilot run
