@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-10-21, at end of day**, against the Codeberg API rather than against local git — see
+**Verified on 2026-10-26**, against the Codeberg API rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -31,7 +31,51 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### 2026-10-21 — read this first
+### 2026-10-26 — read this first
+
+Day file: [`handoff/2026-10-26.md`](handoff/2026-10-26.md).
+
+**One pull request waits on the owner: PR #328 (#206, `[Process]`)**, the happy-dom convention in
+`CLAUDE.md`. Gates on `7ce1a93`: `make verify` OK, `make test-e2e` 1162 passed.
+
+**Refinement of all open tickets is under way, ticket by ticket with the owner.** #202, #203 and
+#211 are at `status/todo`; it stopped at #212 (open question: 40 or 100 runs; recommended 100).
+Research drafts for every remaining ticket are in
+[`handoff/2026-10-26-refinement/`](handoff/2026-10-26-refinement/); resume from them, and put each
+draft's questions to the owner before rewriting a body.
+
+PR #324 (#322) merged on 2026-10-26: the release script
+sets `:stable` on a stable release, and the README runs and upgrades from `:stable`. **The Releases
+milestone has no open tickets** (0 open, 2 closed). It is still open; closing it is the owner's call.
+Three tickets are at `status/todo`: #202 and #203 (Test and lint gates) and #211 (`priority/low`). **Intake is empty**: the owner reviewed all of it on
+2026-10-26 (results in the day file). A new milestone, **Week view**, holds #326 and #327.
+**Owner's rule (on #176):** every failure says *what* went wrong — no generic "Something went wrong.".
+
+**Milestones are feature sets now**, not `v1` and `v2` (PR #323). Both are closed. An autopilot run
+needs the owner to name a milestone.
+
+**`v2026.44.1` is the first stable release**, published 2026-10-26 from main `5d79964`. Its image is
+`:2026.44.1`, `:latest` and `:stable`.
+
+**Two channels, set by the owner.** `:latest` moves on every release, pre-releases included, on
+purpose. `:stable` moves only on a stable release and is the default. **To release locally** (Actions
+are off), after `make build-web`:
+
+```shell
+REGISTRY_USER=DionGerrese REGISTRY_TOKEN="$(cat ~/.config/thatapp-release-token)" \
+  docker compose run --build --rm --no-deps -e REGISTRY_USER -e REGISTRY_TOKEN app \
+  sh scripts/release-image.sh <YYYY.WW.N> codeberg.org/diongerrese/thatapp stable   # drop `stable` for a pre-release
+tea releases create --tag v<YYYY.WW.N> --target <sha> --title <YYYY.WW.N> --note-file <notes>   # add --prerelease for a pre-release
+```
+
+Ask the owner whether a release is stable. `v2026.44.1` got its `:stable` tag by hand, before the
+script could set it.
+
+### 2026-10-21 — superseded
+
+PR #320 (#316) merged; v1 emptied and closed on 2026-10-26.
+
+### 2026-10-21 — history
 
 **Two autopilot runs on v1.** Day file: [`handoff/2026-10-21.md`](handoff/2026-10-21.md).
 
@@ -64,7 +108,7 @@ scratch branch that is never pushed. The rule is in `ticket-workflow` through PR
 refused an entry with a Jira worklog, by the owner's decision of 2026-10-07. #280 (PR #304, merged 2026-10-09) removed
 that check, because a delete of a pushed entry now waits for Push.
 
-**Release `v2026.41.1` was built on this machine, not by CI.** Actions are off for the repository
+**Release `v2026.41.1` was built on this machine, not by CI.** (Its recipe is superseded by the one in *2026-10-26 — read this first*, which adds the `stable` channel.) Actions are off for the repository
 (`has_actions: false`), so a tag no longer starts `release.yml`. The same script ran locally:
 `REGISTRY_USER=DionGerrese REGISTRY_TOKEN=… docker compose run --build --rm --no-deps -e REGISTRY_USER
 -e REGISTRY_TOKEN app sh scripts/release-image.sh 2026.41.1 codeberg.org/diongerrese/thatapp`, after
@@ -143,7 +187,7 @@ owner set that on 2026-09-21, and it reached the skill only today — see the me
 - **At intake, for the owner:** #259, #261, #272 (`bug`, a search test flaky in Firefox), #273 (Push
   never becomes Retry, though the 2026-08-20 design says it does).
 
-**The latest release is `v2026.41.1`** (published 2026-10-07, a pre-release, built locally — see *2026-10-07 — read this first*).
+**The latest release is `v2026.44.1`** (published 2026-10-26, the first stable release, built locally — see *2026-10-26 — read this first*).
 
 **Codeberg retargets a stacked PR itself** when its base branch is deleted at merge (seen with #229's
 four children). Check `mergeable` after each merge. A branch whose base merged mid-flight is brought
