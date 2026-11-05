@@ -43,13 +43,20 @@ Day file: [`handoff/2026-11-05.md`](handoff/2026-11-05.md). The owner merged PR 
   the owner's decisions; design-session mockups are named in the bodies and live only on this
   machine, in `.superpowers/brainstorm/48100-1793790116/content/` and (for #132)
   `.superpowers/brainstorm/12804-1793871242/content/` (git-ignored).
-- **`status/needs-refinement` (11):** #13, #111, #133 and #333 still need a design session; #130 is
+- **`status/needs-refinement` (12):** #13, #111, #133 and #333 still need a design session; #130 is
   **parked** by the owner; #336–#340 are the Team reporting milestone; **#343** (absence from a
-  calendar feed, raised by the owner on 2026-11-05) builds on #132.
+  calendar feed) and **#344** (a configurable work schedule), both raised by the owner on 2026-11-05.
+- **#343 is mid-refinement.** Its decisions are comments on the ticket; the body is not rewritten
+  yet. Still open: does Today show absence only inside the day's total (Claude's proposal: a muted
+  "incl. 4h 00m absence" line) or as rows; the feed kind (Meetings / Absence) chosen in "Add a
+  calendar" is Claude's proposal, not yet confirmed. Then: body rewrite, builder check, owner's
+  approval. Planning also waits on a sample of the owner's *personal* Rework feed, to confirm its
+  titles for presence and pending events. Current mockup: `absence-week-v5.html` in the #132
+  session directory.
 - **#334's rule changed on 2026-11-05:** an entry's start may be in the future (body updated).
 
 **Stacking that the bodies record:** #326 and #290 build on #325 (`issue_cache`); #331 on #300;
-#332 on #131; #131's estimate row on #290; #132 on #334; #343 on #132. #326 and #327 edit the same grid.
+#332 on #131; #131's estimate row on #290; #132 on #334; #343 on #132 and #344 (order: #334 → #132 → #344 → #343). #326 and #327 edit the same grid.
 
 **Owner's rules set on 2026-11-04 live in the tickets, not in process documents**: each is a design
 decision for one ticket. None changes how the project is run.
