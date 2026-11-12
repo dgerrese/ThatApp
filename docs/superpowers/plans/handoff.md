@@ -31,30 +31,31 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### 2026-11-11 — read this first
+### 2026-11-12 — read this first
 
-Day files: [`handoff/2026-11-11.md`](handoff/2026-11-11.md), [`handoff/2026-11-05.md`](handoff/2026-11-05.md).
-The owner merged PR #345; **no pull request is open** apart from today's handoff. **#343 is refined
-and at `status/todo`**; its presence events moved to the new **#346**.
+Day files: [`handoff/2026-11-12.md`](handoff/2026-11-12.md), [`handoff/2026-11-11.md`](handoff/2026-11-11.md).
+The owner merged PR #347; **no pull request is open** apart from today's handoff. **#344 is refined
+and at `status/todo`** after a design session; Week gains muted targets under its totals.
 
-**The board on 2026-11-11 (API-checked).** Intake is empty. Nothing is in progress.
-- **`status/todo` (28):** #43, #47, #53, #110, #126, #131, #132, #137, #176, #198, #201, #202, #203,
-  #211, #212, #268, #279, #290, #300, #325, #326, #327, #330, #331, #332, #334, #335, #343. Each body holds
+**The board on 2026-11-12 (API-checked).** Intake is empty. Nothing is in progress.
+- **`status/todo` (29):** #43, #47, #53, #110, #126, #131, #132, #137, #176, #198, #201, #202, #203,
+  #211, #212, #268, #279, #290, #300, #325, #326, #327, #330, #331, #332, #334, #335, #343, #344. Each body holds
   the owner's decisions; design-session mockups are named in the bodies and live only on this
   machine, in `.superpowers/brainstorm/48100-1793790116/content/`, (for #132 and #343)
-  `.superpowers/brainstorm/12804-1793871242/content/` and (#343's rail)
-  `.superpowers/brainstorm/267750-1794400242/content/` (git-ignored).
-- **`status/needs-refinement` (12):** #13, #111, #133 and #333 still need a design session; #130 is
-  **parked** by the owner; #336–#340 are the Team reporting milestone; **#344** (a configurable work
-  schedule) and **#346** (presence events from the absence feed, split from #343 on 2026-11-11;
-  needs a personal-feed sample holding a presence event before planning).
-- **#343 cannot be planned before #344 is refined**: an all-day absence adds the day's scheduled
-  hours. Claude recommended #344 as the next refinement. #343's pending-request marker ("? ") is
-  confirmed in the company feed only.
+  `.superpowers/brainstorm/12804-1793871242/content/`, (#343's rail)
+  `.superpowers/brainstorm/267750-1794400242/content/` and (#344)
+  `.superpowers/brainstorm/42810-1794486471/content/` (git-ignored).
+- **`status/needs-refinement` (11):** #13, #111, #133 and #333 still need a design session; #130 is
+  **parked** by the owner; #336–#340 are the Team reporting milestone; **#346** (presence events
+  from the absence feed, split from #343 on 2026-11-11; needs a personal-feed sample holding a
+  presence event before planning).
+- **#343 can now be planned**, after #132 and #344. Its pending-request marker ("? ") is confirmed
+  in the company feed only.
+- **"Pending schedule" is the owner's term** (#344) for a schedule whose start date is still ahead.
 - **#334's rule changed on 2026-11-05:** an entry's start may be in the future (body updated).
 
 **Stacking that the bodies record:** #326 and #290 build on #325 (`issue_cache`); #331 on #300;
-#332 on #131; #131's estimate row on #290; #132 on #334; #343 on #132 and #344 (order: #334 → #132 → #344 → #343); #346 on #343 and #344. #326 and #327 edit the same grid.
+#332 on #131; #131's estimate row on #290; #132 on #334; #343 on #132 and #344 (order: #334 → #132 → #344 → #343, or #344 before #132); #346 on #343 and #344. #326 and #327 edit the same grid.
 
 **Owner's rules set on 2026-11-04 live in the tickets, not in process documents**: each is a design
 decision for one ticket. None changes how the project is run.
