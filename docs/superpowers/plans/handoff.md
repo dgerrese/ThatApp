@@ -36,8 +36,8 @@ further down is history and says otherwise in places.
 Day file: [`handoff/2026-11-18.md`](handoff/2026-11-18.md). **The project is moving back to GitHub.**
 #350 holds the whole design and is at `status/todo`; read its body before touching the forge. **Do not
 create `github.com/dgerrese/ThatApp` before the owner explicitly approves it.** The order is: #348
-(update notice) and #349 (move notice) — both at `status/needs-refinement`, each needing a design
-session — then one last stable Codeberg release, then #350. Releases milestone reopened for all three.
+(update notice) and #349 (move notice) — both refined and at `status/todo` after one design session
+(mockup `.superpowers/brainstorm/219294-1795019192/content/foot-states-v2.html`) — then one last stable Codeberg release, then #350. Releases milestone reopened for all three.
 
 ### 2026-11-12 — read this first
 
