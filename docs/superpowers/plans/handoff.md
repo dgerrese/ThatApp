@@ -31,37 +31,51 @@ further down is history and says otherwise in places.
 > GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
 > before that date happened on GitHub; the numbers still resolve.
 
-### 2026-11-11 — read this first
+### 2026-11-18 — read this first
 
-Day files: [`handoff/2026-11-11.md`](handoff/2026-11-11.md), [`handoff/2026-11-05.md`](handoff/2026-11-05.md).
-The owner merged PR #345; **no pull request is open** apart from today's handoff. **#343 is refined
-and at `status/todo`**; its presence events moved to the new **#346**.
+Day file: [`handoff/2026-11-18.md`](handoff/2026-11-18.md). **The project is moving back to GitHub.**
+#350 holds the whole design and is at `status/todo`; read its body before touching the forge. **Do not
+create `github.com/dgerrese/ThatApp` before the owner explicitly approves it.** The order is: #348
+(update notice) and #349 (move notice) — both refined and at `status/todo` after one design session
+(mockup `.superpowers/brainstorm/219294-1795019192/content/foot-states-v2.html`) — then one last stable Codeberg release, then #350. Releases milestone reopened for all three.
 
-**The board on 2026-11-11 (API-checked).** Intake is empty. Nothing is in progress.
-- **`status/todo` (28):** #43, #47, #53, #110, #126, #131, #132, #137, #176, #198, #201, #202, #203,
-  #211, #212, #268, #279, #290, #300, #325, #326, #327, #330, #331, #332, #334, #335, #343. Each body holds
+**The board on 2026-11-18 (API-checked).** 32 at `status/todo` (the 29 below plus #348, #349, #350),
+11 at `status/needs-refinement` (unchanged), nothing in progress, blocked or at intake. No pull request
+is open apart from today's handoff, `handoff-2026-11-18`, which also carries the 2026-11-12 record:
+that day's handoff branch was never pushed.
+
+### 2026-11-12 — read this first
+
+Day files: [`handoff/2026-11-12.md`](handoff/2026-11-12.md), [`handoff/2026-11-11.md`](handoff/2026-11-11.md).
+The owner merged PR #347. (This day's handoff went out only on 2026-11-18, inside that day's pull request.) **#344 is refined
+and at `status/todo`** after a design session; Week gains muted targets under its totals.
+
+**The board on 2026-11-12 (API-checked).** Intake is empty. Nothing is in progress.
+- **`status/todo` (29):** #43, #47, #53, #110, #126, #131, #132, #137, #176, #198, #201, #202, #203,
+  #211, #212, #268, #279, #290, #300, #325, #326, #327, #330, #331, #332, #334, #335, #343, #344. Each body holds
   the owner's decisions; design-session mockups are named in the bodies and live only on this
   machine, in `.superpowers/brainstorm/48100-1793790116/content/`, (for #132 and #343)
-  `.superpowers/brainstorm/12804-1793871242/content/` and (#343's rail)
-  `.superpowers/brainstorm/267750-1794400242/content/` (git-ignored).
-- **`status/needs-refinement` (12):** #13, #111, #133 and #333 still need a design session; #130 is
-  **parked** by the owner; #336–#340 are the Team reporting milestone; **#344** (a configurable work
-  schedule) and **#346** (presence events from the absence feed, split from #343 on 2026-11-11;
-  needs a personal-feed sample holding a presence event before planning).
-- **#343 cannot be planned before #344 is refined**: an all-day absence adds the day's scheduled
-  hours. Claude recommended #344 as the next refinement. #343's pending-request marker ("? ") is
-  confirmed in the company feed only.
+  `.superpowers/brainstorm/12804-1793871242/content/`, (#343's rail)
+  `.superpowers/brainstorm/267750-1794400242/content/` and (#344)
+  `.superpowers/brainstorm/42810-1794486471/content/` (git-ignored).
+- **`status/needs-refinement` (11):** #13, #111, #133 and #333 still need a design session; #130 is
+  **parked** by the owner; #336–#340 are the Team reporting milestone; **#346** (presence events
+  from the absence feed, split from #343 on 2026-11-11; needs a personal-feed sample holding a
+  presence event before planning).
+- **#343 can now be planned**, after #132 and #344. Its pending-request marker ("? ") is confirmed
+  in the company feed only.
+- **"Pending schedule" is the owner's term** (#344) for a schedule whose start date is still ahead.
 - **#334's rule changed on 2026-11-05:** an entry's start may be in the future (body updated).
 
 **Stacking that the bodies record:** #326 and #290 build on #325 (`issue_cache`); #331 on #300;
-#332 on #131; #131's estimate row on #290; #132 on #334; #343 on #132 and #344 (order: #334 → #132 → #344 → #343); #346 on #343 and #344. #326 and #327 edit the same grid.
+#332 on #131; #131's estimate row on #290; #132 on #334; #343 on #132 and #344 (order: #334 → #132 → #344 → #343, or #344 before #132); #346 on #343 and #344. #326 and #327 edit the same grid.
 
 **Owner's rules set on 2026-11-04 live in the tickets, not in process documents**: each is a design
 decision for one ticket. None changes how the project is run.
 
 PR #324 (#322) merged on 2026-10-26: the release script
 sets `:stable` on a stable release, and the README runs and upgrades from `:stable`. **The Releases
-milestone has no open tickets** (0 open, 2 closed). It is still open; closing it is the owner's call.
+milestone** was closed by the owner and reopened on 2026-11-18 for #348, #349 and #350.
 A new milestone, **Week view**, holds #326 and #327. **Polish** (vague name on purpose, owner 2026-11-04) holds #333, the Rovo joke feature: visual only, reset on reload.
 **Owner's rule (on #176):** every failure says *what* went wrong — no generic "Something went wrong.".
 
