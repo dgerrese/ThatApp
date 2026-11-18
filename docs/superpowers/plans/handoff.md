@@ -39,10 +39,15 @@ create `github.com/dgerrese/ThatApp` before the owner explicitly approves it.** 
 (update notice) and #349 (move notice) — both refined and at `status/todo` after one design session
 (mockup `.superpowers/brainstorm/219294-1795019192/content/foot-states-v2.html`) — then one last stable Codeberg release, then #350. Releases milestone reopened for all three.
 
+**The board on 2026-11-18 (API-checked).** 32 at `status/todo` (the 29 below plus #348, #349, #350),
+11 at `status/needs-refinement` (unchanged), nothing in progress, blocked or at intake. No pull request
+is open apart from today's handoff, `handoff-2026-11-18`, which also carries the 2026-11-12 record:
+that day's handoff branch was never pushed.
+
 ### 2026-11-12 — read this first
 
 Day files: [`handoff/2026-11-12.md`](handoff/2026-11-12.md), [`handoff/2026-11-11.md`](handoff/2026-11-11.md).
-The owner merged PR #347; **no pull request is open** apart from today's handoff. **#344 is refined
+The owner merged PR #347. (This day's handoff went out only on 2026-11-18, inside that day's pull request.) **#344 is refined
 and at `status/todo`** after a design session; Week gains muted targets under its totals.
 
 **The board on 2026-11-12 (API-checked).** Intake is empty. Nothing is in progress.
@@ -70,7 +75,7 @@ decision for one ticket. None changes how the project is run.
 
 PR #324 (#322) merged on 2026-10-26: the release script
 sets `:stable` on a stable release, and the README runs and upgrades from `:stable`. **The Releases
-milestone has no open tickets** (0 open, 2 closed). It is still open; closing it is the owner's call.
+milestone** was closed by the owner and reopened on 2026-11-18 for #348, #349 and #350.
 A new milestone, **Week view**, holds #326 and #327. **Polish** (vague name on purpose, owner 2026-11-04) holds #333, the Rovo joke feature: visual only, reset on reload.
 **Owner's rule (on #176):** every failure says *what* went wrong — no generic "Something went wrong.".
 
