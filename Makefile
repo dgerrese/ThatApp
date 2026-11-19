@@ -18,7 +18,7 @@ WEB     := $(COMPOSE) run --build --rm --no-deps web
 # to rebuild.
 LINT    := $(COMPOSE) run --rm --no-deps lint
 
-.PHONY: help up down install-web build-web image test-go test test-web test-e2e fmt lint-go lint-web lint tsc verify
+.PHONY: help up down install-web build-web image test-go test-scripts test test-web test-e2e fmt lint-go lint-web lint tsc verify
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -46,7 +46,12 @@ image: build-web ## Dry-run the release image build and push, stable path
 test-go: ## Run the Go test suite
 	$(APP) go test ./...
 
-test: test-go test-web ## Run all tests
+# The release workflow's shell scripts, under the container's busybox date and
+# awk; the GitHub runner runs them under GNU's, which agree on everything used.
+test-scripts: ## Test the release workflow's shell scripts
+	$(APP) sh -c 'r=0; for t in scripts/*_test.sh; do sh "$$t" || r=1; done; exit $$r'
+
+test: test-go test-scripts test-web ## Run all tests
 
 # Part of `verify`, through `test` above. Node runs the .ts directly under its
 # own type stripping, so the suite carries no test dependency — the runner is

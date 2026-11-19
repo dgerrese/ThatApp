@@ -1,0 +1,110 @@
+name: Release
+
+# A push to main that changes code publishes a pre-release: the image as
+# :VERSION and :latest, and a GitHub pre-release vVERSION whose notes are the
+# merged pull request's title. A closed milestone publishes a stable release
+# from main: :stable as well, and notes listing the milestone's closed issues.
+#
+# This does not wait for CI on the pushed commit: main only moves through pull
+# requests that passed the required `Quality gate`.
+#
+# Titles and tag names reach the scripts through the environment and files,
+# never interpolated into a command.
+
+on:
+  push:
+    branches: [main]
+  milestone:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  changes:
+    name: Changed files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.flags.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      # A closed milestone always releases. A push releases when its diff has a
+      # `code` file, by the rule CI uses; an unknown `before` (a new branch, a
+      # force-push) counts as code.
+      - id: flags
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -o pipefail
+          if [ "$EVENT" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            git diff --name-only "$BEFORE" "$GITHUB_SHA" | sh scripts/changed-files.sh | tee -a "$GITHUB_OUTPUT"
+          else
+            echo code=true | tee -a "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    name: Publish
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    # One release at a time, so two runs cannot pick the same N, and never
+    # cancelled between the image push and the GitHub release. CI's own group is
+    # ci-<ref>, so nothing there can cancel this.
+    # ponytail: GitHub keeps one pending run per group and drops an older pending
+    # one for a newer, so a milestone closed while a release runs can be dropped
+    # by a later merge; rerun its workflow if that happens.
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+      issues: read
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      # A milestone event's GITHUB_SHA is main's tip, so this checks out main.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - run: printf 'THAT_UID=%s\nTHAT_GID=%s\n' "$(id -u)" "$(id -g)" >> "$GITHUB_ENV"
+      - id: version
+        run: echo "version=$(git tag -l | sh scripts/next-version.sh "$(date -u +%F)")" | tee -a "$GITHUB_OUTPUT"
+      - name: Release notes
+        env:
+          EVENT: ${{ github.event_name }}
+          MILESTONE: ${{ github.event.milestone.number }}
+        run: |
+          set -o pipefail
+          notes=$RUNNER_TEMP/notes
+          if [ "$EVENT" = milestone ]; then
+            gh api --paginate "repos/$GITHUB_REPOSITORY/issues?milestone=$MILESTONE&state=closed&per_page=100" \
+              --jq '.[] | select(.pull_request | not) | "- \(.title) (#\(.number))"' > "$notes"
+          else
+            gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+              --jq '.[0] | select(.) | "\(.title) (#\(.number))"' > "$notes"
+            [ -s "$notes" ] || git log -1 --format=%s "$GITHUB_SHA" > "$notes"
+          fi
+          cat "$notes"
+      - run: make build-web
+      - name: Image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CHANNEL: ${{ github.event_name == 'milestone' && 'stable' || '' }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          docker compose run --build --rm --no-deps -e REGISTRY_USER -e REGISTRY_TOKEN
+          app sh scripts/release-image.sh "$VERSION" ghcr.io/dgerrese/thatapp ${CHANNEL:+"$CHANNEL"}
+      - name: GitHub release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ github.event_name == 'push' }}
+        run: >-
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "$VERSION"
+          --notes-file "$RUNNER_TEMP/notes" --prerelease="$PRERELEASE"
