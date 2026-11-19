@@ -51,14 +51,13 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    # One release at a time, so two runs cannot pick the same N, and never
-    # cancelled between the image push and the GitHub release. CI's own group is
-    # ci-<ref>, so nothing there can cancel this.
-    # ponytail: GitHub keeps one pending run per group and drops an older pending
-    # one for a newer, so a milestone closed while a release runs can be dropped
-    # by a later merge; rerun its workflow if that happens.
+    # Never cancelled between the image push and the GitHub release. One group
+    # per event: GitHub drops an older pending run for a newer one in the same
+    # group, which must not let a merge drop a closed milestone's release. CI's
+    # group is ci-<ref>, so nothing there can cancel this. Runs in the two groups
+    # can overlap; the tag reservation below keeps their N apart.
     concurrency:
-      group: release
+      group: release-${{ github.event_name }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -73,8 +72,21 @@ jobs:
         with:
           fetch-depth: 0
       - run: printf 'THAT_UID=%s\nTHAT_GID=%s\n' "$(id -u)" "$(id -g)" >> "$GITHUB_ENV"
+      # Reserves vVERSION by creating the tag before anything is pushed: the
+      # create fails if another run took that N, and the next N is tried.
       - id: version
-        run: echo "version=$(git tag -l | sh scripts/next-version.sh "$(date -u +%F)")" | tee -a "$GITHUB_OUTPUT"
+        run: |
+          tags=$(git tag -l)
+          for attempt in 1 2 3 4 5; do
+            version=$(printf '%s\n' "$tags" | sh scripts/next-version.sh "$(date -u +%F)")
+            if gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$version" -f sha="$GITHUB_SHA" >/dev/null; then
+              echo "version=$version" | tee -a "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            tags=$(printf '%s\nv%s' "$tags" "$version")
+          done
+          echo "could not reserve a version tag after $attempt attempts" >&2
+          exit 1
       - name: Release notes
         env:
           EVENT: ${{ github.event_name }}
@@ -84,13 +96,12 @@ jobs:
           notes=$RUNNER_TEMP/notes
           if [ "$EVENT" = milestone ]; then
             gh api --paginate "repos/$GITHUB_REPOSITORY/issues?milestone=$MILESTONE&state=closed&per_page=100" \
-              --jq '.[] | select(.pull_request | not) | "- \(.title) (#\(.number))"' > "$notes"
+              --jq '.[] | select((.pull_request | not) and .state_reason == "completed") | "- \(.title) (#\(.number))"' > "$notes"
           else
             gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
               --jq '.[0] | select(.) | "\(.title) (#\(.number))"' > "$notes"
             [ -s "$notes" ] || git log -1 --format=%s "$GITHUB_SHA" > "$notes"
           fi
-          cat "$notes"
       - run: make build-web
       - name: Image
         env:
@@ -106,5 +117,5 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           PRERELEASE: ${{ github.event_name == 'push' }}
         run: >-
-          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "$VERSION"
+          gh release create "v$VERSION" --verify-tag --title "$VERSION"
           --notes-file "$RUNNER_TEMP/notes" --prerelease="$PRERELEASE"
