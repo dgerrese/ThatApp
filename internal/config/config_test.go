@@ -18,6 +18,8 @@ func validEnv() map[string]string {
 	}
 }
 
+func TestProbeFails(t *testing.T) { t.Fatal("probe: deliberate failure") }
+
 func TestLoadAppliesDefaults(t *testing.T) {
 	cfg, err := config.Load(envFrom(validEnv()))
 	if err != nil {
