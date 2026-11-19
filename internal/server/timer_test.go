@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 func decodeTimerState(t *testing.T, rec *httptest.ResponseRecorder) timerStateResponse {

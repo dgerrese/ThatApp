@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // issueFetchTimeout bounds one instance's fetch. jira.Client allows itself 30s

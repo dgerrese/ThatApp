@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/jira"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/jira"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // pinDTO is one pin as the Pinned card needs it. InstanceName is joined in here

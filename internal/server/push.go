@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/jira"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/jira"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // pushInstanceTimeout bounds one instance's whole sequence of worklog creates,

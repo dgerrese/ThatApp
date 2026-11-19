@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"github.com/dgerrese/ThatApp/internal/jira"
 )
 
 // newTestClient points a client at a stub server standing in for Jira.

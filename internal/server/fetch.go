@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // fetchInstanceTimeout bounds one instance's whole sequence — the identity call,

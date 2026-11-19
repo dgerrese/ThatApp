@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/jira"
+	"github.com/dgerrese/ThatApp/internal/jira"
 )
 
 func amsterdamTime(t *testing.T) time.Time {

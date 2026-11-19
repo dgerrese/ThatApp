@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // fakeJira counts worklog creates and hands back a fresh id for each.

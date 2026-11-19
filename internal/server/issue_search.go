@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/jira"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/jira"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // searchLimit caps one instance's matches, by key or summary. This backs a

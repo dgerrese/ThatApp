@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // pushStateRank orders the derived states by how much they still need doing. A
