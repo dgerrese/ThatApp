@@ -107,23 +107,19 @@ test("moved: first in the foot, and the whole foot reachable in a short window",
 
 test("moved: the image name wraps only after the slash", async ({ page }) => {
   await open(page, FAILED_STATUS);
-  const lines = await page.locator("[data-moved] code").evaluate((el) => {
-    const out: string[] = [];
-    let lastTop = Number.NaN;
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    for (let n = walker.nextNode(); n !== null; n = walker.nextNode()) {
-      const text = n.textContent ?? "";
-      for (let i = 0; i < text.length; i++) {
-        const r = document.createRange();
-        r.setStart(n, i);
-        r.setEnd(n, i + 1);
-        const top = Math.round(r.getBoundingClientRect().top);
-        if (top !== lastTop) out.push("");
-        lastTop = top;
-        out[out.length - 1] += text.charAt(i);
-      }
-    }
-    return out;
-  });
-  expect(lines).toEqual(["ghcr.io/dgerrese/", "thatapp:stable"]);
+  const parts = await page.locator("[data-moved] code").evaluate((el) =>
+    [...el.childNodes]
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => {
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        const rects = [...range.getClientRects()];
+        return { text: n.textContent, rects: rects.length, top: Math.round(rects[0]?.top ?? -1) };
+      }),
+  );
+  expect(parts.map((p) => [p.text, p.rects])).toEqual([
+    ["ghcr.io/dgerrese/", 1],
+    ["thatapp:stable", 1],
+  ]);
+  expect(parts[0]?.top).not.toBe(parts[1]?.top);
 });
