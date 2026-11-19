@@ -39,7 +39,7 @@ build-web: install-web ## Build the frontend into web/dist
 	$(WEB) npm run build
 
 # The stable release path, pushing to a throwaway registry
-# inside the container instead of Codeberg.
+# inside the container instead of ghcr.io.
 image: build-web ## Dry-run the release image build and push, stable path
 	$(APP) sh scripts/release-image.sh 0000.01.1 localhost:5000/thatapp stable
 
