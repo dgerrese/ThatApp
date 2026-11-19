@@ -98,7 +98,7 @@ ring, never filled, so shape carries the distinction alongside hue and it cannot
 a primary action.
 
 **Deleted at next push** shares Dirty's hue and token: a pending delete is time Jira holds and Jira
-is now wrong about, which is Dirty's reason for its hue (#280). Its shape is Dirty's ring with a
+is now wrong about, which is Dirty's reason for its hue (CB#280). Its shape is Dirty's ring with a
 slash inside it, a "no entry" sign — drawn as SVG on a 9×9 box, a circle of radius 3.75 and a slash
 from (2.15, 6.85) to (6.85, 2.15), both stroked 1.5 with round caps, the slash stopping at the
 ring's inner edge. It is the one mark drawn as SVG; disc, ring and triangle stay CSS-drawn. Ring
@@ -179,7 +179,7 @@ This is why the instance dot is a rule in `styles.css` rather than a Tailwind co
 the same `.woff2` for 400, 500 and 700, so a single `@font-face` with `font-weight: 400 700` is the
 whole declaration. The latin subset is 22kB.
 
-It is self-hosted rather than linked because #12 makes this an offline PWA, the app is self-hosted in
+It is self-hosted rather than linked because CB#12 makes this an offline PWA, the app is self-hosted in
 Docker, and no request may leave the origin.
 
 | Step | Size | Used for |
@@ -220,11 +220,11 @@ where.
 | Region | Resting state | Made live by |
 | --- | --- | --- |
 | Wordmark | Static | — |
-| The day's total, 46px | `0h 00m` | #7 |
-| The instance split — bar, then per-instance figures | Absent; there is nothing to divide | #7 |
-| Running timer | Absent | #8 |
-| Unpushed count | Absent | #9 |
-| Push | Present, **disabled** | #9 |
+| The day's total, 46px | `0h 00m` | CB#7 |
+| The instance split — bar, then per-instance figures | Absent; there is nothing to divide | CB#7 |
+| Running timer | Absent | CB#8 |
+| Unpushed count | Absent | CB#9 |
+| Push | Present, **disabled** | CB#9 |
 | Nav | Live | — |
 
 The total heads the split rather than sitting apart from it: the 46px figure *is* the combined
@@ -239,18 +239,18 @@ done. Disabled, it is outlined rather than filled — `--color-rail-active` bord
 ### Nav
 
 Two destinations and a control. The nav carries the two periods, **Today** and **Week**, below a
-divider under Push, with no bottom-pinning. #117 restored that divider — `height: 2px`,
+divider under Push, with no bottom-pinning. [CB#117](../../archive/codeberg/117.md) restored that divider — `height: 2px`,
 `--color-rail-active`, `rounded-xs` (`--radius-xs`, `2px` — a 2px corner on a 2px-tall bar clamps to
 a 1px curve, which is why it reads as one), `4px` of margin either side — after it shipped without
 one; this line said "no divider" until then. Each is a 38px row, `9px` radius, `2px` apart, with a
 16px stroked icon `11px` from its label.
 
-**Settings is a control, not a destination** (#89). A destination is a period, with time in it and a
+**Settings is a control, not a destination** ([CB#89](../../archive/codeberg/89.md)). A destination is a period, with time in it and a
 total the rail can describe; Settings has neither. It is a cog beside the wordmark at the rail's top
 right — a 34px box whose hover wash ends on the rail's content edge — and it opens Settings as a
 modal dialog over whichever view is mounted, so the rail keeps describing a real period underneath.
 
-**An instance row's health slot has four states** (#301, 2026-10-09). Testing a connection writes this
+**An instance row's health slot has four states** (CB#301, 2026-10-09). Testing a connection writes this
 slot and nothing else, so the row never changes height and no row below it moves. The host line
 truncates with an ellipsis rather than wrapping, so a long host cannot grow the row either.
 
@@ -272,7 +272,7 @@ button is disabled while its test runs.
 | Other | none | `--color-rail-muted` | 500 |
 
 Where you are is shown by **fill and weight, not by colour alone**, and both are driven from
-`aria-current="page"`, which the router sets after resolving a path. Week is inert until #11 builds
+`aria-current="page"`, which the router sets after resolving a path. Week is inert until CB#11 builds
 the view — visible and dimmed rather than linking to a dead address, on the same reasoning that keeps
 Push visible and disabled.
 
@@ -314,7 +314,7 @@ darkening to `--color-ink` on hover instead of by colour.
 
 **This rule used to name the running tone as a second example, and it contradicted the role table
 above**, which reserves the running tone for "the live timer and its stop control, and nothing
-else". #8 built the key green on the strength of this paragraph; the owner chose the role table and
+else". CB#8 built the key green on the strength of this paragraph; the owner chose the role table and
 the clause was struck on 2026-09-22. A running row says so through its Today figure and its stop
 control, not through its key.
 
@@ -330,7 +330,7 @@ Each is an artboard; the reasoning is in `annotations.md`.
   day total comes from SQLite, not from Jira. Only the split has nothing to say.
 - **Loading** — the rail is **fully live** while the issue list is still empty. Time entries, timers
   and pins are local and only the assigned-issue fan-out is remote, so the total, the split and the
-  running timer paint instantly. The Pinned card paints too, because #6 caches summary and status
+  running timer paint instantly. The Pinned card paints too, because CB#6 caches summary and status
   precisely so pins survive a slow instance. Only the instance cards are skeletons, and they still
   carry their names, which come from the local `instances` table.
 - **Nothing logged** — every timer `00:00`, both subtotals `0h 00m`, no split bar, Push disabled.
@@ -369,7 +369,7 @@ Two rules carry over from `that-confirm`, which already proves the pattern:
 - **Margin must be set explicitly.** Preflight's `* { margin: 0 }` is author origin and beats the
   UA's `dialog { margin: auto }`, so a dialog lands top-left in Firefox and Chromium without it.
 
-The interaction itself — what the dialog contains and how entries are exposed — is #7's.
+The interaction itself — what the dialog contains and how entries are exposed — is CB#7's.
 
 ## Measured contrast
 

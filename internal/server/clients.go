@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/atlassian"
-	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
-	"codeberg.org/DionGerrese/ThatApp/internal/jira"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/atlassian"
+	"github.com/dgerrese/ThatApp/internal/crypto"
+	"github.com/dgerrese/ThatApp/internal/jira"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // tenantInfoTimeout bounds the tenant-info lookup made against a host the user

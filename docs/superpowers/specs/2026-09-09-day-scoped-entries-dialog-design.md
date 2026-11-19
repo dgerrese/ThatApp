@@ -1,7 +1,7 @@
 # The entries dialog, scoped to a day
 
 **Date:** 2026-09-09
-**Ticket:** [#105](https://codeberg.org/DionGerrese/ThatApp/issues/105)
+**Ticket:** [CB#105](https://codeberg.org/DionGerrese/ThatApp/issues/105)
 **Supersedes:** nothing
 **Superseded by:** nothing
 
@@ -104,4 +104,4 @@ corrected is the larger cost.
 ## Out of scope
 
 Unchanged from the ticket: editing `started_at`, moving an entry between days, a summary column on
-Week's rows, and the dialog's remaining drift from the prototype, which is #117's.
+Week's rows, and the dialog's remaining drift from the prototype, which is [CB#117](../../archive/codeberg/117.md)'s.

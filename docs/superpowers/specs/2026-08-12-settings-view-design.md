@@ -4,12 +4,12 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#4](https://codeberg.org/DionGerrese/ThatApp/issues/4). It elaborates the ticket
+The design for [CB#4](https://codeberg.org/DionGerrese/ThatApp/issues/4). It elaborates the ticket
 sequence's fourth entry in
 [`2026-08-04-thatapp-design.md`](2026-08-04-thatapp-design.md), which stays the design
 of record wherever the two disagree.
 
-The ticket arrived heavily refined: four decisions were settled when #21 and #22 were folded into
+The ticket arrived heavily refined: four decisions were settled when CB#21 and CB#22 were folded into
 it, and its acceptance criteria are complete. This document does not restate them. It records the
 design those criteria still left open — the migration's treatment of an unrecoverable site URL, the
 package boundary for cloud-id resolution, and how much frontend shell the first UI ticket builds.
@@ -22,7 +22,7 @@ The Settings view: instance CRUD with a test-connection button. It is the first 
 the first caller of `internal/store` from `cmd/server`, and the first frontend code beyond the
 scaffolding's placeholder.
 
-Two facts from smoke-testing #3 shape all of it. Basic auth fails against the site host and succeeds
+Two facts from smoke-testing CB#3 shape all of it. Basic auth fails against the site host and succeeds
 against `https://api.atlassian.com/ex/jira/{cloudId}`, so an instance needs two URLs rather than one.
 And `POST /rest/api/3/search/jql` answers an unauthenticated caller with `200 {"issues":[]}` rather
 than a 401, so only `GET /rest/api/3/myself` can tell working credentials from rejected ones.
@@ -65,7 +65,7 @@ unknown, and the user supplies it once through Settings.
 
 That is a deliberate reading of "an instance stored before this change keeps working without manual
 repair". What must survive untouched is the ability to *reach Jira*, and it does — the gateway URL is
-preserved exactly. What degrades is issue linking, which belongs to #5 and does not exist yet. The
+preserved exactly. What degrades is issue linking, which belongs to CB#5 and does not exist yet. The
 `NOT NULL`-with-empty-string alternative was rejected: it would leave the schema unable to tell
 "not set" from "set to nothing", and every reader would have to remember the convention.
 
@@ -113,7 +113,7 @@ One addition: `(*Client).Myself(ctx) (*User, error)`, over the existing `do`, re
 ## `internal/server`
 
 `clients.go` holds the per-instance client factory: unseal the token, resolve and persist
-`api_base_url` if it is null, build the client. #5 through #10 all need this sequence, which is why
+`api_base_url` if it is null, build the client. CB#5 through CB#10 all need this sequence, which is why
 it is a named type rather than a helper inside a handler.
 
 `instances.go` holds the five handlers. Responses use an explicit DTO rather than `store.Instance`,
@@ -141,7 +141,7 @@ force the credential to be re-entered.
 
 The cost is accepted knowingly: renaming an instance requires Jira to be reachable, and a display
 name cannot be corrected while offline. What it buys is that no write can leave a stored instance in
-a state nothing has checked — the failure #22 was raised for. A rule with no exceptions is also
+a state nothing has checked — the failure CB#22 was raised for. A rule with no exceptions is also
 harder to erode than one carrying an "unless only the name changed" clause, which is the form this
 check would most likely decay into.
 
@@ -160,12 +160,12 @@ web/src/
   views/        settings.ts
 ```
 
-The router lands here rather than in #5 because `handleAsset` already falls back to the app shell for
+The router lands here rather than in CB#5 because `handleAsset` already falls back to the app shell for
 client-side routes, so the shell promises routing that does not yet exist. `/` renders a short
-placeholder linking to Settings until #5 brings Today.
+placeholder linking to Settings until CB#5 brings Today.
 
 Components are limited to what the form uses. `that-ticket-row`, `that-timer` and `that-time-entry` are
-named in the design of record but belong to #5 through #8; inventing their APIs against no caller
+named in the design of record but belong to CB#5 through CB#8; inventing their APIs against no caller
 would mean rewriting them when a real one appears.
 
 `api.ts` throws a typed `ApiError{status, code, message}`, which is what lets the view tell a
@@ -187,7 +187,7 @@ utilities reaching component internals.
 - `internal/atlassian` tests against an `httptest.Server`, including a site whose tenant info is
   unreadable.
 - The `/myself` trap gets a case of its own: a stub answering `search/jql` with `200 {"issues":[]}`
-  and `/myself` with `401` must make the connection test **fail**. This is the regression that #22
+  and `/myself` with `401` must make the connection test **fail**. This is the regression that CB#22
   was raised for.
 - Handler tests cover the five routes, that no response carries the token, that `PATCH` without a
   token keeps the stored one and verifies with it, that a `PATCH` changing only the display name
@@ -200,5 +200,5 @@ No test contacts a real Jira instance.
 ## Out of scope
 
 As the ticket has it: issue fetching, time logging, Jira Server/Data Center, scheduled re-testing of
-stored credentials, and #19's error mapping. The connection test separates 401 from 502 with the
+stored credentials, and CB#19's error mapping. The connection test separates 401 from 502 with the
 sentinels that exist today.

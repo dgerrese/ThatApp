@@ -2,7 +2,7 @@
 
 <h2>The app, second pass — both themes</h2>
 <p class="subtitle">
-  The design source for #95. <strong>Dark is as it was approved on 2026-09-03</strong>, over thirteen
+  The design source for CB#95. <strong>Dark is as it was approved on 2026-09-03</strong>, over thirteen
   passes. <strong>Light was added on 2026-09-04</strong>, the first time the second edition was judged on
   paper-white, and it carries the elevation rule the language gained that day: a hairline in the edge
   tone, plus a whisper of shadow to keep a card, a popover and a dialog ranked in that order. The rail
@@ -100,7 +100,7 @@
   .tcard { background: var(--raised); border-radius: var(--r-md); padding: 14px 20px; box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.62); }
   .grouph { display: flex; align-items: center; gap: 9px; margin: 0 2px 6px; font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); }
   .grouph .n { margin-left: auto; letter-spacing: 0; font-weight: 400; text-transform: none; opacity: .75; }
-  /* Two stacks from 80rem, never three (#144). Each instance card goes, in
+  /* Two stacks from 80rem, never three (CB#144). Each instance card goes, in
      instance order, to the stack that is shorter at that moment, a tie to the
      left, and keeps it until Today is opened again or refreshed. Below 80rem
      the cards are one column in instance order. A grid row would be as tall as
@@ -124,7 +124,7 @@
   .tbl .c-sum { min-width: 0; }
   .tbl .c-sum .clip { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* position: relative so .tip below can anchor to the key link itself,
-     matching .iconbtn's own rule for the identical reason (#143). */
+     matching .iconbtn's own rule for the identical reason (CB#143). */
   .tbl .c-key a { position: relative; }
   .tbl .c-key a:hover { color: var(--ink); }
   .kw { display: inline-flex; align-items: center; gap: 8px; }
@@ -176,7 +176,7 @@
   .tip.end { left: auto; right: 0; transform: none; }
   .tip.right { left: calc(100% + 9px); right: auto; bottom: auto; top: 50%; transform: translateY(-50%); }
   .tip.below { bottom: auto; top: calc(100% + 7px); }
-  /* #246: a 4px arrow pointing at the control; end-anchored, it sits under the button's centre. */
+  /* CB#246: a 4px arrow pointing at the control; end-anchored, it sits under the button's centre. */
   .tip::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 4px solid transparent; border-top-color: oklch(0.34 0.01 60); border-bottom-width: 0; }
   .tip.end::after { left: auto; right: 13px; transform: none; }
   .tip.right::after { top: 50%; left: auto; right: 100%; transform: translateY(-50%); border: 4px solid transparent; border-right-color: oklch(0.34 0.01 60); border-left-width: 0; }
@@ -223,7 +223,7 @@
      otherwise the same 11% mix lands twice and reads as 22%. The key is not
      listed: it changes colour only, so it never competes with the row. */
   .rrow:hover:has(.durbtn:hover, .iconbtn:hover) { background: transparent; }
-  /* #143, 2026-09-23 refinement: the key sits above the summary rather than
+  /* CB#143, 2026-09-23 refinement: the key sits above the summary rather than
      beside it, so the summary reads at the row's full text width instead of
      whatever the key's own width leaves it. */
   .rrow .rtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -357,7 +357,7 @@
   .fld input:focus { border-color: var(--pri); }
   .fld input::placeholder { color: var(--ink-muted); opacity: .8; }
   .ifacts { display: flex; gap: 8px; margin-top: 16px; }
-  /* #80: the token note, option B of the 2026-09-18 session. A hairline in the
+  /* CB#80: the token note, option B of the 2026-09-18 session. A hairline in the
      edge tone, neither a card nor an alert. */
   .tnote { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.55; color: var(--ink-muted); border: 1px solid var(--edge); border-radius: var(--r-sm); padding: 10px 12px; margin-top: 12px; }
   .tnote svg { flex: none; margin-top: 1px; }

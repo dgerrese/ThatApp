@@ -1,4 +1,4 @@
-# Timer (#8) — design
+# Timer (CB#8) — design
 
 **Date:** 2026-09-18
 **Supersedes:** nothing
@@ -6,7 +6,7 @@
 
 The design of record (`2026-08-04-thatapp-design.md`) already fixes the rules: one timer at a time,
 stopping creates a new entry, timer state lives on the server, and `timers` exists in the schema with
-`CHECK (id = 1)`. Issue #8 adds the midnight cap. This document records what the design session and
+`CHECK (id = 1)`. Issue CB#8 adds the midnight cap. This document records what the design session and
 the owner settled on 2026-09-18, and how the parts fit.
 
 ## Decisions (owner, 2026-09-18)
@@ -20,7 +20,7 @@ the owner settled on 2026-09-18, and how the parts fit.
    ticks up live: the day's logged seconds plus the running elapsed.
 
    **The key stays `--color-ink-muted`, corrected on 2026-09-22.** This session and the 2026-09-18
-   one both had the key in the running tone, and it shipped that way into PR #179. The visual design
+   one both had the key in the running tone, and it shipped that way into PR CB#179. The visual design
    language says the running tone is "the live timer and its stop control, and nothing else", and a
    key is neither. The owner read the built screenshots, said the green key was wrong, compared both
    states in the running app, and chose the muted key over changing the language. The stale clause
@@ -39,7 +39,7 @@ the owner settled on 2026-09-18, and how the parts fit.
    creates no entry. Jira would reject such a worklog anyway. The stop reports that nothing was
    logged.
 
-   **Superseded for the two user paths on 2026-09-23 (#185).** A stop or a switch now opens the
+   **Superseded for the two user paths on 2026-09-23 (CB#185).** A stop or a switch now opens the
    stop dialog, and its down button is what discards; the 60-second floor survives on the midnight
    close only (decision 6).
 6. **An overnight timer is closed by the server.** Any read of the timer finds a timer whose start
@@ -49,7 +49,7 @@ the owner settled on 2026-09-18, and how the parts fit.
 The rail's elapsed time follows the prototype's drawing (`42:18`): minutes and seconds under an
 hour, `H:MM:SS` from an hour on, ticking every second. The row's Today figure keeps its drawn `H:MM`.
 
-## The stop dialog (#185, settled 2026-09-23)
+## The stop dialog (CB#185, settled 2026-09-23)
 
 The owner asked for this on 2026-09-22, after saying "all worklogs should be rounded to 15min".
 One sentence covers every case:
@@ -129,7 +129,7 @@ the dialog itself before the stop ever commits.
 ## Server
 
 **Store** (`internal/store/timers.go`). Each call takes `now` and the location, so no store method
-reads the clock. #185 adds a `TimerClose` argument, carrying the dialog's choice:
+reads the clock. CB#185 adds a `TimerClose` argument, carrying the dialog's choice:
 
 ```go
 type TimerClose struct {
@@ -167,15 +167,15 @@ type TimerClose struct {
   midnight close also returns `"stopped": <entry>`.
 - `POST /api/timer/start` with `{"instanceId", "issueKey", "round"?, "comment"?}` → `200
   {"running": {…}, "stopped": <entry or null>, "discarded": bool}`. An unknown instance is
-  `404 instance_not_found`, a blank key is `400 invalid_request`, and so — settled by #185 — is a
+  `404 instance_not_found`, a blank key is `400 invalid_request`, and so — settled by CB#185 — is a
   `round` present but not `"up"`/`"down"`, or a same-day timer already running with no `round`.
   Nothing running ignores `round` and `comment` rather than failing.
 - `POST /api/timer/stop` with `{"round": "up"|"down", "comment": "…"}` → `200 {"stopped": <entry
   or null>, "discarded": bool}`. No body, or a `round` other than `"up"`/`"down"`, is
-  `400 invalid_request` (#185) — there is no silent default. With nothing running it answers
+  `400 invalid_request` (CB#185) — there is no silent default. With nothing running it answers
   `{"stopped": null, "discarded": false}` and is not an error.
 - **A timer whose start day has passed is closed honestly by the midnight close even when the
-  user is the one who stops it** — decision 6, unchanged by #185. The 60-second floor
+  user is the one who stops it** — decision 6, unchanged by CB#185. The 60-second floor
   (`store.MinTimerSeconds`) lives on that path only; the two dialog paths above use `round` to
   decide instead.
 
@@ -187,7 +187,7 @@ Entries are rendered exactly as `/api/entries` renders them (the existing DTO).
   start or stop. It exposes `onTimerChanged`, like `entries-changed.ts`, and a single 1-second tick
   that runs only while a timer runs. A stop or start that created an entry calls
   `announceEntriesChanged()`, so every total refreshes through the existing path.
-- **`timer-state.ts` opens `that-stop-dialog` before posting** (#185): a stop or a switch no
+- **`timer-state.ts` opens `that-stop-dialog` before posting** (CB#185): a stop or a switch no
   longer calls the endpoint directly, it opens the dialog for the run being stopped, and only a
   confirmed "Log …" or "Discard run" click carries `round` and `comment` into the `POST`.
   "Keep running" closes the dialog and posts nothing, so the timer already running is left alone.
@@ -198,7 +198,7 @@ Entries are rendered exactly as `/api/entries` renders them (the existing DTO).
   the key and adds the live elapsed time to the Today figure.
 - **Rail** (`rail.ts` plus the `#rail-timer` slot in `index.html`): the running line with its stop
   button, or "No timer running".
-- **The "Under a minute — nothing logged." notice is retired** (#185, reversible, owner to
+- **The "Under a minute — nothing logged." notice is retired** (CB#185, reversible, owner to
   confirm): see *The stop dialog* above.
 
 ## Testing
@@ -206,7 +206,7 @@ Entries are rendered exactly as `/api/entries` renders them (the existing DTO).
 - **Store:** table-driven tests for start, stop, switch and every decision above, including the
   midnight cap and the discard, across `THAT_TIMEZONE`s where the UTC day differs from the local
   day. The day boundary is one of the two places `CLAUDE.md` says to test hardest.
-- **Handlers:** `httptest` for the three endpoints, including an unknown instance and #185's
+- **Handlers:** `httptest` for the three endpoints, including an unknown instance and CB#185's
   rejection cases: no body → `400`, an unrecognised `round` → `400`, a same-day switch with no
   `round` → `400`, and nothing running → `round`/`comment` ignored rather than erroring.
 - **e2e (Firefox and Chromium):** start a timer, reload, and the timer is still running with its

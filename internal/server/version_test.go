@@ -6,9 +6,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/config"
-	"codeberg.org/DionGerrese/ThatApp/internal/server"
-	"codeberg.org/DionGerrese/ThatApp/internal/update"
+	"github.com/dgerrese/ThatApp/internal/config"
+	"github.com/dgerrese/ThatApp/internal/server"
+	"github.com/dgerrese/ThatApp/internal/update"
 )
 
 type fakeUpdates update.Status

@@ -37,7 +37,7 @@ docker run -d --name thatapp --restart unless-stopped \
   -p 127.0.0.1:8080:8080 \
   -v thatapp-data:/data \
   --env-file thatapp.env \
-  codeberg.org/diongerrese/thatapp:stable
+  ghcr.io/dgerrese/thatapp:stable
 ```
 
 Open <http://localhost:8080>.
@@ -97,7 +97,7 @@ docker run -d --name thatapp --restart unless-stopped \
   --hostname thatapp.docker \
   -v thatapp-data:/data \
   --env-file thatapp.env \
-  codeberg.org/diongerrese/thatapp:stable
+  ghcr.io/dgerrese/thatapp:stable
 ```
 
 - **The network is required.** docker-hoster ignores containers on Docker's default `bridge`
@@ -120,7 +120,7 @@ itself, so the app needs no extra network, hostname or `THAT_ADDR`:
 docker run -d --name thatapp --restart unless-stopped \
   -v thatapp-data:/data \
   --env-file thatapp.env \
-  codeberg.org/diongerrese/thatapp:stable
+  ghcr.io/dgerrese/thatapp:stable
 ```
 
 The app is then at <http://thatapp.orb.local>. If it does not answer, check that **Allow access to
@@ -128,7 +128,9 @@ container domains & IPs** is on, in OrbStack's Settings → Network.
 
 ### 3. Upgrade
 
-Releases are named `YYYY.WW.N` — year, ISO week, and the release number within that week.
+Releases are named `YYYY.WW.N` — year, ISO week, and the release number within that week. CI
+publishes them to `ghcr.io/dgerrese/thatapp`: a pre-release for every merged pull request that changes the app (a docs-only merge publishes none), and a
+stable release when a milestone is closed.
 
 Two tags follow new releases. `stable` moves only on a release marked stable, and it is the one
 to run. `latest` moves on every release, pre-releases included, so it gets changes before they
@@ -137,13 +139,15 @@ are called stable.
 To move to the newest stable release:
 
 ```shell
-docker pull codeberg.org/diongerrese/thatapp:stable
+docker pull ghcr.io/dgerrese/thatapp:stable
 docker stop thatapp && docker rm thatapp
 ```
 
 then run the command from step 2 again. Your data is in the `thatapp-data` volume and is upgraded
 in place when the app starts. To stay on one release, use its tag instead of `stable`, for example
-`codeberg.org/diongerrese/thatapp:2026.38.1`.
+`ghcr.io/dgerrese/thatapp:YYYY.WW.N`.
+
+Coming from the Codeberg image? See [Moving from Codeberg](#moving-from-codeberg).
 
 ### Backing up
 
@@ -185,3 +189,17 @@ that is all it does — keep the `127.0.0.1:` in front of the port.
 
 A tab you left open catches up when you switch back to it, so time logged through the assistant
 shows without a reload.
+
+## Moving from Codeberg
+
+Releases up to `2026.47.1` were published at `codeberg.org/diongerrese/thatapp`; from here on they
+come from `ghcr.io/dgerrese/thatapp`. To switch, change the image in your run command from
+`codeberg.org/diongerrese/thatapp:stable` to `ghcr.io/dgerrese/thatapp:stable`, then:
+
+```shell
+docker pull ghcr.io/dgerrese/thatapp:stable
+docker stop thatapp && docker rm thatapp
+```
+
+and run the command again. The `thatapp-data` volume and `thatapp.env` (the secret key) stay as
+they are, so nothing is lost.

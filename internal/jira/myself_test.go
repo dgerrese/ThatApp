@@ -77,7 +77,7 @@ func TestMyselfRejectsAnAccountWithNoID(t *testing.T) {
 	}
 }
 
-// The trap #22 was raised for, at the client level: a stub that answers a search
+// The trap CB#22 was raised for, at the client level: a stub that answers a search
 // happily and /myself with a 401 must not look healthy. A connection test built
 // on SearchAssigned would pass here.
 func TestSearchSucceedsWhereMyselfFailsOnRejectedCredentials(t *testing.T) {

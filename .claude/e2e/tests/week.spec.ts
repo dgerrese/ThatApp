@@ -235,7 +235,7 @@ function tooltipIn(page: Page, issueKey: string, column: number): Locator {
   return ticketRow(page, issueKey).locator("td").nth(column).locator("that-tooltip");
 }
 
-/** The rail owns the only Push button, worded "Push this week" here — #117's
+/** The rail owns the only Push button, worded "Push this week" here — CB#117's
  *  R3 — and it sends every day the week holds rather than only today. */
 async function pushEverything(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Push this week" }).click();
@@ -297,7 +297,7 @@ test("no figure in the grid wears a timer's colon", async ({ page }) => {
 /**
  * A dirty entry reached Jira and was then edited since — a correction, not a
  * gap. The rail's own predicate treats that the same as an entry that never
- * went at all (isPending in web/src/rail.ts, #121), so the grid's marker and
+ * went at all (isPending in web/src/rail.ts, CB#121), so the grid's marker and
  * the rail agree: the marker says why it needs going again, and Push still
  * offers to send it.
  */
@@ -507,7 +507,7 @@ test("a failed cell is marked, survives the push report's own re-read, and one R
 
   await pushEverything(page);
   await expect(wednesday).toHaveAttribute("aria-label", /push failed/);
-  // #123: the failure mark is the grid's own drawing and the rail line stays.
+  // CB#123: the failure mark is the grid's own drawing and the rail line stays.
   await expect(page.locator("#rail-unpushed")).toHaveText(/entr(y|ies) to push/);
 
   // /api/week is unchanged from the read above — the entry never actually
@@ -556,7 +556,7 @@ test("a failed marker and an unpushed one differ in shape, not only in hue", asy
 
   // The cell already holds an unpushed disc before the push lands, so the
   // marker being visible proves nothing; the repaint that swaps in the failed
-  // triangle has to land first, or a shape read hits a detached span (#234).
+  // triangle has to land first, or a shape read hits a detached span (CB#234).
   await expect(ticketRow(page, "RIDGE-2").locator("td").nth(2).locator("button")).toHaveAttribute(
     "aria-label",
     /push failed/,
@@ -623,7 +623,7 @@ test("every cell is a control that opens the entries dialog for its ticket", asy
   await expect(dialog.locator(".that-dot")).toHaveCSS("background-color", NORTHWIND_HUE);
 });
 
-// #107: showModal() hands focus back to the cell that opened the dialog. A
+// CB#107: showModal() hands focus back to the cell that opened the dialog. A
 // tooltip reveals on focus only when that focus is :focus-visible, which the
 // browsers give a keyboard close and withhold from a mouse close.
 async function openCellWeek(page: Page): Promise<Locator> {
@@ -780,7 +780,7 @@ test("the three week controls share one height", async ({ page }) => {
 });
 
 /**
- * #117 task 10, W14: the drawing's `.wctl.icon` is `width: 36px; padding: 0`
+ * CB#117 task 10, W14: the drawing's `.wctl.icon` is `width: 36px; padding: 0`
  * — square at the shared 36px height. "This week" is a text button and stays
  * unsquared, which is what tells the two variants apart in this assertion.
  */
@@ -805,7 +805,7 @@ test("each arrow is square at the shared 36px control height", async ({ page }) 
 });
 
 /**
- * #117 task 10, W13: the arrows carry the app's own popover rather than a
+ * CB#117 task 10, W13: the arrows carry the app's own popover rather than a
  * native `title` — dropping `button.title` in favour of a `that-tooltip` is
  * the whole change, and the aria-label stays exactly where it was, since a
  * tooltip is never the accessible name.
@@ -848,7 +848,7 @@ test("the fetch control sits beside the label, and the week controls do not move
 
   const fetchControl = page.getByRole("button", { name: "Fetch worklogs" });
   await expect(fetchControl).toBeVisible();
-  // #119: the visible words are the accessible name; no aria-label repeats them.
+  // CB#119: the visible words are the accessible name; no aria-label repeats them.
   await expect(fetchControl).not.toHaveAttribute("aria-label");
   await expect(page.getByRole("button", { name: "Fetch worklogs", exact: true })).toHaveCount(1);
 
@@ -1099,7 +1099,7 @@ test("a failed read on a refresh press surfaces the same way a failed fetch does
   await refreshControl.click();
 
   await expect(page.getByText("could not read the stored week")).toBeVisible();
-  // #123: the grid's read failure stays inline, never a toast.
+  // CB#123: the grid's read failure stays inline, never a toast.
   await expect(page.locator("#view that-alert", { hasText: "could not read the stored week" })).toBeVisible();
   await expect(page.locator("that-toast")).toHaveCount(0);
   // Neither control is left stuck disabled behind the failure — the same
@@ -1178,7 +1178,7 @@ test("a week the server refuses still offers a way back to this one", async ({ p
 });
 
 /**
- * #117 task 9, W1: the drawing puts the grid in `.tcard` — `--raised`, the
+ * CB#117 task 9, W1: the drawing puts the grid in `.tcard` — `--raised`, the
  * card shadow — and scrolls it inside its own container rather than letting
  * the page scroll sideways. The viewport is narrowed to force the nine-column
  * grid past it, the same bargain that-table already documents for the phone.
@@ -1235,7 +1235,7 @@ test("the grid sits in a raised card with the card shadow, and a wide week scrol
 });
 
 /**
- * #117 task 9, W2: `.grid .fig` and `.grid .kk` wear Chivo Mono, and the
+ * CB#117 task 9, W2: `.grid .fig` and `.grid .kk` wear Chivo Mono, and the
  * whole table keeps its figures tabular via `.that-tnum`.
  */
 test("a filled cell's figure and a row's key wear the mono face", async ({ page }) => {
@@ -1262,7 +1262,7 @@ test("a filled cell's figure and a row's key wear the mono face", async ({ page 
 });
 
 /**
- * #117 task 10, W4: the ticket key is a link to the issue in Jira — its
+ * CB#117 task 10, W4: the ticket key is a link to the issue in Jira — its
  * `href` is the browse URL the rollup carries — muted at rest and brightening
  * to full ink on hover, the rule `.that-key` already states for Today.
  */
@@ -1283,7 +1283,7 @@ test("the ticket key opens the issue in Jira, ink-muted at rest and full ink on 
   await expect(key).toHaveCSS("color", INK_LIGHT);
 });
 
-/** #143: the grid's own key link drops its native title for the app's own
+/** CB#143: the grid's own key link drops its native title for the app's own
  *  tooltip, the same treatment the week arrows already get (see "the week
  *  arrows carry the drawn popover rather than a native title" above). */
 test("the ticket key carries a tooltip reading exactly \"open in Jira\", not a native title", async ({
@@ -1312,7 +1312,7 @@ test("the ticket key carries a tooltip reading exactly \"open in Jira\", not a n
 });
 
 /**
- * #117 task 10, W4: an instance migrated from a gateway URL carries no site to
+ * CB#117 task 10, W4: an instance migrated from a gateway URL carries no site to
  * link to, so its row's key stays plain text rather than a dead anchor —
  * the same rule Today's own keyLabel already follows.
  */
@@ -1336,7 +1336,7 @@ test("a key from an instance with no site URL renders as plain text", async ({ p
 });
 
 /**
- * #117 task 9, W3: `.grid thead th` — 12px, weight 700, .06em tracking,
+ * CB#117 task 9, W3: `.grid thead th` — 12px, weight 700, .06em tracking,
  * uppercase, a 9px bottom padding and a hairline beneath. Read off a day
  * column rather than Ticket, whose own `.tk` class wins the weight back to
  * 400 in the drawing.
@@ -1372,7 +1372,7 @@ test("a header cell wears the drawn type, its own 9px bottom padding, and a hair
 });
 
 /**
- * #117 task 9, W6: a tbody row is 46px tall; a cell's trigger carries the
+ * CB#117 task 9, W6: a tbody row is 46px tall; a cell's trigger carries the
  * drawing's 9px/13px padding given back as the same negative margin; tfoot
  * carries a 12px block padding.
  */
@@ -1415,12 +1415,12 @@ test("a body row is 46px, a cell's trigger carries the drawn padding, and tfoot 
 });
 
 /**
- * #215: the drawing's `.cell` centres its mark on the figure, 7px away —
+ * CB#215: the drawing's `.cell` centres its mark on the figure, 7px away —
  * measured edge to edge with `getBoundingClientRect`, not the flex `gap`
  * read back from CSS, which a stray margin on the mark could satisfy while
  * still missing the drawing. RIDGE-3's failed mark comes from a push failure
  * layered on top of an otherwise-unpushed cell, not from its own pushState —
- * markerFor's rule, per #117.
+ * markerFor's rule, per CB#117.
  */
 test(
   "a cell's push mark sits 7px from its figure, centred on it — unpushed, dirty and failed",
@@ -1517,7 +1517,7 @@ test(
 );
 
 /**
- * #215's own change reaches only a marked cell — `items-center` on the
+ * CB#215's own change reaches only a marked cell — `items-center` on the
  * trigger and `shrink-0` on the mark must not move an em-dash cell (no mark
  * to centre against) or a pushed one (no mark at all). Checked relative to
  * the td itself, not against fixture pixel values pinned per browser: a
@@ -1597,8 +1597,8 @@ test("the footer's day-total mark keeps its own rule", async ({ page }) => {
 });
 
 /**
- * #231: a footer day total's mark names its state in the app's own tooltip —
- * the owner ruled in #143 that a native title no longer fits — and to a
+ * CB#231: a footer day total's mark names its state in the app's own tooltip —
+ * the owner ruled in CB#143 that a native title no longer fits — and to a
  * screen reader through its aria-label alone, so the state is heard once.
  */
 test("a footer day total's mark shows its state in a tooltip on hover, never a title", async ({
@@ -1634,10 +1634,10 @@ test("a footer day total's mark shows its state in a tooltip on hover, never a t
 });
 
 /**
- * #231: the mark is a Tab stop straight after the last row's Sunday cell —
+ * CB#231: the mark is a Tab stop straight after the last row's Sunday cell —
  * the row total between them is inert — and its tooltip opens on that real
  * key press. The footer is outside `tbody tr`, so Up and Down neither leave
- * it nor enter it (#227's rows are unchanged).
+ * it nor enter it (CB#227's rows are unchanged).
  */
 test("a real Tab reaches a footer mark and opens its tooltip; Up and Down stay put", async ({
   page,
@@ -1672,7 +1672,7 @@ test("a real Tab reaches a footer mark and opens its tooltip; Up and Down stay p
 });
 
 /**
- * #127: `.grid tbody td, .grid tbody th` and `.grid tfoot th, .grid tfoot td`
+ * CB#127: `.grid tbody td, .grid tbody th` and `.grid tfoot th, .grid tfoot td`
  * set 15px, and the figures inherit it. The line box stays the drawing's 1.5
  * rather than Tailwind's text-lg default, which the totals row's drawn 47px
  * height is what proves: the default's 23.33px line made it 47.83.
@@ -1708,7 +1708,7 @@ test("body and totals cells compute the drawn 15px, and the totals row keeps the
 });
 
 /**
- * #117 task 10, W12: `.cell:hover, .cell:focus-visible { background: var(--hover) }`
+ * CB#117 task 10, W12: `.cell:hover, .cell:focus-visible { background: var(--hover) }`
  * — a grid cell takes the same hover wash on keyboard focus that it takes
  * under the pointer, which is what makes tabbing through a week legible.
  */
@@ -1737,7 +1737,7 @@ test("a cell takes the hover wash on keyboard focus as well as pointer hover", a
 });
 
 /**
- * #117 task 9, W7: the drawing's `.pageh h3` is 15px at weight 500 — a
+ * CB#117 task 9, W7: the drawing's `.pageh h3` is 15px at weight 500 — a
  * downgrade from the app's shipped `text-xl font-bold` — because Week's title
  * now takes the app's shared page-heading shape rather than its own.
  */
@@ -1758,7 +1758,7 @@ test("the week title takes the page-heading shape: 15px at weight 500", async ({
 });
 
 /**
- * #117 fix wave, finding 7: `.pageh` carries 10px in the drawing wherever it
+ * CB#117 fix wave, finding 7: `.pageh` carries 10px in the drawing wherever it
  * appears (prototype lines 329, 331, 353) — the same value Today's own
  * heading-to-content gap uses. Week's header used to strip its own mb-2.5,
  * on the mistaken belief that the container's space-y-4 would stack another
@@ -1781,7 +1781,7 @@ test("the week header keeps the drawn 10px gap above the grid", async ({ page })
 });
 
 /**
- * #117 task 9, W9: `th + th`/`td + td` carry a 10px column gap; `.tk` stays
+ * CB#117 task 9, W9: `th + th`/`td + td` carry a 10px column gap; `.tk` stays
  * content-width and nowrap with its own 10px right padding rather than the
  * generic left one; `.tot` overrides the gap to 18px.
  *
@@ -2176,9 +2176,9 @@ function weekSearchField(page: Page) {
  *  element in a row that names its ticket, the same reasoning search.spec.ts's
  *  own resultRow gives: every control's accessible name is fixed per
  *  IssueSearchControl and repeats across rows. Reaches the ancestor carrying
- *  `data-hit-key` rather than a fixed number of `..` hops (#143 nested the
+ *  `data-hit-key` rather than a fixed number of `..` hops (CB#143 nested the
  *  key inside its own text column), matching search.spec.ts's own fix. By
- *  role and exact name rather than `getByTitle` (#143 dropped the key link's
+ *  role and exact name rather than `getByTitle` (CB#143 dropped the key link's
  *  native title for the app's own tooltip), also matching search.spec.ts. */
 function weekSearchResultRow(page: Page, key: string) {
   return page
@@ -2188,7 +2188,7 @@ function weekSearchResultRow(page: Page, key: string) {
 
 test.describe("Week's own search", () => {
   /**
-   * Minor from the #84 fix wave: the prototype places the search field
+   * Minor from the CB#84 fix wave: the prototype places the search field
    * (`.sp`, `.field`, `.ctlgroup` in that order — see
    * docs/superpowers/prototypes/2026-09-03-app-prototype.html's Week
    * header: the `.sp` + `.field` pair and the `.ctlgroup` that follows it)
@@ -2243,7 +2243,7 @@ test.describe("Week's own search", () => {
     ).toBeVisible();
   });
 
-  // #143: the search panel's own key link drops its native title for the
+  // CB#143: the search panel's own key link drops its native title for the
   // app's own tooltip, the same treatment search.spec.ts's own test gives
   // Today's copy of this component.
   test("the search result's key link carries a tooltip reading exactly \"open in Jira\", not a native title", async ({
@@ -2264,7 +2264,7 @@ test.describe("Week's own search", () => {
     await expect(key).not.toHaveAttribute("title");
 
     // hasText, not :popover-open: the row's own summary carries a cut-text
-    // tooltip too (#143) — this scopes to the key's own tooltip by its fixed
+    // tooltip too (CB#143) — this scopes to the key's own tooltip by its fixed
     // text regardless of whether the summary is also cut.
     const tooltip = page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" });
 
@@ -2531,7 +2531,7 @@ test.describe("Week's own search", () => {
   });
 
   /**
-   * Task 2 of #139: decision 2's first half. The pin control must not wait on
+   * Task 2 of CB#139: decision 2's first half. The pin control must not wait on
    * a read to put the row up — `addedTickets` is what `onAdd` already gives
    * the add-to-week control, and the pin control now shares it rather than
    * inventing a second path (see the plan's own wording for why).
@@ -2583,7 +2583,7 @@ test.describe("Week's own search", () => {
   });
 
   /**
-   * Task 2 of #139: decision 2's second half. Week's own panel carries no
+   * Task 2 of CB#139: decision 2's second half. Week's own panel carries no
    * unpin control (decision 1 — the pin control always answers `pin`, never
    * `pin-off`), so the unpin here stands in for one happening elsewhere
    * (Today's own pin toggle, say) while this view stays open. The row must

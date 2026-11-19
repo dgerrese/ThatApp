@@ -1,6 +1,6 @@
 /**
  * Runs `handle` once each time the user comes back to the tab: visible again
- * after it was hidden, or focused again after the window lost focus (#253).
+ * after it was hidden, or focused again after the window lost focus (CB#253).
  * Something outside the tab — an MCP client, mostly — may have started a
  * timer or logged time meanwhile, and the server has no way to say so.
  *
@@ -12,7 +12,7 @@
  *
  * A focus while the document is hidden is not a return: the window can hold
  * focus while the tab reports itself hidden. Skipping it leaves `away` set, so
- * the visibilitychange to visible still reads (#307).
+ * the visibilitychange to visible still reads (CB#307).
  */
 export function onTabReturn(handle: () => void): void {
   let away = document.visibilityState === "hidden";

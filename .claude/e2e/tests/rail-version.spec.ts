@@ -24,7 +24,6 @@ async function open(page: Page, version: VersionStatus | number): Promise<void> 
 }
 
 async function footInsideRail(page: Page): Promise<void> {
-  await page.locator("aside").evaluate((el) => el.scrollTo(0, el.scrollHeight));
   const rail = await page.locator("aside").boundingBox();
   const parts = await page.locator("#rail-version *").evaluateAll((els) =>
     els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect),
@@ -66,60 +65,12 @@ test("failed: the label and the reason", async ({ page }) => {
   await footInsideRail(page);
 });
 
-test("a 500 leaves the version box out and throws nothing", async ({ page }) => {
+test("a 500 leaves the foot empty and throws nothing", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
   await open(page, 500);
   await expect(page.locator("#rail-version")).toBeAttached();
   await page.waitForLoadState("networkidle");
-  await expect(page.locator("#rail-version [data-version]")).toHaveCount(0);
-  await expect(page.locator("[data-moved]")).toBeVisible();
+  await expect(page.locator("#rail-version")).toHaveText("");
   expect(errors).toEqual([]);
-});
-
-const MOVED_LINK = "https://github.com/dgerrese/ThatApp#moving-from-codeberg";
-const FAILED_STATUS: VersionStatus = { version: "2026.47.1", latest: null, error: "GitHub did not answer." };
-
-for (const path of ["/today", "/week"]) {
-  test(`moved: the notice shows on ${path}`, async ({ page }) => {
-    await open(page, FAILED_STATUS);
-    await page.goto(path);
-    const moved = page.locator("[data-moved]");
-    await expect(moved).toContainText("ThatApp moved to GitHub");
-    await expect(moved).toContainText("Change your image to");
-    await expect(moved).toContainText("ghcr.io/dgerrese/thatapp:stable");
-    const link = moved.locator("a");
-    await expect(link).toContainText("How to switch");
-    await expect(link).toHaveAttribute("href", MOVED_LINK);
-    await expect(link).toHaveAttribute("target", "_blank");
-    await expect(link).toHaveAttribute("rel", "noopener");
-    await expect(link.locator(".sr-only")).toHaveText("(opens in a new tab)");
-  });
-}
-
-test("moved: first in the foot, and the whole foot reachable in a short window", async ({ page }) => {
-  await open(page, FAILED_STATUS);
-  await page.setViewportSize({ width: 1280, height: 480 });
-  await expect(page.locator("#rail-version [data-version]")).toBeVisible();
-  expect(await page.locator("#rail-version > *").first().getAttribute("data-moved")).toBe("");
-  await footInsideRail(page);
-});
-
-test("moved: the image name wraps only after the slash", async ({ page }) => {
-  await open(page, FAILED_STATUS);
-  const parts = await page.locator("[data-moved] code").evaluate((el) =>
-    [...el.childNodes]
-      .filter((n) => n.nodeType === Node.TEXT_NODE)
-      .map((n) => {
-        const range = document.createRange();
-        range.selectNodeContents(n);
-        const rects = [...range.getClientRects()];
-        return { text: n.textContent, rects: rects.length, top: Math.round(rects[0]?.top ?? -1) };
-      }),
-  );
-  expect(parts.map((p) => [p.text, p.rects])).toEqual([
-    ["ghcr.io/dgerrese/", 1],
-    ["thatapp:stable", 1],
-  ]);
-  expect(parts[0]?.top).not.toBe(parts[1]?.top);
 });

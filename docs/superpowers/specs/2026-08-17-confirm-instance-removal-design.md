@@ -4,15 +4,15 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#29](https://codeberg.org/DionGerrese/ThatApp/issues/29). Removing a Jira instance
+The design for [CB#29](https://codeberg.org/DionGerrese/ThatApp/issues/29). Removing a Jira instance
 takes one click and no confirmation, and `DELETE /api/instances/{id}` cascades to `pinned_issues`,
-`time_entries` and `timers`. That is harmless only while `time_entries` is empty. Once #6 ships time
+`time_entries` and `timers`. That is harmless only while `time_entries` is empty. Once CB#6 ships time
 entry it destroys logged time — the asset `CLAUDE.md`'s *Where correctness lives* exists to protect —
 with no undo anywhere in the system.
 
 The ticket is scoped wider than the dialog. `web/src/views/settings.ts` re-renders by
 `container.replaceChildren()` on every mutation, and the confirm flow lands on exactly those lines,
-so the three findings parked by #4's whole-branch review are fixed here rather than in a later ticket
+so the three findings parked by CB#4's whole-branch review are fixed here rather than in a later ticket
 that would open the same file a second time.
 
 ## Decisions taken in brainstorming
@@ -23,15 +23,15 @@ that would open the same file a second time.
    loop, and needs dialog handling in the e2e rig — and **not** an inline two-step button.
 2. **The warning is static.** No counts of what will be destroyed, so no counts endpoint, no loading
    state inside the dialog, and no server change in this ticket at all. Counts are a later intake,
-   worth raising once #6 has made them non-zero; today they would read "0 time entries" and teach the
+   worth raising once CB#6 has made them non-zero; today they would read "0 time entries" and teach the
    user the dialog is not worth reading.
 3. **Keyed row reconciliation replaces the wholesale re-render.** The alternatives were a region
    split with no diffing (simpler, but a list rebuild still discards a sibling row's in-flight
    result) and an observable instances store (the shape a framework would give you, and the repo has
    ruled frameworks out).
-4. **#30 lands first.** `that-confirm` is written against the semantic colour tokens from
+4. **CB#30 lands first.** `that-confirm` is written against the semantic colour tokens from
    `docs/superpowers/specs/2026-08-14-theme-toggle-design.md` rather than stock light utilities, so
-   the component's colours are written once and #30's retrofit table stays at six files.
+   the component's colours are written once and CB#30's retrofit table stays at six files.
 
 ## `that-confirm`
 
@@ -70,7 +70,7 @@ The Remove call site:
 > Its pinned issues and any time logged against it are deleted too. This cannot be undone.
 > `[Cancel]` `[Remove instance]`
 
-The wording names the instance and stays true as #6–#11 add rows to the cascade, because it never
+The wording names the instance and stays true as CB#6–CB#11 add rows to the cascade, because it never
 enumerates them.
 
 ## What `settings.ts` becomes
@@ -97,7 +97,7 @@ stays enabled → on `true` disable the trigger, `DELETE`, `refresh()`.
 
 ### What the restructure fixes
 
-Each of these was triaged as acceptable to ship by #4's whole-branch review and recorded in the
+Each of these was triaged as acceptable to ship by CB#4's whole-branch review and recorded in the
 handoff. None is a regression; all three fall out of not wiping the container.
 
 - **A connection test in flight on one row, while another row is saved, wrote its result into
@@ -110,7 +110,7 @@ handoff. None is a regression; all three fall out of not wiping the container.
 ### File size
 
 `settings.ts` is 249 lines and this adds roughly 80. If it clears ~320, the form card moves to its
-own module — the split #4's review already identified as the right one when the file next grows. The
+own module — the split CB#4's review already identified as the right one when the file next grows. The
 reconciliation itself stays in the view: it is one list with one key, and hiding it behind a generic
 helper would cost more to read than it saves.
 
@@ -145,17 +145,17 @@ Everything runs through Docker: `make verify` and `make test-e2e`.
 
 ## Dependencies
 
-- **#30 lands first**, so `that-confirm` is written with semantic tokens (`bg-raised`, `text-ink`,
+- **CB#30 lands first**, so `that-confirm` is written with semantic tokens (`bg-raised`, `text-ink`,
   `bg-danger-solid`) rather than stock utilities.
-- **#29 must land before #6.** Until time entry ships, the cascade destroys nothing; after it, this
+- **CB#29 must land before CB#6.** Until time entry ships, the cascade destroys nothing; after it, this
   is the only thing standing between one stray click and lost logged time.
 
 ## Out of scope
 
-- **Counts of what removal destroys.** A later intake, once #6 makes them meaningful.
+- **Counts of what removal destroys.** A later intake, once CB#6 makes them meaningful.
 - **Undo, soft delete or an export before removal.** The confirmation is the guard; reversibility is
   a different and much larger design.
-- **Generalising `confirmDestructive` for #9's push failures or #11's week view** before those
+- **Generalising `confirmDestructive` for CB#9's push failures or CB#11's week view** before those
   tickets exist. The helper is shaped so they can reuse it; nothing is added for them here.
 - **The Enter-to-submit follow-up** and giving `that-button` a `type` attribute. Recorded separately in
   the handoff; doing it here would put a second unrelated change through the same fix wave.

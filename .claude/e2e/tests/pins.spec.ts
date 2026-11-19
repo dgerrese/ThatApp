@@ -25,7 +25,7 @@ async function computedColor(
   );
 }
 
-// Pinned rows carry #7's duration cell now, and its figure comes from here.
+// Pinned rows carry CB#7's duration cell now, and its figure comes from here.
 // Stubbed for the same reason the pin and issue routes are: the e2e stack
 // shares the dev database.
 test.beforeEach(async ({ page }) => {
@@ -104,13 +104,13 @@ test("pinned issues render above the assigned cards", async ({ page }) => {
 
   const card = page.getByRole("region", { name: "Pinned" });
   await expect(card.getByText("SHARED-12")).toBeVisible();
-  // .first(): #143 gave every summary a that-tooltip carrying the same text,
+  // .first(): CB#143 gave every summary a that-tooltip carrying the same text,
   // so an unscoped match now finds two elements — the summary and its tooltip.
   await expect(card.getByText("Weekly standup").first()).toBeVisible();
   // A pinned row names its instance by dot alone (accessible via role="img"),
   // not as visible row text — the restyle decision this branch shipped without.
   await expect(card.getByRole("img", { name: "Ridgeline" })).toBeVisible();
-  // The dot's own hover tooltip (#259) holds the name too, closed: present, not visible.
+  // The dot's own hover tooltip (CB#259) holds the name too, closed: present, not visible.
   await expect(
     card.getByText("Ridgeline", { exact: true }).filter({ visible: true }),
   ).toHaveCount(0);
@@ -194,7 +194,7 @@ test("the pinned card renders when every instance fails", async ({ page }) => {
 
   await expect(page.getByText("SHARED-12")).toBeVisible();
   await expect(page.getByText("the Jira site could not be reached")).toBeVisible();
-  // #123: a card's read failure stays inline, never a toast.
+  // CB#123: a card's read failure stays inline, never a toast.
   await expect(page.locator("#view that-alert", { hasText: "the Jira site could not be reached" })).toBeVisible();
   await expect(page.locator("that-toast")).toHaveCount(0);
 });
@@ -271,7 +271,7 @@ const sharedHit = {
   url: "https://example.atlassian.net/browse/SHARED-40",
 };
 
-// The pin form and its combobox are gone (#84's own decision: the search does
+// The pin form and its combobox are gone (CB#84's own decision: the search does
 // this job now) — this proves the same outcome, pinning a result found across
 // instances, through the search panel that replaced it.
 test("searching finds issues across instances and pinning one adds it to Pinned", async ({
@@ -363,7 +363,7 @@ test("refresh updates the pinned card as well as the assigned one", async ({ pag
 });
 
 // A test that only watches one request would pass against a button that
-// re-enables early — this is the case #6's report specifically calls out —
+// re-enables early — this is the case CB#6's report specifically calls out —
 // so the pins response is held open until the assigned response has already
 // resolved, and the button's disabled state is read in between.
 test("Refresh disables the button until both the pins and the assigned calls settle", async ({
@@ -441,12 +441,12 @@ test("a pin whose refresh failed keeps its cached values", async ({ page }) => {
   await page.getByRole("button", { name: "Refresh" }).click();
 
   await expect(page.getByText("Weekly standup").first()).toBeVisible();
-  // .first(): #143 gave the failure note its own hover-only that-tooltip.
+  // .first(): CB#143 gave the failure note its own hover-only that-tooltip.
   await expect(page.getByText("the Jira site could not be reached").first()).toBeVisible();
 });
 
 /**
- * Task 3 of #95: the row itself carries a trailing pin control now, rather
+ * Task 3 of CB#95: the row itself carries a trailing pin control now, rather
  * than Today's pin form being the only way in. Today does not yet wire
  * `that-table` (that is Task 4), so these mount a row directly into a
  * `that-table` the way Task 4 eventually will — the same reasoning
@@ -524,7 +524,7 @@ test.describe("the ticket row's own pin control", () => {
     await page.getByRole("button", { name: "Pin RIDGE-5301", exact: true }).hover();
 
     // Scoped to the row's card and to the one actually shown: Today's own
-    // Refresh carries a tooltip too, and #143 gave the row's summary a
+    // Refresh carries a tooltip too, and CB#143 gave the row's summary a
     // hidden one of its own — an unscoped locator would match all three.
     const tooltip = page.locator("that-table that-tooltip:visible");
     await expect(tooltip).toBeVisible();
@@ -690,7 +690,7 @@ test.describe("the ticket row's own pin control", () => {
 });
 
 /**
- * #109, #123: a failed pin or unpin restores its row from server truth and
+ * CB#109, CB#123: a failed pin or unpin restores its row from server truth and
  * reports in a toast, wherever the row is.
  */
 test.describe("a failed pin reports in a toast", () => {

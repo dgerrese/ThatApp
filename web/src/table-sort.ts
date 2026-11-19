@@ -15,7 +15,7 @@ export interface SortableRow {
 }
 
 /** The Today figure a row shows: logged seconds plus its own running time. The
- *  cell paints this and the sort compares it, so the two cannot disagree (#183). */
+ *  cell paints this and the sort compares it, so the two cannot disagree (CB#183). */
 export function shownSeconds(row: Pick<SortableRow, "seconds" | "elapsed">): number {
   return row.seconds + row.elapsed;
 }

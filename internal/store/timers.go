@@ -49,7 +49,7 @@ type TimerClose struct {
 }
 
 // ErrTimerChanged refuses a stop or a switch confirmed for a run that is not
-// the one running — another tab switched or stopped the timer since (#226).
+// the one running — another tab switched or stopped the timer since (CB#226).
 var ErrTimerChanged = errors.New("the running timer is not the one this close was confirmed for")
 
 func roundedSeconds(seconds int, round Rounding) int {

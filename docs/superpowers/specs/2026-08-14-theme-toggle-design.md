@@ -4,19 +4,19 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#30](https://codeberg.org/DionGerrese/ThatApp/issues/30). The app has no theming:
+The design for [CB#30](https://codeberg.org/DionGerrese/ThatApp/issues/30). The app has no theming:
 `@theme` in `web/src/styles.css` holds one token (`--font-sans`) and every view uses hardcoded light
 utilities. This introduces a colour vocabulary, a dark palette, and a three-state control that
 selects between them.
 
 It is taken out of ticket order deliberately. Only the Settings view exists today, so the retrofit
-is thirty-three utility usages across six files. Each of #5–#12 adds a view that would otherwise be
+is thirty-three utility usages across six files. Each of CB#5–CB#12 adds a view that would otherwise be
 written against hardcoded light colours and need retrofitting afterwards.
 
 ## Decisions taken in brainstorming
 
 1. **The preference lives in `localStorage`, per browser.** No schema change, no API, no server work,
-   and `index.html` stays a static embedded asset. The phone in #13 gets its own independent setting,
+   and `index.html` stays a static embedded asset. The phone in [#6](https://github.com/dgerrese/ThatApp/issues/6) gets its own independent setting,
    which is acceptable and arguably correct.
 2. **Colour is expressed as semantic tokens**, not as Tailwind's `dark:` variant paired onto every
    utility. Views write `bg-surface text-ink` and never mention light or dark, so a view added by a
@@ -215,12 +215,12 @@ Everything runs through Docker: `make verify` for lint and types, `make test-e2e
 
 ## Out of scope
 
-- **#12's manifest `theme_color` and `background_color`.** They belong to the PWA shell ticket. #12
+- **CB#12's manifest `theme_color` and `background_color`.** They belong to the PWA shell ticket. CB#12
   must read these tokens rather than invent its own values, or the manifest and the palette will
   disagree on Android — a dependency recorded on both tickets.
 - **Per-view dark adjustments** beyond swapping utilities for tokens. If a view needs a bespoke dark
   treatment, that is a finding for its own ticket.
 - **User-defined palettes**, a third theme, or a per-instance accent colour. Nothing has asked for
   them.
-- **Server-side persistence.** Rejected in brainstorming; revisit only if #13 shows that a
+- **Server-side persistence.** Rejected in brainstorming; revisit only if [#6](https://github.com/dgerrese/ThatApp/issues/6) shows that a
   per-device setting is genuinely wrong.

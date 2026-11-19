@@ -27,7 +27,7 @@ test("an unknown route still serves the app shell", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "ThatApp" })).toBeVisible();
 });
 
-// Structural guard for #35: the rig's server starts every run with an empty
+// Structural guard for CB#35: the rig's server starts every run with an empty
 // database. Unstubbed on purpose — against the dev database, which holds the
 // owner's real instances, this fails.
 test("the e2e server starts with no instances", async ({ request }) => {
@@ -40,7 +40,7 @@ test("the e2e server starts with no instances", async ({ request }) => {
 
 // Every stub in every spec but pwa.spec.ts rests on this. A request a service
 // worker claims never reaches page.route, and sw.ts claims GET /api/issues and
-// GET /api/pins (#12 task 5) — so a worker registering here would send those two
+// GET /api/pins (CB#12 task 5) — so a worker registering here would send those two
 // to the real server, which shares the dev database and fans out to the owner's
 // real Jira instances. playwright.config.ts blocks registration for exactly that
 // reason; this is the standing check that the block is honoured, on both
@@ -108,7 +108,7 @@ async function tabUntilFocused(page: Page, target: Locator, maxPresses = 8): Pro
 }
 
 /**
- * #117: the shipped rail drifted from the drawing it was built from. These
+ * CB#117: the shipped rail drifted from the drawing it was built from. These
  * assertions read the drawing's own values back off the live page —
  * docs/superpowers/prototypes/2026-09-03-app-prototype.html's .rail, .sbar,
  * .hr and nav.rn button rules — rather than trusting that a past "looks
@@ -212,7 +212,7 @@ test.describe("the rail's geometry", () => {
 });
 
 /**
- * #117 task 3: the drawing puts the scroll on `.viewport`, not the page, so
+ * CB#117 task 3: the drawing puts the scroll on `.viewport`, not the page, so
  * the rail — the instrument you glance at — never leaves the screen. These
  * assertions stub enough rows into both Today and Week that each overflows
  * the default viewport on its own, so a passing scrollTop-of-0 proves the
@@ -274,7 +274,7 @@ test.describe("the content region owns the scroll, not the page", () => {
     return page.locator("#content");
   }
 
-  /** The last row's own summary span — scoped to the tag, because #143 gave
+  /** The last row's own summary span — scoped to the tag, because CB#143 gave
    *  every summary a cut-text tooltip carrying the same text, which a bare
    *  `getByText` would match too (it is off-screen, not absent from the DOM,
    *  so `toBeAttached()` sees it regardless of visibility). The tooltip is a
@@ -329,7 +329,7 @@ test.describe("the content region owns the scroll, not the page", () => {
     expect(await content(page).evaluate((element) => element.scrollTop)).toBe(0);
   });
 
-  // #117 task 3, fix round 1: the md:-gating that keeps the rail from being
+  // CB#117 task 3, fix round 1: the md:-gating that keeps the rail from being
   // pinned below that breakpoint (see the task report) had no committed
   // test — an unconditional h-screen passed every other test in this file,
   // because none of them run under md:. 390×844 matches today.spec.ts's own

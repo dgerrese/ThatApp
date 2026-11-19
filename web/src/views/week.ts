@@ -139,7 +139,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   const container = document.createElement("div");
   container.className = "space-y-4";
 
-  // The pageHeading shape Today's sections wear — #117's W7 — rather than
+  // The pageHeading shape Today's sections wear — CB#117's W7 — rather than
   // week.ts's own text-xl font-bold, which was the drift. mb-2.5 is kept: the
   // container's own space-y-4 gives every non-last child a bottom margin
   // through `:where()`, which carries zero specificity, so header's own real

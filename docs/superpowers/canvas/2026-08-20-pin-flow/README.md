@@ -1,4 +1,4 @@
-# The pin flow — #6's design sources (2026-08-20)
+# The pin flow — CB#6's design sources (2026-08-20)
 
 Two records of the same feature, both approved on 2026-08-20, kept because they settle different
 things. Where they disagree about how something *looks*, the restyle wins; where they disagree about
@@ -10,7 +10,7 @@ how something *behaves*, they do not — the restyle preserves the prototype's i
 | `pinning-in-hybrid.html` | **The visual language.** The same flow rebuilt in the Hybrid direction, approved 2026-08-20. Self-contained — open it in a browser. |
 | `canvas.json` | The prototype's canvas layout. |
 
-Neither is a specification. #6's acceptance criteria are on the issue, and the design document its
+Neither is a specification. CB#6's acceptance criteria are on the issue, and the design document its
 body cites has never been written — see *What is still missing* below.
 
 ## Why they are in the repo
@@ -30,7 +30,7 @@ from being redesigned from memory.
 Carried over from the design language without change: Space Grotesk, the magenta 330 primary on
 keys and actions, the dark rail, and per-instance hues as identity only.
 
-Three decisions are the restyle's own, and #6 should implement them rather than the prototype's
+Three decisions are the restyle's own, and CB#6 should implement them rather than the prototype's
 older versions:
 
 - **A pinned row names its instance by coloured dot alone**, replacing the instance name the
@@ -45,20 +45,20 @@ older versions:
 The partial-failure line also moves from muted grey to the failed tone — the language reserves red
 for exactly this, and grey undersold an unreachable instance.
 
-## One trap worth carrying into #44
+## One trap worth carrying into CB#44
 
 `--instance: light-dark(oklch(0.60 0.13 var(--h)), …)` declared on `:root` **fails silently**. A
 `var()` inside an inherited custom property resolves where that property is *declared*, not where it
 is used, so it computes to guaranteed-invalid at `:root` — where `--h` does not exist — and every dot
 renders transparent with no error anywhere. The hue has to go in the `background` declaration on the
-element itself. #44 builds per-instance hues and will meet this.
+element itself. CB#44 builds per-instance hues and will meet this.
 
 `pinning-in-hybrid.html` embeds Space Grotesk as a data URI because the artifact CSP blocks font
 CDNs. It is **one variable woff2 covering weights 400–700, 22kB** — not the three static files
-#44's criteria assume.
+CB#44's criteria assume.
 
 ## What is still missing
 
-`docs/superpowers/specs/2026-08-20-pinned-issues-design.md`, which #6's body and the owner's comment
-both cite, has never existed on any branch. #6's acceptance criteria stand on their own, but the
+`docs/superpowers/specs/2026-08-20-pinned-issues-design.md`, which CB#6's body and the owner's comment
+both cite, has never existed on any branch. CB#6's acceptance criteria stand on their own, but the
 design document behind them does not exist and would have to be written from these two files.

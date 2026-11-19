@@ -224,7 +224,7 @@ test("removing an open dialog without closing it does not lose the host", async 
   await expect(page.locator("that-toast", { hasText: "still works" })).toBeVisible();
 });
 
-// #123, decision 3: state messages stay inline. The other guards are count-0
+// CB#123, decision 3: state messages stay inline. The other guards are count-0
 // assertions inside the tests that already set each case up; this is the one
 // case none of them stubs.
 test("the pinned list's read failure is an inline alert, not a toast", async ({ page }) => {

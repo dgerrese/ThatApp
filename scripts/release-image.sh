@@ -3,15 +3,15 @@
 # one index to REPO:VERSION and REPO:latest, and also to REPO:stable when the
 # third argument is `stable`.
 #
-# There is no `docker build`: Codeberg's runners have no Docker daemon, and an
-# image that is one static binary on an empty base needs no build stage, only a
-# layer. crane assembles and pushes it without a daemon.
+# There is no `docker build`: an image that is one static binary on an empty
+# base needs no build stage, only a layer. crane assembles and pushes it without
+# a daemon, inside the app container.
 #
 # usage: release-image.sh VERSION REPO [stable]    (web/dist must already be built)
 #
 # A localhost REPO gets a throwaway registry started here unless one is already
 # listening, which is how pull requests and `make image` run this exact path
-# without touching Codeberg.
+# without touching ghcr.io.
 set -eu
 
 usage="usage: release-image.sh YYYY.WW.N REPO [stable]"

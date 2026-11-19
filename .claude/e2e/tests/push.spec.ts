@@ -133,7 +133,7 @@ test("a push where one entry fails names the entry that did not make it", async 
   await expect(page.locator("that-toasts").getByText(/1 of 2 entries could not be pushed/)).toBeVisible();
   await expect(page.locator("that-toasts").getByText(/RIDGE-2 — the Jira site could not be reached/)).toBeVisible();
   await expect(page.locator("that-toasts").getByText("RIDGE-1 —")).toHaveCount(0);
-  // #123: the report is a toast, but the rail's own count line stays a line of the rail.
+  // CB#123: the report is a toast, but the rail's own count line stays a line of the rail.
   await expect(page.locator("#rail-unpushed")).toHaveText(/entr(y|ies) to push/);
 });
 
@@ -221,7 +221,7 @@ test("a push that cannot recheck what's pending leaves the rail failed alone, no
   await page.getByRole("button", { name: "Push worklogs" }).click();
 
   await expect(unpushed).toHaveText("Could not check what's pending — press Push worklogs to retry.");
-  // #123: the rail's own line carries this failure, never a toast.
+  // CB#123: the rail's own line carries this failure, never a toast.
   await expect(page.locator("that-toast")).toHaveCount(0);
   // Both writers used to only remove their own idea of what might be on the
   // element, so a failure while the queue was non-empty left text-pending-rail

@@ -67,7 +67,7 @@ every test dies on SSL against a plain-HTTP dev server — `app-e2e` was never
 at risk of that. See the comment on the `app` service in `docker-compose.yml`
 for the full explanation of that original problem.
 
-The rig runs against `app-e2e`, not `app`. `app-e2e` (#35) is a disposable
+The rig runs against `app-e2e`, not `app`. `app-e2e` ([CB#35](../../docs/archive/codeberg/35.md)) is a disposable
 server with its own empty, in-container database, built fresh and torn down
 by `make test-e2e` before and after every run — never the dev stack's `app`,
 whose database holds the owner's real Jira instances and whose encryption key

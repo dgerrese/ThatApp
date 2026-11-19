@@ -30,7 +30,7 @@ export interface IssueSearchConfig {
  * settings would admit states the app never means: an icon with no `icon`, or
  * one carrying both an `icon` and whatever a duration variant might have
  * added. Neither "icon button" nor "duration control" is specific to a view:
- * #84's own body settles that a result row carries the same duration control
+ * CB#84's own body settles that a result row carries the same duration control
  * a real row does, and Week's later return-into-week mark is an icon control
  * like pin, so the union covers both hosts without either leaking into this
  * component.
@@ -85,7 +85,7 @@ function hitKey(hit: IssueHit): string {
 let iconControlSequence = 0;
 
 /** One id per row's key link and summary, so the summary's own cut-text
- *  tooltip (#143) can `for` resolve them on a page holding many rows — the
+ *  tooltip (CB#143) can `for` resolve them on a page holding many rows — the
  *  same reasoning iconControlSequence gives, and the same shape
  *  that-ticket-row's own summaryTriggerSequence uses for the identical
  *  pairing. */
@@ -96,7 +96,7 @@ let resultTextSequence = 0;
  *  once. */
 let issueSearchSequence = 0;
 
-/** Matches the values the deleted that-combobox used (#84 removed it —
+/** Matches the values the deleted that-combobox used (CB#84 removed it —
  *  docs/superpowers/specs/2026-08-20-pinned-issues-design.md records what it
  *  did): this is the second control in the app reading against the same
  *  Jira APIs, and a pause any shorter costs one request per instance per
@@ -125,7 +125,7 @@ const MIN_PANEL_HEIGHT_PX = 120;
 
 /**
  * A lookup across every configured Jira instance, not a filter over anything
- * already on screen. It is why #84 exists: the alternative to pinning an
+ * already on screen. It is why CB#84 exists: the alternative to pinning an
  * issue just to log an hour against it once.
  *
  * Light DOM, `that-` prefixed, no shadow root — Tailwind utilities on the
@@ -308,7 +308,7 @@ export class ThatIssueSearch extends HTMLElement {
     // on rowsAreaEl for why a rebuilt-per-repaint pair was the blocker.
     const rowsAreaEl = document.createElement("div");
     rowsAreaEl.className = "min-h-0 overflow-y-auto";
-    // #143, point 3: arrow-key movement across result rows. The focused
+    // CB#143, point 3: arrow-key movement across result rows. The focused
     // element's own row and column are read fresh on every press rather than
     // tracked as state, so a repaint mid-navigation (a pin landing) never
     // leaves this stale.
@@ -551,7 +551,7 @@ export class ThatIssueSearch extends HTMLElement {
 
   /**
    * Resolves one arrow or Escape press to where focus should land next
-   * (`nextSearchFocus`, #143 point 3) and moves it there. `null` leaves the
+   * (`nextSearchFocus`, CB#143 point 3) and moves it there. `null` leaves the
    * key for the browser's own handling (Tab, and anything typed while a
    * control has focus), which is also why `preventDefault` only runs once an
    * answer is known.
@@ -560,7 +560,7 @@ export class ThatIssueSearch extends HTMLElement {
    * ArrowDown/ArrowUp is a column clamped by raw position — right within one
    * row's own shape, but two rows are not always the same shape: a no-URL
    * hit's row carries no key (see keyLabel), so its summary and controls
-   * each sit one column earlier than a linked row's. Review round (#143):
+   * each sit one column earlier than a linked row's. Review round (CB#143):
    * moving vertically now prefers the target row's element carrying the same
    * `data-control-index` value as the one focus is leaving — a summary
    * lands on a summary regardless of which column either row's happens to
@@ -647,7 +647,7 @@ export class ThatIssueSearch extends HTMLElement {
   }
 
   /** The drawing's `.rrow`: a text column holding the key (`.rk`) above the
-   *  summary (`.rs`), then the host's own controls, left to right (#143,
+   *  summary (`.rs`), then the host's own controls, left to right (CB#143,
    *  2026-09-23 refinement — the key and summary used to sit side by side).
    *  `data-hit-key` is what `repaint`'s own focus restore uses to find this
    *  row again after a rebuild — see the field comment on rowsAreaEl. */
@@ -711,7 +711,7 @@ export class ThatIssueSearch extends HTMLElement {
     return link;
   }
 
-  /** The key link's own that-tooltip (#143), replacing the native title it
+  /** The key link's own that-tooltip (CB#143), replacing the native title it
    *  used to carry — the same contract that-ticket-row's own keyTooltip
    *  gives. Omitted for a plain-span key (no site to open). */
   private keyTooltip(key: HTMLElement): HTMLElement | null {
@@ -725,7 +725,7 @@ export class ThatIssueSearch extends HTMLElement {
   }
 
   /**
-   * Focusable and joins the arrow-key order (#143 task 9, owner): a plain
+   * Focusable and joins the arrow-key order (CB#143 task 9, owner): a plain
    * `data-control-index="summary"` between the key's own `"key"` sentinel and
    * `config.controls`' numeric indices, in DOM order — the same generic
    * mechanism `moveFocus`, `captureFocus` and `restoreFocus` already give
@@ -745,7 +745,7 @@ export class ThatIssueSearch extends HTMLElement {
   }
 
   /**
-   * The summary's own cut-text tooltip (#143): `for` gives back the
+   * The summary's own cut-text tooltip (CB#143): `for` gives back the
    * summary's hover and, since task 9, its own focus too, so a key focus
    * opens only the key's own "open in Jira" tooltip, never this one — the
    * same contract that-ticket-row's own summaryTooltip gives. `below`:

@@ -14,7 +14,7 @@ import (
 // stored separately because the container's clock is almost certainly UTC, so
 // neither can be derived from the other after the fact.
 //
-// WorklogID and PushedAt belong to the push (#9) and the fetch (#10), and they
+// WorklogID and PushedAt belong to the push (CB#9) and the fetch (CB#10), and they
 // are not the same kind of fact. WorklogID records that a worklog exists in
 // Jira, which stays true however the entry changes afterwards. PushedAt is the
 // claim that what Jira holds is current, which any edit since falsifies.
@@ -31,7 +31,7 @@ import (
 // Whether an entry is unpushed, clean or dirty is computed from those two and
 // UpdatedAt on every read, never stored as a flag.
 //
-// DeletedAt is set while a delete waits for the push (#280). Only an entry with
+// DeletedAt is set while a delete waits for the push (CB#280). Only an entry with
 // a worklog is ever marked — one Jira has never seen is removed at once — and
 // the mark is the only column a delete or a restore writes.
 type Entry struct {
@@ -216,13 +216,13 @@ func (s *Store) EntriesForDay(ctx context.Context, from, to string) ([]Entry, er
 // server stamped. A missing id yields an error wrapping sql.ErrNoRows.
 //
 // updated_at moves on every call, including one that writes the same seconds and
-// comment back. That marks a clean, pushed entry dirty and has #9 re-push it,
+// comment back. That marks a clean, pushed entry dirty and has CB#9 re-push it,
 // which is deliberate: the push is idempotent, so the cost is one redundant
 // request, and that is cheaper than diffing the row to decide.
 func (s *Store) UpdateEntry(
 	ctx context.Context, id int64, seconds int, comment string,
 ) (*Entry, error) {
-	// Moving updated_at is half of what makes an entry dirty for #9's push.
+	// Moving updated_at is half of what makes an entry dirty for CB#9's push.
 	updatedAt := time.Now().UTC().Truncate(time.Second)
 
 	result, err := s.db.ExecContext(ctx,
@@ -253,7 +253,7 @@ func (s *Store) DeleteEntry(ctx context.Context, id int64) error {
 // marks the entry pushed only if it has not been edited since the caller read
 // it. It reports whether that mark was made.
 //
-// This is what closes #9's lost update. A push reads an entry, calls Jira, then
+// This is what closes CB#9's lost update. A push reads an entry, calls Jira, then
 // records the outcome — and an edit arriving in that window used to be stamped
 // pushed and silently never sent. Only pushed_at is guarded on the updated_at
 // the caller read, because only pushed_at is a claim about the edit: it says

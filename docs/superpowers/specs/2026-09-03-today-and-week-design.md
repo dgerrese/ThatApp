@@ -3,7 +3,7 @@
 **Date:** 2026-09-03
 **Supersedes:** nothing — it applies
 [`2026-09-03-visual-language-design.md`](2026-09-03-visual-language-design.md) to two views
-**Superseded by:** nothing. *Layout* decision 2 was amended on 2026-10-09 by #144 (two stacks).
+**Superseded by:** nothing. *Layout* decision 2 was amended on 2026-10-09 by [CB#144](../../archive/codeberg/144.md) (two stacks).
 
 The language settles the vocabulary. This settles what Today and Week are built out of it.
 
@@ -19,7 +19,7 @@ unchanged. Light was added when the second edition was first judged on paper-whi
 elevation rule from decision 11 of the language with it. Two defects surfaced in that pass and are
 fixed there — see the traps below.
 
-Settings is **not** in this ticket. It is being redesigned under #89.
+Settings is **not** in this ticket. It is being redesigned under [CB#89](../../archive/codeberg/89.md).
 
 ## Layout
 
@@ -31,7 +31,7 @@ Settings is **not** in this ticket. It is being redesigned under #89.
    out of the summary. From `xl`, measured against the content column, the cards go into two column
    stacks, not a grid. Each card goes, in instance position order, to the stack that is shorter at
    that moment, and a tie goes left. A grid row is as tall as its tallest card, and with one tall
-   card it left a hole beside it that a short card would have filled (#144). A card keeps its stack
+   card it left a hole beside it that a short card would have filled ([CB#144](../../archive/codeberg/144.md)). A card keeps its stack
    on every redraw: a pin added or removed, the pins arriving late, the tab returning, the network
    returning. Placement is computed again only when Today is opened or Refresh is pressed. An
    instance with no stack yet goes to the shorter one. Document order follows the stacks, the left
@@ -80,7 +80,7 @@ which is the whole thing the spacing rule exists to prevent.
 - **The Pinned table carries the instance dot inside its key cell**, 8px from the key, matching Week.
   It is a cross-instance table, so it is deliberately not aligned to the per-instance ones.
 - Pinned sorts on the same columns as the assigned cards.
-- **The search is a lookup, not a filter** — see #84. The list underneath is untouched while results
+- **The search is a lookup, not a filter** — see CB#84. The list underneath is untouched while results
   are open.
 
 ## Week
@@ -173,7 +173,7 @@ it either. It must name its own ink for the same reason this one did.
 
 ## Out of scope
 
-- **Settings** — #89 redesigns it, including whether it stays a view.
-- **Sorting behaviour** — #83, built on this table.
-- **The search's behaviour** — #84, which also removes the Pinned card's own pin form.
-- **The phone** — #53. This must not regress it.
+- **Settings** — [CB#89](../../archive/codeberg/89.md) redesigns it, including whether it stays a view.
+- **Sorting behaviour** — [CB#83](../../archive/codeberg/83.md), built on this table.
+- **The search's behaviour** — CB#84, which also removes the Pinned card's own pin form.
+- **The phone** — [#9](https://github.com/dgerrese/ThatApp/issues/9). This must not regress it.

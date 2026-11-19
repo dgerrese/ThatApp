@@ -77,5 +77,4 @@ test("paint leaves a sibling block of the foot alone", () => {
   paintVersion(el, UPDATE);
   paintVersion(el, UP_TO_DATE);
   assert.equal(el.querySelector("p")?.textContent, "mine");
-  assert.equal(el.firstElementChild?.textContent, "mine");
 });

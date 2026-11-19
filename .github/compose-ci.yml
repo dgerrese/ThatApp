@@ -1,0 +1,13 @@
+# CI only, layered on docker-compose.yml through COMPOSE_FILE in workflows/ci.yml.
+# Moves the Go and npm caches out of named volumes into the checkout, where
+# actions/cache can save and restore them between jobs.
+services:
+  app:
+    environment: &go-cache
+      GOCACHE: /src/.ci-cache/go-build
+      GOMODCACHE: /src/.ci-cache/go-mod
+  app-e2e:
+    environment: *go-cache
+  web:
+    environment:
+      npm_config_cache: /src/.ci-cache/npm

@@ -3,7 +3,7 @@ package server
 import (
 	"net/http"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/update"
+	"github.com/dgerrese/ThatApp/internal/update"
 )
 
 type versionBody struct {

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * One scrim token (#97) dims every native <dialog> behind it: 25% black on
+ * One scrim token (CB#97) dims every native <dialog> behind it: 25% black on
  * light, 60% on dark. Colour strings are normalised rather than compared to a
  * browser's exact serialisation — both target engines currently render an
  * authored oklch() token back as oklch(), but a computed colour can just as

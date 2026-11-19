@@ -23,7 +23,7 @@ const copyShell = () => {
   return ["dist/index.html"];
 };
 
-// Chivo is served from our own origin: #12 makes this an offline PWA
+// Chivo is served from our own origin: CB#12 makes this an offline PWA
 // and a font on someone else's host would not survive it. esbuild and Tailwind
 // only emit what they are given, so the files are copied rather than bundled;
 // //go:embed all:dist then carries them into the binary with no change there.
@@ -82,14 +82,14 @@ const workerOptions = {
 };
 
 // Chunk filenames carry esbuild's own content hash, so the precache list and
-// the build id that names its caches (#12 tasks 3-4) are derived from what
+// the build id that names its caches (CB#12 tasks 3-4) are derived from what
 // actually shipped rather than hand-written, which would rot the first time a
 // view is added. reachableFiles walks dist/app.js's own import graph on disk
 // rather than trusting a captured esbuild metafile: in watch mode, a
 // sw.ts-only rebuild had no fresh metafile of its own and reused a stale one
 // captured by the last app rebuild, so an out-of-watcher `make build-web`
 // could leave the worker precaching chunks the current dist/app.js does not
-// import (#67). assetPaths covers everything copied or written outside
+// import (CB#67). assetPaths covers everything copied or written outside
 // esbuild (the shell, app.css, fonts, icons, the manifest) — the request-class
 // table in docs/superpowers/specs/2026-08-24-pwa-shell-design.md needs both
 // cached. Sorted before hashing so the id depends only on content, not on
@@ -122,7 +122,7 @@ const buildWorker = async (assetPaths) => {
   });
 };
 
-// dist/ may not exist yet — see #40.
+// dist/ may not exist yet — see CB#40.
 mkdirSync("dist", { recursive: true });
 const assetPaths = [...copyShell(), ...copyFonts(), ...copyIcons(), ...copyManifest(), "dist/app.css"];
 
@@ -173,7 +173,7 @@ if (watch) {
   // sw.ts is bundled on its own (see workerOptions), not part of main.ts's
   // dependency graph, so the esbuild watcher above never rebuilds it — a
   // sw.ts-only edit under a long-running `make up` left dist/sw.js stale
-  // indefinitely (found the hard way in #12 task 4: hours of a Playwright
+  // indefinitely (found the hard way in CB#12 task 4: hours of a Playwright
   // rig behaving as if the worker had no fetch handler, because it still
   // didn't). Same directory-not-file watch reasoning as index.html's, above.
   let pendingWorker;
@@ -189,7 +189,7 @@ if (watch) {
 
   // Tailwind's watcher writes app.css on its own, outside esbuild, so none of the
   // hooks above sees a CSS-only edit and the worker kept a stale build id and a
-  // stale precached app.css (#164). Watching the output rather than Tailwind
+  // stale precached app.css (CB#164). Watching the output rather than Tailwind
   // catches every rewrite whatever caused it.
   let pendingCss;
   watchPath("dist", (_event, filename) => {

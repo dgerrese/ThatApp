@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // fakeJira counts worklog creates and hands back a fresh id for each.
@@ -309,7 +309,7 @@ func pushDay(t *testing.T, s *Server, day string) pushResponseDTO {
 	return got
 }
 
-// TestPushIsNotTransactionalAcrossInstances is the central property of #9: one
+// TestPushIsNotTransactionalAcrossInstances is the central property of CB#9: one
 // site refusing must not hold back another's entries, and a refused entry must
 // stay pushable.
 func TestPushIsNotTransactionalAcrossInstances(t *testing.T) {
@@ -693,7 +693,7 @@ func TestPushRecordsAWorklogAfterTheClientDisconnects(t *testing.T) {
 	}
 }
 
-// TestPushDayKeepsAnEditThatLandedMidPush is #9's central case: an edit typed
+// TestPushDayKeepsAnEditThatLandedMidPush is CB#9's central case: an edit typed
 // while Jira is still answering must not be stamped pushed and lost.
 func TestPushDayKeepsAnEditThatLandedMidPush(t *testing.T) {
 	env := newPushEnv(t)
@@ -884,8 +884,8 @@ func TestPushDayLeavesARefusedCorrectionDirty(t *testing.T) {
 	}
 }
 
-// TestDeleteDuringAPushMarksTheWorklogThePushCreated is #10's Important 5 under
-// #280. A delete landing while the push creates the worklog must wait for the
+// TestDeleteDuringAPushMarksTheWorklogThePushCreated is CB#10's Important 5 under
+// CB#280. A delete landing while the push creates the worklog must wait for the
 // lock, then read the worklog id the push recorded and mark the entry — rather
 // than read an empty id and drop the row, which leaves time in Jira nothing
 // here can reach. Jira hears nothing from the delete itself.
@@ -934,7 +934,7 @@ func TestDeleteDuringAPushMarksTheWorklogThePushCreated(t *testing.T) {
 	}
 }
 
-// #280's push half. Jira first and the row only once it confirms, a 404 being
+// CB#280's push half. Jira first and the row only once it confirms, a 404 being
 // confirmation; a refusal keeps the row and its mark for the next push.
 func TestPushDeletesAPendingDelete(t *testing.T) {
 	tests := []struct {

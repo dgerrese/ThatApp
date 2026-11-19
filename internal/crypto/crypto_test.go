@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
+	"github.com/dgerrese/ThatApp/internal/crypto"
 )
 
 // key32 is a fixed 32-byte key. Tests must not depend on randomness they do not control.

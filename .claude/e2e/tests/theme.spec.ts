@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// #7 made the rail's total and split live. These tests assert the rail's
+// CB#7 made the rail's total and split live. These tests assert the rail's
 // resting state, which is only resting while nothing is logged — and the
 // e2e stack shares the dev database.
 test.beforeEach(async ({ page }) => {
@@ -201,7 +201,7 @@ test("the rail carries one ground in both themes", async ({ page }) => {
   await expect(page.locator("aside")).toHaveCSS("background-color", "oklch(0.105 0.006 60)");
 });
 
-// The rail's remaining resting regions, until #8 and #9 make them live. #7 made
+// The rail's remaining resting regions, until CB#8 and CB#9 make them live. CB#7 made
 // the total live, so it is a real figure here rather than a placeholder — and
 // with nothing logged it reads 0h 00m either way. Push is present and disabled
 // rather than absent, and the total is a total: the format rule says a figure

@@ -105,7 +105,7 @@ export interface Entry {
   seconds: number;
   comment: string;
   /** Derived server-side from worklog_id, deleted_at, pushed_at and updated_at — never stored.
-   *  `deleted` is a delete waiting for the push (#280): shown, restorable, and counted in no total. */
+   *  `deleted` is a delete waiting for the push (CB#280): shown, restorable, and counted in no total. */
   pushState: "unpushed" | "pushed" | "dirty" | "deleted";
 }
 
@@ -239,7 +239,7 @@ export interface StopChoice {
 }
 
 /** The run a stop or switch was confirmed for, so the server can refuse it
- *  once another tab has changed the timer (#226). */
+ *  once another tab has changed the timer (CB#226). */
 export type ExpectedTimer = Pick<RunningTimer, "instanceId" | "issueKey" | "startedAt">;
 
 /** What POST /api/timer/start answers with. `discarded` is true when a timer

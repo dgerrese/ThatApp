@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/crypto"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // testStartedLayout duplicates jira's unexported startedLayout: the format is
@@ -422,7 +422,7 @@ func TestFetchWeekAppliesOneInstanceWhenAnotherRefuses(t *testing.T) {
 }
 
 // TestFetchWeekKeepsAnEarlierIssuesCreateWhenALaterOneFails is the test the
-// whole-branch review of #10 asked for: fetchInstanceWeek reads one issue at a
+// whole-branch review of CB#10 asked for: fetchInstanceWeek reads one issue at a
 // time, and a failure on the second must not erase what the first already
 // wrote. Mirrors pushInstanceEntries' per-entry independence in push.go —
 // this is the same rule one level up, at the per-issue read.
@@ -480,7 +480,7 @@ func TestFetchWeekRejectsAStartThatIsNotAMonday(t *testing.T) {
 	}
 }
 
-// TestFetchWeekKeepsAnEditThatLandedMidFetch is Critical 2 of #10's
+// TestFetchWeekKeepsAnEditThatLandedMidFetch is Critical 2 of CB#10's
 // whole-branch review, and the mirror of the push's own guard. The fetch reads
 // local state once, before the per-issue Jira reads, and an edit typed while
 // those are in flight must not be overwritten by a copy of the entry that
@@ -602,7 +602,7 @@ func TestFetchWeekAfterAPushReportsNothingUpdated(t *testing.T) {
 	}
 }
 
-// #280: a fetch must not re-create, overwrite or un-mark a pending delete. The
+// CB#280: a fetch must not re-create, overwrite or un-mark a pending delete. The
 // remote copy here is younger and has moved a day, so every other rule would
 // rewrite the row.
 func TestFetchWeekLeavesAPendingDeleteAlone(t *testing.T) {

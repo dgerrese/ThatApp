@@ -16,7 +16,7 @@ export class ThatTooltip extends HTMLElement {
   private trigger: HTMLElement | null = null;
   private observer: MutationObserver | undefined;
   private readonly onShow = (): void => this.reveal();
-  // #107: a focus reveals the tooltip only when it is keyboard focus. The
+  // CB#107: a focus reveals the tooltip only when it is keyboard focus. The
   // browser already tells the two apart, and showModal() returns focus to the
   // opener on close — with :focus-visible after a keyboard close, without it
   // after a mouse close — so a mouse close no longer reopens the tooltip.
@@ -34,7 +34,7 @@ export class ThatTooltip extends HTMLElement {
     if (this.matches(":popover-open")) this.hidePopover();
   };
 
-  // #267, WCAG 1.4.13 "dismissible": Escape closes a shown tooltip without
+  // CB#267, WCAG 1.4.13 "dismissible": Escape closes a shown tooltip without
   // moving the pointer or focus. Captured on window and stopped there, so where
   // Escape already means something — a showModal() dialog, the search field —
   // the first press closes only the tooltip. preventDefault is what holds a
@@ -68,7 +68,7 @@ export class ThatTooltip extends HTMLElement {
     // reveal() places the box once, at show time, from the trigger's rect and
     // this element's own width. A consumer can repaint this element's text —
     // and so its width — while the popover is still open: that-ticket-row's
-    // pin control does exactly that. A click focus no longer re-reveals (#107),
+    // pin control does exactly that. A click focus no longer re-reveals (CB#107),
     // so only watching the text keeps the box right. Watching rather than
     // hiding on click also lets hover-driven tests expect the tooltip to still
     // be open right after.
@@ -96,7 +96,7 @@ export class ThatTooltip extends HTMLElement {
     const trigger = this.trigger;
     if (!trigger) return;
 
-    // #143: a cut-text tooltip exists only to give back what the ellipsis took.
+    // CB#143: a cut-text tooltip exists only to give back what the ellipsis took.
     if (this.hasAttribute("when-cut") && trigger.scrollWidth <= trigger.clientWidth) return;
 
     // See onHide: neither call throws on a redundant transition in either
@@ -125,7 +125,7 @@ export class ThatTooltip extends HTMLElement {
 
     // Above by default — the drawing's .tip — falling back below when there
     // is not enough room, the drawing's own .tip.below (prototype line 144).
-    // #content starts flush against the window's top edge (#3's), so a
+    // #content starts flush against the window's top edge (CB#3's), so a
     // trigger at the top of the content column, or Week's own header arrows,
     // would otherwise open partly off-screen.
     //
@@ -144,7 +144,7 @@ export class ThatTooltip extends HTMLElement {
         : box.top - this.offsetHeight - gap;
 
     // Only a wrapping tooltip is clamped: it is the wide, cut-text case this
-    // is for (#143), sized to run into a window edge. An icon tooltip's
+    // is for (CB#143), sized to run into a window edge. An icon tooltip's
     // anchor="end" pins its right edge to the trigger's on purpose, even past
     // the window's own left edge for a trigger mounted flush against it —
     // clamping that would pull it away from the trigger it is pinned to.

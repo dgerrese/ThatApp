@@ -10,8 +10,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/config"
-	"codeberg.org/DionGerrese/ThatApp/internal/server"
+	"github.com/dgerrese/ThatApp/internal/config"
+	"github.com/dgerrese/ThatApp/internal/server"
 )
 
 // maxIndexHTMLBytes is the TCP initial congestion window: a first response

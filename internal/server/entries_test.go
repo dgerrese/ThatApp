@@ -14,9 +14,9 @@ import (
 	"testing/fstest"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/config"
-	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/config"
+	"github.com/dgerrese/ThatApp/internal/crypto"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // serverInZone builds a server whose configured zone is zone and whose clock is
@@ -120,7 +120,7 @@ func decodeEntries(t *testing.T, rec *httptest.ResponseRecorder) []entryDTO {
 }
 
 // assertRejected checks the status, the stable code and that a person was told
-// something. #6's review found a rejection test that asserted only that the
+// something. CB#6's review found a rejection test that asserted only that the
 // error existed, so every rejection here reads all three.
 func assertRejected(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantCode string) {
 	t.Helper()
@@ -230,7 +230,7 @@ func TestPostEntryStampsTheDayInTheConfiguredZone(t *testing.T) {
 	}
 }
 
-// TestPostEntryIgnoresAClientSuppliedStartedAt: #105 lets a create name its
+// TestPostEntryIgnoresAClientSuppliedStartedAt: CB#105 lets a create name its
 // day, but started_at stays the server's alone — a body naming both, with a
 // forged startedAt that disagrees with the named day, proves the day is
 // honoured and the forged instant is not.
@@ -267,7 +267,7 @@ func TestPostEntryIgnoresAClientSuppliedStartedAt(t *testing.T) {
 	}
 }
 
-// TestCreateEntryAcceptsADay is the test #105's Task 2 exists for: day absent
+// TestCreateEntryAcceptsADay is the test CB#105's Task 2 exists for: day absent
 // still means today from one clock read, day present stamps local midnight of
 // that day in THAT_TIMEZONE, and a date time.Parse cannot make sense of is
 // rejected before anything is stored — the same rule dayParam already applies,
@@ -398,7 +398,7 @@ func TestPostEntryReadsTheClockOnce(t *testing.T) {
 
 // TestPostEntryAcceptsSecondsThatAreNotAMultipleOf900 pins the design's
 // decision 8: the 15-minute grid belongs to the manual control, not to the
-// resource, because #8's timer will produce a run of 7m13s. Tightening this
+// resource, because CB#8's timer will produce a run of 7m13s. Tightening this
 // fails here rather than breaking that ticket weeks later.
 func TestPostEntryAcceptsSecondsThatAreNotAMultipleOf900(t *testing.T) {
 	srv, db, inst := serverInZone(t, "Europe/Amsterdam",
@@ -564,7 +564,7 @@ func TestGetEntriesDefaultsToTodayInTheConfiguredZone(t *testing.T) {
 			body[0].IssueKey)
 	}
 	// The list renders started_at in the configured zone, exactly as the single
-	// entry responses do. #11's week grid reads this array, so an offset dropped
+	// entry responses do. CB#11's week grid reads this array, so an offset dropped
 	// on the list path alone has to fail here.
 	if body[0].StartedAt != "2026-08-22T01:00:00+12:00" {
 		t.Errorf("startedAt = %q, want the stored instant in the configured zone", body[0].StartedAt)
@@ -810,7 +810,7 @@ func TestPatchEntryNeverMovesTheDayOrTheStartTime(t *testing.T) {
 	}
 }
 
-// TestPatchEntryRefusesDayAndStartedAt: #105's Task 2 gave POST a day field.
+// TestPatchEntryRefusesDayAndStartedAt: CB#105's Task 2 gave POST a day field.
 // updateEntryRequest gained none of its own, so a PATCH body forging both is
 // silently dropped by json.Decode rather than the handler rejecting it — this
 // guards that PATCH stayed untouched now that POST can move where an entry
@@ -1002,7 +1002,7 @@ func TestPatchMissingEntryIsNotFound(t *testing.T) {
 
 // TestPatchEntryAnswersAnIDThatIsNotAPositiveIntegerAsMissing: ids that are
 // not positive integers name no entry, so they answer as a missing one does
-// (#55).
+// (CB#55).
 func TestPatchEntryAnswersAnIDThatIsNotAPositiveIntegerAsMissing(t *testing.T) {
 	for _, tc := range []struct{ name, id string }{
 		{"a non-numeric id", "abc"},
@@ -1239,7 +1239,7 @@ func (env *entriesEnv) stored(t *testing.T, entryID int64) store.Entry {
 	return *entry
 }
 
-// #280: a delete waits for the push like every other change to Jira. Only an
+// CB#280: a delete waits for the push like every other change to Jira. Only an
 // entry Jira has never seen goes at once; one it holds is marked, and Jira
 // hears nothing until the push.
 func TestDeleteEntryWaitsForPush(t *testing.T) {

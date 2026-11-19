@@ -58,8 +58,8 @@
         does not invert.
 
         This is the first-run board rendered literally. Its regions go live
-        later — the total and the split in #7, the timer in #8, the unpushed
-        count and Push in #9 — and until then each states its resting condition
+        later — the total and the split in CB#7, the timer in CB#8, the unpushed
+        count and Push in CB#9 — and until then each states its resting condition
         in words rather than vanishing. Nothing shows a value that would be
         wrong once the data exists: with no time entries possible yet the total
         really is zero, there really is nothing to split, no timer is running,
@@ -72,7 +72,7 @@
           <h1 class="text-primary-rail flex-1 text-xs font-bold tracking-[0.16em] uppercase">
             ThatApp
           </h1>
-          <!-- #89: Settings is a control, not a destination. The gear is the
+          <!-- CB#89: Settings is a control, not a destination. The gear is the
                prototype's #p-gear at 1.7 stroke, not the set's 1.9 — at 1.9 its
                teeth close up at this size. The one stroke exception in the set. -->
           <button
@@ -104,7 +104,7 @@
         <div class="flex flex-col gap-2">
           <!-- Which period the figure below describes. The rail used to mean
                "today" implicitly, which was unambiguous only while Today was the
-               one view with time in it. #11 makes it follow the view, and this
+               one view with time in it. CB#11 makes it follow the view, and this
                is what keeps the figure honest. -->
           <span
             id="rail-period"
@@ -117,7 +117,7 @@
           >
             0h 00m
           </div>
-          <!-- #7 fills this with the split bar and a figure per instance. The
+          <!-- CB#7 fills this with the split bar and a figure per instance. The
                resting line is inside it rather than replaced by it, so the bar
                is absent — not zero width — until there is something to divide. -->
           <div id="rail-split" class="flex flex-col gap-2">
@@ -126,7 +126,7 @@
 
           <div class="bg-rail-active my-1 h-0.5 rounded-xs"></div>
 
-          <!-- #8's rail.ts owns this region from here: the resting markup
+          <!-- CB#8's rail.ts owns this region from here: the resting markup
                below is what it repaints back to when nothing is running, and
                what it replaces with the running line the moment something is. -->
           <div id="rail-timer" class="flex items-center gap-2">
@@ -197,39 +197,7 @@
           </a>
         </nav>
 
-        <div id="rail-version" class="relative mt-auto px-2.5">
-          <div
-            data-moved
-            class="bg-rail-active text-rail-ink -mx-2.5 mb-2.5 flex flex-col gap-[5px] rounded-sm p-2.5 text-[12.5px] leading-[1.35]"
-          >
-            <b class="text-pending-rail text-[13px]">ThatApp moved to GitHub</b>
-            <span>Change your image to</span>
-            <code class="font-mono text-[11px] break-normal"
-              >ghcr.io/dgerrese/<wbr />thatapp:stable</code
-            >
-            <a
-              href="https://github.com/dgerrese/ThatApp#moving-from-codeberg"
-              target="_blank"
-              rel="noopener"
-              class="text-primary-rail inline-flex items-center gap-[5px] font-bold"
-              >How to switch<span class="sr-only"> (opens in a new tab)</span
-              ><svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.9"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path
-                  d="M14 5h5v5M19 5l-8 8M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"
-                /></svg
-            ></a>
-          </div>
-        </div>
+        <div id="rail-version" class="relative mt-auto px-2.5"></div>
       </aside>
 
       <!--
@@ -249,7 +217,7 @@
     </div>
 
     <!--
-      #123: the toast stack. In the markup, not created on demand, because a live
+      CB#123: the toast stack. In the markup, not created on demand, because a live
       region inserted at the moment of its message is announced unreliably; a
       manual popover so it can sit above a modal dialog. Upgraded from its own
       chunk by main.ts, like that-tooltip. Empty and zero-size by design, not

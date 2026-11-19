@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-// #108: every focused text field lights its border with --color-primary, the
-// same as the search field and #89's Settings form fields already do. Pinned
+// CB#108: every focused text field lights its border with --color-primary, the
+// same as the search field and CB#89's Settings form fields already do. Pinned
 // against the search field's own focused border, read fresh per theme, so a
 // later drift of either token fails this rather than a hard-coded string.
 
@@ -58,7 +58,7 @@ function searchField(page: Page) {
 
 /** that-issue-search carries the border and the `focus-within:border-primary`
  *  utility on the custom element itself, not on the input inside it — the
- *  same group/field split #108's own duration control takes. */
+ *  same group/field split CB#108's own duration control takes. */
 async function searchFocusedBorderColor(page: Page): Promise<string> {
   return focusedBorderColor(page, page.locator("that-issue-search"), searchField(page));
 }

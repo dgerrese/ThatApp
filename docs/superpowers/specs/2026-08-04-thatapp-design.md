@@ -81,9 +81,9 @@ The release image is not built from the Dockerfile. `scripts/release-image.sh` c
 static binary — the built frontend and zoneinfo embedded — for linux/amd64 and linux/arm64, and
 crane assembles each as a single layer (the binary and the CA bundle) on an empty base, then
 pushes both under one multi-arch index. No Docker daemon is involved, which is what lets
-Codeberg's runners publish it (#122). The Dockerfile holds only the `dev` and `webdev` stages the
+Codeberg's runners publish it (CB#122). The Dockerfile holds only the `dev` and `webdev` stages the
 Compose stack runs. A named volume holds the SQLite database file. The index is tagged with its
-version and `latest` on every release, and also `stable` when the release is stable (#322).
+version and `latest` on every release, and also `stable` when the release is stable ([CB#322](../../archive/codeberg/322.md)).
 
 ## Data model
 
@@ -119,7 +119,7 @@ CREATE TABLE time_entries (
   pushed_at      DATETIME,               -- NULL until pushed
   created_at     DATETIME NOT NULL,
   updated_at     DATETIME NOT NULL,
-  deleted_at     DATETIME                -- set while a delete waits for the push (#280)
+  deleted_at     DATETIME                -- set while a delete waits for the push (CB#280)
 );
 CREATE INDEX idx_entries_day ON time_entries(day);
 CREATE INDEX idx_entries_issue_day ON time_entries(instance_id, issue_key, day);
@@ -177,7 +177,7 @@ An entry's push state is derived, never stored as a separate flag:
 | Pushed, dirty | `worklog_id NOT NULL AND deleted_at IS NULL AND (pushed_at IS NULL OR updated_at > pushed_at)` | `PUT` worklog, set `pushed_at` |
 | Pending delete | `worklog_id NOT NULL AND deleted_at IS NOT NULL` | `DELETE` worklog (a Jira `404` counts as success), then delete the row |
 
-Deleting an entry waits for the push, like every other change to Jira (#280). An entry with a
+Deleting an entry waits for the push, like every other change to Jira (CB#280). An entry with a
 `worklog_id` is only marked: `deleted_at` is set, no request goes to Jira, and from then on it
 counts in no total — not the entry dialog's, Today's, the rail's or Week's. Until the push it can
 be restored (`POST /api/entries/:id/restore`), which clears `deleted_at` and nothing else. Setting
@@ -219,7 +219,7 @@ GET     /api/entries?from=&to=
 POST    /api/entries
 PATCH   /api/entries/:id
 DELETE  /api/entries/:id
-POST    /api/entries/:id/restore         take back a delete waiting for the push (#280)
+POST    /api/entries/:id/restore         take back a delete waiting for the push (CB#280)
 
 GET     /api/timer
 POST    /api/timer/start
@@ -227,7 +227,7 @@ POST    /api/timer/stop                  creates a time entry
 
 POST    /api/push?day=YYYY-MM-DD         end-of-day push; per-entry results
 GET     /api/week?start=YYYY-MM-DD       weekly rollup
-POST    /mcp                             MCP (JSON-RPC); tools over the routes above, no push, week fetch, instances or pins (#253)
+POST    /mcp                             MCP (JSON-RPC); tools over the routes above, no push, week fetch, instances or pins ([CB#253](../../archive/codeberg/253.md))
 ```
 
 Errors return a JSON body with a stable machine-readable `code` and a human-readable `message`.
@@ -257,11 +257,11 @@ v3 are Atlassian Document Format, not plain strings.
 
 The `started` field on a worklog is required by Jira, which is why `time_entries.started_at`
 exists. Timer entries record the real start. Manual entries are stamped with the moment the entry
-was created — **and are not editable**, which is the half of this paragraph #7 corrected. The
+was created — **and are not editable**, which is the half of this paragraph CB#7 corrected. The
 server stamps `started_at` from one reading of its own clock and never accepts it from the browser,
 so `PATCH /api/entries/{id}` carries `seconds` and `comment` and nothing else. Letting a client set
 `started_at` would let it file work into a day its own start time contradicts, which is the
-disagreement `THAT_TIMEZONE` exists to prevent. **#105** lets `POST` name the `day` it means, so a
+disagreement `THAT_TIMEZONE` exists to prevent. **CB#105** lets `POST` name the `day` it means, so a
 Week cell opened for a day that is not today can log against it — but `started_at` still never
 comes from the browser, and the server still resolves it itself, local midnight in `THAT_TIMEZONE`
 for a named day. The contradiction this paragraph rules out stays ruled out; only where `day` comes

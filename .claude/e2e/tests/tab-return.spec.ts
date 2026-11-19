@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * #253: an MCP client writes through the server while the tab is elsewhere,
+ * CB#253: an MCP client writes through the server while the tab is elsewhere,
  * and the tab catches up when it comes back. The stub below is that server: a
  * test changes its state from Node — outside the page, as an MCP write is —
  * and only the tab's return may bring it on screen.

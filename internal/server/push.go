@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/jira"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/jira"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // pushInstanceTimeout bounds one instance's whole sequence of worklog creates,
@@ -213,7 +213,7 @@ func (s *Server) pushInstanceEntries(
 	return results
 }
 
-// deleteWorklogThenEntry carries out a delete that waited for the push (#280).
+// deleteWorklogThenEntry carries out a delete that waited for the push (CB#280).
 // Jira goes first and the row only once it confirms, a 404 counting as
 // confirmation: the reverse order would leave a worklog nothing here records. A
 // refusal keeps the row and its mark, so the next push tries again.

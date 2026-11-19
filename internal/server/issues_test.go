@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/crypto"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // jiraSearchServer stands in for one Jira site's search endpoint. keyPrefix

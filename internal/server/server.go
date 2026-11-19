@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/config"
-	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
-	"codeberg.org/DionGerrese/ThatApp/internal/update"
+	"github.com/dgerrese/ThatApp/internal/config"
+	"github.com/dgerrese/ThatApp/internal/crypto"
+	"github.com/dgerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/update"
 )
 
 // Server routes API requests and serves the PWA's static assets.

@@ -74,7 +74,7 @@ interface Regions {
   assignedSection: HTMLElement;
   refresh: HTMLElement;
   results: HTMLElement;
-  /** The two column stacks inside `results` that the instance cards go into (#144). Detached
+  /** The two column stacks inside `results` that the instance cards go into (CB#144). Detached
    *  while `results` shows a message instead of cards. */
   stacks: [HTMLElement, HTMLElement];
   /** The instance cards last rendered, in instance position order. */
@@ -110,7 +110,7 @@ interface Regions {
   pinsCachedAt: Date | null;
   issuesCachedAt: Date | null;
   /** Whether the last issues read failed. Its alert in `results` is the only report of the
-   *  failure, so no redraw may replace it until a read succeeds (#305). */
+   *  failure, so no redraw may replace it until a read succeeds (CB#305). */
   issuesFailed: boolean;
   /** True once the assigned read (refreshResults) has settled at least once,
    *  success or failure. The three mount reads (entries, pins, assigned) are
@@ -186,7 +186,7 @@ function issueSearchConfig(
     placeholder: "Search all instances",
     footer: "Searching all instances by key and summary. Not limited to issues assigned to you.",
     controls: [
-      // #84's own body: "a result row carries the same duration control as a
+      // CB#84's own body: "a result row carries the same duration control as a
       // real row" — this is that control, not a stand-in for one.
       {
         kind: "duration",
@@ -309,7 +309,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
   // reads the grid's verdict.
   results.className = "grid grid-cols-1 gap-4 @min-[80rem]:grid-cols-2";
   results.append(cardHolding(loadingLine()));
-  // Stacks rather than a grid of cards (#144): a grid row is as tall as its
+  // Stacks rather than a grid of cards (CB#144): a grid row is as tall as its
   // tallest card, which left a hole beside a tall card that a short one fitted.
   const stacks: [HTMLElement, HTMLElement] = [cardStack(false), cardStack(true)];
 
@@ -370,7 +370,7 @@ export async function render(root: HTMLElement, registerTeardown: RegisterTeardo
 
   // "online" fires when the *network* comes back. A server that restarts while
   // the network never dropped fires nothing, so coming back to the app — the
-  // tab turning visible, the window regaining focus — re-checks too (#71).
+  // tab turning visible, the window regaining focus — re-checks too (CB#71).
   // Only while stale: every refresh fans out to Jira, and an ordinary tab
   // switch must not cost that. navigator.onLine is not trustworthy either (a
   // captive portal reports "online"); in every case the fetch, not the event,
@@ -917,7 +917,7 @@ async function pinTicket(regions: Regions, ticket: EntryTicket): Promise<void> {
 
 /**
  * Unpinning destroys nothing worth confirming: time_entries rows are keyed by
- * (instance_id, issue_key) with no foreign key to pinned_issues, unlike #29's
+ * (instance_id, issue_key) with no foreign key to pinned_issues, unlike CB#29's
  * instance removal whose cascade does. So there is no confirmation dialog —
  * the row marks itself the moment it is pressed, and this puts the mark back
  * if the request does not land.
@@ -988,7 +988,7 @@ async function refreshResults(regions: Regions, options?: { restack?: boolean })
     regions.lastIssues = response;
     regions.issuesCachedAt = cachedAt;
     regions.assignedSettled = true;
-    // Refresh is one of the two moments the cards are placed afresh (#144) —
+    // Refresh is one of the two moments the cards are placed afresh (CB#144) —
     // Today opening is the other, with a fresh regions. Here, once the issues
     // are in hand rather than at the press: the pins answer may land first,
     // and its redraw from the old issues must not be what places the cards.
@@ -1114,7 +1114,7 @@ function renderResponse(regions: Regions, response: IssuesResponse): void {
 
 /**
  * Puts the instance cards into their stacks: one column in instance order below the breakpoint;
- * above it, each card in its remembered stack and every other card in the shorter one (#144).
+ * above it, each card in its remembered stack and every other card in the shorter one (CB#144).
  * Every card goes into the left stack first — that is the one column, and it is where a card is
  * measured at a column's width before it is placed.
  */

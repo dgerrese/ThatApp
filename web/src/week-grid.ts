@@ -70,7 +70,7 @@ const TK_CLASSES = "w-[1%] pr-[10px] text-left font-normal whitespace-nowrap ali
 
 /** One id per row's key link and one per row's instance dot, so each
  *  that-tooltip's `for` can resolve its trigger on a page holding many rows —
- *  the same reasoning weekCellSequence below gives its own triggers (#143, #259). */
+ *  the same reasoning weekCellSequence below gives its own triggers (CB#143, CB#259). */
 let weekKeyLinkSequence = 0;
 let weekDotSequence = 0;
 
@@ -105,7 +105,7 @@ function keyLink(issueKey: string, url: string): HTMLElement {
   return link;
 }
 
-/** The key link's own that-tooltip (#143), replacing the native title it used
+/** The key link's own that-tooltip (CB#143), replacing the native title it used
  *  to carry — the same contract that-ticket-row's own keyTooltip gives.
  *  `instanceof`, not a second `url !== ""` check (matching
  *  that-issue-search.ts's own keyTooltip): keyLink above is the one place
@@ -308,7 +308,7 @@ function ticketCell(
   const id = `that-week-cell-${String(++weekCellSequence)}`;
   // Empty means no entries at all. A cell holding only pending deletes shows no
   // time either, but keeps its mark and opens to edit, so it never reads as a
-  // day with nothing on it (#280).
+  // day with nothing on it (CB#280).
   const empty = cell.pushState === null;
   const words = pushWords(cell.pushState, failed);
   const figure = cell.seconds === 0 ? "—" : totalFigure(cell.seconds);
@@ -414,7 +414,7 @@ function dayTotal(day: WeekDay, failed: boolean, isFirst = false): HTMLTableCell
   if (marker) {
     // The entry dialog's pushMark shape: the mark is the only thing here
     // carrying the state, so it is a named tab stop and the tooltip only
-    // shows what the label already says (#231, replacing a native title).
+    // shows what the label already says (CB#231, replacing a native title).
     const mark = document.createElement("span");
     mark.id = `that-week-day-mark-${String(++weekDayMarkSequence)}`;
     mark.tabIndex = 0;

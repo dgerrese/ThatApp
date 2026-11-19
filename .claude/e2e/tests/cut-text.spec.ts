@@ -70,7 +70,7 @@ async function stubPinWithError(
   );
 }
 
-/** #217: the element under test is reached by a real Tab from the one before
+/** CB#217: the element under test is reached by a real Tab from the one before
  *  it, with the pointer parked so no hover opens anything on its own. */
 async function tabTo(page: Page, before: Locator, target: Locator): Promise<void> {
   await before.focus();
@@ -106,7 +106,7 @@ test("a Today row's key focus shows only the key's own tooltip, not the cut summ
   await page.goto("/today");
   const key = page.getByRole("link", { name: "WORK-1" });
   const summary = page.getByText(longSummary, { exact: true }).first();
-  // #217: reach the key by a real Shift+Tab from the summary right after it
+  // CB#217: reach the key by a real Shift+Tab from the summary right after it
   // in DOM order, never by focusing the key itself — it is the element under
   // test.
   await summary.focus();
@@ -131,7 +131,7 @@ test("at 900px, focusing a cut-summary row's key shows exactly one tooltip: open
   await expect(visible).toHaveText("open in Jira");
 });
 
-// Task 9 (#143): the summary is its own tab stop now, reached by tabbing off
+// Task 9 (CB#143): the summary is its own tab stop now, reached by tabbing off
 // the key link, and opens only its own tooltip — never the key's "open in
 // Jira" one, which the test above already proves the reverse of.
 test("tabbing from a Today row's key link reaches the cut summary and shows its own tooltip only", async ({
@@ -156,7 +156,7 @@ test("a Today summary that is not cut shows no tooltip on hover or focus", async
   await expect(page.locator("that-tooltip", { hasText: "Short one" })).toBeHidden();
   await page.getByRole("link", { name: "WORK-2" }).focus();
   await expect(page.locator("that-tooltip", { hasText: "Short one" })).toBeHidden();
-  // The summary is focusable regardless of whether it is cut (#143 task 9);
+  // The summary is focusable regardless of whether it is cut (CB#143 task 9);
   // `when-cut` is what keeps its tooltip from opening here, not its absence
   // from the tab order.
   await summary.focus();
@@ -180,7 +180,7 @@ test("a cut failure note on a pinned row shows its full text on hover", async ({
   await expect(tip).toBeVisible();
 });
 
-// #236: the note is its own Tab stop, reached from the summary above it.
+// CB#236: the note is its own Tab stop, reached from the summary above it.
 test("a cut failure note is its own Tab stop and opens only its own tooltip", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [])]);
   await stubPinWithError(page, "Weekly standup", longFailure);
@@ -211,7 +211,7 @@ test("a failure note that is not cut is still a Tab stop and opens nothing", asy
 });
 
 // The key link's focus opens only the key's own "open in Jira": the summary
-// and the failure note are Tab stops of their own (#143 task 9, #236), each
+// and the failure note are Tab stops of their own (CB#143 task 9, CB#236), each
 // opening its tooltip on its own focus. Both are cut here, so the only thing
 // that could open them on the key's focus is wiring that must not exist.
 test("focusing a pinned row's key link shows only the key's own tooltip, neither the summary's nor the failure note's", async ({
@@ -224,7 +224,7 @@ test("focusing a pinned row's key link shows only the key's own tooltip, neither
   const key = page.getByRole("link", { name: "WORK-1" });
   const row = page.locator('that-ticket-row[key="WORK-1"]');
   const summary = row.locator('[id^="that-sum-"]');
-  // #217: reach the key by a real Shift+Tab from the summary right after it
+  // CB#217: reach the key by a real Shift+Tab from the summary right after it
   // in DOM order, never by focusing the key itself — it is the element under
   // test.
   await summary.focus();
@@ -236,7 +236,7 @@ test("focusing a pinned row's key link shows only the key's own tooltip, neither
   await expect(page.locator("that-tooltip", { hasText: longFailure })).toBeHidden();
 });
 
-// The rail and the entry dialog give their cut text back too (#143).
+// The rail and the entry dialog give their cut text back too (CB#143).
 
 const longInstanceName =
   "Ridgeline Analytics and Reporting Platform for the Quarterly Capacity and Utilisation Programme";
@@ -272,7 +272,7 @@ test("a cut rail instance name shows its full text on hover", async ({ page }) =
   ).toBeVisible();
 });
 
-// #236: the settings cog is the rail's last Tab stop before the split — the
+// CB#236: the settings cog is the rail's last Tab stop before the split — the
 // period label and the total between them are not focusable.
 test("a cut rail instance name is its own Tab stop and opens only its own tooltip", async ({
   page,
@@ -306,7 +306,7 @@ test("a rail instance name that is not cut is still a Tab stop and opens nothing
 // even a realistic Jira key like this one already overflows it, so this is
 // not a hypothetical case worth skipping.
 //
-// Task 9 (#143), folding in #235: the key span is its own tab stop now, and
+// Task 9 (CB#143), folding in CB#235: the key span is its own tab stop now, and
 // the stop button carries its own "stop timer" tooltip rather than sharing
 // the key's — so each control's focus opens only its own tooltip, never a
 // neighbour's.
@@ -390,7 +390,7 @@ function commentOf(row: Locator): Locator {
 
 // A guard, not a new behaviour: Close is what showModal() focuses today. The
 // instance name sits before it in tree order, so once the name is a Tab stop
-// only Close's autofocus keeps it that way (#236).
+// only Close's autofocus keeps it that way (CB#236).
 test("opening the entry dialog by keyboard focuses Close", async ({ page }) => {
   await stubIssues(page, [group(1, longInstanceName, [issue("WORK-1", "Ship it")])]);
   await stubEntries(page, [dialogEntry(1, longComment)]);
@@ -457,7 +457,7 @@ test("a short comment and \"No comment\" are Tab stops that open nothing", async
 });
 
 // The instance name is the dialog's first Tab stop, so the one real key that
-// reaches it is Shift+Tab from Close (#217's rule, run backwards).
+// reaches it is Shift+Tab from Close (CB#217's rule, run backwards).
 test("a cut dialog instance name is its own Tab stop and opens only its own tooltip", async ({
   page,
 }) => {

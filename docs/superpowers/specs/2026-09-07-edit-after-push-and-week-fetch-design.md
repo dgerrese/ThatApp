@@ -6,8 +6,8 @@
 everything this document does not touch.
 **Superseded by:** nothing
 
-This is the design for #10. The ticket was written as corrections after a push; the owner widened it
-on 2026-09-07 to carry a week's fetch as well, and #113 was closed and folded in rather than
+This is the design for CB#10. The ticket was written as corrections after a push; the owner widened it
+on 2026-09-07 to carry a week's fetch as well, and CB#113 was closed and folded in rather than
 declined. The two belong together: they are the same round trip, they turn on the same derived
 state, and they meet on the same column.
 
@@ -51,7 +51,7 @@ goes. On an update it means the worklog was deleted in Jira, so the entry is cre
 new id stored. Neither case needs a trip to Jira's interface to unstick, and a repeat push stays
 idempotent.
 
-**The lost update closes here.** #9 serialises pushes against each other but not against an edit
+**The lost update closes here.** CB#9 serialises pushes against each other but not against an edit
 arriving mid-push, so an edit landing between the read and the mark is silently lost. Marking an
 entry pushed becomes conditional on the `updated_at` the push read before it called Jira.
 
@@ -62,7 +62,7 @@ the next push created a second worklog for the same hour — which a later fetch
 second local entry, putting the double on the timesheet at both ends. So `worklog_id` is written
 whatever happened, `pushed_at` is withheld when the entry has moved on, and the entry lands in the
 fourth row above. It reads dirty, and the next push **updates** that worklog rather than duplicating
-it. The correction came out of #10's whole-branch review.
+it. The correction came out of CB#10's whole-branch review.
 
 ## Half two: a week's fetch
 
@@ -155,7 +155,7 @@ of formatting this app never shows.
 ### The control
 
 **Settled with the owner on 2026-09-08 in a design session**, because none of it was drawn: the
-prototype gives Week three controls and no fourth, and the icon set drawn in #94 has no glyph for
+prototype gives Week three controls and no fourth, and the icon set drawn in CB#94 has no glyph for
 this. What follows is the outcome, not a proposal.
 
 **It sits at the left of Week's header, after the week label and a vertical rule.** The three
@@ -174,7 +174,7 @@ defect the first time the fetch left an unpushed edit alone.
 
 **It is labelled "Fetch worklogs", naming no service.** That is the owner's preference and it puts
 this button at odds with `Push to Jira` in the rail and with every cell tooltip. **Reconciling them
-is #116, not this ticket** — the fix spans two views, and #10 renaming half the app on the way past
+is CB#116, not this ticket** — the fix spans two views, and CB#10 renaming half the app on the way past
 is how a scope quietly doubles.
 
 **It disables while running.**
@@ -198,7 +198,7 @@ own list:
   applied their results.
 
 **No new cell mark.** Marking the cells a fetch changed was considered and rejected: the marks
-drawn in #94 mean push state and nothing else, and a mark meaning "arrived just now" would be the
+drawn in CB#94 mean push state and nothing else, and a mark meaning "arrived just now" would be the
 first in the app that expires on a timer. The named list points at the same cells without teaching
 a fourth vocabulary.
 
@@ -256,9 +256,9 @@ document exists rather than a plan alone.
 - **Clockwork and Tempo.** Clockwork's API is real but is Pro only, needs its own token per instance,
   and only exists where the app is installed. Not relevant here.
 - **Naming Jira in the rest of the app's labels.** The fetch control drops the service name, which
-  leaves `Push to Jira` and the cell tooltips saying it. Reconciling them is **#116**.
-- **The weekly view itself** (#11, shipped) and everything already filed: #105, #106, #107, #108,
-  #109, #110.
+  leaves `Push to Jira` and the cell tooltips saying it. Reconciling them is **CB#116**.
+- **The weekly view itself** (CB#11, shipped) and everything already filed: CB#105, CB#106, CB#107, CB#108,
+  CB#109, [#10](https://github.com/dgerrese/ThatApp/issues/10).
 
 ## An insufficient token is user error
 
@@ -281,10 +281,10 @@ scope refusal is a failure path this design must handle, not a gate in front of 
   the app produces today and which sent a real diagnosis down the wrong path on 2026-09-01. The user
   must be able to read the failure and know the token is the thing to change.
 
-**Saying it well is #79's job, not this ticket's.** #79 exists because the app discards Jira's own
-explanation at two layers, and it covers every call rather than these three. #10 must not build a
-second, private path to the same place. What #10 owes is that its failures carry the detail #79
+**Saying it well is [CB#79](../../archive/codeberg/79.md)'s job, not this ticket's.** [CB#79](../../archive/codeberg/79.md) exists because the app discards Jira's own
+explanation at two layers, and it covers every call rather than these three. CB#10 must not build a
+second, private path to the same place. What CB#10 owes is that its failures carry the detail [CB#79](../../archive/codeberg/79.md)
 surfaces, and that the fetch's report has somewhere to put a per-instance reason.
 
-**#80 covers telling the user in advance** what a token needs before they save it, which is the other
+**[CB#80](../../archive/codeberg/80.md) covers telling the user in advance** what a token needs before they save it, which is the other
 half of never hitting this at all.

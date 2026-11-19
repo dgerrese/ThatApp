@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
-	"codeberg.org/DionGerrese/ThatApp/internal/jira"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/crypto"
+	"github.com/dgerrese/ThatApp/internal/jira"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // jiraSiteServer stands in for a whole Jira site: the unauthenticated
@@ -227,7 +227,7 @@ func TestGetInstancesNeverReturnsTheToken(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("returned %d instances, want 1", len(got))
 	}
-	// #5 needs this for issue links.
+	// CB#5 needs this for issue links.
 	if got[0].SiteURL != "https://example.atlassian.net" {
 		t.Errorf("siteUrl = %q, want the stored site URL", got[0].SiteURL)
 	}
@@ -451,7 +451,7 @@ func TestConnectionTestReportsTheIdentity(t *testing.T) {
 	}
 }
 
-// The trap, stated exactly as #22 framed it: a stub that answers search/jql with
+// The trap, stated exactly as CB#22 framed it: a stub that answers search/jql with
 // 200 {"issues": []} and /myself with 401 must make the test FAIL.
 func TestConnectionTestFailsWhenOnlyMyselfRejects(t *testing.T) {
 	srv, db, sealer := newServerWithStore(t)
@@ -553,7 +553,7 @@ func TestConnectionTestRejectsAMissingID(t *testing.T) {
 	}
 }
 
-// #79: what Jira said is only useful if something records it. Every mapped
+// CB#79: what Jira said is only useful if something records it. Every mapped
 // failure — classified or not — is logged once with the request, the status
 // and Jira's own body, and never with the credentials that made the request.
 func TestInstanceErrorForLogsWhatJiraSaid(t *testing.T) {

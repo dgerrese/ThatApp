@@ -164,8 +164,8 @@ Every hard constraint in `CLAUDE.md` holds. The ones this view meets most direct
 
 All in the "Team reporting" milestone, each depending on the one before it:
 
-1. #336 — the saved team and its Jira accounts.
-2. #337 — the local worklog copy and its sync. Depends on #336.
-3. #338 — the team view grid, with people and range. Depends on #337.
-4. #339 — scope by project or board. Depends on #338.
-5. #340 — CSV export. Depends on #338.
+1. [#38](https://github.com/dgerrese/ThatApp/issues/38) — the saved team and its Jira accounts.
+2. [#39](https://github.com/dgerrese/ThatApp/issues/39) — the local worklog copy and its sync. Depends on [#38](https://github.com/dgerrese/ThatApp/issues/38).
+3. [#40](https://github.com/dgerrese/ThatApp/issues/40) — the team view grid, with people and range. Depends on [#39](https://github.com/dgerrese/ThatApp/issues/39).
+4. [#41](https://github.com/dgerrese/ThatApp/issues/41) — scope by project or board. Depends on [#40](https://github.com/dgerrese/ThatApp/issues/40).
+5. [#42](https://github.com/dgerrese/ThatApp/issues/42) — CSV export. Depends on [#40](https://github.com/dgerrese/ThatApp/issues/40).

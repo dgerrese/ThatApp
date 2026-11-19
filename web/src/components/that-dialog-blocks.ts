@@ -2,7 +2,7 @@ import "./that-toast";
 import type { ThatToast } from "./that-toast";
 
 /**
- * The entry dialog's blocks (#123): messages drawn above the dialog's box, its
+ * The entry dialog's blocks (CB#123): messages drawn above the dialog's box, its
  * width, stacking upward. The host lives inside the dialog, because a modal
  * dialog makes everything outside its subtree inert and a Dismiss must be
  * clickable. It is `fixed` rather than absolute so the dialog's own

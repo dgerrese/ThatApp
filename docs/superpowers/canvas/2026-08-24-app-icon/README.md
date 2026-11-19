@@ -1,4 +1,4 @@
-# The app icon — #12's design source (2026-08-24)
+# The app icon — CB#12's design source (2026-08-24)
 
 Four directions for the PWA's icon, drawn in the app's own tokens, and the one chosen.
 
@@ -10,7 +10,7 @@ Four directions for the PWA's icon, drawn in the app's own tokens, and the one c
 | `Ring.dc.html` | D · Ring — passed over. |
 | `canvas.json` | The layout: the chosen mark on one page, the three passed over on a second, each with the reason it lost. |
 
-The unchosen three are kept on purpose. #6 showed what it costs when an approved design exists only
+The unchosen three are kept on purpose. CB#6 showed what it costs when an approved design exists only
 as a memory of a decision — see `../2026-08-20-pin-flow/README.md`.
 
 Published as <https://claude.ai/code/artifact/61290e4b-98b4-4dfc-ac00-9703240b338a>.

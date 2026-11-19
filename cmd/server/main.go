@@ -10,12 +10,12 @@ import (
 
 	_ "time/tzdata" // embed the zoneinfo database; the scratch image has none
 
-	"codeberg.org/DionGerrese/ThatApp/internal/config"
-	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
-	"codeberg.org/DionGerrese/ThatApp/internal/server"
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
-	"codeberg.org/DionGerrese/ThatApp/internal/update"
-	"codeberg.org/DionGerrese/ThatApp/web"
+	"github.com/dgerrese/ThatApp/internal/config"
+	"github.com/dgerrese/ThatApp/internal/crypto"
+	"github.com/dgerrese/ThatApp/internal/server"
+	"github.com/dgerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/update"
+	"github.com/dgerrese/ThatApp/web"
 )
 
 // Set at release build time; see scripts/release-image.sh.

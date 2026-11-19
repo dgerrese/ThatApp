@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/config"
+	"github.com/dgerrese/ThatApp/internal/config"
 )
 
 func envFrom(m map[string]string) func(string) string {

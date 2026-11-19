@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
- * #259: no instance dot carries a native title; the ticket-row and Week dots
+ * CB#259: no instance dot carries a native title; the ticket-row and Week dots
  * get the app's own hover-only tooltip. A dot is not focusable, so its
  * tooltip opens on pointer alone and the dot is never a Tab stop.
  */
@@ -246,19 +246,19 @@ async function focusTrail(page: Page, presses: number): Promise<string[]> {
   return trail;
 }
 
-const TODAY_TABS = ["button|Settings","a|Today","a|Week","a|How to switch (opens in ","button|Sort by Key","button|Sort by Summary","button|Sort by Status","button|Sort by Today","a|SHARED-12","span|Weekly standup","button|Log time against SHARED-12, 0:00 today","button|start timer","button|Unpin SHARED-12","button|Refresh","input|Search all instances"];
-const WEEK_TABS = ["button|Settings","a|Today","a|Week","a|How to switch (opens in ","button|Refresh","button|Fetch worklogs","input|Add a ticket to this week","button|Previous week","button|This week","button|Next week","a|RIDGE-1","button|RIDGE-1, Mon 7, 1h 00m, pushed, click to edit","button|RIDGE-1, Tue 8, no time logged, click to add","button|RIDGE-1, Wed 9, no time logged, click to add","button|RIDGE-1, Thu 10, no time logged, click to add"];
+const TODAY_TABS = ["button|Settings","a|Today","a|Week","button|Sort by Key","button|Sort by Summary","button|Sort by Status","button|Sort by Today","a|SHARED-12","span|Weekly standup","button|Log time against SHARED-12, 0:00 today","button|start timer","button|Unpin SHARED-12","button|Refresh","input|Search all instances"];
+const WEEK_TABS = ["button|Settings","a|Today","a|Week","button|Refresh","button|Fetch worklogs","input|Add a ticket to this week","button|Previous week","button|This week","button|Next week","a|RIDGE-1","button|RIDGE-1, Mon 7, 1h 00m, pushed, click to edit","button|RIDGE-1, Tue 8, no time logged, click to add","button|RIDGE-1, Wed 9, no time logged, click to add","button|RIDGE-1, Thu 10, no time logged, click to add"];
 
 test("a dot is never a Tab stop", async ({ page }) => {
   await stubToday(page);
   await page.goto("/today");
   await expect(page.getByRole("region", { name: "Pinned" }).getByText("SHARED-12")).toBeVisible();
   await expect(page.locator(".that-dot[tabindex]")).toHaveCount(0);
-  expect(await focusTrail(page, 15)).toEqual(TODAY_TABS);
+  expect(await focusTrail(page, 14)).toEqual(TODAY_TABS);
 
   await stubWeek(page);
   await page.goto("/week");
   await expect(page.locator("tbody tr", { hasText: "RIDGE-1" })).toBeVisible();
   await expect(page.locator(".that-dot[tabindex]")).toHaveCount(0);
-  expect(await focusTrail(page, 15)).toEqual(WEEK_TABS);
+  expect(await focusTrail(page, 14)).toEqual(WEEK_TABS);
 });

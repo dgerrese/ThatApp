@@ -2,7 +2,7 @@
 @source "../index.html";
 @source "./**/*.ts";
 
-/* Served from our own origin, never a font CDN: #12 makes this an offline PWA
+/* Served from our own origin, never a font CDN: CB#12 makes this an offline PWA
    and a font on someone else's host would not survive it. Both faces are
    variable across the weights the design uses, so this is one file per family
    rather than one per weight. */
@@ -76,7 +76,7 @@
   --color-rail-muted: oklch(0.66 0.01 60);
   --color-rail-active: oklch(0.205 0.008 60);
 
-  /* The tooltip's ground (#246), one value in both themes like the rail. Not the
+  /* The tooltip's ground (CB#246), one value in both themes like the rail. Not the
      drawing's 0.06, which vanished on the rail, nor 0.26, which vanished on the
      dark card: the owner chose 0.34 in the design session. */
   --color-tip: oklch(0.34 0.01 60);
@@ -125,7 +125,7 @@
      and the border resolve to the same colour. */
   --shadow-popover: 0 6px 16px -8px light-dark(oklch(0 0 0 / 0.12), oklch(0 0 0 / 0.7));
 
-  /* #123: a toast takes the prototype's popover elevation (.results): an edge
+  /* CB#123: a toast takes the prototype's popover elevation (.results): an edge
      ring and a whisper of shadow in light, a two-layer shadow in dark. */
   --shadow-toast:
     inset 0 0 0 1px var(--color-edge-ring),
@@ -370,7 +370,7 @@ that-tooltip:not(:defined) {
   display: none;
 }
 
-/* #246: a 4px arrow on the side facing the trigger. reveal() writes the side
+/* CB#246: a 4px arrow on the side facing the trigger. reveal() writes the side
    and, as --arrow-at, where the trigger's centre falls along that edge. */
 that-tooltip::after {
   content: "";
@@ -396,7 +396,7 @@ that-tooltip[data-side="right"]::after {
   border-left-width: 0;
 }
 
-/* #123: a success toast's life is its countdown line's animation. Paused while
+/* CB#123: a success toast's life is its countdown line's animation. Paused while
    the pointer or focus is on the toast, so it resumes where it stopped. */
 @keyframes toast-countdown {
   from {

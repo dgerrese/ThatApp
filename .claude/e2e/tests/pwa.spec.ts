@@ -216,7 +216,7 @@ async function expectShellRendered(page: Page): Promise<void> {
 //
 // It reaches the worker's own fetches on Chromium, so there the network arm of
 // networkFirst really does fail and the cache arm really is what answers. It
-// does NOT reach them on Firefox: measured while adding #12 task 5, an offline
+// does NOT reach them on Firefox: measured while adding CB#12 task 5, an offline
 // read of a path the worker claims comes back with a Date header seconds newer
 // than the read before it, which only a live response can carry. So on Firefox
 // an offline assertion shows that a request the worker does *not* claim fails,
@@ -390,7 +390,7 @@ test("a rebuild's app.js is what the next load takes, not the cached one", async
 });
 
 // A token no bundle contains by accident. The first version of this test used
-// "lie", which "client", "believe" and "applied" all contain — #102.
+// "lie", which "client", "believe" and "applied" all contain — CB#102.
 const POISON = "THATAPP-POISON-SENTINEL-7f3a";
 
 test("a runtime response whose content type contradicts its path is served but never cached", async ({
@@ -632,7 +632,7 @@ test("the assigned issues come back from cache, stamped, once the server is unre
   expect(offline.stamp).toMatch(ISO_UTC);
 });
 
-/** The stubbed ticket's own summary span — scoped to the tag, because #143
+/** The stubbed ticket's own summary span — scoped to the tag, because CB#143
  *  gave every summary a cut-text tooltip carrying the same text, which a
  *  bare `getByText` would match too. The tooltip is a `that-tooltip`
  *  element, never a `span`, so the tag alone excludes it. */
@@ -723,7 +723,7 @@ test("the assigned-issues warning names a time while the server is unreachable, 
 
   const stale = await openTodayStale(page, context);
   await expect(stale.warning).toBeVisible();
-  // #123: a state message stays inline, never a toast.
+  // CB#123: a state message stays inline, never a toast.
   await expect(page.locator("#view that-alert", { hasText: "Showing what was here" })).toBeVisible();
   await expect(page.locator("that-toast")).toHaveCount(0);
 
@@ -742,7 +742,7 @@ test("the assigned-issues warning names a time while the server is unreachable, 
   await expect(shipItSummary(page)).toBeVisible();
 });
 
-// #71: "online" only fires when the network itself recovers, so a server that
+// CB#71: "online" only fires when the network itself recovers, so a server that
 // restarts while the network stayed up needs a second trigger — coming back
 // to the tab.
 for (const [trigger, dispatch] of [

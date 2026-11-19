@@ -22,7 +22,7 @@ export interface PushMark {
   icon?: "success";
 }
 
-/** #280's slashed ring: dirty's ring with a slash stopping at its inner edge,
+/** CB#280's slashed ring: dirty's ring with a slash stopping at its inner edge,
  *  like a "no entry" sign, as the design session of 2026-10-08 drew it. */
 const SLASHED_RING =
   '<svg class="block" width="9" height="9" viewBox="0 0 9 9" aria-hidden="true">' +
@@ -79,7 +79,7 @@ export function knownPushState<S extends MarkedPushState>(state: S): S | "unpush
 }
 
 /** Whether an entry counts in a total. A pending delete does not: every total
- *  says what Jira will hold once the push has run (#280). */
+ *  says what Jira will hold once the push has run (CB#280). */
 export function countsInTotals(entry: Pick<Entry, "pushState">): boolean {
   return entry.pushState !== "deleted";
 }

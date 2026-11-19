@@ -14,7 +14,7 @@ import {
 } from "./that-confirm";
 
 /**
- * The stop dialog of #185: the rounding is the button. A native <dialog>
+ * The stop dialog of CB#185: the rounding is the button. A native <dialog>
  * like that-confirm's, whose shell and buttons it borrows; wider than
  * that-confirm's max-w-sm so the button row holds on one line (Decision 13).
  *

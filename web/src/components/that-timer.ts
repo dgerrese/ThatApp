@@ -5,7 +5,7 @@ import { isRunningTicket, onTimerChanged, startTimer, stopTimer } from "../timer
 
 /** One id per timer control mounted, so its tooltip's `for` can resolve it on
  *  a page holding many rows — the same reasoning that-ticket-row.ts's own
- *  pinTriggerSequence gives (#143). */
+ *  pinTriggerSequence gives (CB#143). */
 let timerTriggerSequence = 0;
 
 /**
@@ -74,7 +74,7 @@ export class ThatTimer extends HTMLElement {
       void this.toggle();
     });
 
-    // Follows the pin control's own button-plus-tooltip pattern (#143):
+    // Follows the pin control's own button-plus-tooltip pattern (CB#143):
     // anchor="end" for a trailing control, text set alongside the aria-label
     // in paint() below.
     const tooltip = document.createElement("that-tooltip");
@@ -118,8 +118,8 @@ export class ThatTimer extends HTMLElement {
     } catch (error) {
       // The button paints from isRunningTicket() alone, so a failure left
       // nothing here to revert; it only needs naming, the way a failed pin
-      // is (#207). A stop or switch the dialog sent never lands here: it
-      // reports in the dialog and resolves on close (#208).
+      // is (CB#207). A stop or switch the dialog sent never lands here: it
+      // reports in the dialog and resolves on close (CB#208).
       toast("error", messageOf(error));
     }
   }

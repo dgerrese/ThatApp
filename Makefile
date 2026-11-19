@@ -18,7 +18,7 @@ WEB     := $(COMPOSE) run --build --rm --no-deps web
 # to rebuild.
 LINT    := $(COMPOSE) run --rm --no-deps lint
 
-.PHONY: help up down install-web build-web image test-go test test-web test-e2e fmt lint-go lint-web lint tsc verify
+.PHONY: help up down install-web build-web image test-go test-scripts test test-web test-e2e fmt lint-go lint-web lint tsc verify
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -28,7 +28,7 @@ up: ## Start the dev stack
 	$(COMPOSE) up
 
 # -v drops the build and dependency caches, which is the point of it. It no
-# longer takes the database: that lives in ./data on the host (#73).
+# longer takes the database: that lives in ./data on the host (CB#73).
 down: ## Stop the dev stack and drop its caches (the database survives)
 	$(COMPOSE) --profile e2e down -v
 
@@ -39,14 +39,19 @@ build-web: install-web ## Build the frontend into web/dist
 	$(WEB) npm run build
 
 # The stable release path, pushing to a throwaway registry
-# inside the container instead of Codeberg.
+# inside the container instead of ghcr.io.
 image: build-web ## Dry-run the release image build and push, stable path
 	$(APP) sh scripts/release-image.sh 0000.01.1 localhost:5000/thatapp stable
 
 test-go: ## Run the Go test suite
 	$(APP) go test ./...
 
-test: test-go test-web ## Run all tests
+# The release workflow's shell scripts, under the container's busybox date and
+# awk; the GitHub runner runs them under GNU's, which agree on everything used.
+test-scripts: ## Test the release workflow's shell scripts
+	$(APP) sh -c 'r=0; for t in scripts/*_test.sh; do sh "$$t" || r=1; done; exit $$r'
+
+test: test-go test-scripts test-web ## Run all tests
 
 # Part of `verify`, through `test` above. Node runs the .ts directly under its
 # own type stripping, so the suite carries no test dependency — the runner is
@@ -59,9 +64,14 @@ test-web: install-web ## Run the frontend unit tests
 # --build, because `run` reuses a cached image: without it a bump to
 # @playwright/test installs new packages into the node_modules volume while the
 # image still carries the browsers the old version pinned.
-test-e2e: ## Run the Playwright suite (starts its own disposable app, see #35)
+#
+# E2E_ARGS reaches `playwright test`, e.g. E2E_ARGS=--project=firefox. CI sets
+# E2E_BUILD= to run the Playwright image it loaded instead of rebuilding it.
+E2E_ARGS  ?=
+E2E_BUILD ?= --build
+test-e2e: ## Run the Playwright suite (starts its own disposable app, see CB#35)
 	$(COMPOSE) --profile e2e rm --stop --force app-e2e
-	$(COMPOSE) --profile e2e run --build --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test'; \
+	$(COMPOSE) --profile e2e run $(E2E_BUILD) --rm playwright sh -c 'npm ci --no-audit --no-fund && npx playwright test $(E2E_ARGS)'; \
 		status=$$?; $(COMPOSE) --profile e2e rm --stop --force app-e2e; exit $$status
 
 fmt: install-web ## Format Go and frontend sources

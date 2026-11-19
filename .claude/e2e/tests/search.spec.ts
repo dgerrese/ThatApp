@@ -136,7 +136,7 @@ function searchField(page: Page) {
 }
 
 /** Installs the fake clock before navigation and pauses it once the page has
- *  loaded, so the debounce fires only when a test advances time (#272).
+ *  loaded, so the debounce fires only when a test advances time (CB#272).
  *  Also installs the in-page search-fetch counter. */
 async function gotoTodayOnPausedClock(page: Page): Promise<void> {
   await page.clock.install();
@@ -176,9 +176,9 @@ function searchFetches(page: Page): Promise<number> {
  *  element in a row that names its ticket, since a control's accessible name
  *  is fixed per IssueSearchControl and repeats across every row. Reaches the
  *  ancestor carrying `data-hit-key` rather than a fixed number of `..` hops
- *  (#143 nested the key inside its own text column), so it stays correct
+ *  (CB#143 nested the key inside its own text column), so it stays correct
  *  regardless of how deep the key sits. By role and exact name rather than
- *  `getByTitle` (#143 dropped the key link's native title for the app's own
+ *  `getByTitle` (CB#143 dropped the key link's native title for the app's own
  *  tooltip) — `exact` so e.g. "RIDGE-5000" does not also match "RIDGE-50001". */
 function resultRow(page: Page, key: string) {
   return page
@@ -210,7 +210,7 @@ test.describe("that-issue-search on Today", () => {
   test.beforeEach(async ({ page }) => {
     await stubPins(page, []);
     await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
-    // The off-list section (#84's own decision 2 addendum) now reads today's
+    // The off-list section (CB#84's own decision 2 addendum) now reads today's
     // entries on every mount and looks up any that are neither assigned nor
     // pinned — which, against the shared dev database this e2e stack points
     // at, could be any stray entry left over from other use. Left unstubbed,
@@ -260,7 +260,7 @@ test.describe("that-issue-search on Today", () => {
   });
 
   // Review finding 1: the duration control is the same one a real row draws
-  // (#84's own body), rendered here as a static variant — the "Log" hint over
+  // (CB#84's own body), rendered here as a static variant — the "Log" hint over
   // a fixed 0:00 figure, not a plain icon.
   test("a result row carries the drawn duration control, not a bare icon", async ({ page }) => {
     await stubSearch(page, [ridge5140]);
@@ -331,13 +331,13 @@ test.describe("that-issue-search on Today", () => {
       .hover();
 
     // :popover-open: the row's own summary carries a cut-text tooltip too
-    // (#143), so a bare "that-tooltip" locator would match both.
+    // (CB#143), so a bare "that-tooltip" locator would match both.
     const tooltip = page.locator("that-issue-search that-tooltip:popover-open");
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toHaveText("pin ticket");
   });
 
-  // #143: the key link drops its native title for the app's own tooltip, the
+  // CB#143: the key link drops its native title for the app's own tooltip, the
   // same treatment the pin control's tooltip above already gets.
   test("the key link carries a tooltip reading exactly \"open in Jira\", not a native title", async ({
     page,
@@ -350,7 +350,7 @@ test.describe("that-issue-search on Today", () => {
     await expect(key).not.toHaveAttribute("title");
 
     // hasText, not :popover-open: the row's own summary carries a cut-text
-    // tooltip too (#143) — hidden here regardless, since task 9 made the
+    // tooltip too (CB#143) — hidden here regardless, since task 9 made the
     // summary its own tab stop, so a key focus never opens a neighbour's
     // tooltip.
     const tooltip = page.locator("that-issue-search that-tooltip", { hasText: "open in Jira" });
@@ -399,7 +399,7 @@ test.describe("that-issue-search on Today", () => {
     await expect(field).toHaveAttribute("aria-expanded", "false");
   });
 
-  // #267: with focus in the field, Escape closes a shown tooltip first.
+  // CB#267: with focus in the field, Escape closes a shown tooltip first.
   test("Escape closes a tooltip in the panel first, and the field on the second press", async ({
     page,
   }) => {
@@ -705,7 +705,7 @@ test.describe("that-issue-search on Today", () => {
     await expect(pinnedCard.getByText("RIDGE-5140")).toBeVisible();
   });
 
-  // 2026-09-10 review of #84's own Task 7: the deleted pin form disabled an
+  // 2026-09-10 review of CB#84's own Task 7: the deleted pin form disabled an
   // option for a ticket already pinned; the panel had no equivalent, so
   // pressing pin on an already-pinned result sent a request the server could
   // only refuse. The panel now shows the truth instead — the filled pin mark,
@@ -759,7 +759,7 @@ test.describe("that-issue-search on Today", () => {
 
     await unpinButton.hover();
     // :popover-open: the row's own summary carries a cut-text tooltip too
-    // (#143), so a bare "that-tooltip" locator would match both.
+    // (CB#143), so a bare "that-tooltip" locator would match both.
     await expect(page.locator("that-issue-search that-tooltip:popover-open")).toHaveText(
       "unpin ticket",
     );
@@ -770,7 +770,7 @@ test.describe("that-issue-search on Today", () => {
     await expect(pinnedCard.getByText("RIDGE-5140")).toHaveCount(0);
   });
 
-  // 2026-09-10, folded into #84: the panel's own icon control mirrors
+  // 2026-09-10, folded into CB#84: the panel's own icon control mirrors
   // that-ticket-row's paintPinned deliberately, so it takes the same
   // treatment that ticket gave the row's control — muted at rest, primary
   // only on hover or focus, pinned or not.
@@ -994,7 +994,7 @@ test.describe("that-issue-search on Today", () => {
     await expect(keyLink).toBeFocused();
   });
 
-  // Task 9 (#143): the summary joined data-control-index too, so it must
+  // Task 9 (CB#143): the summary joined data-control-index too, so it must
   // survive a repaint the same way the key link above does — proof that
   // captureFocus/restoreFocus generalise to it rather than needing their own
   // case, since a pin action elsewhere on the page (a background Refresh,
@@ -1148,7 +1148,7 @@ test.describe("the search panel's height stops at the window's edge", () => {
   // that-tooltip is a top-layer popover, positioned in the viewport's own
   // coordinate space rather than the rows area's.
   //
-  // #143 update: stacking the key over the summary made a row taller than
+  // CB#143 update: stacking the key over the summary made a row taller than
   // the pin control it centres, which pushes the control (and so the
   // tooltip that opens above it) down within the row. Unscrolled, the very
   // first row now sits close enough under the group heading that its
@@ -1302,10 +1302,10 @@ test.describe("the search panel's height stops at the window's edge", () => {
   });
 });
 
-// #143: the row stacks the key over the summary rather than sitting them side
+// CB#143: the row stacks the key over the summary rather than sitting them side
 // by side, so the summary reads at the row's full text width instead of
 // whatever the key's own width leaves it.
-test.describe("the search results row stacks key over summary (#143)", () => {
+test.describe("the search results row stacks key over summary (CB#143)", () => {
   test.beforeEach(async ({ page }) => {
     await stubPins(page, []);
     await stubIssues(page, [{ id: 1, name: "Ridgeline", issues: [], error: null }]);
@@ -1333,7 +1333,7 @@ test.describe("the search results row stacks key over summary (#143)", () => {
   });
 });
 
-// #143: the summary's own cut-text tooltip, the same contract that-ticket-row
+// CB#143: the summary's own cut-text tooltip, the same contract that-ticket-row
 // already gives its summary — on hover of the text and on the summary's own
 // focus, never as the accessible name. Proved on both hosts of
 // that-issue-search, since neither owns the tooltip wiring itself.
@@ -1341,7 +1341,7 @@ test.describe("the search results row stacks key over summary (#143)", () => {
 // Task 9 (owner, 2026-09-25): the summary is its own tab stop now — a key
 // focus opens only the key's own "open in Jira" tooltip, never the
 // summary's.
-test.describe("a cut summary in the search panel comes back in a tooltip (#143)", () => {
+test.describe("a cut summary in the search panel comes back in a tooltip (CB#143)", () => {
   const longSummary =
     "Reconcile the capacity forecast against every team's actual booked hours, including " +
     "contractors who log their time in an entirely different Jira instance from ours";
@@ -1421,7 +1421,7 @@ test.describe("a cut summary in the search panel comes back in a tooltip (#143)"
 
   // Task 7 fix: the controller's screenshots showed the tooltip's default
   // above-opening covering the key link that keyboard focus had just moved
-  // to — the row stacks the key directly above the summary (#143's own
+  // to — the row stacks the key directly above the summary (CB#143's own
   // refinement). `below` is the search panel's opt-in for this row shape.
   //
   // Task 9: reaching the summary is now a second ArrowRight, not the key's
@@ -1472,12 +1472,12 @@ test.describe("a cut summary in the search panel comes back in a tooltip (#143)"
   });
 });
 
-// #143, point 4: arrow-key movement across the results, and Escape back to
+// CB#143, point 4: arrow-key movement across the results, and Escape back to
 // the field. The focused element's row and column are read fresh off the DOM
 // on every press (that-issue-search's own moveFocus), never tracked as
 // separate state, which is what test 6 below exists to prove survives a
 // repaint mid-navigation.
-test.describe("the search panel moves by arrow keys and Escape returns to the field (#143)", () => {
+test.describe("the search panel moves by arrow keys and Escape returns to the field (CB#143)", () => {
   const rowA = hit(1, "Ridgeline", 0, "RIDGE-6001", "Row A summary");
   const rowB = hit(1, "Ridgeline", 0, "RIDGE-6002", "Row B summary");
   const rowC = hit(1, "Ridgeline", 0, "RIDGE-6003", "Row C summary");
@@ -1501,7 +1501,7 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
     ).toBeFocused();
   });
 
-  // Task 9 (#143): the summary joined the arrow-key order between the key and
+  // Task 9 (CB#143): the summary joined the arrow-key order between the key and
   // the host's own controls, so reaching the Log control now takes a second
   // ArrowRight.
   test("down again moves to the second row's key link, right moves to its summary, then right again to its Log control", async ({
@@ -1559,7 +1559,7 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
     await expect(page.getByText("RIDGE-6001")).toBeVisible();
 
     await field.press("ArrowDown");
-    // #267: the key link's tooltip is open, so the first Escape closes only it.
+    // CB#267: the key link's tooltip is open, so the first Escape closes only it.
     const keyLink = resultRow(page, "RIDGE-6001").getByRole("link", { name: "RIDGE-6001" });
     const tooltip = page.locator("that-tooltip[for='that-search-key-1']");
     await expect(tooltip).toBeVisible();
@@ -1705,7 +1705,7 @@ test.describe("the search panel moves by arrow keys and Escape returns to the fi
       }),
     );
     // No url: keyLabel draws a plain, unfocusable span for the key, so
-    // column 0 is the summary now (#143 task 9) rather than a link — proving
+    // column 0 is the summary now (CB#143 task 9) rather than a link — proving
     // the rule reads "the row's first focusable element", not the key link
     // every other case above happens to have there.
     const noUrlHit = { ...rowA, url: "" };

@@ -164,7 +164,7 @@ test("a row holding controls is no taller than a row of text alone", async ({ pa
     const controls = bodyRow?.querySelectorAll<HTMLElement>(
       "td.c-today button, td.c-act button",
     );
-    // The duration trigger, #8's timer button and the pin, or this is
+    // The duration trigger, CB#8's timer button and the pin, or this is
     // measuring something other than what it claims.
     if (!bodyRow || controls?.length !== 3) return null;
 
@@ -181,7 +181,7 @@ test("a row holding controls is no taller than a row of text alone", async ({ pa
 });
 
 /**
- * #117's T1: `.tbl th` in the prototype (line 99) sets 12px/700/.06em
+ * CB#117's T1: `.tbl th` in the prototype (line 99) sets 12px/700/.06em
  * uppercase text and a 9px block padding, distinct from the body's 11px —
  * the two were one shared rule in styles.css before this, both hard-coded to
  * 11px with no type spec of their own beyond a hand-me-down text-sm/font-bold.
@@ -306,7 +306,7 @@ test("the duration trigger's right edge does not move with its own figure's widt
 });
 
 /** T8: the sort chevron carries opacity: .45 at rest. There is no sorted
- *  column yet (#83's), so every chevron on screen must show it. */
+ *  column yet (CB#83's), so every chevron on screen must show it. */
 test("the sort chevron carries opacity .45 at rest", async ({ page }) => {
   await stubIssues(page, [group(1, "Ridgeline", ridgelineIssues)]);
   await page.goto("/today");
@@ -359,7 +359,7 @@ test("the table card's own padding is 20px inline and 14px block", async ({ page
 });
 
 /**
- * #83's own tests: a `that-table` sorts itself and remembers it per table.
+ * CB#83's own tests: a `that-table` sorts itself and remembers it per table.
  *
  * One instance of four issues whose key, summary, status and logged time
  * each put the rows in a different order — see the comment on
@@ -645,7 +645,7 @@ test("with localStorage throwing, the page loads in Jira's order and sorting sti
 });
 
 /**
- * #127: the drawing's `.tbl td` sets 15px on the cell itself, so a cell's own
+ * CB#127: the drawing's `.tbl td` sets 15px on the cell itself, so a cell's own
  * line box is 15px too. The key and status cells carry their own drawn size
  * (`.tbl .c-key`, `.tbl .c-status`, 13px), and the key link, the duration
  * figure and the header labels keep theirs on their own elements.
@@ -679,7 +679,7 @@ test("a body cell computes the drawn 15px, and the children with their own drawn
 });
 
 /**
- * #221: the drawing's `.tbl .c-sum .clip` sets no size of its own, so the
+ * CB#221: the drawing's `.tbl .c-sum .clip` sets no size of its own, so the
  * summary inherits the cell's 15px and the 1.5 line every other cell already
  * carries — 22.5px — rather than Tailwind's own text-lg utility, whose line
  * height is 23.33px and pushed the whole row past the drawing's 45.5px.
@@ -719,7 +719,7 @@ test("a Today body row is the drawn 45.5px, and its summary takes the cell's 15p
 
 /**
  * A pinned row's failure note (that-ticket-row's own `error` attribute,
- * rendered by failureNote as its own text-xs span) is untouched by #221's
+ * rendered by failureNote as its own text-xs span) is untouched by CB#221's
  * fix, which only drops the summary span's text-lg.
  */
 test("a failure note under the summary stays 12px and truncated", async ({ page }) => {
@@ -847,7 +847,7 @@ test("sorting still works when the engine has no moveBefore", async ({ page }) =
  * observer is what lets a row's `seconds` change reach it without Today
  * wiring anything per row — but it also reaches every change *inside* a
  * row, including that-ticket-row's own re-render for an attribute this
- * table does not sort by (`url`, here — soon #8's per-second timer tick in
+ * table does not sort by (`url`, here — soon CB#8's per-second timer tick in
  * the Today cell too). `isOwnRowChange` is what keeps that from queuing a
  * sort pass: only a row arriving/leaving directly under `body`, or one of
  * the four sort-relevant attributes changing directly on a row, counts.

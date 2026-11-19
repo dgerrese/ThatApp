@@ -250,7 +250,7 @@ test("typing a figure and reading it back gives the same figure", async (t) => {
 /**
  * Stepping lands on the grid rather than adding a fixed 900 to whatever it
  * finds. That is the same for every figure this ticket can produce, and it is
- * what keeps the control honest once #8's timer hands it a run of 7m13s: the
+ * what keeps the control honest once CB#8's timer hands it a run of 7m13s: the
  * first press up should reach 0h 15m, not 0h 22m.
  */
 test("stepping moves to the next quarter hour, not by one", async (t) => {

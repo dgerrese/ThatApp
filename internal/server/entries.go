@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"github.com/dgerrese/ThatApp/internal/store"
 )
 
 // dayLayout is the wire form of a local date: the format `day` is stored in and
@@ -206,7 +206,7 @@ func (s *Server) startedAtForDay(w http.ResponseWriter, day string) (time.Time, 
 
 // createEntryRequest is the body POST accepts. startedAt has no field here: the
 // server always stamps it, so a client sending one has it dropped. Day does,
-// now — #105 lets a Week cell open the dialog for a day that is not today, and
+// now — CB#105 lets a Week cell open the dialog for a day that is not today, and
 // day is how it says which one; absent still means today, from the server's
 // own clock.
 type createEntryRequest struct {
@@ -274,7 +274,7 @@ func (s *Server) handleCreateEntry(w http.ResponseWriter, r *http.Request) {
 
 // validEntrySeconds rejects a duration that cannot be a day's work. It
 // deliberately does not require a multiple of 900: the 15-minute grid is a
-// property of the manual control, and #8's timer will produce a run of 7m13s.
+// property of the manual control, and CB#8's timer will produce a run of 7m13s.
 func validEntrySeconds(w http.ResponseWriter, seconds int) bool {
 	if seconds <= 0 || seconds > maxEntrySeconds {
 		writeError(w, http.StatusBadRequest, "invalid_request",
@@ -310,7 +310,7 @@ type updateEntryRequest struct {
 // so -race would never see it, and SQLite's own locking cannot help: the two
 // statements are separate transactions by the time they reach it. Tolerated
 // because this is a single-user app driven by one browser, where the two edits
-// are one person typing in one modal. #8 is where it stops being hypothetical:
+// are one person typing in one modal. CB#8 is where it stops being hypothetical:
 // a running timer PATCHing seconds while the foot form holds an open comment is
 // exactly this interleaving, and that ticket has to decide what to do about it.
 func (s *Server) handleUpdateEntry(w http.ResponseWriter, r *http.Request) {

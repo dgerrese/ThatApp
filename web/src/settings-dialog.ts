@@ -23,7 +23,7 @@ interface Regions {
   formSection: HTMLElement;
   addButton: HTMLButtonElement;
   // Numbers every list read this dialog starts, so refresh() can tell the
-  // answer it is holding from one a later read has already superseded (#56).
+  // answer it is holding from one a later read has already superseded (CB#56).
   latestListRead: number;
   // Set by a save or a removal: the view beneath was drawn from the instances
   // as they were, and a removal also deleted entries the rail is counting.
@@ -295,7 +295,7 @@ function emptyNotice(): HTMLElement {
 const rowState = new WeakMap<HTMLElement, { instance: Instance }>();
 
 // A second Edit on an instance whose save has not answered would open on
-// pre-save values and overwrite that save (#200).
+// pre-save values and overwrite that save (CB#200).
 const savingIds = new Set<number>();
 
 // Queries the live document: a save outlives the dialog that started it, and
@@ -310,7 +310,7 @@ function setRowEditDisabled(instanceId: number, disabled: boolean): void {
  * What the last connection test said, per instance id, for the life of the
  * page: closing Settings keeps it, a reload forgets it, and nothing stores it —
  * a stored verdict is a claim about credentials that can be revoked outside
- * this app (#89).
+ * this app (CB#89).
  */
 type Verdict = { ok: boolean; at: Date };
 const verdicts = new Map<number, Verdict>();
@@ -363,7 +363,7 @@ function instanceRow(regions: Regions, instance: Instance, position: number): HT
   const host = document.createElement("span");
   host.dataset["rowHost"] = "";
   host.id = `that-instance-host-${String(instance.id)}`;
-  // Its own Tab stop, cut or not (#236); `when-cut` keeps the tooltip shut otherwise.
+  // Its own Tab stop, cut or not (CB#236); `when-cut` keeps the tooltip shut otherwise.
   host.tabIndex = 0;
   host.className = "text-ink-muted truncate font-mono text-sm";
   identity.append(name, host, cutTextTooltip(host.id, hostLine(instance)));
@@ -448,7 +448,7 @@ function patchRow(row: HTMLElement, instance: Instance, position: number): void 
     }
   }
 
-  // A migrated row that held a gateway URL: REST calls still work, but #5 has no
+  // A migrated row that held a gateway URL: REST calls still work, but CB#5 has no
   // URL to link an issue to until the user supplies one. Re-evaluated on every
   // patch, since editing can add or remove the site URL without a page reload.
   const warning = row.querySelector<HTMLElement>("[data-site-url-warning]");
@@ -466,7 +466,7 @@ function patchRow(row: HTMLElement, instance: Instance, position: number): void 
   }
 }
 
-/** The health slot's four states (#301). The test writes nothing else, so the
+/** The health slot's four states (CB#301). The test writes nothing else, so the
  *  row never changes height. */
 function paintVerdict(row: HTMLElement, instanceId: number): void {
   const health = row.querySelector<HTMLElement>("[data-row-health]");
@@ -718,7 +718,7 @@ function instanceForm(regions: Regions, editing: Instance | undefined): HTMLElem
     }
     // After the finally: hideForm hands focus to the Edit that opened this form,
     // and a disabled button cannot take it. Reset only the form this save came
-    // from; the user may have moved on while it was in flight (#161).
+    // from; the user may have moved on while it was in flight (CB#161).
     if (regions.formSection.contains(holder)) {
       hideForm(regions);
     }
@@ -733,7 +733,7 @@ const TOKEN_PAGE = "https://id.atlassian.com/manage-profile/security/api-tokens"
  * The prototype's `.tnote`. Guidance rather than a check: the connection test
  * only reads, and Jira has no side-effect-free write to probe a token's write
  * scope with, so a token missing write:jira-work passes it and fails every
- * push (#80). The link carries the current truth if Atlassian renames things.
+ * push (CB#80). The link carries the current truth if Atlassian renames things.
  */
 function tokenNote(): HTMLElement {
   const note = document.createElement("div");

@@ -1,4 +1,4 @@
-module codeberg.org/DionGerrese/ThatApp
+module github.com/dgerrese/ThatApp
 
 go 1.26.5
 

@@ -1,4 +1,4 @@
-# #280 — A delete of a pushed entry waits for Push
+# CB#280 — A delete of a pushed entry waits for Push
 
 **Date:** 2026-10-08
 **Supersedes:** the deletion paragraph of *Push semantics* in
@@ -22,7 +22,7 @@ local browser companion.
 3. **A pending delete can be restored** before the push. Restore returns the entry to the push
    state it had before: pushed or dirty.
 4. **The MCP `delete_entry` tool may delete a pushed entry**, because a delete now only marks it.
-   The refusal #253 added (`entryReachedJira`, `mcpJiraDeleteRefusal`) is removed.
+   The refusal [CB#253](../../archive/codeberg/253.md) added (`entryReachedJira`, `mcpJiraDeleteRefusal`) is removed.
 
 ### From the design session
 
@@ -133,7 +133,7 @@ deletes out of their totals, matching the API.
   deletion paragraph is rewritten for the deferred delete.
 - **The visual language** (`2026-08-20-visual-design-language.md`, *Roles*): the slashed ring joins
   disc, ring and triangle, with its words and why it shares dirty's hue.
-- `handoff.md`: the note to remove the MCP refusal when #280 lands is settled by this ticket.
+- `handoff.md`: the note to remove the MCP refusal when CB#280 lands is settled by this ticket.
 
 ## Testing
 
