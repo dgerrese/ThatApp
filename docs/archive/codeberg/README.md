@@ -32,3 +32,4 @@ Elsewhere in the repository, `CB#<n>` names Codeberg item `<n>`. It links here w
 - [CB#309](309.md): tooltip.spec's accessible-name test is flaky in Chromium: the hover tooltip sometimes never opens
 - [CB#322](322.md): The release script sets :stable on a stable release, and the README updates from it
 - [CB#328](328.md): [Process] A node test asserts on a value read from a happy-dom element
+
