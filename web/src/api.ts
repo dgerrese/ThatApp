@@ -16,6 +16,7 @@ import type {
   StopChoice,
   StopTimerResponse,
   TimerStateResponse,
+  VersionStatus,
   WeekFetchResponse,
   WeekRollup,
 } from "./types";
@@ -202,6 +203,10 @@ export function pushDay(day?: string): Promise<PushResponse> {
   const query = day === undefined ? "" : `?day=${encodeURIComponent(day)}`;
 
   return request<PushResponse>(`/api/push${query}`, { method: "POST" });
+}
+
+export function getVersion(): Promise<VersionStatus> {
+  return request<VersionStatus>("/api/version");
 }
 
 export function getTimer(): Promise<TimerStateResponse> {
