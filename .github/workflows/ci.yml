@@ -67,6 +67,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: printf 'THAT_UID=%s\nTHAT_GID=%s\n' "$(id -u)" "$(id -g)" >> "$GITHUB_ENV"
+      # Its own step: a build inside the $(...) below writes BuildKit progress to stdout.
+      - run: docker compose build app
       - id: key
         run: echo "key=go-$(docker compose run --rm --no-deps app go env GOVERSION)-${{ hashFiles('go.sum') }}" >> "$GITHUB_OUTPUT"
       - id: cache
