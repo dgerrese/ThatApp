@@ -1,8 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
+type VersionStatus = {
+  version: string;
+  latest: { version: string; url: string } | null;
+  error: string;
+};
+
 const URL = "https://github.com/dgerrese/ThatApp/releases/tag/v2026.49.1";
 
-async function open(page: Page, version: unknown | number): Promise<void> {
+async function open(page: Page, version: VersionStatus | number): Promise<void> {
   await page.route("**/api/issues", (r) => r.fulfill({ status: 200, json: { instances: [] } }));
   await page.route("**/api/pins**", (r) => r.fulfill({ status: 200, json: [] }));
   await page.route("**/api/entries**", (r) =>
@@ -41,10 +47,11 @@ test("up to date: only the version", async ({ page }) => {
 test("update: the newest release links out above the version", async ({ page }) => {
   await open(page, { version: "2026.47.1", latest: { version: "2026.49.1", url: URL }, error: "" });
   const link = page.locator("#rail-version a");
-  await expect(link).toHaveText("2026.49.1 available");
+  await expect(link).toHaveText("2026.49.1 available (opens in a new tab)");
+  await expect(link.locator(".sr-only")).toHaveText("(opens in a new tab)");
   await expect(link).toHaveAttribute("href", URL);
   await expect(link).toHaveAttribute("target", "_blank");
-  await expect(page.locator("#rail-version")).toHaveText(/2026\.49\.1 available\s*ThatApp 2026\.47\.1/);
+  await expect(page.locator("#rail-version")).toHaveText(/2026\.49\.1 available[^T]*ThatApp 2026\.47\.1/);
   await footInsideRail(page);
 });
 

@@ -9,7 +9,7 @@ import (
 )
 
 func newer(tag string) string {
-	return `{"tag_name":"` + tag + `","html_url":"https://github.com/dgerrese/ThatApp/releases/tag/` + tag + `"}`
+	return `{"tag_name":"` + tag + `"}`
 }
 
 func TestCheck(t *testing.T) {
@@ -59,6 +59,28 @@ func TestCheck(t *testing.T) {
 				t.Errorf("Latest = %+v, want nil", *got.Latest)
 			case tt.want != nil && (got.Latest == nil || *got.Latest != *tt.want):
 				t.Errorf("Latest = %+v, want %+v", got.Latest, *tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckTransportErrors(t *testing.T) {
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+	tests := []struct {
+		name    string
+		url     string
+		wantErr string
+	}{
+		{"connection refused", closed.URL, "GitHub could not be reached."},
+		{"unknown host", "http://no-such-host.invalid/", "api.github.com could not be found."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewChecker("2026.47.1", tt.url, &http.Client{Timeout: time.Second})
+			c.Check(context.Background())
+			if got := c.Status().Err; got != tt.wantErr {
+				t.Errorf("Err = %q, want %q", got, tt.wantErr)
 			}
 		})
 	}

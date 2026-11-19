@@ -4,8 +4,12 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,12 +41,20 @@ func ParseVersion(s string) (Version, error) {
 
 // Less reports whether v is older than w.
 func (v Version) Less(w Version) bool {
-	for i := range v {
-		if v[i] != w[i] {
-			return v[i] < w[i]
-		}
+	return slices.Compare(v[:], w[:]) < 0
+}
+
+func transportMessage(err error) string {
+	var netErr net.Error
+	var dnsErr *net.DNSError
+	switch {
+	case errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()):
+		return "GitHub did not answer."
+	case errors.As(err, &dnsErr):
+		return "api.github.com could not be found."
+	default:
+		return "GitHub could not be reached."
 	}
-	return false
 }
 
 // Release is a GitHub release as the API reports it to the browser.
@@ -106,13 +118,15 @@ func (c *Checker) Run(ctx context.Context, every time.Duration) {
 func (c *Checker) fetch(ctx context.Context) Status {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url, nil)
 	if err != nil {
-		return Status{Err: "GitHub did not answer."}
+		log.Printf("update check: building request: %v", err)
+		return Status{Err: "GitHub could not be reached."}
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "ThatApp")
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return Status{Err: "GitHub did not answer."}
+		log.Printf("update check: %v", err)
+		return Status{Err: transportMessage(err)}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -120,7 +134,6 @@ func (c *Checker) fetch(ctx context.Context) Status {
 	}
 	var body struct {
 		Tag string `json:"tag_name"`
-		URL string `json:"html_url"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return Status{Err: "GitHub's answer could not be read."}
@@ -129,8 +142,9 @@ func (c *Checker) fetch(ctx context.Context) Status {
 	if err != nil {
 		return Status{Err: fmt.Sprintf("GitHub's newest release %q is not a version.", body.Tag)}
 	}
+	version := strings.TrimPrefix(body.Tag, "v")
 	if !c.current.Less(latest) {
 		return Status{}
 	}
-	return Status{Latest: &Release{Version: strings.TrimPrefix(body.Tag, "v"), URL: body.URL}}
+	return Status{Latest: &Release{Version: version, URL: "https://github.com/dgerrese/ThatApp/releases/tag/v" + version}}
 }

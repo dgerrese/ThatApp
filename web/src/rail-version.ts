@@ -4,13 +4,6 @@ import type { VersionStatus } from "./types.ts";
 
 const REFRESH_MS = 60 * 60 * 1000;
 
-function line(className: string): HTMLElement {
-  const el = document.createElement("span");
-  el.dataset.line = "";
-  el.className = className;
-  return el;
-}
-
 /**
  * Owns one child of the foot and rebuilds only that, so a block another ticket
  * puts beside it survives a repaint.
@@ -31,23 +24,27 @@ export function paintVersion(foot: HTMLElement, status: VersionStatus): void {
     link.target = "_blank";
     link.rel = "noopener";
     link.className = "text-primary-rail inline-flex items-center gap-1.5 text-[13px] font-bold";
-    link.dataset.line = "";
-    link.append(`${status.latest.version} available `);
+    link.append(`${status.latest.version} available`);
+    const cue = document.createElement("span");
+    cue.className = "sr-only";
+    cue.textContent = " (opens in a new tab)";
+    link.append(cue);
     link.insertAdjacentHTML("beforeend", iconMarkup("external", 13));
     lines.push(link);
   }
 
   if (status.error !== "") {
-    const failed = line("text-rail-muted");
+    const failed = document.createElement("span");
+    failed.className = "text-rail-muted";
     const label = document.createElement("i");
-    label.dataset.label = "";
     label.className = "text-failed-rail not-italic";
     label.textContent = "Update check failed:";
     failed.append(label, ` ${status.error}`);
     lines.push(failed);
   }
 
-  const version = line("text-rail-muted font-mono text-xs");
+  const version = document.createElement("span");
+  version.className = "text-rail-muted font-mono text-xs";
   version.textContent = `ThatApp ${status.version}`;
   lines.push(version);
 
