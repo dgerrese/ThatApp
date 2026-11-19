@@ -66,7 +66,7 @@ func TestCheck(t *testing.T) {
 
 func TestCheckRecovers(t *testing.T) {
 	status := 404
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(status)
 		if status == 200 {
 			_, _ = w.Write([]byte(newer("v2026.49.1")))
@@ -110,7 +110,7 @@ func TestParseVersion(t *testing.T) {
 
 func TestRunChecksImmediately(t *testing.T) {
 	hit := make(chan struct{}, 1)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		select {
 		case hit <- struct{}{}:
 		default:

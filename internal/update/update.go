@@ -12,10 +12,13 @@ import (
 	"time"
 )
 
+// LatestReleaseURL is GitHub's endpoint for the newest stable release.
 const LatestReleaseURL = "https://api.github.com/repos/dgerrese/ThatApp/releases/latest"
 
+// Version is year, week and build number, compared as integers.
 type Version [3]int
 
+// ParseVersion reads "2026.47.1" or "v2026.47.1".
 func ParseVersion(s string) (Version, error) {
 	parts := strings.Split(strings.TrimPrefix(s, "v"), ".")
 	if len(parts) != 3 {
@@ -32,6 +35,7 @@ func ParseVersion(s string) (Version, error) {
 	return v, nil
 }
 
+// Less reports whether v is older than w.
 func (v Version) Less(w Version) bool {
 	for i := range v {
 		if v[i] != w[i] {
@@ -41,17 +45,19 @@ func (v Version) Less(w Version) bool {
 	return false
 }
 
+// Release is a GitHub release as the API reports it to the browser.
 type Release struct {
 	Version string `json:"version"`
 	URL     string `json:"url"`
 }
 
-// Latest is set only when GitHub's newest stable release is newer than the running version.
+// Status is the outcome of the last check. Latest is set only when GitHub's newest stable release is newer than the running version.
 type Status struct {
 	Latest *Release
 	Err    string
 }
 
+// Checker holds the outcome of the latest check in memory.
 type Checker struct {
 	current Version
 	url     string
@@ -61,12 +67,13 @@ type Checker struct {
 	status Status
 }
 
-// An unparseable current (a dev build) counts as 0.0.0, so any release reads as newer.
+// NewChecker builds a Checker. An unparseable current (a dev build) counts as 0.0.0, so any release reads as newer.
 func NewChecker(current, url string, client *http.Client) *Checker {
 	v, _ := ParseVersion(current)
 	return &Checker{current: v, url: url, client: client}
 }
 
+// Check asks GitHub once and replaces the stored Status.
 func (c *Checker) Check(ctx context.Context) {
 	s := c.fetch(ctx)
 	c.mu.Lock()
@@ -74,12 +81,14 @@ func (c *Checker) Check(ctx context.Context) {
 	c.mu.Unlock()
 }
 
+// Status returns the stored outcome; safe for concurrent use.
 func (c *Checker) Status() Status {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.status
 }
 
+// Run checks now, then every interval, until ctx ends.
 func (c *Checker) Run(ctx context.Context, every time.Duration) {
 	c.Check(ctx)
 	t := time.NewTicker(every)
