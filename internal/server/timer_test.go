@@ -243,7 +243,7 @@ func TestStopTimerRejectsAMissingOrUnknownRound(t *testing.T) {
 
 // TestStartTimerSwitchesFromTheRunningOne: starting a second timer stops the
 // first, as StopTimer would, and the switch's start reports the first
-// timer's entry as "stopped" — the same design property #8 draws for the row
+// timer's entry as "stopped" — the same design property CB#8 draws for the row
 // control and the rail alike. The rounding and comment are the second
 // timer's stop dialog choice, applied to the first timer's run.
 func TestStartTimerSwitchesFromTheRunningOne(t *testing.T) {
@@ -597,7 +597,7 @@ func TestAStoppedTimersCommentReachesJiraOnPush(t *testing.T) {
 	}
 }
 
-// TestATimerCloseNamingAnotherRunIsRefused (#226): a stop or switch whose
+// TestATimerCloseNamingAnotherRunIsRefused (CB#226): a stop or switch whose
 // expected run is not the one running gets 409 timer_changed and leaves the
 // timer running; a malformed expected.startedAt is a 400; a matching one, sent
 // in the configured zone's offset as GET /api/timer renders it, goes through.

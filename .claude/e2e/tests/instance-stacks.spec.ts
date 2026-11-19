@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
- * #144: from the 80rem container breakpoint Today's instance cards go into two stacks, each card
+ * CB#144: from the 80rem container breakpoint Today's instance cards go into two stacks, each card
  * to the shorter stack in instance order (a tie to the left), and keep their stack on every
  * redraw except Today opening and Refresh. Every row here is one line high, so a card's height
  * follows its row count, and two one-row cards tie exactly.
@@ -443,7 +443,7 @@ test("a Refresh that succeeds after a failed one draws the cards and places them
   const refresh = page.getByRole("button", { name: "Refresh" });
 
   await refresh.click();
-  // Enabled again once both reads settle. Not the alert: before #305 the pins answer could land
+  // Enabled again once both reads settle. Not the alert: before CB#305 the pins answer could land
   // second and wipe it, which would make this guard flaky on the unfixed code.
   await expect(refresh).toBeEnabled(); // wait
   await refresh.click();

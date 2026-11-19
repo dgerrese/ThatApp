@@ -14,7 +14,7 @@ import { iconMarkup, type IconName } from "../icons";
  * inside it is borderless. Radius sits on the outside corners only; the seams
  * between the three parts are hairlines.
  *
- * Reusable by #8, which puts a start/stop control beside it.
+ * Reusable by CB#8, which puts a start/stop control beside it.
  */
 export class ThatDuration extends HTMLElement {
   static get observedAttributes(): string[] {
@@ -74,7 +74,7 @@ export class ThatDuration extends HTMLElement {
     input.autocomplete = "off";
     // Not type="number": its spinner would be a second stepper next to ours,
     // and it rejects the `8:15` the parse rule is required to accept. inputmode
-    // is what gets the number pad on the phone in #53 without either.
+    // is what gets the number pad on the phone in #9 without either.
     input.inputMode = "numeric";
     input.setAttribute("aria-label", this.getAttribute("label") ?? "Duration");
     input.className =
@@ -154,7 +154,7 @@ export class ThatDuration extends HTMLElement {
 
     // An untouched field commits nothing. It shows the committed figure
     // rounded for display, and re-reading that rounding would snap a non-grid
-    // entry — the API accepts them, and #8's timer will write them — to the
+    // entry — the API accepts them, and CB#8's timer will write them — to the
     // grid on a mere Tab through the field.
     if (input.value === fieldFigure(this.committed)) return;
 

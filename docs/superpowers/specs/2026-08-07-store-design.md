@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-07
 - **Status:** Approved
-- **Scope:** GitHub issue #2 (ticket 2 of the sequence in `2026-08-04-thatapp-design.md`)
+- **Scope:** GitHub issue CB#2 (ticket 2 of the sequence in `2026-08-04-thatapp-design.md`)
 
 ## Purpose
 
@@ -22,8 +22,8 @@ callers that need them.
 
 The alternative — implementing every method any later ticket might want — was rejected. Most of it
 would ship with no caller, and its signatures would be guessed rather than shaped by real use.
-Instances are the exception because two near-term tickets need them: #3 stores an encrypted token,
-#4 drives them from the settings UI.
+Instances are the exception because two near-term tickets need them: CB#3 stores an encrypted token,
+CB#4 drives them from the settings UI.
 
 ## Package shape
 
@@ -218,5 +218,5 @@ Coverage:
 
 ## Out of scope
 
-Token encryption (#3). Any HTTP handler or route. Repository methods for pinned issues, time
-entries and timers — those arrive with #6-#9, each with its caller.
+Token encryption (CB#3). Any HTTP handler or route. Repository methods for pinned issues, time
+entries and timers — those arrive with CB#6-CB#9, each with its caller.

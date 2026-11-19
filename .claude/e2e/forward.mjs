@@ -1,4 +1,4 @@
-// Gives the browsers a genuine http://localhost (#66). A service worker and
+// Gives the browsers a genuine http://localhost (CB#66). A service worker and
 // window.caches need a secure context, and plain HTTP only has one on
 // localhost — per-engine flags that fake it for another hostname either miss
 // CacheStorage (Firefox) or only reach the browser, not Node (Chromium).

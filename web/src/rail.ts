@@ -17,7 +17,7 @@ import type { Entry, PushResponse, RunningTimer } from "./types";
  *
  * It lives in the shell rather than in Today, and that is the whole point. The
  * rail is the instrument — the same figure in the same place whatever view you
- * are on — so it has to stay right on #11's Week view, and under the Settings dialog, without
+ * are on — so it has to stay right on CB#11's Week view, and under the Settings dialog, without
  * either of them knowing it exists. Push belongs here for the same reason: it
  * sits beside the day total it sends, reachable from every view rather than
  * only from Today.
@@ -59,10 +59,10 @@ export const TODAY_PERIOD: RailPeriod = {
 // Everything that is not pushed is pending: never sent, sent and edited
 // since, or deleted and waiting for the push to say so. The server's push
 // sweeps all three (internal/server/push.go), and the two filters below
-// drifted from it because each was written by hand — #121.
+// drifted from it because each was written by hand — CB#121.
 const isPending = (entry: Entry): boolean => entry.pushState !== "pushed";
 
-// One counter for every cut-text id the rail hands out (#143): the split's
+// One counter for every cut-text id the rail hands out (CB#143): the split's
 // instance names and the running timer's key, each rebuilt often enough that
 // a per-render id would collide with whatever a previous render left behind.
 let railCutTextSequence = 0;
@@ -213,7 +213,7 @@ export function startRail(): void {
       // while the same instances are still running — updates the existing
       // bar segments and figure text in place instead of rebuilding the row.
       // Rebuilding removes and recreates each name's that-tooltip, and
-      // removing an open popover closes it (#143): a rebuild every minute
+      // removing an open popover closes it (CB#143): a rebuild every minute
       // closed a name's tooltip mid-hover.
       if (shape === lastSplitShape && slices.length > 0) {
         updateSplitFigures(split, slices);
@@ -347,7 +347,7 @@ export function startRail(): void {
 
   const handleStopTimer = (): void => {
     void stopTimer().catch(() => {
-      // A failed stop already reports in the dialog (#208) and resolves; this
+      // A failed stop already reports in the dialog (CB#208) and resolves; this
       // only meets a dialog chunk that would not load. The region paints from
       // currentTimer() alone, so a failed call changed nothing, and left
       // uncaught this would surface as an unhandled promise rejection.
@@ -357,7 +357,7 @@ export function startRail(): void {
   /**
    * The running line, or the resting "No timer running" — decision 4 of the
    * timer design. Reachable from every view, unlike the row's own control,
-   * which #8 draws only on Today.
+   * which CB#8 draws only on Today.
    */
   const paintTimer = (): void => {
     const running = currentTimer();
@@ -393,7 +393,7 @@ export function startRail(): void {
   onTimerChanged(paintFigures);
   paintTimer();
   void refreshTimer();
-  // #253: whatever an MCP client did while the tab was away. Announcing with
+  // CB#253: whatever an MCP client did while the tab was away. Announcing with
   // no payload is what has the rail, Today and Week each re-read for themselves.
   onTabReturn(() => {
     void refreshTimer();
@@ -405,7 +405,7 @@ export function startRail(): void {
    * Today, if it is mounted, per push-reported.ts.
    *
    * The button is disabled for the whole call, confirmation included, for the
-   * same reason #9's original Today implementation disabled its own: a second
+   * same reason CB#9's original Today implementation disabled its own: a second
    * click while one push is already in flight (or its confirmation still
    * open) is the realistic way to fire two concurrent POST /api/push
    * requests, and a duplicate Jira worklog is exactly the harm this ticket
@@ -639,7 +639,7 @@ function figures(slices: Slice[]): HTMLElement {
     const nameId = `that-rail-name-${String(++railCutTextSequence)}`;
     const name = document.createElement("span");
     name.id = nameId;
-    // Its own Tab stop, cut or not (#236), so a keyboard reaches a cut name
+    // Its own Tab stop, cut or not (CB#236), so a keyboard reaches a cut name
     // the way a pointer does; `when-cut` keeps the tooltip shut otherwise.
     name.tabIndex = 0;
     name.className = "text-rail-muted min-w-0 flex-1 truncate";
@@ -710,7 +710,7 @@ function runningTimerLine(
   stopTooltip.textContent = "stop timer";
 
   return {
-    // The key's own tooltip (#143 task 9): that-tooltip already opens on its
+    // The key's own tooltip (CB#143 task 9): that-tooltip already opens on its
     // `for` element's own focus, now that the key itself is focusable, and
     // the stop button gets its own tooltip below rather than sharing the
     // key's.

@@ -28,7 +28,7 @@ const (
 // Youngest wins — measured against the later of the entry's updated_at and
 // pushed_at — with three deliberate exceptions.
 //
-// A pending delete is left alone whatever the timestamps say (#280).
+// A pending delete is left alone whatever the timestamps say (CB#280).
 //
 // A dirty entry always wins, whatever the timestamps say. Following youngest-wins
 // there would discard an edit the user typed and never sent, which is the one

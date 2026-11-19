@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
- * #259: no instance dot carries a native title; the ticket-row and Week dots
+ * CB#259: no instance dot carries a native title; the ticket-row and Week dots
  * get the app's own hover-only tooltip. A dot is not focusable, so its
  * tooltip opens on pointer alone and the dot is never a Tab stop.
  */

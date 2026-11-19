@@ -688,7 +688,7 @@ func TestAStaleTimerStoppedByTheUserIsTheMidnightCloseAndStaysHonest(t *testing.
 }
 
 // A stop or switch confirmed for one run is refused when the row is another
-// run, or gone, and changes nothing (#226). Starts compare as instants, so the
+// run, or gone, and changes nothing (CB#226). Starts compare as instants, so the
 // same second rendered in another zone still matches.
 func TestACloseConfirmedForAnotherRunIsRefusedAndChangesNothing(t *testing.T) {
 	loc := mustLoadLocation(t, "Europe/Amsterdam")
@@ -813,7 +813,7 @@ func TestACloseConfirmedForAnotherRunIsRefusedAndChangesNothing(t *testing.T) {
 
 // A stale expectation on a timer whose start day has passed is still refused,
 // before the stop's own midnight close could run; the next read then closes
-// it as the midnight close always does, honest and on its start day (#226).
+// it as the midnight close always does, honest and on its start day (CB#226).
 func TestAStaleExpectationOnAnOvernightTimerIsRefusedAndTheMidnightCloseStillRuns(t *testing.T) {
 	loc := mustLoadLocation(t, "Europe/Amsterdam")
 	start := time.Date(2026, 9, 21, 23, 37, 0, 0, loc)

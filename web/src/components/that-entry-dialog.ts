@@ -70,7 +70,7 @@ const ICON_BUTTON_DESTRUCTIVE = `${ICON_BUTTON_BASE} hover:text-failed focus-vis
 const ICON_BUTTON_RESTORE = `text-ink ${ICON_BUTTON_FRAME}`;
 
 /** A pending delete's duration and comment: struck, in the muted ink, with the
- *  strike itself in the faint mark colour (#280, option C). */
+ *  strike itself in the faint mark colour (CB#280, option C). */
 const STRUCK = ["text-ink-muted", "line-through", "decoration-ink-faint"];
 
 /** The prototype's `.etitle`: the day line and the summary beneath the
@@ -97,7 +97,7 @@ const SUBLINE_CLASS = "text-ink-muted mt-[5px] text-base leading-[1.35] [overflo
  *
  * It is appended beside the view rather than inside the row that opened it.
  * Today re-renders its lists wholesale on Refresh, and a dialog nested in a row
- * would be destroyed mid-edit — #29's bug wearing new clothes.
+ * would be destroyed mid-edit — CB#29's bug wearing new clothes.
  *
  * There is exactly one place to type. Editing loads the entry into the same
  * foot form; which entry is named by the row itself taking an active state, so
@@ -250,7 +250,7 @@ export class ThatEntryDialog extends HTMLElement {
     // with a blank one.
     if (ticket.summary !== "") {
       const subtitle = document.createElement("p");
-      // Named, now that the empty line beneath the list (D6 of #117 task 11)
+      // Named, now that the empty line beneath the list (D6 of CB#117 task 11)
       // is a second <p> in the sheet: a bare "p" locator would resolve either
       // one.
       subtitle.id = "that-entry-dialog-summary";
@@ -283,7 +283,7 @@ export class ThatEntryDialog extends HTMLElement {
   }
 
   /**
-   * Opens on the name's own hover and its own focus (#236): the name is a Tab
+   * Opens on the name's own hover and its own focus (CB#236): the name is a Tab
    * stop whether or not it is cut, and `when-cut` keeps this shut when it fits.
    */
   private instanceTooltip(name: string): HTMLElement {
@@ -296,7 +296,7 @@ export class ThatEntryDialog extends HTMLElement {
     close.setAttribute("aria-label", "Close");
     close.className = ICON_BUTTON;
     close.innerHTML = iconMarkup("close");
-    // The instance name before it in the header is a Tab stop now (#236);
+    // The instance name before it in the header is a Tab stop now (CB#236);
     // without this, showModal() would focus the name instead of Close, and
     // open its tooltip the moment the dialog appears.
     close.autofocus = true;
@@ -407,7 +407,7 @@ export class ThatEntryDialog extends HTMLElement {
     });
     this.submit = submit;
 
-    // #297: sr-only is absolutely positioned, so it is no flex item and the
+    // CB#297: sr-only is absolutely positioned, so it is no flex item and the
     // row's gap and the drawn 38px bar are untouched.
     const label = document.createElement("label");
     label.htmlFor = comment.id;
@@ -422,7 +422,7 @@ export class ThatEntryDialog extends HTMLElement {
   /**
    * Cancel is an icon beside Save rather than a word, and it is present only
    * while there is an edit to abandon. It stays visible rather than living only
-   * on Esc — #29 added exactly this to Settings' edit mode because it was
+   * on Esc — CB#29 added exactly this to Settings' edit mode because it was
    * missing, and nothing about being inside a modal changes the argument.
    *
    * The tooltip is never its accessible name: the aria-label below stands on
@@ -594,7 +594,7 @@ export class ThatEntryDialog extends HTMLElement {
   }
 
   /**
-   * Opens on the comment's own hover and its own focus (#236), never on a
+   * Opens on the comment's own hover and its own focus (CB#236), never on a
    * neighbour's: the comment is a Tab stop whether or not it is cut —
    * "No comment" included — so the Tab order never changes with the window's
    * width, and `when-cut` keeps this shut when there is nothing to give back.
@@ -703,7 +703,7 @@ export class ThatEntryDialog extends HTMLElement {
   private async confirmAndDelete(entry: Entry): Promise<void> {
     const logged = `${totalFigure(entry.seconds)} logged at ${clockTime(entry.startedAt)}`;
     // An entry Jira holds waits for the push and can be restored until then;
-    // one it does not goes now. Neither wording names Jira (#280, decision 9).
+    // one it does not goes now. Neither wording names Jira (CB#280, decision 9).
     const waits = entry.pushState === "pushed" || entry.pushState === "dirty";
     const confirmed = await confirmDestructive({
       heading: "Delete this entry?",

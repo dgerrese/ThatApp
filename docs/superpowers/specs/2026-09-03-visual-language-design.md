@@ -360,7 +360,7 @@ note, and 14px inline with text.
 **One mark has its own stroke weight: the cog.** It is drawn from computed gear geometry
 (`#p-gear`) at **`1.7`**, not `1.9`, at 17px beside the wordmark. It carries far more outline than
 any other mark in the same box, and at `1.9` its teeth close up. It is the set's one deliberate
-exception, settled in #89's design session of 2026-09-03; any other mark drawn at another weight is
+exception, settled in [CB#89](../../archive/codeberg/89.md)'s design session of 2026-09-03; any other mark drawn at another weight is
 drift, not precedent.
 
 The reason is not taste. A typed character is rendered by whichever font resolves it, and that is not
@@ -392,10 +392,10 @@ The set the app needs: pin, pin-off, search, sortable, ascending, descending, pu
 failed, success, info, external, plug, check, and the two nav marks and the rail's cog, transcribed
 from the prototype's
 `#p-clock`, `#p-cal` and `#p-gear` into `index.html`. `index.html` is where they are drawn from,
-not what settles what they should be — #117 found one of the three drifted from its source and
+not what settles what they should be — [CB#117](../../archive/codeberg/117.md) found one of the three drifted from its source and
 corrected it.
 
-> `info` and `external` came from #80's design sessions. `info` is drawn at 18px even in a
+> `info` and `external` came from [CB#80](../../archive/codeberg/80.md)'s design sessions. `info` is drawn at 18px even in a
 > form's note, because at 16px its dot and stem fuse; `external` is 14px because at 16px it
 > stands taller than the 13px text it follows. The issue keys are outbound links too and carry no
 > `external` mark — their tooltip already says where they go.
@@ -427,7 +427,7 @@ and the right one depends on what sits next to it:
   where the neighbour is a status column that would otherwise jump on every hover.
 - **Reveal.** The hint has no width until wanted, and expands. Correct in a narrow panel such as the
   search results, where reserved width is taken straight out of the summary being read. There, the
-  key sits above the summary rather than beside it, and the row's controls sit to their right (#143,
+  key sits above the summary rather than beside it, and the row's controls sit to their right (CB#143,
   2026-09-23 refinement) — so the summary reads at the row's own full text width instead of whatever
   the key's width would otherwise leave it.
 
@@ -450,7 +450,7 @@ regardless, because a tooltip that only appears on hover reaches neither a keybo
 reader on its own. And a tooltip on a **trailing** control anchors to its right edge rather than
 centring on it, or it hangs past the card.
 
-**The tooltip's skin, settled in #246's design session** (owner, 2026-09-30, in the design companion,
+**The tooltip's skin, settled in CB#246's design session** (owner, 2026-09-30, in the design companion,
 tried in the full prototype):
 
 - **Text and box are the drawing's `.tip`:** 12px / 500 text, 5px 9px padding, 2px corners, no
@@ -470,9 +470,9 @@ tried in the full prototype):
 `.tip.below` — when there is not enough room above.** #content starts flush against the window's
 top edge, so a trigger near the top of the content column has nowhere to open upward into.
 
-**A text cut by an ellipsis gives its full wording back in the same tooltip** (#143), in a wrapping
+**A text cut by an ellipsis gives its full wording back in the same tooltip** (CB#143), in a wrapping
 variant about 340px wide, shown only when the text is actually cut — never for a text that already
-fits. **Every cut text is its own Tab stop** (#236, owner, 2026-09-29): a ticket summary (Today's
+fits. **Every cut text is its own Tab stop** (CB#236, owner, 2026-09-29): a ticket summary (Today's
 rows and the search panel's), a pinned row's failure note, the rail's running key and its
 instance-name slices, and the entry dialog's instance name and each entry's comment. Each is a Tab
 stop whether or not it is cut — "No comment" included — so the Tab order never changes with the
@@ -483,7 +483,7 @@ text borrowed a neighbouring control's focus — a shape that broke the moment a
 one cut text, since one focus then had to open two tooltips at once. Like every other tooltip here,
 it is never the accessible name.
 
-**A key that links to Jira carries a tooltip reading "open in Jira"** (#143), replacing the native
+**A key that links to Jira carries a tooltip reading "open in Jira"** (CB#143), replacing the native
 title, centred like any other non-trailing control — owner, 2026-09-25.
 
 ## Decision 8 — the breakpoint scale, and one collision it walks into
@@ -546,8 +546,8 @@ the owner on 2026-09-23, over the prototype's 50% in both themes and the browser
 
 ## Decision 12 — a toolbar button carries words, an inline control carries a glyph
 
-Settled by the owner on 2026-09-09, while #117 asked where Week's refresh control goes now that the
-header also carries #10's fetch. The placement question turned out to be the smaller half: the pair
+Settled by the owner on 2026-09-09, while [CB#117](../../archive/codeberg/117.md) asked where Week's refresh control goes now that the
+header also carries CB#10's fetch. The placement question turned out to be the smaller half: the pair
 looked unfinished because one control wore a label and the other did not, and nothing in this
 language said which was right.
 
@@ -567,10 +567,10 @@ noise. Inline controls keep the tooltip and the `aria-label` they already carry.
   the words live in the `This week` button between them. Labelling the arrows would widen the group
   by about 140px to say what their shape already says.
 - **A window control is not a toolbar button.** Close and dismiss are chrome rather than actions on
-  the view's data, so the entry dialog's close stays a glyph, and Settings' will too under #89.
+  the view's data, so the entry dialog's close stays a glyph, and Settings' will too under [CB#89](../../archive/codeberg/89.md).
 
 The accessible-name rules are untouched by all of this. A glyph-only control still carries its own
-`aria-label`, and **a tooltip is never the accessible name** — #110 exists because nothing checks
+`aria-label`, and **a tooltip is never the accessible name** — [#10](https://github.com/dgerrese/ThatApp/issues/10) exists because nothing checks
 that.
 
 **What this changes in the shipped app.** Week's refresh is built to this rule from the start, and
@@ -578,12 +578,12 @@ that.
 icon-only today. Nothing inline changes.
 
 **The drawing is corrected rather than excepted.** The prototype draws both refreshes as icons
-alone, and draws no fetch control at all, because it predates both this decision and #10. Its Today
-and Week headers are brought to this rule as part of #117.
+alone, and draws no fetch control at all, because it predates both this decision and CB#10. Its Today
+and Week headers are brought to this rule as part of [CB#117](../../archive/codeberg/117.md).
 
 ## Decision 13 — a button label never breaks
 
-Set by the owner on 2026-09-23 in #185's design session, when the stop dialog's screen first
+Set by the owner on 2026-09-23 in CB#185's design session, when the stop dialog's screen first
 showed the 7-minute variant's labels wrapping. **`that-button` carries `whitespace-nowrap`,
 app-wide.** A container too narrow for its button row grows, or wraps whole buttons, never a
 label — the stop dialog is the first case, growing wider than `that-confirm`'s `max-w-sm` to hold
@@ -591,7 +591,7 @@ its button row on one line rather than letting a label wrap. The prototype draws
 440px, the width the design session settled on; a later dialog is free to need a different one
 and still follow this rule.
 
-**A button's horizontal padding is 12px** (owner, #246, 2026-09-30, in the design companion). The
+**A button's horizontal padding is 12px** (owner, CB#246, 2026-09-30, in the design companion). The
 prototype's `.btn` drew 16px and changed to match `that-button`, which already had 12px.
 
 ## What the first edition still governs
@@ -605,7 +605,7 @@ Unchanged, and this document does not restate them. Read
   trap. The dot's own lightness values are unchanged: `0.6` light, `0.72` dark, `0.7` on the rail.
 - **The rail's regions and their resting states**, its 216px width, and Push being disabled rather
   than hidden.
-- **Nav** — two destinations and a control (#89), 38px rows, current shown by fill *and* weight,
+- **Nav** — two destinations and a control ([CB#89](../../archive/codeberg/89.md)), 38px rows, current shown by fill *and* weight,
   driven from `aria-current`.
 - **The ticket row** — the 76px key column and why it is a floor rather than a width, the summary's
   `min-width: 0`, and the rule that a row key never wears the primary.
@@ -615,7 +615,7 @@ Unchanged, and this document does not restate them. Read
 
 ## Out of scope
 
-- **The phone layout** — #53 owns building it. This edition changes tokens it will consume; it does
+- **The phone layout** — [#9](https://github.com/dgerrese/ThatApp/issues/9) owns building it. This edition changes tokens it will consume; it does
   not change the phone design.
 - **Copy and tone of voice.** This changes how the app looks, not what it says.
 - **The wordmark.** It keeps its current treatment, in the new primary.

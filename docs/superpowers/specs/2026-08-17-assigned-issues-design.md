@@ -6,7 +6,7 @@
 
 The design for [#5](https://codeberg.org/DionGerrese/ThatApp/issues/5). `GET /api/issues` fetches
 the issues assigned to the user from every configured instance concurrently, and the Today view
-renders them. It is the first view of the app's actual purpose: `/` has shown a placeholder since #4.
+renders them. It is the first view of the app's actual purpose: `/` has shown a placeholder since CB#4.
 
 The design of record settles the endpoint's path and the JQL and nothing else about this ticket, which
 is why it was brainstormed. `internal/jira.SearchAssigned` already exists and is untouched here.
@@ -20,11 +20,11 @@ is why it was brainstormed. `internal/jira.SearchAssigned` already exists and is
    issues in Jira's `updated DESC` order, so **no merge key is needed and `jira.Issue` is not
    touched** — a merged list would have needed a new `updated` field on it. A failing instance renders
    its error inside its own card, which is the most obvious place a user could look for it. The
-   accepted cost: with one instance it is a card inside a card, and **#6's pinned issues span
-   instances, so they have no natural home in this layout** — that is #6's problem to solve, and this
+   accepted cost: with one instance it is a card inside a card, and **CB#6's pinned issues span
+   instances, so they have no natural home in this layout** — that is CB#6's problem to solve, and this
    document does not pre-empt it.
 3. **Fetch on render, plus a Refresh button. No cache.** Navigating away and back refetches. The
-   button earns its place because #7 and #8 park the user on this view all day, and without it the
+   button earns its place because CB#7 and CB#8 park the user on this view all day, and without it the
    only way to see new Jira work is to navigate away and back. An in-memory cache was rejected: it
    adds a second copy of state that can disagree with the server, and a staleness question at every
    entry point.
@@ -49,7 +49,7 @@ is why it was brainstormed. `internal/jira.SearchAssigned` already exists and is
 - **`issues` is always an array, never `null`**, including for a failed instance. Zero configured
   instances gives `{"instances": []}` and a 200, not an error.
 - **`url` is built server-side** as `site_url` + `/browse/` + `key`. It is **the empty string when the
-  row has no site URL** — a migrated row, which #4's design made possible on purpose — and the view
+  row has no site URL** — a migrated row, which CB#4's design made possible on purpose — and the view
   then renders the key as plain text. Building it here keeps URL construction out of the client and
   means the client never needs `siteUrl` at all.
 - **`error` is the repo's existing `{code, message}` envelope**, so its codes are the ones the Settings
@@ -70,10 +70,10 @@ func writeInstanceError(w http.ResponseWriter, err error)  // now a thin caller
 ```
 
 This is the only change to `instances.go`. **It does not trigger the file split** the handoff flags:
-that condition was #5's issue routes landing in the same file, and they land in `issues.go` instead.
+that condition was CB#5's issue routes landing in the same file, and they land in `issues.go` instead.
 
 `jira.ErrRateLimited` does not exist — a 429 still falls to the mapping's `default` branch and becomes
-a 500. That is #19's territory, unchanged here, and it means a rate-limited instance shows a generic
+a 500. That is CB#19's territory, unchanged here, and it means a rate-limited instance shows a generic
 message in its card rather than a useful one.
 
 ## The fan-out — `internal/server/issues.go`
@@ -131,7 +131,7 @@ when `url` is non-empty and plain text when it is not**, so a migrated instance'
 `rel="noopener"` is not optional: `target="_blank"` without it hands the opened page a `window.opener`
 handle back into the app.
 
-The component adds no controls of its own. #7 and #8 append a timer and a duration field into it,
+The component adds no controls of its own. CB#7 and CB#8 append a timer and a duration field into it,
 which light DOM already permits without a slot.
 
 ### `today.ts`
@@ -170,12 +170,12 @@ The card's title is the instance name, set **before the card is inserted**: `tha
 - **The whole request failed** — one `that-alert` with the message, and Refresh stays usable so the user
   can retry without navigating.
 
-**Today re-renders wholesale, and that is deliberate.** #29 gave the Settings view keyed
-reconciliation because it holds typed input and per-row in-flight results; Today in #5 holds neither,
+**Today re-renders wholesale, and that is deliberate.** CB#29 gave the Settings view keyed
+reconciliation because it holds typed input and per-row in-flight results; Today in CB#5 holds neither,
 and building reconciliation for rows with nothing to preserve is machinery guarding a case that does
-not exist yet. **#7 must revisit this** the moment a row carries a duration field the user types into —
-at that point a wholesale re-render discards input mid-typing, which is exactly the bug #29 paid to
-fix. This is written here so #7 finds it rather than rediscovering it.
+not exist yet. **CB#7 must revisit this** the moment a row carries a duration field the user types into —
+at that point a wholesale re-render discards input mid-typing, which is exactly the bug CB#29 paid to
+fix. This is written here so CB#7 finds it rather than rediscovering it.
 
 `that-button` is given a `label` attribute, which is the sole source of its inner button's accessible
 name; without it Playwright's role-based queries cannot find the button at all.
@@ -227,30 +227,30 @@ Stubbing `/api/issues` with `page.route`, the way `settings.spec.ts` stubs the i
 4. **Refresh refetches** — the second response differs, and the view shows the new list.
 5. **`/` lands on Today** with `/today` in the address bar, which is the redirect's regression test.
 
-**#5 does run e2e.** The handoff records that "#5 and #9 will skip e2e" under the `paths:` filter in
-`.github/workflows/e2e.yml` because they touch no frontend files. That holds for #9; it is wrong for
-#5, which adds `today.ts` and `that-ticket-row.ts`. The gate needs no change — the note does, and this
+**CB#5 does run e2e.** The handoff records that "CB#5 and CB#9 will skip e2e" under the `paths:` filter in
+`.github/workflows/e2e.yml` because they touch no frontend files. That holds for CB#9; it is wrong for
+CB#5, which adds `today.ts` and `that-ticket-row.ts`. The gate needs no change — the note does, and this
 ticket corrects it.
 
 Everything runs through Docker: `make verify` and `make test-e2e`, both green before the pull request.
 
 ## Dependencies
 
-- **#4 landed everything this builds on**: the split URL columns, `internal/atlassian`,
+- **CB#4 landed everything this builds on**: the split URL columns, `internal/atlassian`,
   `instanceClients`, the JSON error envelope, `api.ts`, the router and the first `that-*` components.
-- **#6 follows and inherits a layout question.** Pinned issues span instances, and the card-per-instance
-  layout has no place for them. #6 decides that; #5 does not constrain it beyond keeping
+- **CB#6 follows and inherits a layout question.** Pinned issues span instances, and the card-per-instance
+  layout has no place for them. CB#6 decides that; CB#5 does not constrain it beyond keeping
   `that-ticket-row` free of anything instance-specific.
-- **#7 must revisit the wholesale re-render**, as above.
+- **CB#7 must revisit the wholesale re-render**, as above.
 
 ## Out of scope
 
-- **Pinned issues** (#6) and **any time logging** (#7, #8) — no timer, no duration field, no day total.
+- **Pinned issues** (CB#6) and **any time logging** (CB#7, CB#8) — no timer, no duration field, no day total.
   `that-ticket-row` is shaped to accept them and carries none of them.
 - **Filtering, sorting or searching the list.** The JQL is fixed and the order is Jira's.
 - **Pagination in the UI.** `SearchAssigned` already pages internally to 100 pages; a person's
   assigned open issues do not reach that.
-- **Caching or a service worker** — #12 owns offline behaviour.
-- **Rate-limit handling** (#19). A 429 shows a generic message in that instance's card.
+- **Caching or a service worker** — CB#12 owns offline behaviour.
+- **Rate-limit handling** (CB#19). A 429 shows a generic message in that instance's card.
 - **A merged cross-instance list**, and therefore an `updated` field on `jira.Issue`. Rejected in
   brainstorming, recorded here so it is not reintroduced as an obvious improvement.

@@ -84,19 +84,19 @@ const PATHS: Record<IconName, string> = {
   // at 17px, where a single closed outline collapses into a lozenge.
   edit: '<path d="M4.5 19.5h4l10-10a2.1 2.1 0 0 0-3-3l-10 10Z"/><path d="M14 6.5l3 3"/>',
   trash: '<path d="M4.5 6.5h15M9.5 6.5V4.2h5v2.3M6.5 6.5l1 13h9l1-13M10.5 10v6M13.5 10v6"/>',
-  // #280's Restore, transcribed from the design session's #m-undo (2026-10-08).
+  // CB#280's Restore, transcribed from the design session's #m-undo (2026-10-08).
   undo: '<path d="M9 6.5 4.5 11 9 15.5"/><path d="M4.5 11h10a5 5 0 0 1 0 10h-3"/>',
   "add-to-week":
     '<path d="M4 5h16"/><path d="M4 10h16"/>' +
     '<path d="M20 14v1a2 2 0 0 1-2 2H8"/><path d="M11 14l-3 3 3 3"/>',
   // Transcribed from the prototype's #p-search, for that-issue-search's field.
   search: '<circle cx="11" cy="11" r="6.6"/><path d="M15.9 15.9 20.5 20.5"/>',
-  // #8's row and rail controls. The design's own geometry
+  // CB#8's row and rail controls. The design's own geometry
   // (2026-09-18-timer-design.md, Task 4 of the plan) — a rounded triangle and
   // a rounded square, not drawn here first.
   play: '<path d="M8 5.6v12.8a.6.6 0 0 0 .92.5l9.6-6.4a.6.6 0 0 0 0-1l-9.6-6.4A.6.6 0 0 0 8 5.6Z"/>',
   stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>',
-  // #80's token note. Settled on the companion 2026-09-21: success and failed's
+  // CB#80's token note. Settled on the companion 2026-09-21: success and failed's
   // own circle, with warning's dot-and-stem inverted. Drawn at 18px, never 16 —
   // at 16 the dot and the stem fuse, and thinning the stroke does not help.
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 8.6h.01M12 11.4v3.6"/>',
@@ -104,7 +104,7 @@ const PATHS: Record<IconName, string> = {
   // text. Issue keys are outbound too and stay bare, by the owner's choice.
   external:
     '<path d="M14 5h5v5M19 5l-8 8M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
-  // #89's row controls and health mark, transcribed from #p-plug and #p-check.
+  // CB#89's row controls and health mark, transcribed from #p-plug and #p-check.
   // The drawing strokes the check at 2.2; the set's 1.9 holds here, and the
   // difference went to the owner.
   plug: '<path d="M9 3.5v5M15 3.5v5M6.5 8.5h11v3a5.5 5.5 0 0 1-5.5 5.5A5.5 5.5 0 0 1 6.5 11.5Z"/><path d="M12 17v3.5"/>',

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * #143's keyboard audit found two places where a repaint that follows a
+ * CB#143's keyboard audit found two places where a repaint that follows a
  * keyboard action drops focus to <body> instead of keeping it on something
  * the next Tab or Enter can reach: Settings' Remove (the row holding the
  * pressed button is deleted from the list) and Today's pin/unpin controls
@@ -53,7 +53,7 @@ const RIDGE_1 = {
   url: "https://example.atlassian.net/browse/RIDGE-1",
 };
 
-test.describe("Settings: Remove does not drop focus to <body> (#143)", () => {
+test.describe("Settings: Remove does not drop focus to <body> (CB#143)", () => {
   test("removing one of two instances refocuses the next row's own control", async ({ page }) => {
     let instances = [
       {
@@ -136,7 +136,7 @@ test.describe("Settings: Remove does not drop focus to <body> (#143)", () => {
   });
 });
 
-test.describe("Today: pin/unpin does not drop focus to <body> (#143)", () => {
+test.describe("Today: pin/unpin does not drop focus to <body> (CB#143)", () => {
   test("unpinning a pinned ticket keeps focus off <body>", async ({ page }) => {
     // RIDGE-9 is both pinned and assigned, so unpinning it does not make it
     // vanish from the page — it reappears in the Ridgeline card below, which
@@ -241,7 +241,7 @@ test.describe("Today: pin/unpin does not drop focus to <body> (#143)", () => {
   });
 });
 
-test.describe("Entry dialog: deleting an entry does not drop focus out of the dialog (#143)", () => {
+test.describe("Entry dialog: deleting an entry does not drop focus out of the dialog (CB#143)", () => {
   test("deleting the only entry keeps focus inside the still-open dialog", async ({ page }) => {
     await page.route("**/api/issues", async (route) => {
       await route.fulfill({

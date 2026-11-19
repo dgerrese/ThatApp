@@ -200,7 +200,7 @@ async function typeDuration(page: Page, typed: string): Promise<void> {
 /**
  * Opens the entries dialog against a day-scoped ticket, mounted directly
  * rather than clicked open. Week is the only production caller that puts a
- * `day` on an `EntryTicket`, and it does not exist until #105's task 5 — this
+ * `day` on an `EntryTicket`, and it does not exist until CB#105's task 5 — this
  * exercises the same contract the dialog will read from Week, the way
  * pins.spec.ts mounts a bare `that-ticket-row` before Today wires one up.
  */
@@ -225,7 +225,7 @@ async function openDialogWithDay(
 }
 
 /** The logged entries, and only those. The empty line is a `<p>` sibling of
- *  the list now (D6 of #117 task 11), not an `<li>` inside it, so a bare "li"
+ *  the list now (D6 of CB#117 task 11), not an `<li>` inside it, so a bare "li"
  *  selector would already exclude it; "ul >" keeps this scoped to the list's
  *  own rows regardless of what a row's descendants (each carries several
  *  `that-tooltip`s) might otherwise match. */
@@ -389,7 +389,7 @@ test("the dialog opens from a pinned row as well as an assigned one", async ({ p
 
 /**
  * The one assertion that fails if anything about the rail is wired through the
- * Today view. It lives in the shell precisely so Settings — and #11's Week —
+ * Today view. It lives in the shell precisely so Settings — and CB#11's Week —
  * keep showing the right figure without knowing it exists.
  */
 test("the rail keeps the total while Settings is open over Today", async ({ page }) => {
@@ -413,7 +413,7 @@ test("the rail keeps the total while Settings is open over Today", async ({ page
 });
 
 /**
- * #29's bug in new clothes: a re-render that reaches the element being typed
+ * CB#29's bug in new clothes: a re-render that reaches the element being typed
  * into. Today rebuilds its lists wholesale on Refresh, which is why the dialog
  * is appended to the view root and never to the row that opened it.
  */
@@ -512,7 +512,7 @@ test("the dialog shows only the ticket it was opened from", async ({ page }) => 
 
   await trigger(page, "WORK-412").click();
 
-  // .first(): #143 gave the comment its own cut-text that-tooltip, hidden but
+  // .first(): CB#143 gave the comment its own cut-text that-tooltip, hidden but
   // carrying the same text.
   await expect(dialog(page).getByText("mine").first()).toBeVisible();
   await expect(dialog(page).getByText("someone else's row")).toHaveCount(0);
@@ -523,7 +523,7 @@ test("the dialog shows only the ticket it was opened from", async ({ page }) => 
 const PAST_DAY = "2026-08-20";
 
 /**
- * #105 task 3: a dialog carrying a day reads that day, not today's. Both
+ * CB#105 task 3: a dialog carrying a day reads that day, not today's. Both
  * entries below are the same ticket; only one is on the day the dialog is
  * scoped to.
  */
@@ -544,7 +544,7 @@ test("a day-scoped dialog lists only that day's entries", async ({ page }) => {
     day: PAST_DAY,
   });
 
-  // .first(): #143 gave the comment its own cut-text that-tooltip, hidden but
+  // .first(): CB#143 gave the comment its own cut-text that-tooltip, hidden but
   // carrying the same text.
   await expect(dialog(page).getByText("past work").first()).toBeVisible();
   await expect(dialog(page).getByText("today's work")).toHaveCount(0);
@@ -556,7 +556,7 @@ test("a day-scoped dialog lists only that day's entries", async ({ page }) => {
 });
 
 /**
- * #105 task 3: adding from a day-scoped dialog sends that day, so the server
+ * CB#105 task 3: adding from a day-scoped dialog sends that day, so the server
  * stamps the entry's start against it rather than its own clock's today.
  */
 test("adding from a day-scoped dialog sends that day", async ({ page }) => {
@@ -582,7 +582,7 @@ test("adding from a day-scoped dialog sends that day", async ({ page }) => {
 });
 
 /**
- * #105 task 3's subtle half. A dialog scoped to a day that is not today
+ * CB#105 task 3's subtle half. A dialog scoped to a day that is not today
  * announces with no payload, so Today's own listeners re-read their own
  * period instead of repainting from a past day's rows. A test that only
  * checked "something happened" would pass on an announcement that leaked the
@@ -618,7 +618,7 @@ test("adding against a past day's dialog leaves Today's own figures unchanged", 
 });
 
 /**
- * #105 task 4, Decisions 1 and 2: a scoped dialog names its own day, on the
+ * CB#105 task 4, Decisions 1 and 2: a scoped dialog names its own day, on the
  * line beneath the key — full weekday and month, above the summary when one
  * exists rather than in the identity row or the total.
  */
@@ -644,7 +644,7 @@ test("a day-scoped dialog names its own day, above the summary", async ({ page }
 });
 
 /**
- * #105 task 4, Decision 4: the empty line names the day it is empty for when
+ * CB#105 task 4, Decision 4: the empty line names the day it is empty for when
  * the dialog is scoped. The unscoped "... today." wording is covered above,
  * by "a ticket with nothing logged says so".
  */
@@ -681,7 +681,7 @@ test("an unpadded H:M means hours and minutes, not a digit string", async ({ pag
 });
 
 /**
- * The API deliberately accepts seconds off the 15-minute grid, and #8's timer
+ * The API deliberately accepts seconds off the 15-minute grid, and CB#8's timer
  * will create them routinely. The field shows such an entry rounded for
  * display, and a blur that re-read its own rounding would commit the snap —
  * so merely tabbing through the field must not rewrite the duration.
@@ -809,7 +809,7 @@ test("the split names every instance with time against it", async ({ page }) => 
 });
 
 /**
- * Review finding on #204: the split's rebuild-once-a-minute signature used to
+ * Review finding on CB#204: the split's rebuild-once-a-minute signature used to
  * carry only a slice's position and its figure, so a read that renamed an
  * instance (same position, same seconds) left the old name on screen until a
  * figure happened to cross a minute — a regression, since paint() used to
@@ -898,7 +898,7 @@ test("the dialog names the app's ink under a stored preference too", async ({ pa
 
 /**
  * `.sheet { border: 1px solid var(--edge) }` beneath `--shadow-dialog` —
- * #117 task 11, D1. The shadow alone was the shipped state; the border is
+ * CB#117 task 11, D1. The shadow alone was the shipped state; the border is
  * what the drawing adds under it.
  */
 test("the dialog carries a 1px edge border beneath its shadow", async ({ page }) => {
@@ -928,7 +928,7 @@ test("the confirm dialog carries the same 1px edge border", async ({ page }) => 
 
 /**
  * The row's edit and delete controls carry their own `.tip` popover, like
- * cancel beside them — #117 task 11, D2. The visible words are the plain
+ * cancel beside them — CB#117 task 11, D2. The visible words are the plain
  * "edit entry" / "delete entry": the tooltip is never the accessible name,
  * which stays the time-specific aria-label asserted elsewhere in this file.
  */
@@ -939,7 +939,7 @@ test("the row's edit and delete controls carry a tooltip, like cancel beside the
   await trigger(page, "WORK-412").click();
 
   const row = entryRows(page).nth(0);
-  // 0 is the comment's own cut-text tooltip (#143), 1 is the push mark's.
+  // 0 is the comment's own cut-text tooltip (CB#143), 1 is the push mark's.
   const editTip = row.locator("that-tooltip").nth(2);
   const deleteTip = row.locator("that-tooltip").nth(3);
 
@@ -954,7 +954,7 @@ test("the row's edit and delete controls carry a tooltip, like cancel beside the
   await expect(deleteTip).toHaveText("delete entry");
 });
 
-// #267: Escape closes a shown tooltip first; the dialog stays for the next one.
+// CB#267: Escape closes a shown tooltip first; the dialog stays for the next one.
 test("Escape closes a tooltip inside the dialog first, and the dialog on the second press", async ({
   page,
 }) => {
@@ -994,7 +994,7 @@ test("the header carries the dot, the instance, the key and the total, and no st
   await expect(dialog(page)).not.toContainText("09:15");
 
   // The summary is a subtitle beneath the identity line, muted, not the heading.
-  // Named, not a bare "p": the empty line beneath the list (D6 of #117 task
+  // Named, not a bare "p": the empty line beneath the list (D6 of CB#117 task
   // 11) is a second <p> in the sheet.
   const subtitle = dialog(page).locator("#that-entry-dialog-summary");
   await expect(subtitle).toHaveText(workIssue.summary);
@@ -1002,7 +1002,7 @@ test("the header carries the dot, the instance, the key and the total, and no st
 });
 
 /**
- * #105 task 4, Decision 2: every dialog names its day, not only a scoped one.
+ * CB#105 task 4, Decision 2: every dialog names its day, not only a scoped one.
  * Today's ticket carries no day of its own, so the header names the `today`
  * the envelope carried instead of staying silent about its subject.
  */
@@ -1043,7 +1043,7 @@ test("an entry with no comment reads No comment in the muted tone", async ({ pag
 
   await trigger(page, "WORK-412").click();
 
-  // .first(): #143 gave the comment its own cut-text that-tooltip, hidden but
+  // .first(): CB#143 gave the comment its own cut-text that-tooltip, hidden but
   // carrying the same text.
   const none = dialog(page).getByText("No comment").first();
   await expect(none).toBeVisible();
@@ -1084,7 +1084,7 @@ test("editing marks its own row active, offers Save and Cancel, and dims no othe
  * of its own. Pressing + must light the whole thing rather than nothing, which
  * is why the group uses :focus-within and not the input's :focus.
  *
- * #108 moved the lit colour from ink to the accent — see focus-accent.spec.ts
+ * CB#108 moved the lit colour from ink to the accent — see focus-accent.spec.ts
  * for the cross-field proof pinned against the search field's own border.
  */
 test("the duration group takes the focus ring, not the field inside it", async ({ page }) => {
@@ -1128,8 +1128,8 @@ test("each entry carries a push-state mark naming its state", async ({ page }) =
 
   // Scoped to this row and to its push mark's tooltip specifically: Today and
   // Week both put tooltips on the page already, edit and delete carry their
-  // own beside this one (D2 of #117 task 11), and the comment now carries its
-  // own cut-text one ahead of it in the DOM (#143).
+  // own beside this one (D2 of CB#117 task 11), and the comment now carries its
+  // own cut-text one ahead of it in the DOM (CB#143).
   const popover = entryRows(page).nth(0).locator("that-tooltip").nth(1);
   await expect(popover).toBeHidden();
   await entryRows(page).nth(0).getByRole("img").hover();
@@ -1167,7 +1167,7 @@ test("delete goes red under the pointer, and edit stays ink", async ({ page }) =
  * The foot form reads as one bar or it reads as a mistake. Measured rather than
  * eyeballed: the duration group, the comment field and the submit are three
  * components with three different paddings, and nothing but this says they have
- * to agree. 38px is `.btn`'s own drawn height — #117 task 11, D3.
+ * to agree. 38px is `.btn`'s own drawn height — CB#117 task 11, D3.
  */
 test("the foot form's three controls share the drawn 38px height", async ({ page }) => {
   await openToday(page);
@@ -1190,7 +1190,7 @@ test("the foot form's three controls share the drawn 38px height", async ({ page
 });
 
 /**
- * `.durgroup input` and `.ecomment-in`'s own drawn paddings — #117 task 11,
+ * `.durgroup input` and `.ecomment-in`'s own drawn paddings — CB#117 task 11,
  * D3. Longhand rather than the shorthand `padding`, matching how this suite
  * already asserts a computed padding elsewhere.
  */
@@ -1212,7 +1212,7 @@ test("the duration input and comment field carry the drawn padding", async ({ pa
   await expect(comment).toHaveCSS("padding-right", "12px");
 });
 
-// #297: a placeholder is not a label (WCAG 3.3.2). A hidden native label gives
+// CB#297: a placeholder is not a label (WCAG 3.3.2). A hidden native label gives
 // the field the stop dialog's word for it, and nothing on screen changes.
 test("the comment field is named Description by its own label", async ({ page }) => {
   await openToday(page);
@@ -1230,7 +1230,7 @@ test("the comment field is named Description by its own label", async ({ page })
 });
 
 /**
- * `.durgroup input` wears Chivo Mono with tabular figures — #117 task 11, D4:
+ * `.durgroup input` wears Chivo Mono with tabular figures — CB#117 task 11, D4:
  * figures are set in the mono face throughout the app, and the duration field
  * was the one place still typing them in the prose face.
  */
@@ -1248,7 +1248,7 @@ test("the duration field is set in the mono face with tabular figures", async ({
 
 /**
  * `.eempty` sits beneath `.elist`, not inside it, padded to the header's own
- * 20px gutter rather than the list's 14px — #117 task 11, D6.
+ * 20px gutter rather than the list's 14px — CB#117 task 11, D6.
  */
 test("the empty line sits beneath the list, flush with the header's gutter", async ({ page }) => {
   await openToday(page);
@@ -1271,7 +1271,7 @@ test("the empty line sits beneath the list, flush with the header's gutter", asy
 /**
  * The stepper's glyphs read at the icon language's own default — 18px at a
  * 1.9 stroke — rather than the prototype's own one-off 15px/2.1 markup for
- * this one pair of icons. #117 task 11, D7.
+ * this one pair of icons. CB#117 task 11, D7.
  */
 test("the duration stepper's glyphs match the icon language's size and stroke", async ({
   page,
@@ -1288,7 +1288,7 @@ test("the duration stepper's glyphs match the icon language's size and stroke", 
 
 /**
  * The primary's hover lifts the colour itself rather than compositing toward
- * whatever sits behind it — #117 task 11, D8. #rail-push already carries the
+ * whatever sits behind it — CB#117 task 11, D8. #rail-push already carries the
  * drawn form; this asserts the shared component matches it.
  */
 test("the primary button's hover lifts brightness rather than fading", async ({ page }) => {
@@ -1337,7 +1337,7 @@ test("a long instance name truncates rather than squeezing the total", async ({ 
 });
 
 /**
- * Messages the entry dialog shows (#123) are blocks drawn above its box, not a
+ * Messages the entry dialog shows (CB#123) are blocks drawn above its box, not a
  * row inside it: the dialog's height never changes and nothing in it moves.
  */
 function blocks(page: Page) {

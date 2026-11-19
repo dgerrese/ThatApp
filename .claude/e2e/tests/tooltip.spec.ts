@@ -111,7 +111,7 @@ test("a that-tooltip that never upgrades stays invisible, not printed into the p
   await routeTooltipChunk(page, (route) => route.abort("failed"));
 
   await page.reload();
-  // .first(): #143 gave the summary its own cut-text that-tooltip, which
+  // .first(): CB#143 gave the summary its own cut-text that-tooltip, which
   // repeats this same text — un-upgraded, so it is the second match here too.
   await expect(page.getByText("Fix the thing").first()).toBeVisible();
 
@@ -144,7 +144,7 @@ test("hovering a trigger shows the tooltip, and pointerleave hides it again", as
   await expect(tooltip).toBeHidden();
 });
 
-// #309: the tooltip listens for pointerenter only once its split chunk has
+// CB#309: the tooltip listens for pointerenter only once its split chunk has
 // upgraded it, and Chromium sends no second pointerenter to a resting pointer.
 // A hover that lands before the upgrade never opens it, so mountTrigger has to
 // wait for the upgrade. The delay stands in for a chunk that arrives late
@@ -164,7 +164,7 @@ test("a hover straight after mountTrigger opens the tooltip, even when its chunk
   await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
 });
 
-// #309, second cause: the router's scroll reset after Today's render, landing
+// CB#309, second cause: the router's scroll reset after Today's render, landing
 // after a hover, puts the fixture trigger back below the fold, out from under
 // the pointer, and pointerleave closes the tooltip. openToday waits it out.
 test("a hover after openToday stays open, even when Today's issues answer arrives late", async ({
@@ -189,7 +189,7 @@ test("a hover after openToday stays open, even when Today's issues answer arrive
   await expect(page.locator("that-tooltip[data-fixture]")).toBeVisible();
 });
 
-// #246 made the tooltip overflow-visible, for its arrow, which lifted the UA's
+// CB#246 made the tooltip overflow-visible, for its arrow, which lifted the UA's
 // overflow: auto off a wrapping tooltip. An unbroken word — a URL in a
 // worklog comment — must still break inside the box, not run past it.
 test("a wrapping tooltip breaks a word longer than its width inside its ground", async ({
@@ -209,11 +209,11 @@ test("a wrapping tooltip breaks a word longer than its width inside its ground",
   expect(fits).toBe(true);
 });
 
-// #246: the drawing's .tip text and box (prototype line 167), on the ground the
+// CB#246: the drawing's .tip text and box (prototype line 167), on the ground the
 // owner chose in its design session. The ground is compared against a probe
 // carrying that value, so the test does not depend on how each browser
 // serialises an oklch() colour.
-test("the tooltip wears the skin settled in #246's design session", async ({ page }) => {
+test("the tooltip wears the skin settled in CB#246's design session", async ({ page }) => {
   await mountTrigger(page);
   await page.locator("#trigger").hover();
   const tooltip = page.locator("that-tooltip[data-fixture]");
@@ -244,7 +244,7 @@ test("the tooltip wears the skin settled in #246's design session", async ({ pag
 });
 
 /**
- * #246: every tooltip carries a 4px arrow on the side facing its trigger,
+ * CB#246: every tooltip carries a 4px arrow on the side facing its trigger,
  * pointing at the trigger's centre — whether the box is centred on it,
  * end-anchored to it, or pushed below or beside it. The arrow is ::after, so
  * its position is read from its computed box rather than located on screen.
@@ -522,8 +522,8 @@ test("focusing the trigger by keyboard shows the tooltip too", async ({ page }) 
   await expect(tooltip).toBeHidden();
 });
 
-// #267, WCAG 1.4.13 "dismissible": Escape closes a shown tooltip without
-// moving the pointer or focus. #107's click-through test below is what pins
+// CB#267, WCAG 1.4.13 "dismissible": Escape closes a shown tooltip without
+// moving the pointer or focus. CB#107's click-through test below is what pins
 // pointer-events: none, so it is not repeated here.
 async function mountTriggerAfterButton(page: import("@playwright/test").Page): Promise<void> {
   await mountTrigger(page);
@@ -631,7 +631,7 @@ test("Escape with no tooltip open is left alone", async ({ page }) => {
   await expect(page.locator("body")).toHaveAttribute("data-escape-prevented", "false");
 });
 
-// #107: a tooltip is never interactive, so a click where it sits reaches the
+// CB#107: a tooltip is never interactive, so a click where it sits reaches the
 // element under it. Revealed by keyboard so that moving the pointer to click
 // cannot close it first.
 test("a shown tooltip lets a click through to the element under it", async ({ page }) => {
@@ -813,7 +813,7 @@ test("the tooltip is not clipped by an ancestor with overflow: hidden", async ({
   const paintedByTooltip = await page.evaluate(({ x, y, width, height }) => {
     const tooltip = document.querySelector<HTMLElement>("that-tooltip[data-fixture]");
     if (!tooltip) throw new Error("tooltip not found");
-    // The probe must undo the tooltip's own pointer-events: none (#107),
+    // The probe must undo the tooltip's own pointer-events: none (CB#107),
     // or elementFromPoint looks straight through it.
     const original = tooltip.style.pointerEvents;
     tooltip.style.pointerEvents = "auto";
@@ -1004,7 +1004,7 @@ test("a when-cut tooltip opens on hover of cut text and wraps", async ({ page })
   expect(box?.height ?? 0).toBeGreaterThan(30); // more than one line: it wraps
 });
 
-/** #217: reach the cut text by a real Tab from the link prepended before it. */
+/** CB#217: reach the cut text by a real Tab from the link prepended before it. */
 async function tabToCutText(page: import("@playwright/test").Page): Promise<void> {
   await page.locator("#cut-link").focus();
   await page.mouse.move(0, 0);

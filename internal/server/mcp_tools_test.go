@@ -337,7 +337,7 @@ func TestMCPUnknownToolIsAProtocolError(t *testing.T) {
 	}
 }
 
-// #280: a delete only marks an entry Jira holds, so delete_entry may delete
+// CB#280: a delete only marks an entry Jira holds, so delete_entry may delete
 // any entry and still never write to Jira. newEntriesEnv's fake counts deletes.
 func TestMCPDeleteEntryNeverReachesJira(t *testing.T) {
 	for _, tc := range []struct {

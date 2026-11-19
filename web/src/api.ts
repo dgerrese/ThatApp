@@ -182,7 +182,7 @@ export function deleteEntry(id: number): Promise<void> {
   return request<void>(`/api/entries/${id}`, { method: "DELETE" });
 }
 
-/** Takes back a delete that is waiting for the push (#280), answering with the
+/** Takes back a delete that is waiting for the push (CB#280), answering with the
  *  entry in the push state it had before. */
 export function restoreEntry(id: number): Promise<Entry> {
   return request<Entry>(`/api/entries/${id}/restore`, { method: "POST" });
@@ -213,7 +213,7 @@ export function getTimer(): Promise<TimerStateResponse> {
   return request<TimerStateResponse>("/api/timer");
 }
 
-/** The wire contract names exactly these three fields, not the tab's whole run (#226). */
+/** The wire contract names exactly these three fields, not the tab's whole run (CB#226). */
 function expectedBody(expected?: ExpectedTimer): ExpectedTimer | undefined {
   return (
     expected && {
@@ -226,7 +226,7 @@ function expectedBody(expected?: ExpectedTimer): ExpectedTimer | undefined {
 
 /** `choice` is how to close the timer already running, which the server
  *  requires when one runs on the same day; `expected` is the run that choice
- *  was confirmed for (#226). */
+ *  was confirmed for (CB#226). */
 export function startTimer(
   instanceId: number,
   issueKey: string,

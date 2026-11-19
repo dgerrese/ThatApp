@@ -15,7 +15,7 @@ import (
 //
 // unpushed outranks dirty deliberately: dirty time is in Jira and merely stale,
 // unpushed time is not there at all. deleted sits between them, the owner's
-// order (#280): Jira holds time it should not, which outranks stale text.
+// order (CB#280): Jira holds time it should not, which outranks stale text.
 var pushStateRank = map[string]int{"pushed": 0, "dirty": 1, "deleted": 2, "unpushed": 3}
 
 // countedSeconds is the time a cell or a day shows. A pending delete is left

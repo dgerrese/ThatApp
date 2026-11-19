@@ -2,7 +2,7 @@ import { iconMarkup } from "../icons";
 import { toneMark } from "./that-alert";
 
 /**
- * One toast (#123): that-alert's row — the tone's mark, the words in ordinary
+ * One toast (CB#123): that-alert's row — the tone's mark, the words in ordinary
  * ink — with its list, a Dismiss button, and, for a success, the countdown line
  * whose animation is the toast's life. Not a live region: the host is.
  * `block` is the dialog-block variant: sized by its host, and no countdown,

@@ -5,8 +5,8 @@
 says a row appears only when it has an entry in the week — decision 1 below replaces it.
 **Superseded by:** nothing
 
-Settled with the owner on the local browser companion, 2026-09-10, for **#84** (search for any issue
-and log time against it without pinning it) and **#139** (Week shows a pinned ticket even when
+Settled with the owner on the local browser companion, 2026-09-10, for **CB#84** (search for any issue
+and log time against it without pinning it) and **CB#139** (Week shows a pinned ticket even when
 nothing was logged against it that week). The two tickets create the same new thing — a row in the
 week grid holding no time — so they were designed together and share decisions 1 and 3.
 
@@ -31,7 +31,7 @@ that is the point — the grid shows what you are working on this week, not why 
 
 This reverses the week view design's rule that *"a row appears when it has at least one entry in the
 week. The grid is not a list of assigned or pinned tickets; it is what the week actually contains."*
-That document is corrected by whichever of #84 and #139 lands first.
+That document is corrected by whichever of CB#84 and CB#139 lands first.
 
 ## Decision 2 — an entry against an issue with no row appears beside Pinned
 
@@ -105,7 +105,7 @@ it answers. In practice the section holds none most days and one or two when it 
 
 The prototype contradicted itself here. Its caption says the search is *"for putting a new ticket
 into the week"*, its result row carries a Log control, and its footer says *"Logging against a
-result adds it to this week."* Since #105, every day cell opens a dialog scoped to its own day.
+result adds it to this week."* Since CB#105, every day cell opens a dialog scoped to its own day.
 
 **Choosing a result puts an empty row in the grid. It logs no time.** The row's cells are then used
 exactly as any other row's are: click a day, the dialog opens scoped to that day. Nothing has to
@@ -186,9 +186,9 @@ asked for.
 
 ## What each ticket takes from this
 
-**#139** takes decision 1 and nothing else. Its rows come from the pins the app already holds.
+**CB#139** takes decision 1 and nothing else. Its rows come from the pins the app already holds.
 
-**#84** takes decisions 1, 2, 3 and 4, plus everything already settled in its own ticket: the search
+**CB#84** takes decisions 1, 2, 3 and 4, plus everything already settled in its own ticket: the search
 input in each header, the results panel grouped by instance, Done issues always included, the
 existing endpoint widened rather than duplicated, and the deletion of the Pinned card's own pin
 form.

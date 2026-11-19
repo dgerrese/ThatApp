@@ -81,7 +81,7 @@ function runIdentity(): string {
  * into the document, and connectedCallback would not run until that
  * insertion happens.
  *
- * Sorting (#83) is owned entirely here: a header click cycles this table's
+ * Sorting (CB#83) is owned entirely here: a header click cycles this table's
  * own `SortState` (table-sort.ts) and repaints itself; Today (or Week) never
  * touches it beyond the optional `sort-id` attribute this reads at connect
  * time to persist under `thatapp.sort.<sort-id>`. Without one the table still
@@ -147,7 +147,7 @@ export class ThatTable extends HTMLElement {
     this.observe();
 
     // onTimerChanged fires on every tick too. Re-sorting then would move rows
-    // once a second while they are read, so only a change of run re-sorts (#183).
+    // once a second while they are read, so only a change of run re-sorts (CB#183).
     let seenRun = runIdentity();
     this.stopTimerListening = onTimerChanged(() => {
       const run = runIdentity();
@@ -165,7 +165,7 @@ export class ThatTable extends HTMLElement {
   }
 
   // Today moves a whole instance card between its two stacks with moveBefore
-  // (#144). Without this the move runs disconnectedCallback and
+  // (CB#144). Without this the move runs disconnectedCallback and
   // connectedCallback, and connectedCallback's replaceChildren would rebuild
   // every row inside — dropping the focus moveBefore exists to keep.
   connectedMoveCallback(): void {}
@@ -183,7 +183,7 @@ export class ThatTable extends HTMLElement {
    * `subtree: true` is what lets a row's own attribute change reach this
    * observer without Today wiring anything per row — but it also reaches
    * every change *inside* a row: `that-ticket-row`'s own re-renders, and
-   * #8's per-second timer ticking the Today cell's text (whether a timer
+   * CB#8's per-second timer ticking the Today cell's text (whether a timer
    * change re-sorts is the run check's call in connectedCallback, not this
    * observer's). None of those are a row arriving, leaving or changing what
    * it sorts by, so a mutation only counts here when it is a row being added

@@ -160,7 +160,7 @@ test("an instance can be added and appears in the list", async ({ page }) => {
 });
 
 /**
- * that-button's shared `h-[38px]` (#117 task 11, D3) reaches every consumer,
+ * that-button's shared `h-[38px]` (CB#117 task 11, D3) reaches every consumer,
  * not just the entries dialog it was written for. "Add instance" is the one
  * always on screen with no instance needed first, so it stands in as the
  * regression net for this surface.
@@ -251,7 +251,7 @@ test("a rejected connection test reports the failure", async ({ page }) => {
   await expect.soft(health.locator("svg")).toHaveAttribute("width", "15");
   await expect.soft(health.locator("svg path").first()).toHaveAttribute("d", "M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6");
 
-  // #301: the verdict is inline, the failure's message is an error toast.
+  // CB#301: the verdict is inline, the failure's message is an error toast.
   const toasts = page.locator("that-toasts that-toast");
   await expect.soft(toasts.first()).toContainText(
     "Could not connect to Work: Jira did not accept the API token for this request; check the token and its scopes",
@@ -323,7 +323,7 @@ test("a failing test at phone width moves neither its row nor the row below it",
   expect.soft(after, "after the answer").toEqual(before);
 });
 
-// A tooltip opens on keyboard focus only (#107), so the host is reached by a
+// A tooltip opens on keyboard focus only (CB#107), so the host is reached by a
 // real Shift+Tab from the Test button that follows it.
 async function focusHostByKeyboard(page: Page, settings: Locator): Promise<void> {
   await settings.locator('[data-row-action="test"]').focus();
@@ -520,7 +520,7 @@ test("saving an edit returns focus to that row's Edit button", async ({ page }) 
   await expect(page.getByRole("button", { name: "Edit Work Renamed", exact: true })).toBeFocused();
 });
 
-// #56: the initial list read is answered after a save has already redrawn the
+// CB#56: the initial list read is answered after a save has already redrawn the
 // list. Whatever that stale read carries — the empty list it saw, or a
 // failure — must not replace what the save's own read put on screen.
 for (const stale of [
@@ -634,7 +634,7 @@ test("editing an instance to add its site URL clears the missing-URL warning", a
   await page.getByRole("button", { name: "Add instance" }).click();
 
   await expect(page.getByText("This instance has no site URL")).toBeVisible();
-  // #123: a state notice stays inline in the dialog, never a toast.
+  // CB#123: a state notice stays inline in the dialog, never a toast.
   await expect(page.getByRole("dialog", { name: "Settings" }).locator("that-alert", { hasText: "This instance has no site URL" })).toBeVisible();
   await expect(page.locator("that-toast")).toHaveCount(0);
 
@@ -645,7 +645,7 @@ test("editing an instance to add its site URL clears the missing-URL warning", a
   await expect(page.getByText("This instance has no site URL")).toBeHidden();
 });
 
-// A token edit must not leave a verdict about the old token behind (#301: the
+// A token edit must not leave a verdict about the old token behind (CB#301: the
 // failure toast stays — it closes only when closed).
 test("saving over a failed connection test clears the stale result", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 401 });
@@ -729,7 +729,7 @@ test("the add and edit forms say what a token needs before it can push", async (
   await expectTokenNote(page, "[data-instance-form][data-editing-id]");
 });
 
-// #161: save() must not reset a form the user has since replaced.
+// CB#161: save() must not reset a form the user has since replaced.
 test("a save finishing after Edit on another row leaves that edit form alone", async ({ page }) => {
   await stubInstancesApi(page, { testStatus: 200 });
   await openSettings(page);
@@ -834,12 +834,12 @@ test("a save failing with its form still shown reports in the form", async ({ pa
 
   await expect(page.locator("form").getByText("could not save the instance", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Edit Work" })).toBeVisible();
-  // #123: the form's own error stays in the form, never a toast.
+  // CB#123: the form's own error stays in the form, never a toast.
   await expect(page.locator("form that-alert", { hasText: "could not save the instance" })).toBeVisible();
   await expect(page.locator("that-toast")).toHaveCount(0);
 });
 
-// #205: the error slot keeps the section heading's 10px above the instance
+// CB#205: the error slot keeps the section heading's 10px above the instance
 // list while it holds a message, and adds nothing while it is empty. The gap
 // is the slot's own bottom edge to the top of the element after it.
 async function errorSlotGap(page: Page): Promise<{ gap: number; height: number }> {
@@ -942,7 +942,7 @@ test("a successful refresh clears the message and takes the gap out with it", as
   expect(await errorSlotGap(page)).toEqual({ gap: 0, height: 0 });
 });
 
-// #200: a second Edit on an instance whose save has not answered would open
+// CB#200: a second Edit on an instance whose save has not answered would open
 // on pre-save values and overwrite that save, so Edit is disabled until its
 // own save answers — for that row only.
 test("while a save is held, that row's Edit is disabled and other rows' are not", async ({ page }) => {
@@ -991,7 +991,7 @@ test("when the held save succeeds, Edit is enabled again, focused, and opens on 
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Work Renamed");
 });
 
-test("when the held save fails, Edit is enabled again and the failure reports where #161 put it", async ({
+test("when the held save fails, Edit is enabled again and the failure reports where CB#161 put it", async ({
   page,
 }) => {
   await stubInstancesApi(page, { testStatus: 200 });
@@ -1069,7 +1069,7 @@ test("closing and reopening Settings while a save is held still re-enables that 
   await page.getByRole("button", { name: "Save changes" }).click();
   await held.arrived;
 
-  // The first Escape closes the form while the save carries on (#250). The
+  // The first Escape closes the form while the save carries on (CB#250). The
   // row's Edit is disabled until the save answers, so focus falls back to Add.
   await page.keyboard.press("Escape");
   await expect(settings.getByLabel("Name", { exact: true })).toHaveCount(0);
@@ -1299,7 +1299,7 @@ test.describe("the dialog", () => {
   });
 });
 
-// #250: Escape first closes the add/edit form, keeping what the rest of
+// CB#250: Escape first closes the add/edit form, keeping what the rest of
 // Settings shows; only a second Escape closes Settings.
 test.describe("Escape with the instance form open", () => {
   test("the first closes the Add form and keeps Settings; the second closes Settings", async ({
@@ -1346,7 +1346,7 @@ test.describe("Escape with the instance form open", () => {
     await page.keyboard.press("Shift+Tab");
     const remove = settings.getByRole("button", { name: "Remove Ridgeline", exact: true });
     await expect(remove).toBeFocused();
-    // #267: keyboard focus shows Remove's tooltip, so the first Escape closes only it.
+    // CB#267: keyboard focus shows Remove's tooltip, so the first Escape closes only it.
     const removeTip = settings.locator("that-tooltip", { hasText: "remove instance" });
     await expect(removeTip).toBeVisible();
 

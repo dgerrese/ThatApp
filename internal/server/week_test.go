@@ -558,7 +558,7 @@ func TestWeekCellStateIsTheWorstOfItsEntries(t *testing.T) {
 	}
 }
 
-// #280: every total says what Jira will hold after the push. Monday holds a
+// CB#280: every total says what Jira will hold after the push. Monday holds a
 // pushed hour and a pending-delete half hour; Tuesday holds only a pending
 // delete, which still marks its cell and its day — that is how the grid tells
 // it from a day with nothing on it.

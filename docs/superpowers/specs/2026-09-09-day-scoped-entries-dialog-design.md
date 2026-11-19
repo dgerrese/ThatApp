@@ -104,4 +104,4 @@ corrected is the larger cost.
 ## Out of scope
 
 Unchanged from the ticket: editing `started_at`, moving an entry between days, a summary column on
-Week's rows, and the dialog's remaining drift from the prototype, which is #117's.
+Week's rows, and the dialog's remaining drift from the prototype, which is [CB#117](../../archive/codeberg/117.md)'s.

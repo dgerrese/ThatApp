@@ -3,7 +3,7 @@
 **Date:** 2026-09-02
 **Supersedes:** nothing
 **Superseded by:** [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md),
-for the grid's row rule alone (decision 1) — settled for #84 and #139. Everything else in this
+for the grid's row rule alone (decision 1) — settled for CB#84 and CB#139. Everything else in this
 document still governs.
 
 The design for [#11](https://codeberg.org/DionGerrese/ThatApp/issues/11). A grid of tickets against
@@ -15,7 +15,7 @@ against Monday–Sunday, each cell summing that ticket's entries for that day, p
 totals, and push status per day* — and nothing else. Everything below was settled in brainstorming
 on 2026-09-02.
 
-**This ticket also changes the rail's contract**, which is shipped code from #7 and #9. That is not
+**This ticket also changes the rail's contract**, which is shipped code from CB#7 and CB#9. That is not
 scope creep discovered late; it is the direct consequence of decision 6 and was taken deliberately.
 See *What this ticket grew into*.
 
@@ -73,7 +73,7 @@ See *What this ticket grew into*.
 
    The alternative — label the rail "today" and put per-day Push buttons in the grid's totals row —
    was rejected by the owner in favour of one Push control that always means "send what I am looking
-   at". That is the stronger model to hold in your head, at the cost of rewriting a contract #9
+   at". That is the stronger model to hold in your head, at the cost of rewriting a contract CB#9
    shipped.
 
 7. **The rail still never computes a date.** Its own comment says so, and the reason survives: the
@@ -86,26 +86,26 @@ See *What this ticket grew into*.
    sequentially — sequential so the merged report is attributable and deterministically ordered, and
    so a bad week does not fan several days of requests at Jira at once.
 
-   **A dirty day is pushable, and offers Push, as of #121.** `handlePushDay` skips only entries
+   **A dirty day is pushable, and offers Push, as of CB#121.** `handlePushDay` skips only entries
    already `pushed`; a `dirty` one now gets a `PUT` to its known `worklog_id`, updating the worklog
    Jira already holds. The rule this replaces forbade exactly that — updating a worklog Jira already
-   had was "#10's whole subject and does not exist yet", so skipping everything a Push touched was
-   safer than offering a control that would. That was right when it was written. #10 shipped on
+   had was "CB#10's whole subject and does not exist yet", so skipping everything a Push touched was
+   safer than offering a control that would. That was right when it was written. CB#10 shipped on
    2026-09-08 and is that same capability, so it is the rule's precondition that expired, not its
    reasoning. Nothing about the hollow marker changes: it still tells the truth about Jira holding a
    stale copy, only Push is now the fix for it rather than a dead end.
 
    This is also where the rail's warning turns out to have had two separate problems, not one. Its
    **total** was wrong from the start: `web/src/rail.ts` has always summed every entry regardless of
-   push state, never only unpushed time. Its **count** was merely out of date, until #121 made it
+   push state, never only unpushed time. Its **count** was merely out of date, until CB#121 made it
    agree — it counts **unpushed and dirty** entries, not time, via `isPending`; the rail's line reads
    "N entries to push", never a duration.
 
-9. **The phone is deferred to #13.** A seven-column grid of `Nh Nm` figures does not fit 380px.
+9. **The phone is deferred to [#6](https://github.com/dgerrese/ThatApp/issues/6).** A seven-column grid of `Nh Nm` figures does not fit 380px.
    Horizontal scroll was rejected because it puts the week total off-screen, and a rollup you cannot
    see all of is not a rollup; a second stacked-by-day layout was rejected as a second layout to
-   build and test inside an already-grown ticket. #11 targets the desktop it will be used on, and
-   this is a written-down gap rather than a surprise for #13.
+   build and test inside an already-grown ticket. CB#11 targets the desktop it will be used on, and
+   this is a written-down gap rather than a surprise for [#6](https://github.com/dgerrese/ThatApp/issues/6).
 
 ## The grid
 
@@ -119,13 +119,13 @@ and its position agree. The same issue key in two instances is two rows, and the
 
 **A row with nothing logged against it in the displayed week is an ordinary row**, as of decision 1
 of [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md)
-(#84, #139). It takes its place in the grid's existing order, carries no mark of any kind, and shows
+(CB#84, CB#139). It takes its place in the grid's existing order, carries no mark of any kind, and shows
 an em dash in each of its seven day cells and in its row total — a zero would claim the week holds
 something it does not.
 
 This replaces the rule as first written here, that a row appears only once it has an entry and the
 grid is not a list of assigned or pinned tickets. That held only while the grid had no other reason
-to show a ticket; #139 gives it one (a pinned ticket, whether or not it was worked this week) and #84
+to show a ticket; CB#139 gives it one (a pinned ticket, whether or not it was worked this week) and CB#84
 gives it another (a ticket just pulled in by search, before anything is logged against it), and
 both need a row to sit in before either is true of it. **A row that is there because it is pinned or
 because it was just searched for is now indistinguishable from a worked one, deliberately** — the
@@ -138,7 +138,7 @@ two cannot disagree about which week that is. Navigating to a closed week shows 
 actually contained, not what happens to be pinned now: a week is a settled record of what was worked,
 and letting today's pin list leak into last month's row set would make a past week's shape depend on
 a decision made after that week closed. **Do not simplify this into seeding every week** — a
-search-added row (#84) carries no such limit, but it is never persisted; it lives only in the
+search-added row (CB#84) carries no such limit, but it is never persisted; it lives only in the
 browser's `addedTickets` for as long as the view stays open, so it cannot leak across a reload the way
 a server-seeded row would.
 
@@ -176,8 +176,8 @@ any failed entry shows the failed marker.
 navigation so Back works and any week is a linkable address.
 
 The Week entry in `web/index.html`'s nav is currently an inert `<span aria-disabled="true">`, placed
-there by #12 with a comment naming #11 as its owner. It becomes an anchor. This is the same
-reserved-markup pattern `#rail-timer` carries for #8 — **open `web/index.html` before implementing,
+there by CB#12 with a comment naming CB#11 as its owner. It becomes an anchor. This is the same
+reserved-markup pattern `#rail-timer` carries for CB#8 — **open `web/index.html` before implementing,
 rather than adding a second Week link beside the disabled one.**
 
 ## The endpoint
@@ -262,11 +262,11 @@ get backwards, so it is tested directly rather than only through a handler.
 
 ## What this ticket grew into
 
-#11's written acceptance criteria describe a read-only grid. Two brainstorming decisions took it
+CB#11's written acceptance criteria describe a read-only grid. Two brainstorming decisions took it
 past that, both the owner's:
 
-- **the view can push** (decision 6), which brings in #9's partial-failure reporting, and
-- **the rail becomes period-scoped** (decision 6 again), which changes shipped #7 and #9 code.
+- **the view can push** (decision 6), which brings in CB#9's partial-failure reporting, and
+- **the rail becomes period-scoped** (decision 6 again), which changes shipped CB#7 and CB#9 code.
 
 These stay in one ticket rather than splitting, because they cannot ship apart: a rail that follows
 the view has nothing to follow until Week exists, and a Week view without it ships an unlabelled
@@ -287,11 +287,11 @@ be updated to match this spec before planning.**
 
 ## Out of scope
 
-- **The phone and any narrow layout.** #13, per decision 9.
+- **The phone and any narrow layout.** [#6](https://github.com/dgerrese/ThatApp/issues/6), per decision 9.
 - **Editing or deleting entries from the grid.** The week reviews and pushes; it does not edit.
-- **Everything in #10.** Nothing here needed it — `pushStateOf` and `EntriesForDay` both shipped with
-  #9 — and #11 did not wait on it. The consequence held at the time: a dirty cell showed its marker
-  and could not be acted on from here, because #10 did not exist yet. **The view did not gain that
-  for free.** #10 shipped on 2026-09-08, and pushing a corrected day from here still did nothing,
-  because the rail's own filter — untouched by #10 — still admitted only never-pushed entries.
-  Closing that gap is #121; see decision 8 above.
+- **Everything in CB#10.** Nothing here needed it — `pushStateOf` and `EntriesForDay` both shipped with
+  CB#9 — and CB#11 did not wait on it. The consequence held at the time: a dirty cell showed its marker
+  and could not be acted on from here, because CB#10 did not exist yet. **The view did not gain that
+  for free.** CB#10 shipped on 2026-09-08, and pushing a corrected day from here still did nothing,
+  because the rail's own filter — untouched by CB#10 — still admitted only never-pushed entries.
+  Closing that gap is CB#121; see decision 8 above.

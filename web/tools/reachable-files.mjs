@@ -5,7 +5,7 @@ const SPECIFIER = /(?:\bfrom|\bimport)\s*\(?\s*["']\.\/([\w.-]+\.js)["']/g;
 /**
  * Every file `entry` reaches through relative imports, read through `read`
  * (undefined for a file that does not exist). Derived from what is actually on
- * disk, so it cannot disagree with the build that wrote it — the failure #67
+ * disk, so it cannot disagree with the build that wrote it — the failure CB#67
  * was about.
  */
 export function reachableFiles(entry, read) {

@@ -6,7 +6,7 @@ export interface CardHeight {
 }
 
 /**
- * Which of Today's two stacks each instance card goes in (#144). A card with a remembered stack
+ * Which of Today's two stacks each instance card goes in (CB#144). A card with a remembered stack
  * keeps it, however the heights have changed since. Each other card, in the order given (instance
  * position order), goes to the stack that is shorter at that moment, counting every remembered
  * card in full; a tie goes left. `height` is what a card adds to its stack — its own height plus

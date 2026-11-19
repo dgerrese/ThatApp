@@ -33,7 +33,7 @@ func TestCreateEntryRoundTrips(t *testing.T) {
 	// Deliberately not today: an INSERT that stamped day from the clock would pass
 	// unnoticed against an entry logged on the day the test runs. Deliberately
 	// sub-second too: started_at is stored as RFC3339, so a start time carrying
-	// nanoseconds — which is what #7's handler will hand over — has to be dropped
+	// nanoseconds — which is what CB#7's handler will hand over — has to be dropped
 	// to whole seconds before it is returned, or the returned row and the stored
 	// one disagree.
 	const day = "2026-03-04"
@@ -114,8 +114,8 @@ func TestCreateEntryRoundTrips(t *testing.T) {
 	}
 }
 
-// A new entry has never been pushed, and #7 writes neither column. If either
-// arrived non-empty the derived push state #9 computes would read as pushed.
+// A new entry has never been pushed, and CB#7 writes neither column. If either
+// arrived non-empty the derived push state CB#9 computes would read as pushed.
 func TestCreateEntryLeavesPushStateUnset(t *testing.T) {
 	s := openTestStore(t)
 	inst := createTestInstance(t, s)
@@ -189,7 +189,7 @@ func TestEntriesForDayReturnsOldestFirst(t *testing.T) {
 	}
 }
 
-// A day spanning several dates has to come back in date order too, or #11's
+// A day spanning several dates has to come back in date order too, or CB#11's
 // week grid would read a shuffled column.
 func TestEntriesForDayOrdersAcrossDays(t *testing.T) {
 	s := openTestStore(t)
@@ -333,7 +333,7 @@ func TestUpdateEntryChangesSecondsAndCommentAndNothingElse(t *testing.T) {
 	}
 }
 
-// updated_at is half of what makes an entry dirty for #9, so an update that
+// updated_at is half of what makes an entry dirty for CB#9, so an update that
 // left it alone would present a changed entry as already pushed. Both stamps are
 // backdated first, and to different instants: they have one-second resolution,
 // so an immediate update would otherwise land in the second it was created in
@@ -374,7 +374,7 @@ func TestUpdateEntryMovesUpdatedAt(t *testing.T) {
 	}
 }
 
-// #9 owns worklog_id and pushed_at. An UPDATE naming every column would clear
+// CB#9 owns worklog_id and pushed_at. An UPDATE naming every column would clear
 // them, silently unpushing an entry Jira already holds.
 func TestUpdateEntryLeavesPushStateAlone(t *testing.T) {
 	s := openTestStore(t)

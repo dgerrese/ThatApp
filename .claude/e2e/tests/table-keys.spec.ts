@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
- * #227 task 1: Up/Down move focus between Today's table rows. Fixtures follow
+ * CB#227 task 1: Up/Down move focus between Today's table rows. Fixtures follow
  * table.spec.ts's own shape (stubIssues, group) — RIDGE-2 carries no URL so
  * its key cell has no focusable, which is what item 4 below needs.
  */
@@ -107,7 +107,7 @@ function row(page: Page, key: string): Locator {
 }
 
 /** Scoped to the row: a bare getByText would also match the row's own hidden
- *  cut-text tooltip carrying the same text (#143). */
+ *  cut-text tooltip carrying the same text (CB#143). */
 function summaryOf(page: Page, key: string): Locator {
   return row(page, key).locator('[id^="that-sum-"]');
 }
@@ -160,7 +160,7 @@ test("Down from a key onto a row with no URL focuses that row's summary", async 
   await expect(summaryOf(page, "RIDGE-2")).toBeFocused();
 });
 
-// #236: a failure note is a second focusable in the summary cell. Moving
+// CB#236: a failure note is a second focusable in the summary cell. Moving
 // between rows must still land on the summary, and leaving the note must
 // clamp to the next row's summary.
 test("Up and Down land on a failure-noted row's summary, and Down from its note reaches the next summary", async ({
@@ -339,7 +339,7 @@ test("Up from the first data row of the first table does nothing", async ({ page
 });
 
 /**
- * #227 task 2: Up/Down move focus between Week's grid rows. A trimmed
+ * CB#227 task 2: Up/Down move focus between Week's grid rows. A trimmed
  * stand-in for week.spec.ts's own StubRollup shape — only what these tests
  * need to paint a grid with two linked rows.
  */

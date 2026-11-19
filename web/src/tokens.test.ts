@@ -97,7 +97,7 @@ test("the rail's own pairs clear their floors, and the rail is one value", () =>
   }
 });
 
-// #246: the drawing's oklch(0.06) ground vanished on the rail, and 0.26 on the
+// CB#246: the drawing's oklch(0.06) ground vanished on the rail, and 0.26 on the
 // dark card. The owner chose 0.34, the lightest step that stood clear of both;
 // 1.4:1 is where that step sits, so a ground drifting back toward either fails.
 test("the tooltip ground is one value, carries rail-ink, and stands apart from every dark ground", () => {

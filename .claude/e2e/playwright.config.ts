@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 // The rig runs inside Compose and reaches the app over the service network, so
 // it behaves identically here and in CI and does not depend on THAT_PORT. This
-// uses the that-e2e alias for the app-e2e service (#35), kept for symmetry
+// uses the that-e2e alias for the app-e2e service (CB#35), kept for symmetry
 // with the `app` service's own that-app alias rather than for the same
 // reason: "app" is a real gTLD on Chromium and Firefox's built-in HSTS
 // preload list, so a browser silently upgrades a bare http://app to https and
@@ -11,9 +11,9 @@ import { defineConfig, devices } from "@playwright/test";
 // docker-compose.yml.
 const upstream = process.env.THAT_BASE_URL ?? "http://that-e2e:8080";
 
-// The service worker (#12) and window.caches only work in a secure context,
+// The service worker (CB#12) and window.caches only work in a secure context,
 // and plain http:// on a Compose alias is not one — browsers special-case only
-// localhost. forward.mjs (#66) gives both engines a genuine http://localhost
+// localhost. forward.mjs (CB#66) gives both engines a genuine http://localhost
 // by forwarding TCP to the upstream; it does not start when the upstream is
 // already local (CI sets THAT_BASE_URL=http://localhost:8080).
 const upstreamIsLocal = ["localhost", "127.0.0.1"].includes(new URL(upstream).hostname);
@@ -51,7 +51,7 @@ export default defineConfig({
     // A request a service worker claims is invisible to page.route, and to
     // context.route on every engine but Chromium — Playwright intercepts a
     // worker's own fetches there and nowhere else. So from the moment sw.ts
-    // began claiming /api/issues and /api/pins (#12 task 5), a stub of either
+    // began claiming /api/issues and /api/pins (CB#12 task 5), a stub of either
     // path would be silently bypassed on a controlled page and the request
     // would reach the real server, which shares the dev database and fans out
     // to the owner's Jira instances. Blocking registration by default keeps

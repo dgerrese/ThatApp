@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * #280: a delete of an entry Jira holds waits for the push. /api/entries is
+ * CB#280: a delete of an entry Jira holds waits for the push. /api/entries is
  * stubbed with the server's own rules — DELETE marks a pushed or dirty entry
  * and removes an unpushed one, POST …/restore takes the mark back — for the
  * reason entries.spec.ts gives: the e2e stack shares the dev database.

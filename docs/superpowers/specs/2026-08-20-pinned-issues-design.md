@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md),
 for the pin form and `that-combobox` (decision 2, and *The frontend*'s `### today.ts` and
-`### that-combobox` sections) — #84 deleted both and pins now come from the global search.
+`### that-combobox` sections) — CB#84 deleted both and pins now come from the global search.
 Everything else in this document still governs.
 
 The design for [#6](https://codeberg.org/DionGerrese/ThatApp/issues/6). Pins are how time gets
@@ -13,11 +13,11 @@ miscellaneous overhead. `GET/POST/DELETE /api/pins` back them, `GET /api/issues/
 issue to pin, and the Today view grows a Pinned card above the assigned instance cards.
 
 The design of record settles the endpoint paths and the `pinned_issues` table and nothing else about
-this ticket. #5 left it one question by name — pins span instances and the card-per-instance layout
+this ticket. CB#5 left it one question by name — pins span instances and the card-per-instance layout
 has no place for them — and this document answers it.
 
-**#6 builds on #5**, whose Today view was on `issue-5-assigned-issues` and in PR #38, unmerged when
-this was written. **#38 merged on 2026-08-20**, so the stacking this document planned for is moot;
+**CB#6 builds on CB#5**, whose Today view was on `issue-5-assigned-issues` and in PR CB#38, unmerged when
+this was written. **CB#38 merged on 2026-08-20**, so the stacking this document planned for is moot;
 see *Branching*.
 
 ## Decisions taken in brainstorming
@@ -25,13 +25,13 @@ see *Branching*.
 1. **A "Pinned" card above the assigned section, spanning instances.** Each row carries its instance
    name, so the card needs no per-instance grouping. The two alternatives were rejected: folding pins
    into their own instance's card means an instance whose Jira fetch failed renders as an error and
-   its pins vanish with it, and flipping Today to one merged list discards #5's layout and leaves
+   its pins vanish with it, and flipping Today to one merged list discards CB#5's layout and leaves
    per-instance errors homeless. **The chosen layout renders from the local database alone**, which is
    what `summary_cache` exists for: pins paint instantly and survive every instance being down.
 2. **Pinning is a search box inside the Pinned card** — one combobox that searches by issue key *and*
    by title, across every instance at once, and pins the issue you pick. A pin control on assigned rows
    was rejected as extra surface that makes the assigned-and-pinned collision routine, and competes for
-   room in `that-ticket-row` that #7 and #8 want. Pinning from Settings was rejected as putting a daily
+   room in `that-ticket-row` that CB#7 and CB#8 want. Pinning from Settings was rejected as putting a daily
    action two clicks away.
 3. **The search spans instances, so there is no instance picker.** An earlier draft paired an instance
    `<select>` with a free-form key field; the owner replaced it on 2026-08-20 with a search select, and
@@ -50,10 +50,10 @@ see *Branching*.
    pinned row and an assigned row read identically.
 6. **Deduplication is client-side.** An issue that is both pinned and assigned renders in the Pinned
    card only, and `today.ts` drops it from its instance card. `/api/issues` is **not touched**: making
-   the fan-out aware of pins couples two resources and puts #5's most carefully tested code back in
+   the fan-out aware of pins couples two resources and puts CB#5's most carefully tested code back in
    play for no gain.
 7. **Unpinning gets no confirmation.** `time_entries` rows are keyed by `(instance_id, issue_key)` and
-   have no foreign key to `pinned_issues`, so unpinning destroys nothing. #29 built `that-confirm` for
+   have no foreign key to `pinned_issues`, so unpinning destroys nothing. CB#29 built `that-confirm` for
    instance removal because that cascade *does* destroy logged time; reusing it here would train the
    user to click through a dialog that never guards anything.
 
@@ -63,9 +63,9 @@ see *Branching*.
 `web/src/views/today.ts` existed only there — a deliberate exception to the handoff's "branch from
 `origin/main`" default, and the reason this document planned for GitHub's stacked pull requests.
 
-**That is all settled now.** PR #38 merged on 2026-08-20 and PR #52 (#44, the visual design
+**That is all settled now.** PR CB#38 merged on 2026-08-20 and PR CB#52 (CB#44, the visual design
 language) on 2026-08-21, and this branch was rebased onto `main` afterwards, carrying only its three
-documentation commits. #6's pull request is therefore an ordinary one against `main`, with no
+documentation commits. CB#6's pull request is therefore an ordinary one against `main`, with no
 `gh stack link` and no bottom layer, and the "merging a stack lands every layer below it" hazard this
 section was written to record no longer applies.
 
@@ -267,7 +267,7 @@ concurrently on the same row.
 GET /api/issues/search?q=<text>
 ```
 
-Its own file rather than more of `issues.go`: that file is #5's fan-out and its most carefully tested
+Its own file rather than more of `issues.go`: that file is CB#5's fan-out and its most carefully tested
 code, and the handoff's warning about `instances.go` growing across tickets applies here before it
 happens rather than after.
 
@@ -302,7 +302,7 @@ the same floor the browser debounces to, enforced server-side so a hand-made req
 one-character query across every site.
 
 **Ordering is by instance, in the store's order, then Jira's `updated DESC` within each.** Merging by
-recency across instances was rejected for the reason #5 gives for its card-per-instance layout: it
+recency across instances was rejected for the reason CB#5 gives for its card-per-instance layout: it
 needs an `updated` field on `jira.Issue` that nothing else wants.
 
 ### One fan-out, three callers
@@ -320,10 +320,10 @@ func fanOutInstances[T any](ctx context.Context, instances []store.Instance,
 `nil`, each bounded by its own `context.WithTimeout`. The three callers keep their own DTO shapes and
 their own error mapping; only the concurrency moves.
 
-**This touches #5's most load-bearing test**, so its guard runs again against the extracted version:
+**This touches CB#5's most load-bearing test**, so its guard runs again against the extracted version:
 `TestGetIssuesKeepsWorkingInstancesWhenOneFails` keeps the delay on the healthy instance that makes the
 cancellation observable, and the extraction is not done until that test has been shown to fail when
-`fanOutInstances` is mutated to propagate the first error. #5's review found the zero-delay version
+`fanOutInstances` is mutated to propagate the first error. CB#5's review found the zero-delay version
 green while the property was broken; re-proving it by mutation is the only thing that makes moving this
 code safe.
 
@@ -403,7 +403,7 @@ Assigned issues                                     [ Refresh ]
 The `●` is a coloured dot: on a pinned row it stands alone, on a search-result row it sits beside the
 instance name. That difference is deliberate, not a drafting inconsistency — see "A dot, not a name" below.
 
-The Pinned card is a `that-card` above #5's heading row. Its heading is set before insertion, because
+The Pinned card is a `that-card` above CB#5's heading row. Its heading is set before insertion, because
 `that-card` has no `observedAttributes`.
 
 **Pins and issues are fetched independently**, both started on render. The Pinned card paints as soon
@@ -411,26 +411,26 @@ as `/api/pins` answers and does not wait on the fan-out, which is the point of d
 instance unreachable the assigned cards fill with errors and the pins are still there.
 
 **The card is built from persistent regions**, not re-rendered wholesale: a `list` region and a `form`
-region, threaded through a `Regions` object as #5 already does for the view. The form holds typed
-input, and replacing the card on every mutation discards a half-typed issue key — the exact bug #29
+region, threaded through a `Regions` object as CB#5 already does for the view. The form holds typed
+input, and replacing the card on every mutation discards a half-typed issue key — the exact bug CB#29
 paid to fix in Settings. The list region may be replaced wholesale, because it holds no input; keyed
 reconciliation for rows with nothing to preserve is machinery guarding a case that does not exist.
-This is narrower than #5's parked note for #7, which is about the assigned rows and stays open.
+This is narrower than CB#5's parked note for CB#7, which is about the assigned rows and stays open.
 
 **The row is an `<li class="flex items-baseline gap-3">** holding an instance dot, a
 `<div class="flex-1">` wrapping the `that-ticket-row`, and the unpin `that-button`. **`that-ticket-row` is
-not modified**: #5 kept it free of anything instance-specific and that holds. It also sets its own
+not modified**: CB#5 kept it free of anything instance-specific and that holds. It also sets its own
 `className` in `connectedCallback`, so a class applied from outside before insertion would be
 discarded — hence the wrapping div rather than a utility on the element.
 
-**A dot, not a name.** This row printed a muted instance-name span in what actually shipped for #6 —
+**A dot, not a name.** This row printed a muted instance-name span in what actually shipped for CB#6 —
 the prototype's older version, carried through eleven task reviews and a whole-branch review before
 being caught as a design-conformance defect. The approved restyle decided otherwise on 2026-08-20:
 *"A pinned row names its instance by coloured dot alone, replacing the instance name the prototype
 printed on every row. That returns the width to the summary. The dot carries the instance name to
 assistive tech, so identity never rests on hue alone"* — `docs/superpowers/canvas/2026-08-20-pin-flow/README.md`.
 `docs/superpowers/specs/2026-08-20-visual-design-language.md`'s "Instance identity" section (built for
-this ticket by #44) gives the same rule the general form: **a dot alone identifies an instance only
+this ticket by CB#44) gives the same rule the general form: **a dot alone identifies an instance only
 where the reader already knows it** — a pinned row is exactly that case. The row's dot is
 `paintInstanceDot(element, pin.instancePosition, pin.instanceName)` from `web/src/instance-hue.ts`,
 which sets `--h` for the ramp's colour, and `title`, `role="img"` and `aria-label` for the name, so
@@ -448,7 +448,7 @@ this one dot-versus-name distinction.
 `` `${instanceId}:${key}` `` from the pins and filters each instance's issues through it. Because both
 fetches are independent, a failed `/api/pins` means no filtering rather than no issues.
 
-> **Removed by #84.** The form below and `that-combobox` were deleted; pinning now happens by
+> **Removed by CB#84.** The form below and `that-combobox` were deleted; pinning now happens by
 > choosing a result in the global search panel — see
 > [`2026-09-10-week-rows-and-global-search-design.md`](2026-09-10-week-rows-and-global-search-design.md).
 > Left as written for its history.
@@ -502,20 +502,20 @@ stop a click or an Enter keypress on its own, so `choose()` is what actually ref
 the duplicate case from an error you meet by typing into one you can see coming; `pin_exists` stays in
 the API as a race guard, not as a routine outcome.
 
-**Refresh refreshes both.** #5's button calls `listIssues()`; it now also calls
+**Refresh refreshes both.** CB#5's button calls `listIssues()`; it now also calls
 `listPins({ refresh: true })`, and stays disabled until both settle. One button, both lists, because
 two refresh buttons on one screen is a question the user should not have to answer.
 
 **The states the Pinned card can be in:**
 
-- **No instances configured** — the card is not rendered at all. #5's "No Jira instances yet." state
+- **No instances configured** — the card is not rendered at all. CB#5's "No Jira instances yet." state
   takes over the whole content area, the Pinned card included, and a search that can only ever reach
   zero instances is a control with nothing to do. Because the two fetches are independent, an empty
   Pinned card can paint first and be replaced when `/api/issues` answers; that is the one case where the
   card is removed after being shown, and it is correct — with no instances there can be no pins either,
   since `ON DELETE CASCADE` took them with the last instance.
 - **No pins** — the card renders with a muted "Nothing pinned." and the Pin button.
-- **Loading** — a muted "Loading…" line in the list region, as #5 does.
+- **Loading** — a muted "Loading…" line in the list region, as CB#5 does.
 - **`/api/pins` failed outright** — one `that-alert` in place of the list, with the Pin button hidden.
   The server would still reject a duplicate, but a pin created against a list that could not be read
   has nowhere to appear, which looks indistinguishable from the pin having failed.
@@ -557,7 +557,7 @@ rewrites both columns; deleting an instance takes its pins; `DeletePin` on a mis
 - `GET` makes no Jira request at all, asserted by failing the fake server on any call;
 - `GET ?refresh=1` rewrites the caches and reports a per-pin failure without a non-200;
 - **the sibling guard**: with one instance failing and a healthy one **delayed**, the healthy pin
-  still returns its refreshed values. The delay is the whole test — #5's whole-branch review found
+  still returns its refreshed values. The delay is the whole test — CB#5's whole-branch review found
   the zero-delay version stayed green while the property it named was broken, because the failing
   goroutine cancelled its sibling only after that sibling had already stored its result. It is proven
   by mutation, not by argument, and this ticket touches the fan-out pattern it guards.
@@ -574,7 +574,7 @@ Jira request at all; one instance failing puts that instance in `errors` while t
 returned — again **with the healthy instance delayed**, which is the only version of that test that
 fails when the fan-out is broken.
 
-**`fanOutInstances`.** Its extraction is verified by re-running #5's guard against it and by mutating
+**`fanOutInstances`.** Its extraction is verified by re-running CB#5's guard against it and by mutating
 the helper to propagate the first error, which must turn that test red. A refactor that cannot be shown
 to break the test it was supposed to preserve has not been verified.
 
@@ -586,18 +586,18 @@ none of this reaches a real site.
 
 ## Out of scope
 
-- **Time logging against a pin** — #7 and #8. This ticket renders rows; it adds no timer and no
+- **Time logging against a pin** — CB#7 and CB#8. This ticket renders rows; it adds no timer and no
   duration field.
 - **Reordering pins.** They render oldest first.
 - **Pinning from an assigned row**, per decision 2.
 - **Searching by description, comment or reporter.** `SearchText` matches the summary only. Jira's
   `text ~` would widen it to description and comments, which for a pin-by-title box returns matches the
   user cannot see the reason for.
-- **A count of what an instance's removal destroys.** #29 left its warning static and noted counts as a
+- **A count of what an instance's removal destroys.** CB#29 left its warning static and noted counts as a
   later intake; pins make those counts non-zero for the first time, which makes the intake worth
   raising — but raising it is not doing it.
 - **`jira.ErrRateLimited`.** A 429 still falls to the mapping's `default` and becomes a 500. That is
-  #19's territory, unchanged here.
+  CB#19's territory, unchanged here.
 
 ## Acceptance criteria, mapped
 
@@ -613,7 +613,7 @@ none of this reaches a real site.
 | A Playwright spec covers pinning, rendering and unpinning | *Testing* |
 
 **Two criteria changed meaning when the form became a search**, and both are met differently from how
-#6's issue body describes them:
+CB#6's issue body describes them:
 
 - **"Pinning an issue key that does not exist on that instance is rejected."** The UI no longer offers a
   way to type a key that does not exist — you choose from results Jira returned. The rejection stays and

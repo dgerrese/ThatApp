@@ -30,7 +30,7 @@ services:
       - go-build-cache:/cache/go-build
       # A bind mount, deliberately, not a named volume: `make down` runs
       # `down -v`, which drops every named volume in the project. That destroyed
-      # the owner's real Jira instance and pins once already (#73).
+      # the owner's real Jira instance and pins once already (CB#73).
       - ./data:/data
     environment:
       THAT_ADDR: ":8080"
@@ -58,7 +58,7 @@ services:
       # go run compiles before it listens; a cold start is slow.
       start_period: 60s
 
-  # The server the Playwright rig runs against (#35). Not `app`: that one is the
+  # The server the Playwright rig runs against (CB#35). Not `app`: that one is the
   # dev stack, whose database holds real Jira instances and whose container
   # `compose run` would reuse whenever `make up` is running. This one keeps its
   # database inside the container, under a throwaway key, and `make test-e2e`

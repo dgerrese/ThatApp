@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
- * #183 task 2: a `that-table` sorted by Today must re-sort on a timer start,
+ * CB#183 task 2: a `that-table` sorted by Today must re-sort on a timer start,
  * stop or switch, but never on the tick alone — task 1 made the sort compare
  * the figure a row shows (logged seconds plus its own running time); this is
  * what makes the table notice that figure changed for a reason other than

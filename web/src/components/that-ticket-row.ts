@@ -21,11 +21,11 @@ export const UNPIN = "that-unpin";
 let pinTriggerSequence = 0;
 
 /** Same reasoning as pinTriggerSequence, for the summary's own cut-text
- *  tooltip and the key link's own "open in Jira" one (#143). */
+ *  tooltip and the key link's own "open in Jira" one (CB#143). */
 let summaryTriggerSequence = 0;
 
 /**
- * One issue: its key, its summary and its status. Light DOM, so #7 and #8 can
+ * One issue: its key, its summary and its status. Light DOM, so CB#7 and CB#8 can
  * append a timer and a duration field to it without a slot.
  *
  * The host is a native table row (`display: table-row`, set in styles.css)
@@ -66,7 +66,7 @@ export class ThatTicketRow extends HTMLElement {
   private pinTrigger: HTMLButtonElement | undefined;
   private pinTooltip: HTMLElement | undefined;
   private readonly pinTriggerId = `that-pin-${++pinTriggerSequence}`;
-  // Same sequence value for all three (#143): one row, one number, three
+  // Same sequence value for all three (CB#143): one row, one number, three
   // prefixes, so nothing here collides across a page holding many rows.
   private readonly summaryId = `that-sum-${++summaryTriggerSequence}`;
   private readonly keyLinkId = `that-key-${summaryTriggerSequence}`;
@@ -90,7 +90,7 @@ export class ThatTicketRow extends HTMLElement {
     this.stopTimerListening = undefined;
   }
 
-  // #83's `that-table` re-sorts its body with `moveBefore`, which moves this
+  // CB#83's `that-table` re-sorts its body with `moveBefore`, which moves this
   // element without disconnecting it — but only because this no-op exists.
   // Without it the browser falls back to an ordinary remove-then-insert,
   // firing disconnectedCallback and then connectedCallback, and
@@ -145,7 +145,7 @@ export class ThatTicketRow extends HTMLElement {
 
     const actCell = document.createElement("td");
     actCell.className = "c-act";
-    // #8 gave this cell a second control, so it is one flex row now rather
+    // CB#8 gave this cell a second control, so it is one flex row now rather
     // than two bare children: a light-DOM custom element (that-timer, default
     // display: inline) sitting beside a block-level button forces the browser
     // to split the cell into anonymous blocks around them — the block-in-inline
@@ -162,7 +162,7 @@ export class ThatTicketRow extends HTMLElement {
     this.paintDuration();
   }
 
-  /** #8's play/stop button, before the pin per decision 1 of the timer
+  /** CB#8's play/stop button, before the pin per decision 1 of the timer
    *  design. A self-contained WebComponent, not an event dispatched to the
    *  view: unlike LOG_TIME/PIN/UNPIN, starting or stopping a timer needs no
    *  view-owned state, so it talks to timer-state.ts directly. */
@@ -179,16 +179,16 @@ export class ThatTicketRow extends HTMLElement {
   /**
    * The row's own way in to logging time, and this ticket's only new
    * affordance on it. Nothing about opening the dialog was ever drawn — the
-   * board gives the row one control, #8's play circle — so this was settled
+   * board gives the row one control, CB#8's play circle — so this was settled
    * with the owner in the browser on 2026-08-21.
    *
    * A <button>, not the whole row: the row already holds the key's link and
-   * will hold #8's start/stop control, and a button may contain neither. It
-   * stays a button rather than becoming a span for the same reason — #8 puts
+   * will hold CB#8's start/stop control, and a button may contain neither. It
+   * stays a button rather than becoming a span for the same reason — CB#8 puts
    * its control beside this one.
    *
    * The figure wears H:MM rather than the rail's Nh Nm because this is the
-   * cell #8's timer ticks in, and a colon is this app's mark of a duration you
+   * cell CB#8's timer ticks in, and a colon is this app's mark of a duration you
    * can start and stop.
    */
   private durationCell(): HTMLElement {
@@ -407,7 +407,7 @@ export class ThatTicketRow extends HTMLElement {
    * current page instead of doing nothing.
    *
    * Linked or not, the key is ink-muted: on a row, colour means state, and a
-   * key wearing the primary would compete with the failed tone that #9 puts on
+   * key wearing the primary would compete with the failed tone that CB#9 puts on
    * exactly this element. The link declares itself by darkening to full ink on
    * hover instead.
    */
@@ -440,7 +440,7 @@ export class ThatTicketRow extends HTMLElement {
     return link;
   }
 
-  /** The key link's own that-tooltip (#143), replacing the native title it
+  /** The key link's own that-tooltip (CB#143), replacing the native title it
    *  used to carry — default (centred) anchor, since the key is not a
    *  trailing control. */
   private keyTooltip(): HTMLElement {
@@ -500,7 +500,7 @@ export class ThatTicketRow extends HTMLElement {
   }
 
   /**
-   * Opens on the note's own hover and its own focus (#236): the note is a Tab
+   * Opens on the note's own hover and its own focus (CB#236): the note is a Tab
    * stop whether or not it is cut, so the Tab order never changes with the
    * window's width, and `when-cut` keeps this shut when there is nothing to
    * give back.
@@ -509,7 +509,7 @@ export class ThatTicketRow extends HTMLElement {
     return cutTextTooltip(this.failureId, message);
   }
 
-  /** Focusable (#143 task 9, owner): its own tab stop rather than borrowing
+  /** Focusable (CB#143 task 9, owner): its own tab stop rather than borrowing
    *  the key link's, so its tooltip can open on its own focus instead of a
    *  neighbour's. */
   private summarySpan(): HTMLElement {
@@ -523,7 +523,7 @@ export class ThatTicketRow extends HTMLElement {
   }
 
   /**
-   * that-tooltip's first cut-text consumer (#143): `for` gives back the
+   * that-tooltip's first cut-text consumer (CB#143): `for` gives back the
    * summary's own hover and, since task 9, its own focus too, so a key focus
    * opens only the key's own "open in Jira" tooltip (keyTooltip above),
    * never this one.

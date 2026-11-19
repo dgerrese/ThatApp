@@ -1,4 +1,4 @@
-# The PWA shell — #12 design
+# The PWA shell — CB#12 design
 
 **Date:** 2026-08-24
 **Supersedes:** nothing
@@ -111,7 +111,7 @@ The build generates the precache list, because chunk filenames carry content has
 hand-written list would rot silently the first time a view is added. `build.mjs` walks `dist/app.js`'s
 own relative-import graph on disk after the build, and stamps two things into `sw.js`: that file
 list plus the copied assets, and a build id derived from their contents. The build id names the
-cache. (#67: this used to read esbuild's metafile instead; a metafile captured by an earlier build
+cache. (CB#67: this used to read esbuild's metafile instead; a metafile captured by an earlier build
 could disagree with what was actually on disk by the time the worker was built, so the list is now
 read from disk directly.)
 
@@ -136,7 +136,7 @@ working and the next deployment tries again.
 Four rows, three ideas: content-addressed things are cached forever, things that change in place
 are asked for first, and the app's own truth is never cached at all.
 
-The last row is the rule the whole design hangs on. `/api/entries` and #9's push are the app's own
+The last row is the rule the whole design hangs on. `/api/entries` and CB#9's push are the app's own
 truth, computed from SQLite on this machine; a cached copy of them would be a lie about the owner's
 own work, and the derived push state — which `CLAUDE.md` names as one of the two places most bugs
 will come from — must never be rendered from anything but a live read.
@@ -153,7 +153,7 @@ first and calls `skipWaiting()`. `activate` deletes **every** cache whose name d
 current build id — old shells and old data alike — then `clients.claim()`.
 
 **The data cache goes with them, deliberately.** Cached JSON belongs to the build that produced it:
-#7 is about to add totals to `IssuesResponse`, and a shell from the new build rendering a body from
+CB#7 is about to add totals to `IssuesResponse`, and a shell from the new build rendering a body from
 the old one is a bug with no error message. A deployment therefore starts with no last-known data
 rather than with data whose shape predates the code reading it.
 
@@ -228,14 +228,14 @@ all under `web/**` or in the `Makefile`.
 ## Deliberately out of scope
 
 - **A write queue.** Offline writes fail and are retried by the owner. Queueing them is its own
-  subsystem, and #9's push already owns "this did not make it".
+  subsystem, and CB#9's push already owns "this did not make it".
 - **Caching anything under `/api/entries`.** See the third request class.
 - **Background sync and push notifications.** Neither has a use here.
 - **HTTPS and the phone.** Ticket 13.
 
 ## The issue's criteria, corrected
 
-#12's body currently says `/api/*` responses are "**never** cached: the shell goes offline, the data
+CB#12's body currently says `/api/*` responses are "**never** cached: the shell goes offline, the data
 does not", and gives a reason — that caching entries would raise a write-sync question this app has
 no answer for. The owner chose last-known data on 2026-08-24, so that criterion is rewritten to say
 what this design does: **Jira-derived reads are cached and shown marked stale; everything else under

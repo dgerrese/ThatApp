@@ -8,10 +8,10 @@
  * has opened yet.
  *
  * `that-`, not the bare `entries-changed` the design writes: every custom event
- * this app raises is prefixed, a rule #6 arrived at after `select` collided
+ * this app raises is prefixed, a rule CB#6 arrived at after `select` collided
  * with the native text-selection event in light DOM. Nothing native is called
  * `entries-changed`, so this is not that bug — but a second convention would be
- * worse than the inconsistency it fixes. #8 and #9 fire the same event.
+ * worse than the inconsistency it fixes. CB#8 and CB#9 fire the same event.
  */
 // A type-only import, erased at compile time — nothing of the dialog reaches
 // the shell bundle through this file.

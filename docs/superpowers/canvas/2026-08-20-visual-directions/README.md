@@ -3,7 +3,7 @@
 The source of the visual design worked out with the owner on 2026-08-20 and approved board by
 board. 25 artboards over five pages, plus the 27 annotations that carry the reasoning.
 
-**This is source material, not a specification.** Issue #44 turns it into a design document under
+**This is source material, not a specification.** Issue CB#44 turns it into a design document under
 `../../specs/`. Where the two ever disagree, the spec wins — this directory records what was
 decided and why, frozen at the moment it was decided.
 
@@ -29,7 +29,7 @@ The five pages are **Directions** (the baseline and three whole-app directions),
 **Manual entry**, **States & mobile** and **Palette split**.
 
 `Hybrid.dc.html` is the direction that was chosen — B's rail, C's character, A's cards — and it
-carries the full light and dark token set in `oklch`, which is what #44's `@theme` block is built
+carries the full light and dark token set in `oklch`, which is what CB#44's `@theme` block is built
 from.
 
 Each board is a standalone HTML document with its own inlined `<style>`; the `<script

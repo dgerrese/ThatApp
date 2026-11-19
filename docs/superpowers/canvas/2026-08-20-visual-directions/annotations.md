@@ -128,7 +128,7 @@ Push is present but disabled rather than hidden — a control that vanishes teac
 
 The rail is FULLY LIVE while the issue list is still empty. Time entries, timers and pins are local; only the assigned-issue fan-out is remote. So the total, the split and the running timer paint instantly.
 
-The Pinned card paints too — #6 caches summary and status precisely so pins survive a slow or dead instance. Only the instance cards are skeletons, and they still carry their names, which come from the local instances table.
+The Pinned card paints too — CB#6 caches summary and status precisely so pins survive a slow or dead instance. Only the instance cards are skeletons, and they still carry their names, which come from the local instances table.
 
 ### S3 · NOTHING LOGGED YET — the start of a day
 <sub>`id: s3`</sub>

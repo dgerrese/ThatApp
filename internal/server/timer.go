@@ -110,7 +110,7 @@ func (s *Server) handleGetTimer(w http.ResponseWriter, r *http.Request) {
 }
 
 // expectedTimerRequest names the run the stop dialog was confirmed for, so a
-// stale tab cannot close a timer another tab started since (#226). StartedAt
+// stale tab cannot close a timer another tab started since (CB#226). StartedAt
 // is a time.Time so a malformed one fails the body's decode, the 400 any
 // malformed field gets.
 type expectedTimerRequest struct {
@@ -154,7 +154,7 @@ type startTimerResponse struct {
 // response's "stopped" is the entry that switch produced, if any. Round and
 // comment govern only the timer being closed; starting with nothing running
 // ignores them. An `expected` run that is not the one running is refused with
-// 409 timer_changed, changing nothing (#226).
+// 409 timer_changed, changing nothing (CB#226).
 func (s *Server) handleStartTimer(w http.ResponseWriter, r *http.Request) {
 	var req startTimerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -232,7 +232,7 @@ type stopTimerResponse struct {
 // or a round that is neither "up" nor "down" is refused; nothing running still
 // answers 200 with both fields empty, matching the store's own "not an error"
 // reading of that case. An `expected` run that is not the one running is
-// refused with 409 timer_changed, changing nothing (#226).
+// refused with 409 timer_changed, changing nothing (CB#226).
 func (s *Server) handleStopTimer(w http.ResponseWriter, r *http.Request) {
 	var req stopTimerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

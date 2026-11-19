@@ -76,8 +76,8 @@ test("the fetch glyph is not the refresh glyph", () => {
   );
 });
 
-test("info and external are transcribed from the #80 design sessions", () => {
-  // Pasted verbatim from issue #80: the info mark settled 2026-09-21, the
+test("info and external are transcribed from the CB#80 design sessions", () => {
+  // Pasted verbatim from issue CB#80: the info mark settled 2026-09-21, the
   // external mark 2026-09-23.
   assert.ok(ICON_NAMES.includes("info"), "info is in the set");
   assert.ok(ICON_NAMES.includes("external"), "external is in the set");

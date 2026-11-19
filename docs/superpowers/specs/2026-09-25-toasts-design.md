@@ -1,4 +1,4 @@
-# Toasts and dialog blocks (#123) — design
+# Toasts and dialog blocks (CB#123) — design
 
 **Date:** 2026-09-25
 **Supersedes:** the "banner with the count" in the *Partial push failure* state of
@@ -6,7 +6,7 @@
 **Superseded by:** nothing
 
 Today every outcome is announced by `that-alert`, rendered inline into whichever region owns it, and it
-stays until the next paint replaces it. #123 asked for toasts. The ticket's own warning was that some of
+stays until the next paint replaces it. CB#123 asked for toasts. The ticket's own warning was that some of
 those alerts are records the user must act on — the push report's failed and not-recorded entries, the
 fetch report's kept entries — and a toast that fades takes them with it. This document records what the
 owner settled on the browser companion on 2026-09-25 (screens under
@@ -17,11 +17,11 @@ owner settled on the browser companion on 2026-09-25 (screens under
 1. **Push and fetch reports become toasts, every line of them, lists included.** A mixed report is not
    split between a toast and the page: each report line is its own toast, carrying its own list.
 2. **A failed one-off action becomes a toast.** A pin or unpin that failed, a fetch or refresh request
-   that threw, a Settings save that fails after its form has closed, a timer start that failed (#207), and a Settings connection test that failed (#301).
+   that threw, a Settings save that fails after its form has closed, a timer start that failed (CB#207), and a Settings connection test that failed (CB#301).
 3. **Everything else stays where it is.** State messages — the stale banner, "could not be read" standing
    where a list would be, an instance with no site URL — describe something that stays true, and stay
    inline. So does Settings' *Test connection* verdict, in its row's health slot, and the instance form's
-   own error: that form is a card on the page, not a dialog. *Amended by #301 on 2026-10-09:* the failed
+   own error: that form is a card on the page, not a dialog. *Amended by CB#301 on 2026-10-09:* the failed
    test's message left the row for an error toast (decision 2), because the alert beneath the row moved
    every row below it. The verdict — `Not tested`, `Testing…`, `Connected · HH:MM`, `Not connected · HH:MM`
    — stays inline.
@@ -43,7 +43,7 @@ owner settled on the browser companion on 2026-09-25 (screens under
 9. **The tone rule does not change.** The tone colours the mark; the words stay in ordinary ink; the mark
    carries its `aria-label` ("Done", "Warning", "Failed"), exactly as `that-alert` does now.
 10. **The wording of every message is unchanged.** Those were settled with the owner ticket by ticket;
-    moving them into a new container does not reopen them. #301 is the one exception: the failed connection test's message gained the save-failure toast's prefix, as `Could not connect to <name>: <message>`, because a toast outside the row must name the instance.
+    moving them into a new container does not reopen them. CB#301 is the one exception: the failed connection test's message gained the save-failure toast's prefix, as `Could not connect to <name>: <message>`, because a toast outside the row must name the instance.
 
 **Not settled here, deliberately:** the phone layout. The owner will decide it later; until then the stack
 keeps its desktop placement at every width.
@@ -92,7 +92,7 @@ A dialog block is the same anatomy, sized to the dialog's width instead of 320px
 - **Hover and focus pause the countdown**; it resumes from where it paused.
   A host move (into or out of a dialog) restarts a success toast's countdown.
 
-Updated on 2026-09-30 by #123's build: the mechanisms above replace the first version's, which could not work; the outcomes in the Decisions are unchanged.
+Updated on 2026-09-30 by CB#123's build: the mechanisms above replace the first version's, which could not work; the outcomes in the Decisions are unchanged.
 
 ## Where each alert goes
 
@@ -105,25 +105,25 @@ Verified against `main` at `432dbd7`. The ticket's original list of eight places
 | `fetch-report.ts` via `week.ts` | added / updated; kept local entries (with list); an instance could not be read | toasts, one per line |
 | `week.ts` fetch and refresh `catch` | the request threw | toast |
 | `week.ts` pin failure | pin failed | toast |
-| `today.ts` `undoOptimisticMark` | pin or unpin failed | toast — which also retires the uneven lifetime #218 described |
+| `today.ts` `undoOptimisticMark` | pin or unpin failed | toast — which also retires the uneven lifetime CB#218 described |
 | `settings.ts` remove failure; save failure after the form closed | action failed | toast |
-| `that-timer.ts` / `rail.ts` swallowed start failure | nothing shown today | toast (#207) |
+| `that-timer.ts` / `rail.ts` swallowed start failure | nothing shown today | toast (CB#207) |
 | `that-entry-dialog.ts` | validation, save or delete failed | dialog block |
-| `that-stop-dialog.ts` | nothing shown today | dialog block (#208) |
+| `that-stop-dialog.ts` | nothing shown today | dialog block (CB#208) |
 | `today.ts`, `week.ts` "could not be read" in place of content | state | stays inline |
 | `today.ts` stale banner | state | stays inline |
 | `settings.ts` no site URL; list could not be read | state | stays inline |
 | `settings.ts` *Test connection* | verdict in its row's health slot | stays inline |
-| `settings.ts` *Test connection* failure | the failure's message (#301) | toast |
+| `settings.ts` *Test connection* failure | the failure's message (CB#301) | toast |
 | `settings.ts` instance form error | form on the page | stays inline |
 | `rail.ts` `showPushError` | the drawn rail line | stays |
 
-#207 and #208 were put back to needs-refinement on 2026-09-25 to take their message placement from this
+CB#207 and CB#208 were put back to needs-refinement on 2026-09-25 to take their message placement from this
 document rather than ship with today's.
 
 ## Out of scope
 
 - The phone layout of the stack.
-- The stale banner, which describes a state and whose behaviour #71 settled.
+- The stale banner, which describes a state and whose behaviour CB#71 settled.
 - The wording of any message.
 - A history of dismissed toasts.

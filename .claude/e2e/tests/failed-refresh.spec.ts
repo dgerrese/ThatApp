@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * #305: once an issues read fails, its error alert is the only report of the failure. No redraw
+ * CB#305: once an issues read fails, its error alert is the only report of the failure. No redraw
  * from the last good response may put the old cards back over it — not the pins answer landing
  * after it, not a pin or unpin, succeeding or failing — until an issues read succeeds.
  */

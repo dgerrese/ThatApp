@@ -33,14 +33,14 @@ async function stubIssues(page: Page, ...responses: StubGroup[][]): Promise<void
   });
 }
 
-// Today now fetches /api/pins on every render too (#6's Task 9). This suite is
+// Today now fetches /api/pins on every render too (CB#6's Task 9). This suite is
 // not about pins, so every test gets an empty answer here rather than each one
 // stubbing it, or — worse — relying on the dev store actually having none: a
 // stray pin would add a that-ticket-row and a whole Pinned table the geometry
 // and count assertions below never budgeted for.
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/pins**", (route) => route.fulfill({ status: 200, json: [] }));
-  // #7 put a duration cell on every row and made the rail's total live, both
+  // CB#7 put a duration cell on every row and made the rail's total live, both
   // fed by this endpoint. The e2e stack shares the dev database, so without
   // this a single entry logged by hand would move every figure these tests
   // measure — the same reason pins are stubbed above.
@@ -75,7 +75,7 @@ test("both instances' issues render under their own headings", async ({ page }) 
   // substring match for "Work" under Playwright's default name matching.
   await expect(page.getByRole("heading", { name: "Work", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Personal" })).toBeVisible();
-  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  // .first(): CB#143 gave every summary a that-tooltip repeating its text.
   await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
   await expect(page.getByText("Renew the domain").first()).toBeVisible();
   await expect(page.getByText("In Progress")).toBeVisible();
@@ -145,7 +145,7 @@ test("no configured instances offers Settings instead of a Refresh button", asyn
   await expect(page).toHaveURL(/\/today$/);
 });
 
-// #71's guard: the re-check on return only fires while the stale banner
+// CB#71's guard: the re-check on return only fires while the stale banner
 // shows. With no instances configured there is no banner and no Refresh
 // control at all, so the empty state is the settled signal a read would
 // otherwise disturb.
@@ -174,7 +174,7 @@ test("coming back to a Today that is not stale fetches nothing", async ({ page }
 });
 
 /**
- * #117's Decision 12: a header control acting on the whole view carries
+ * CB#117's Decision 12: a header control acting on the whole view carries
  * words, not merely a tooltip on a bare glyph. Refresh used to render with an
  * aria-label and no visible text at all, backed by a that-tooltip that
  * repeated the same word on hover — which is never the accessible name, and
@@ -190,7 +190,7 @@ test("Today's refresh carries its own words rather than a tooltip alone", async 
   // Scoped to the heading it sits beside, not the page: pin and unpin are
   // inline controls and keep their own tooltips under Decision 12.
   await expect(page.locator("#today-assigned").locator("..").locator("that-tooltip")).toHaveCount(0);
-  // #119: the visible words are the accessible name; no aria-label repeats them.
+  // CB#119: the visible words are the accessible name; no aria-label repeats them.
   await expect(refresh).not.toHaveAttribute("aria-label");
   await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(1);
 });
@@ -199,7 +199,7 @@ test("Refresh replaces the list", async ({ page }) => {
   await stubIssues(page, [group(1, "Work", [workIssue])], [group(1, "Work", [personalIssue])]);
   await page.goto("/today");
 
-  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  // .first(): CB#143 gave every summary a that-tooltip repeating its text.
   await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Refresh" }).click();
@@ -219,7 +219,7 @@ test("a failed request shows the error and leaves Refresh usable", async ({ page
 
   await expect(page.getByText("could not read the stored instances")).toBeVisible();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
-  // #123: a state message stays inline, never a toast.
+  // CB#123: a state message stays inline, never a toast.
   await expect(page.locator("#view that-alert", { hasText: "could not read the stored instances" })).toBeVisible();
   await expect(page.locator("that-toast")).toHaveCount(0);
 });
@@ -231,7 +231,7 @@ test("/ leads to Today and leaves no history trap", async ({ page }) => {
   await page.goto("/");
 
   await expect(page).toHaveURL(/\/today$/);
-  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  // .first(): CB#143 gave every summary a that-tooltip repeating its text.
   await expect(page.getByText("Fix the CSV export encoding").first()).toBeVisible();
 
   await page.getByRole("link", { name: "Week", exact: true }).click();
@@ -323,7 +323,7 @@ test("a long summary truncates instead of pushing the status out of the card", a
 
   // The summary is clipped rather than laid out in full: without this the
   // assertion below could pass on a card that simply grew to fit everything.
-  // .first(): #143's own cut-text tooltip carries the same summary in full,
+  // .first(): CB#143's own cut-text tooltip carries the same summary in full,
   // and this substring match would otherwise find it too.
   const clipped = await page
     .getByText("A deliberately overlong summary")
@@ -553,7 +553,7 @@ test("the content column caps at 120rem and stays centred", async ({ page }) => 
 });
 
 /**
- * #117's T13: the prototype draws both .pageh blocks — Pinned and Assigned
+ * CB#117's T13: the prototype draws both .pageh blocks — Pinned and Assigned
  * issues — from the first frame (lines 318 and 320). `render()` used to hide
  * the whole Assigned issues header, refresh control included, until the
  * first `/api/issues` response landed. The route below is gated on a promise
@@ -604,7 +604,7 @@ test("the loading line sits inside a that-card", async ({ page }) => {
   releaseIssues?.();
 });
 
-/** T12, updated by #143: the key link no longer carries a native title —
+/** T12, updated by CB#143: the key link no longer carries a native title —
  *  it carries the app's own that-tooltip instead, reading "open in Jira",
  *  on hover and on focus. */
 test("a ticket key link carries the app's tooltip reading \"open in Jira\", not a native title", async ({
@@ -640,7 +640,7 @@ test("an instance's tally is muted against its name", async ({ page }) => {
 });
 
 /**
- * #117's T7: an instance's card filters its pinned issues out — they already
+ * CB#117's T7: an instance's card filters its pinned issues out — they already
  * appear in Pinned above — but the tally beside its name must still count
  * their time, because the rail's split does. Only the issue count stays what
  * the card shows: one row is visible here, but its time is two entries' worth.
@@ -718,7 +718,7 @@ test("an instance's tally counts a pinned issue's time too", async ({ page }) =>
   // filtered out of it (it still shows in Pinned above, hence the region
   // scope) — yet the tally carries both entries' time.
   const workCard = page.getByRole("region", { name: "Work", exact: true });
-  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  // .first(): CB#143 gave every summary a that-tooltip repeating its text.
   await expect(workCard.getByText("Rotate the deploy key").first()).toBeVisible();
   await expect(workCard.getByText("Fix the CSV export encoding")).toHaveCount(0);
 
@@ -959,7 +959,7 @@ test("logging from a search result fills the off-list row with no lookup", async
   await expect.poll(() => entries.created().length).toBe(1);
 
   const offList = page.getByRole("region", { name: "Logged today, not on your list" });
-  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  // .first(): CB#143 gave every summary a that-tooltip repeating its text.
   await expect(offList.getByText("Roll the on-call schedule forward").first()).toBeVisible();
   await expect(offList.getByText("To Do")).toBeVisible();
   await expect(offList.getByRole("link", { name: "WORK-777" })).toHaveAttribute(
@@ -1017,13 +1017,13 @@ test("a cold reload looks up an off-list issue once, and shows it loading rather
 
   const offList = page.getByRole("region", { name: "Logged today, not on your list" });
   await expect(offList.getByText("WORK-777")).toBeVisible();
-  // .first(): #143 gave every summary a that-tooltip repeating its text,
+  // .first(): CB#143 gave every summary a that-tooltip repeating its text,
   // including this row's placeholder one while it is still "Loading…".
   await expect(offList.getByText("Loading…").first()).toBeVisible();
 
   releaseSearch?.();
 
-  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  // .first(): CB#143 gave every summary a that-tooltip repeating its text.
   await expect(offList.getByText("Roll the on-call schedule forward").first()).toBeVisible();
   await expect(offList.getByText("To Do")).toBeVisible();
   // One lookup despite several render passes racing to be first to ask.
@@ -1031,7 +1031,7 @@ test("a cold reload looks up an off-list issue once, and shows it loading rather
 });
 
 /**
- * Important 2 of the #84 fix wave: the off-list section reads assignedKeys
+ * Important 2 of the CB#84 fix wave: the off-list section reads assignedKeys
  * from the assigned response (regions.lastIssues), but the mount's three
  * reads (entries, pins, assigned) are concurrent — entries is a local, fast
  * read and assigned is a Jira fan-out, so an issue that is in fact assigned
@@ -1088,7 +1088,7 @@ test("the off-list section waits for the assigned read to settle before it rende
 
   releaseIssues?.();
 
-  // .first(): #143 gave every summary a that-tooltip repeating its text.
+  // .first(): CB#143 gave every summary a that-tooltip repeating its text.
   await expect(page.getByText(workIssue.summary).first()).toBeVisible();
   // The issue turned out to be assigned: the section must never have shown it,
   // before or after release, and must never have asked for its summary.

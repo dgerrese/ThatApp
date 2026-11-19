@@ -68,7 +68,7 @@ async function stubTimer(
 
   const isRounding = (value: unknown): value is "up" | "down" => value === "up" || value === "down";
 
-  // The store's #226 rule: a close confirmed for another run, or for one no
+  // The store's CB#226 rule: a close confirmed for another run, or for one no
   // longer running, is refused and changes nothing. Starts compare as instants.
   const namesAnotherRun = (expected: unknown): boolean => {
     if (expected === undefined) return false;
@@ -232,7 +232,7 @@ test("starting a timer on a row turns its control to stop, tints the Today figur
   await expect(railTimer(page).getByRole("button", { name: "stop timer" })).toBeVisible();
 });
 
-/** #143: the timer control carries the app's own that-tooltip, reading
+/** CB#143: the timer control carries the app's own that-tooltip, reading
  *  "start timer" or "stop timer" — the same pair its aria-label already
  *  gives, set together in that-timer's paint(). */
 test("the timer control's tooltip reads start timer, then stop timer once it is running", async ({
@@ -502,7 +502,7 @@ async function expectTimerDrawn(page: Page, issueKey: string, running: boolean):
 }
 
 /**
- * #192: a sort that moves a row must not leave its that-timer's button empty.
+ * CB#192: a sort that moves a row must not leave its that-timer's button empty.
  * WORK-2 is the moved row and runs the timer, so its button must read stop.
  */
 test("a row a sort moves keeps its start/stop button drawn", async ({ page }) => {
@@ -545,7 +545,7 @@ test("a that-timer disconnected and reconnected draws its button again", async (
 });
 
 /**
- * #192 with moveBefore: the moved row's own button survives the move, so its
+ * CB#192 with moveBefore: the moved row's own button survives the move, so its
  * focus does too. The header is clicked with dispatchEvent, as in
  * table.spec.ts's focus test — a real click would move focus to the header.
  */
@@ -566,7 +566,7 @@ test("a focused start/stop button keeps focus when a sort moves its row", async 
 });
 
 /**
- * #204 task 2: the rail's total and split count a running timer's elapsed
+ * CB#204 task 2: the rail's total and split count a running timer's elapsed
  * time on Today. A rig of its own rather than stubTimer/stubToday above —
  * those hardcode instanceId 1/"Work" on the running timer with no
  * instanceName/instancePosition, and these tests need both to vary.
@@ -714,7 +714,7 @@ test("the split's figures node keeps its identity across ticks within the same m
   await expect(figuresEl).toHaveAttribute("data-marker", "kept");
 });
 
-// #143 gave a cut split name its own that-tooltip; #204 made the split redraw
+// CB#143 gave a cut split name its own that-tooltip; CB#204 made the split redraw
 // on a minute tick. Removing an open popover closes it, so a full rebuild of
 // the split on every minute tick closed a name's tooltip mid-hover — this is
 // the regression test for the in-place update that fixes it.
@@ -821,7 +821,7 @@ test("switching to Week drops the timer's elapsed time from the rail total, and 
 });
 
 /**
- * Review finding on #204 task 2: setRailPeriod flips `currentPeriod`
+ * Review finding on CB#204 task 2: setRailPeriod flips `currentPeriod`
  * synchronously (inside the destination view's own mount), but `lastEntries`
  * only catches up once that period's own listEntries() read lands — an async
  * gap a real 1-second tick can land inside. paintFigures() must sit out that
@@ -978,7 +978,7 @@ test("the unpushed count and the push confirmation's total do not move while the
 });
 
 /**
- * #204 task 3: the instance card's own tally ("N issues · H:MM") counts the
+ * CB#204 task 3: the instance card's own tally ("N issues · H:MM") counts the
  * running timer's elapsed time too, the same figure paintFigures already adds
  * to the rail's total and split (task 2).
  */
@@ -1017,7 +1017,7 @@ test("the running instance's card tally adds the timer's elapsed time and ticks 
  * Pinned, out of its instance's own card — but the tally beside that card's
  * name still counts the whole instance's day, elapsed time included, the same
  * way it already counts a pinned issue's logged time (see today.spec.ts's
- * "an instance's tally counts a pinned issue's time too", #117).
+ * "an instance's tally counts a pinned issue's time too", CB#117).
  */
 test("the instance tally counts the running time even while its row is pinned", async ({ page }) => {
   const t0 = Date.parse(`${DAY}T10:00:00Z`);
@@ -1130,7 +1130,7 @@ test("a stop settles the instance tally on logged time plus the rounded entry", 
 });
 
 /**
- * #208: a stop or switch that fails after the dialog is confirmed leaves the
+ * CB#208: a stop or switch that fails after the dialog is confirmed leaves the
  * dialog open, the description typed and the timer running, with one error
  * block above the dialog (the toasts design, decisions 7 and 8).
  */
@@ -1355,9 +1355,9 @@ test("after a failed stop the keyboard focus returns to the button that was pres
 });
 
 /**
- * #207: a start that fails reports in an error toast, the way a failed pin
+ * CB#207: a start that fails reports in an error toast, the way a failed pin
  * does (the toasts design, decisions 2, 4 and 10) — except a switch whose
- * start fails inside the dialog, which #208's block already reports.
+ * start fails inside the dialog, which CB#208's block already reports.
  */
 const errorToasts = (page: Page) => page.locator("that-toasts that-toast[tone='error']");
 
@@ -1537,7 +1537,7 @@ test("in a stale tab, a switch whose retry fails shows the block, sends two star
 });
 
 /**
- * #226: a stop or switch names the run its dialog was opened for, so a tab
+ * CB#226: a stop or switch names the run its dialog was opened for, so a tab
  * that missed another tab's switch cannot close the wrong timer; the server
  * refuses it with a 409, and this tab re-reads and asks again, at most once.
  */

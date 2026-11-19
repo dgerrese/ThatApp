@@ -356,7 +356,7 @@ func instanceErrorFor(err error) (status int, code, message string) {
 	// leaving Today/Week mid-fan-out does the same. context.DeadlineExceeded
 	// is still logged — that is a real timeout.
 	if !errors.Is(err, context.Canceled) {
-		// Jira's own words live only in err (#79); the response deliberately
+		// Jira's own words live only in err (CB#79); the response deliberately
 		// carries a fixed message, so this line is the one place they survive.
 		// A body carrying its own newlines (a proxy's HTML error page, say)
 		// would otherwise spread this one failure across several log lines.

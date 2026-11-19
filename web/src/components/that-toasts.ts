@@ -2,7 +2,7 @@ import "./that-toast";
 import type { ThatToast } from "./that-toast";
 
 /**
- * The toast stack (#123): one host, in the markup from first render so the
+ * The toast stack (CB#123): one host, in the markup from first render so the
  * live region exists before any message does, and a manual popover so it can
  * sit in the top layer. A dialog opened with showModal() makes everything
  * outside its own subtree inert — a popover shown afterwards is drawn above the
