@@ -78,3 +78,16 @@ test("paint leaves a sibling block of the foot alone", () => {
   paintVersion(el, UP_TO_DATE);
   assert.equal(el.querySelector("p")?.textContent, "mine");
 });
+
+test("repainting keeps the move block first and unchanged", () => {
+  const el = foot();
+  const moved = document.createElement("div");
+  moved.dataset.moved = "";
+  moved.textContent = "ThatApp moved to GitHub";
+  el.append(moved);
+  paintVersion(el, UPDATE);
+  assert.equal(el.firstElementChild?.getAttribute("data-moved"), "");
+  paintVersion(el, UP_TO_DATE);
+  assert.equal(el.firstElementChild?.getAttribute("data-moved"), "");
+  assert.equal(el.firstElementChild?.textContent, "ThatApp moved to GitHub");
+});
