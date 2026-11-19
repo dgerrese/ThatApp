@@ -14,8 +14,8 @@ const upstream = process.env.THAT_BASE_URL ?? "http://that-e2e:8080";
 // The service worker (CB#12) and window.caches only work in a secure context,
 // and plain http:// on a Compose alias is not one — browsers special-case only
 // localhost. forward.mjs (CB#66) gives both engines a genuine http://localhost
-// by forwarding TCP to the upstream; it does not start when the upstream is
-// already local (CI sets THAT_BASE_URL=http://localhost:8080).
+// by forwarding TCP to the upstream; it does not start when THAT_BASE_URL
+// already names localhost.
 const upstreamIsLocal = ["localhost", "127.0.0.1"].includes(new URL(upstream).hostname);
 const baseURL = upstreamIsLocal ? upstream : "http://localhost:8080";
 
@@ -25,17 +25,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "list" : "line",
-  // Playwright sizes its pool as half of `os.cpus()`, and inside a Forgejo
-  // runner that call reports the *host's* logical cores rather than the
-  // cgroup's share — on codeberg-medium (4 CPU / 8G) it asked for sixteen
-  // browsers. Chromium survived it; sixteen Firefox profiles on four CPUs did
-  // not, and the suite failed on timeouts and lost browser contexts. Four is
-  // one worker per vCPU, deliberately above the half-CPUs the default
-  // heuristic would pick, chosen because codeberg-medium caps a job at ten
-  // minutes and there is little room to spare. Two is the next step down if
-  // four still thrashes. Tracks the `runs-on: codeberg-medium` in
-  // .forgejo/workflows/e2e.yml — move that runner label and this number
-  // stops being justified. Unset locally, where the default is right.
+  // One worker per vCPU on GitHub's ubuntu-latest (4 vCPU / 16G), above the
+  // half-CPUs Playwright's default would pick. It was set on Codeberg, whose
+  // runner reported the host's cores and asked for sixteen browsers; sixteen
+  // Firefox profiles on four CPUs failed on timeouts and lost contexts. Two is
+  // the next step down if four thrashes. Tracks `runs-on` in
+  // .github/workflows/ci.yml. Unset locally, where the default is right.
   workers: process.env.CI ? 4 : undefined,
   webServer: upstreamIsLocal
     ? undefined

@@ -1,0 +1,232 @@
+name: CI
+
+# Every check is a `make` target, so CI and a local `make verify` / `make test-e2e`
+# run the same commands through the same Compose services. The one CI-only layer
+# is .github/compose-ci.yml, which puts the Go and npm caches where actions/cache
+# can reach them.
+#
+# `Quality gate` is the required check. A pull request that changes only
+# documentation skips every check, and the gate passes on skipped.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  COMPOSE_FILE: docker-compose.yml:.github/compose-ci.yml
+
+jobs:
+  changes:
+    name: Changed files
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.flags.outputs.code }}
+      e2e: ${{ steps.flags.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      # `code`: anything but docs/**, Markdown and .claude/skills/**.
+      # `e2e`: every file the Playwright rig depends on, Markdown excluded (#16, #167).
+      # A push to main runs everything.
+      - id: flags
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then
+            printf 'code=true\ne2e=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE...$HEAD" > "$RUNNER_TEMP/files"
+          any() { awk "$1 { f = 1 } END { exit !f }" "$RUNNER_TEMP/files" && echo true || echo false; }
+          {
+            echo "code=$(any '!/^docs\/|\.md$|^\.claude\/skills\//')"
+            echo "e2e=$(any '!/\.md$/ && /^(web\/|\.claude\/e2e\/|docker-compose\.yml$|Dockerfile$|Makefile$|\.env\.example$|\.github\/workflows\/ci\.yml$|\.github\/compose-ci\.yml$)/')"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  # Saves test-go and e2e the cold Go build (modernc.org/sqlite dominates it):
+  # warms the Go module and build caches once per go.sum and Go version.
+  # Only this job writes the cache, so the check jobs never race to save it.
+  app-image:
+    name: App image
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      go-cache: ${{ steps.key.outputs.key }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: printf 'THAT_UID=%s\nTHAT_GID=%s\n' "$(id -u)" "$(id -g)" >> "$GITHUB_ENV"
+      - id: key
+        run: echo "key=go-$(docker compose run --rm --no-deps app go env GOVERSION)-${{ hashFiles('go.sum') }}" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .ci-cache/go-build
+            .ci-cache/go-mod
+          key: ${{ steps.key.outputs.key }}
+          lookup-only: true
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: docker compose run --rm --no-deps app go test -run '^$' ./...
+
+  # Saves the web checks the npm downloads behind `npm ci`, and e2e the
+  # Playwright image build (browsers plus their system packages) by shipping the
+  # built image as a tarball. Only this job writes either cache.
+  web-deps:
+    name: Web deps
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      npm-cache: ${{ steps.key.outputs.npm }}
+      playwright-image: ${{ steps.key.outputs.playwright }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: printf 'THAT_UID=%s\nTHAT_GID=%s\n' "$(id -u)" "$(id -g)" >> "$GITHUB_ENV"
+      - id: key
+        run: |
+          echo "npm=npm-${{ hashFiles('web/package-lock.json') }}" >> "$GITHUB_OUTPUT"
+          echo "playwright=playwright-${{ hashFiles('.claude/e2e/Dockerfile', '.claude/e2e/package-lock.json') }}" >> "$GITHUB_OUTPUT"
+      - id: npm
+        uses: actions/cache@v4
+        with:
+          path: .ci-cache/npm
+          key: ${{ steps.key.outputs.npm }}
+          lookup-only: true
+      - if: steps.npm.outputs.cache-hit != 'true'
+        run: make install-web
+      - id: playwright
+        uses: actions/cache@v4
+        with:
+          path: .ci-cache/playwright.tar
+          key: ${{ steps.key.outputs.playwright }}
+          lookup-only: true
+      # ponytail: keyed on the rig's own files, so a moved node:26 base tag is not
+      # picked up until one of them changes; add a date to the key if that bites.
+      - if: steps.playwright.outputs.cache-hit != 'true'
+        run: |
+          docker compose --profile e2e build playwright
+          mkdir -p .ci-cache
+          docker save -o .ci-cache/playwright.tar thatapp-playwright
+
+  lint-go:
+    name: lint-go
+    needs: [changes, app-image]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: make lint-go
+
+  test-go:
+    name: test-go
+    needs: [changes, app-image]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            .ci-cache/go-build
+            .ci-cache/go-mod
+          key: ${{ needs.app-image.outputs.go-cache }}
+      - run: make test-go
+
+  lint-web:
+    name: lint-web
+    needs: [changes, web-deps]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/cache/restore@v4
+        with:
+          path: .ci-cache/npm
+          key: ${{ needs.web-deps.outputs.npm-cache }}
+      - run: make lint-web
+
+  tsc:
+    name: tsc
+    needs: [changes, web-deps]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/cache/restore@v4
+        with:
+          path: .ci-cache/npm
+          key: ${{ needs.web-deps.outputs.npm-cache }}
+      - run: make tsc
+
+  test-web:
+    name: test-web
+    needs: [changes, web-deps]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/cache/restore@v4
+        with:
+          path: .ci-cache/npm
+          key: ${{ needs.web-deps.outputs.npm-cache }}
+      - run: make test-web
+
+  e2e:
+    name: e2e
+    needs: [changes, app-image, web-deps]
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      # The two engines fail differently often enough that one run should report on both.
+      fail-fast: false
+      matrix:
+        browser: [firefox, chromium]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            .ci-cache/go-build
+            .ci-cache/go-mod
+          key: ${{ needs.app-image.outputs.go-cache }}
+      - uses: actions/cache/restore@v4
+        with:
+          path: .ci-cache/npm
+          key: ${{ needs.web-deps.outputs.npm-cache }}
+      - id: playwright
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-cache/playwright.tar
+          key: ${{ needs.web-deps.outputs.playwright-image }}
+      - if: steps.playwright.outputs.cache-hit == 'true'
+        run: docker load -i .ci-cache/playwright.tar
+      # E2E_BUILD= runs the loaded image instead of rebuilding it: `run --build`
+      # would rebuild from scratch, since a loaded image is not BuildKit cache.
+      # On a cache miss the image is missing, and Compose builds it anyway.
+      - run: make test-e2e E2E_ARGS=--project=${{ matrix.browser }} E2E_BUILD=
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ matrix.browser }}
+          path: .claude/e2e/test-results/
+
+  gate:
+    name: Quality gate
+    if: always()
+    needs: [changes, app-image, web-deps, lint-go, test-go, lint-web, tsc, test-web, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
