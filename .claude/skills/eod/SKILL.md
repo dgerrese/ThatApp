@@ -72,20 +72,16 @@ Read-only. Gather everything before changing anything, so the report survives an
 git status --porcelain              # uncommitted work
 git worktree list                   # a second entry is an anomaly: this repo branches in place
 docker compose ps                   # what is running
-tea pulls list --state open         # what waits on the owner
+gh pr list --state open             # what waits on the owner
 ```
 
 **Label integrity** — an open issue must carry exactly one `status/*`, a closed one none:
 
 ```shell
 for st in open closed; do
-  python3 -c "
-import json,subprocess
-st='$st'; d=[]; p=1
-while True:
-    page=json.loads(subprocess.check_output(['tea','api',f'repos/{{owner}}/{{repo}}/issues?state={st}&type=issues&limit=50&page={p}']))
-    if not page: break
-    d+=page; p+=1
+  gh issue list --state $st --limit 1000 --json number,labels | python3 -c "
+import json,sys
+st='$st'; d=json.load(sys.stdin)
 want=1 if st=='open' else 0
 bad=[(i['number'],[l['name'] for l in i['labels'] if l['name'].startswith('status/')] or ['(none)'])
      for i in d if sum(l['name'].startswith('status/') for l in i['labels'])!=want]
@@ -93,15 +89,13 @@ print(st+':', len(d), 'issues, anomalies:', bad or 'none')"
 done
 ```
 
-**Read every page, through the API.** `tea issues list` returns 30 issues and says nothing about the
-rest, so until 2026-10-05 this check never saw most closed tickets. The API's own JSON is used here:
-`labels` is a list of objects and the issue number is `number`. (`tea`'s JSON is different — `labels`
-is one space-separated string and the number is `index` — so do not mix the two.)
+**Give `--limit`.** `gh issue list` returns 30 issues unless told otherwise and says nothing about
+the rest; until 2026-10-05 this check never saw most closed tickets for the same reason on Codeberg.
 
 Branch state, which the rest of the skill depends on:
 
 ```shell
-remote=$(git config --get branch.main.remote)   # the forge remote; not always named codeberg
+remote=$(git config --get branch.main.remote)   # the forge remote; not always named github
 for b in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
   unmerged=$(git rev-list --count "$remote/main"..$b)
   if git ls-remote --exit-code --heads "$remote" "$b" >/dev/null 2>&1; then
@@ -114,8 +108,8 @@ for b in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
 done
 ```
 
-**Label integrity:** a closed issue still carrying a `status/*` label has it removed — that is the
-bookkeeping `ticket-workflow`'s start-of-session sweep does, not a relabel. An open issue carrying no
+**Label integrity:** a closed issue still carrying a `status/*` label has it removed — that is
+bookkeeping the status-label workflow missed, not a relabel, so say it missed one. An open issue carrying no
 `status/*` label is a report line, never a fix, because which status it should have is a judgement.
 
 ### The stop condition
@@ -127,12 +121,12 @@ work that a shutdown routine has no business making.
 Secure it first, so the rule that nothing lives only on this machine still holds:
 
 ```shell
-remote=$(git config --get branch.main.remote)   # the forge remote; not always named codeberg
+remote=$(git config --get branch.main.remote)   # the forge remote; not always named github
 tmp=$(mktemp -u /tmp/eod-index.XXXXXX)
 GIT_INDEX_FILE="$tmp" git read-tree HEAD
 GIT_INDEX_FILE="$tmp" git add -A                       # everything, untracked included
 tree=$(GIT_INDEX_FILE="$tmp" git write-tree)
-snap=$(git commit-tree "$tree" -p HEAD -m "eod snapshot $(date +%F)")
+snap=$(git commit-tree -S "$tree" -p HEAD -m "eod snapshot $(date +%F)")   # signed: nothing unsigned is pushed
 rm -f "$tmp"
 
 [ -n "$snap" ] || { echo "no snapshot built — do not push"; exit 1; }
@@ -146,7 +140,7 @@ commit containing **zero** of the untracked work. Worse, when the *only* changes
 returns an empty string, and `"${snap}:refs/..."` then collapses to `":refs/..."` — which is git's
 refspec for **deleting** the remote ref. Hence the emptiness guard above; keep it. Keep the braces
 too: this machine's shell is zsh, which reads `$snap:r` as a modifier and pushed `<sha>efs/eod/…` on
-2026-10-06. Added by the 2026-10-12 retro, which also stopped naming the remote `codeberg`.
+2026-10-06. Added by the 2026-10-12 retro, which also stopped naming the remote.
 
 The temp index is what makes this safe: `GIT_INDEX_FILE` points `git add -A` at a throwaway index,
 so the real index and the working tree are never touched. Verified on 2026-09-01 — the snapshot
@@ -154,8 +148,9 @@ captured the tracked edit, the untracked file and an untracked directory, and `g
 byte-identical before and after.
 
 `refs/eod/*` is a plain ref, not a branch: nothing enters branch history, nothing appears in the
-branch list, and the working tree is exactly as the owner left it. Codeberg accepts the namespace —
-verified on 2026-09-01 by pushing and deleting a probe ref.
+branch list, and the working tree is exactly as the owner left it. GitHub accepts the namespace —
+verified on 2026-11-19 by pushing and deleting a probe ref, as Codeberg was on 2026-09-01. The
+repository is public, so a snapshot is public too.
 
 Then **halt.** Report the snapshot ref, name every uncommitted file, and say the handoff was not
 written. The owner resolves it and re-runs. A half-applied subagent task is the usual cause — say so,
@@ -179,7 +174,7 @@ UTC and would file a late-evening session under tomorrow.
 ### Verify handoff.md before committing it
 
 The resume document being wrong is the most expensive failure available, and it has happened: on
-2026-09-01 the file still claimed *"PR #78 is open and waiting on the owner"* and *"`handoff-2026-09-01`
+2026-09-01 the file still claimed *"PR CB#78 is open and waiting on the owner"* and *"`handoff-2026-09-01`
 carries three unpushed commits"* — both false, because the forge move had not carried the pull
 requests across.
 
@@ -252,7 +247,7 @@ what tomorrow's session must be told, and the terminal will be closed.
 **Never `make down` here.** That target is `docker compose --profile e2e down -v`, and the `-v`
 drops the build and dependency caches by design — `npm ci`, `go mod download` and a Playwright
 browser fetch before anything runs tomorrow. Correct after a Dockerfile change; wrong as a nightly
-default. The bind-mounted database under `./data` survives either way (#73).
+default. The bind-mounted database under `./data` survives either way (CB#73).
 
 ---
 
@@ -285,7 +280,7 @@ Every one of these is either a hard constraint in `CLAUDE.md` or a decision rese
 | `make down` | `-v` drops the caches. Use `docker compose --profile e2e down`. |
 | Commit anything outside `docs/superpowers/plans/handoff*` | The handoff is the only thing this skill authors. |
 | Stop a peer session or a `Workflow` run | Not this session's work to end. |
-| Delete `.superpowers/` scratch | An SDD ledger was once the only record of #4's review findings. |
+| Delete `.superpowers/` scratch | An SDD ledger was once the only record of CB#4's review findings. |
 
 ## Red flags — stop
 
@@ -297,6 +292,6 @@ Every one of these is either a hard constraint in `CLAUDE.md` or a decision rese
 | "`make down` is the existing target, so use it" | `-v` is the whole difference, and it costs tomorrow's first ten minutes. |
 | "`main` is behind, I'll fast-forward it while I'm here" | Forbidden outright. Report it. |
 | "The push failed, HTTPS would work" | Never. Two prior incidents; the answer both times was to report it. |
-| "handoff.md was right this morning" | It said PR #78 was open for a week after that stopped being true. Check it. |
+| "handoff.md was right this morning" | It said PR CB#78 was open for a week after that stopped being true. Check it. |
 | "`git stash create` is the tool for snapshotting a dirty tree" | It drops untracked files, and returns empty when they are all it has. Use the temp index. |
 | "No agents are running, so Phase 1 is a no-op" | Run `ListAgents` anyway. Peer sessions and workflow runs belong in the report. |

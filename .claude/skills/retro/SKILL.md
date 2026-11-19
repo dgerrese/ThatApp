@@ -45,29 +45,26 @@ Window: since the last retro's date, or all of it on the first run.
 | Source | Command | Holds |
 |---|---|---|
 | The handoff | `docs/superpowers/plans/handoff.md`, then `handoff/YYYY-MM-DD.md` for a day | The curated state, and the lessons already named |
-| Merged PRs | `tea pr list --state closed --limit 50 --output json` | What the branch actually cost — fix waves, late reworks |
-| One PR's body | `tea pr <n>` | Why it was opened, and what it admitted it left undone |
-| Review comments | `tea pr review-comments <n>` | Findings that never reached the handoff |
-| Closed issues | `tea issues <n>` | Scope changes, and why a ticket ended the way it did |
-| The live board | `tea issues list --labels status/<name>` | Current truth about counts and statuses |
+| Merged PRs | `gh pr list --state merged --limit 50 --json number,title,body,mergedAt` | What the branch actually cost — fix waves, late reworks |
+| One PR's body | `gh pr view <n>` | Why it was opened, and what it admitted it left undone |
+| Review comments | `gh pr view <n> --comments` | Findings that never reached the handoff |
+| Closed issues | `gh issue view <n> --comments` | Scope changes, and why a ticket ended the way it did |
+| The live board | `gh issue list --label status/<name>` | Current truth about counts and statuses |
 
-Three things about `tea` that will otherwise cost a run. **There is no `--state merged`** — closed
-is the widest state it takes, and merged pull requests are separated by the `state` field in the
-JSON. **Its JSON flattens `labels` to a comma-joined string**, not a list, so code that treats it as
-one breaks. And when either is awkward, **the plain HTTPS API is richer and needs no extra
-credential**:
+`gh` lists 30 items unless `--limit` says otherwise, and says nothing about the rest. When a flag is
+awkward, `gh api` reaches the full REST API with the same token.
 
-```shell
-curl -sS "https://codeberg.org/api/v1/repos/DionGerrese/ThatApp/issues?state=open&type=issues&limit=100"
-```
+**Work from before 2026-11-19 is on Codeberg.** Its closed tickets and pull requests did not move;
+the valuable ones are in `docs/archive/codeberg/`, and the archived Codeberg repository still holds
+the rest, read-only. A `CB#<n>` in a document is one of those.
 
 **The handoff's prose goes stale between entries**, and a retro is usually the thing that finds out.
 Any count, status or "still open" claim gets re-checked against the forge before it enters a
 finding — a retro whose first number is wrong spends the rest of its credibility defending itself.
 **Check it against the forge, not against local git:** if `git fetch` cannot authenticate, the
 remote-tracking refs stay frozen at the last successful fetch and local git will answer confidently
-with yesterday's world. `tea` and the API carry a token rather than the SSH key, so they keep
-working when git does not.
+with yesterday's world. `gh` carries a token rather than the SSH key, so it keeps working when git
+does not.
 
 ### 3. Qualify
 
@@ -136,7 +133,7 @@ These are what a retro run without this skill actually produced, on this repo's 
 
 | Mistake | How it showed up | Instead |
 |---|---|---|
-| Quoting the handoff's numbers | "twelve open intake tickets", listing twelve; the board had thirteen | Fill the **Verified** slot from `tea` |
+| Quoting the handoff's numbers | "twelve open intake tickets", listing twelve; the board had thirteen | Fill the **Verified** slot from `gh` |
 | A suggestion where a proposal belongs | "add a lightweight triage checkpoint", "make it a checklist item" | Name the document, the section and the wording |
 | Product work dressed as process | A `make` target, a grep check, a prioritisation policy | Raise it as `status:intake` and move on |
 | Every proposal adds a rule | Seven findings, seven new gates, nothing tightened or deleted | Fill the **Delta** slot; *adds* argues for itself |

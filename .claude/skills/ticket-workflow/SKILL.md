@@ -1,11 +1,11 @@
 ---
 name: ticket-workflow
-description: Use when starting any work in this repo, creating or refining a Codeberg issue, moving a ticket between statuses, opening a pull request, or the moment a blocker appears. Holds the ticket lifecycle, the label mechanics and the superpowers loop that runs underneath it.
+description: Use when starting any work in this repo, creating or refining a GitHub issue, moving a ticket between statuses, opening a pull request, or the moment a blocker appears. Holds the ticket lifecycle, the label mechanics and the superpowers loop that runs underneath it.
 ---
 
 # Ticket workflow
 
-Work in this repository is tracked as Codeberg issues in `DionGerrese/ThatApp`, and every change
+Work in this repository is tracked as GitHub issues in `dgerrese/ThatApp`, and every change
 to the product arrives through a pull request tied to one. This skill holds the mechanics. The
 rules come from the project owner and are not open to reinterpretation.
 
@@ -25,7 +25,7 @@ semantics needs a ticket; a change to this skill does not. When a change touches
 ## The five statuses
 
 Status lives in a label, and **a `status/*` label describes open work only.** Exactly one while the
-issue is open; none once it is closed. The label is the source of truth for anything Codeberg cannot
+issue is open; none once it is closed. The label is the source of truth for anything GitHub cannot
 already tell you — not a board, not a comment, not a checklist.
 
 | Status | Label | Who moves it | Meaning |
@@ -36,7 +36,7 @@ already tell you — not a board, not a comment, not a checklist.
 | In progress | `status/in-progress` | You, when the branch is cut | `issue-<n>-<slug>` exists. Someone is on it. |
 | Blocked | `status/blocked` | You, immediately, from any status | A blocker exists. Work stops. |
 
-### What Codeberg says, so the labels do not
+### What GitHub says, so the labels do not
 
 Three former statuses were deleted on 2026-08-20 because each restated something the forge already
 knew. Read these off the issue itself rather than reaching for a label:
@@ -44,50 +44,36 @@ knew. Read these off the issue itself rather than reaching for a label:
 | Was | Read it from |
 |---|---|
 | `status/review` | An **open pull request** whose body says `Closes #<n>`. Opening the PR *is* the move to review — the two were always the same event. |
-| `status/done` | The issue is **closed** and not labelled `wontfix`, its pull request merged. |
-| `status/declined` | The issue is **closed** and labelled `wontfix`. |
+| `status/done` | The issue is **closed as completed**, its pull request merged. |
+| `status/declined` | The issue is **closed as not planned**. |
 
-**`wontfix` is load-bearing here, and was not on GitHub.** Forgejo issues are only ever open or
-closed — there is no "closed as not planned" as distinct from "closed as completed", and `tea
-issues close` accordingly takes no reason. GitHub recorded that distinction itself, which is why
-the 2026-08-20 cleanup could drop both labels. On Codeberg only `wontfix` separates a declined
-ticket from a finished one, so **never close a declined ticket without it** — unlabelled, it is
-indistinguishable from work that shipped.
+**The close reason is load-bearing.** GitHub records whether an issue closed as completed or as not
+planned, so a declined ticket is always closed with `--reason "not planned"`. Closed without it, it
+reads as work that shipped. The `wontfix` label did this job on Codeberg, whose issues are only open
+or closed; it is not used on GitHub.
 
 **A pull request closed without merging is the one gap**, because the issue is then left with no
-signal at all — it has happened once, on PR#27. Move the ticket back to `status/in-progress` by
+signal at all — it has happened once, on PR CB#27. Move the ticket back to `status/in-progress` by
 hand when that occurs.
 
-**A closed issue carries no `status/*` label, and the session removes it.** The owner's merge closes
-the issue and leaves the label behind every time, and the session never sees the merge — about sixty
-closes left one before this rule moved its trigger (2026-10-05 retro). So **every session sweeps
-when it starts**, before it reads the board:
+**A closed issue carries no `status/*` label, and a workflow removes it.** The owner's merge closes
+the issue, and `.github/workflows/status-label.yml` removes every `status/*` label from an issue
+when it closes. It replaced the start-of-session sweep that Codeberg needed, where about sixty
+closes left a label behind. If you still find a closed issue with one, remove it: that is
+bookkeeping, not a relabel, and needs nobody's word. Then say the workflow missed it.
+
+### Labels are not exclusive on GitHub
+
+On Codeberg the `status/*` and `priority/*` labels were scoped and exclusive, so a new label pushed
+the old one off. **GitHub has no such mechanism.** Every status or priority move removes the old
+label in the same command:
 
 ```shell
-for s in intake needs-refinement todo in-progress blocked; do
-  tea api "repos/{owner}/{repo}/issues?state=closed&type=issues&labels=status/$s&limit=50" \
-    | python3 -c "import sys,json;[print(i['number']) for i in json.load(sys.stdin)]"
-done
+gh issue edit <n> --remove-label status/todo --add-label status/in-progress
 ```
 
-Remove the label from each issue it prints. This is bookkeeping, not a relabel, and needs nobody's
-word.
-
-### Scoped labels are exclusive, and the forge enforces it
-
-The `status/*` labels use Forgejo's scoped-label mechanism: the `/` is a scope delimiter, and the
-labels are created with `exclusive: true`, so **applying one automatically removes any other label
-in the same scope**. Two consequences:
-
-- Adding a status does not require removing the old one. `tea issues edit <n> --add-labels
-  status/todo` is the whole move; the previous status falls off by itself.
-- "Exactly one `status/*` label while open" is no longer a rule you can break by accident. It is
-  still possible to have *none* — that is the state to watch for.
-
-**`priority/*` is scoped and exclusive too**, on the same mechanism, so `priority/high` and
-`priority/low` can never both be on one ticket and neither has to be removed to apply the other.
-`bug`, `enhancement` and `wontfix` are unscoped and carry no exclusivity, so those are still applied
-and removed by hand.
+"Exactly one `status/*` label while open" is therefore a rule you can break by accident again, in
+both directions: none, or two. Check the result of a move when it matters.
 
 ### Type: `bug` and `enhancement`
 
@@ -107,14 +93,14 @@ enhancement when the ticket is *clearly an addition* and either *is not necessar
 running* or *is not in the initial design*. Two consequences that catch most misfilings:
 
 - **The design of record's own tickets are not enhancements.** The 13-ticket sequence *is* the
-  initial design, so #8, #10, #11 and #13 carry no type. Neither does a ticket that builds
+  initial design, so CB#8, CB#10, CB#11 and [#6](https://github.com/dgerrese/ThatApp/issues/6) carry no type. Neither does a ticket that builds
   something the visual design language already specifies, such as the phone layout. Building what
   was designed is not an addition to it.
 - **The axis is about the product.** A test-rig change, a formatting gate, a refactor or an API
   reference document is not an addition to the app, whatever else it is. Those stay untyped.
 
 A ticket whose own body says it *widens* an agreed contract rather than correcting it is the clean
-case for `enhancement` — #19 is the worked example.
+case for `enhancement` — CB#19 is the worked example.
 
 **No `enhancement` in a milestone whose scope is not yet determined.** The test above measures a
 ticket against a design, so it has no answer until the milestone has a scope to be measured against.
@@ -140,13 +126,12 @@ default — the same reason there is no `status/done`. Do not invent a `priority
 read an unlabelled ticket as untriaged: unlabelled *is* the triaged answer unless something says
 otherwise.
 
-The scope is exclusive, so `tea issues edit <n> --add-labels priority/high` is the whole move.
-Returning a ticket to normal is the one case needing the explicit removal, because there is no third
-label to displace the current one:
+Labels are not exclusive on GitHub, so a move between the two bands removes the old one in the same
+command, and a return to normal only removes:
 
 ```shell
-tea issues edit <n> --add-labels priority/high
-tea issues edit <n> --remove-labels priority/low      # back to normal
+gh issue edit <n> --remove-label priority/low --add-label priority/high
+gh issue edit <n> --remove-label priority/low      # back to normal
 ```
 
 **Priority is the owner's call, not a reading of the ticket.** Raise a suggestion; do not relabel a
@@ -155,7 +140,7 @@ belongs to, `priority/high` says it should be picked up first, and a ticket can
 easily be one without the other.
 
 **Priority is read first, and `bug` breaks the tie inside a band.** Settled by the owner on
-2026-09-10, when #121 and #8 were both open, both `priority/high` and both v1. Sort by priority —
+2026-09-10, when CB#121 and CB#8 were both open, both `priority/high` and both v1. Sort by priority —
 `priority/high`, then unlabelled, then `priority/low` — and then, **among tickets sharing a priority,
 a `bug` comes before a non-bug.** A defect is in the product the owner is already using; a feature is
 not yet, so shipped work that does not work is a worse state than work that does not exist.
@@ -197,12 +182,11 @@ renamed as soon as it is noticed. Set by the owner on 2026-09-18; `[Docs]` added
   This governs *promotion*, not where a ticket enters. A ticket the owner asked for never sits in
   intake at all — it is created at `status/needs-refinement`, because the asking was the approval.
   What you may never do is promote an intake **you** raised.
-- **Declining an intake.** The owner labels it `wontfix` and closes it. Never
-  pre-empt it.
+- **Declining an intake.** The owner closes it as not planned. Never pre-empt it.
 - **Closing a finished ticket.** The merge is the owner's, and so is the close. A green
   `make verify`, a passing CI run, an approving review and a branch that looks merged are none of
-  them that signal. Merging the pull request closes the issue through `Closes #<n>`; the next
-  session's start-of-session sweep strips its `status/*` label.
+  them that signal. Merging the pull request closes the issue through `Closes #<n>`, and the
+  status-label workflow strips its `status/*` label.
 
 **Merging into `main` locally is forbidden outright** — a hard constraint in `CLAUDE.md`, not a
 preference. A branch reaches `main` through a pull request the owner merges and no other way, no
@@ -230,73 +214,58 @@ unblocked one that got there by moving the goalposts.
 
 ## Commands
 
-The forge is Codeberg, so the CLI is `tea`, not `gh`. It reads the repository from the git remote;
-`tea login list` shows whether this machine is authenticated.
+The forge is GitHub, so the CLI is `gh`. It reads the repository from the git remote `github`;
+`gh auth status` shows whether this machine is authenticated.
 
 ```shell
 # An idea you raised: create at intake, then stop and wait for approval
-tea issues create --labels status/intake --title "..." --description "..."
+gh issue create --label status/intake --milestone "<milestone>" --title "..." --body "..."
 
 # A ticket the owner asked for: skip intake, the asking was the approval
-tea issues create --labels status/needs-refinement --title "..." --description "..."
+gh issue create --label status/needs-refinement --milestone "<milestone>" --title "..." --body "..."
 
-# Move a ticket. The status labels are exclusive, so adding the new one drops
-# the old one; there is no --remove-labels to pair with it.
-tea issues edit <n> --add-labels status/todo
-tea issues edit <n> --add-labels status/in-progress
+# Move a ticket. Labels are not exclusive: remove the old status in the same command.
+gh issue edit <n> --remove-label status/needs-refinement --add-label status/todo
+gh issue edit <n> --remove-label status/todo --add-label status/in-progress
 
-# Closing. `tea issues close` takes no reason - Forgejo has none - so the
-# distinction between finished and declined lives entirely in `wontfix`.
-tea issues edit <n> --remove-labels status/in-progress && tea issues close <n>
-tea issues edit <n> --remove-labels status/intake --add-labels wontfix && tea issues close <n>
+# Declining is the owner's: closed as not planned, which is what separates it from finished work.
+gh issue close <n> --reason "not planned"
 
 # Type, when it is genuinely one or the other
-tea issues edit <n> --add-labels bug
+gh issue edit <n> --add-label bug
 
 # See the board
-tea issues list --labels status/todo
-tea issues list --labels status/in-progress       # what is actually being worked on
-tea pulls list --state open                       # what is waiting on the owner
-tea issues list --state all --output json
+gh issue list --label status/todo
+gh issue list --label status/in-progress          # what is actually being worked on
+gh pr list --state open                           # what is waiting on the owner
+gh issue list --state all --json number,title,labels,milestone
 
 # Comment when a status change needs explaining
-tea comment <n> "..."
+gh issue comment <n> --body "..."
 ```
 
-Creating the `status/*` labels needs the API rather than `tea labels create`, which has no flag for
-exclusivity:
+`--label` given twice means both labels (AND). `gh issue list --json labels` includes the labels, so
+read a ticket's labels from there or from `gh issue view <n> --json labels`.
 
-```shell
-# {owner} and {repo} are filled in from the current repository. A request with a
-# body defaults to POST, so no --method is needed.
-tea api "repos/{owner}/{repo}/labels" \
-  -d '{"name":"status/todo","color":"#0e8a16","exclusive":true}'
-```
+### Two GitHub limits worth knowing before you hit them
 
-### Three Codeberg limits worth knowing before you hit them
+**The token cannot delete repositories.** That needs the `delete_repo` scope, which this machine's
+token deliberately does not carry: the ticket workflow never needs it, and a standing credential
+that can delete repositories is a poor trade for saving a manual step.
 
-**Issue creation is rate limited to 17 in 5 minutes.** Creating issues in bulk — a batch of intake
-tickets, a migration — must be paced at roughly one every 20 seconds or the API starts returning
-`NewIssue: ... rate limited` mid-run. Ordinary single-ticket work never notices this.
-
-**The token cannot create or delete repositories.** Those endpoints require the `write:user` scope,
-which this project's token deliberately does not carry: the ticket workflow never needs it, and a
-standing credential that can delete repositories is a poor trade for saving a manual step. Create
-and delete repositories in the web interface.
-
-**A create that fails can still have created the issue.** A 504, a timeout or a reply that does not
+**A create that fails can still have created the issue.** A 5xx, a timeout or a reply that does not
 parse says nothing about whether the issue exists. Before a retry, search for the title — as its own
 command, after the failed one has returned:
 
 ```shell
-tea api "repos/{owner}/{repo}/issues?state=all&type=issues&q=<title words>&limit=5"
+gh issue list --state all --search "<title words> in:title" --limit 5
 ```
 
-Retry only when the search finds nothing. #232, #248 and #254 were each a duplicate made by a retry.
+Retry only when the search finds nothing. CB#232, CB#248 and CB#254 were each a duplicate made by a
+retry on Codeberg. Bulk creation is paced too: GitHub's secondary rate limit stops a burst of creates.
 
-Never leave an **open** issue with no `status/*` label, and never leave a **closed** one carrying a
-`status/*` label at all. Two statuses at once is no longer possible — the scope is exclusive — so
-the only failure left is the absent one. If you find an issue in either state, say so rather than
+Never leave an **open** issue with no `status/*` label or with two, and never leave a **closed** one
+carrying a `status/*` label at all. If you find an issue in any of these states, say so rather than
 guessing which is right.
 
 ## What each status actually involves
@@ -308,15 +277,15 @@ scope.** A defect in what this ticket itself builds — its own feature failing,
 acceptance criterion it does not meet — is not a discovery. It is unfinished work: fix it on the
 branch before the pull request opens. If the fix is too big for the ticket, that is a blocker and the
 ticket goes to `status/blocked`; it does not go to review with the defect filed beside it. Set by the
-2026-10-05 retro, after #121, #207–#209, #236 and #221 were each filed against the ticket that built
+2026-10-05 retro, after CB#121, CB#207–CB#209, CB#236 and CB#221 were each filed against the ticket that built
 the thing they describe, and that ticket shipped. A ticket
 the owner asked for does not pass through here; create it at `status/needs-refinement`.
 
 **Refinement.** Research properly: **read every comment on the ticket, not only its body** — the
 owner's decisions often land there, and the body goes stale. Then read the relevant code, check the
 design of record, and resolve open questions with the owner. Read the comments again before any
-status move: on 2026-09-29, #207 and #208 went to `status/todo` over the owner's comment that they
-wait for #123. Finish by rewriting the issue body to hold the problem, the approach,
+status move: on 2026-09-29, CB#207 and CB#208 went to `status/todo` over the owner's comment that they
+wait for CB#123. Finish by rewriting the issue body to hold the problem, the approach,
 explicit acceptance criteria, and anything deliberately out of scope. Refinement is over when
 nothing about the ticket is still fuzzy — not when you have run out of patience with it.
 
@@ -335,7 +304,7 @@ happens on the ticket until the owner responds.
 
 **Blocked.** Nothing happens until the owner responds.
 
-**Declined.** The owner rejected the intake. The issue is closed and carries `wontfix`, so the idea
+**Declined.** The owner rejected the intake. The issue is closed as not planned, so the idea
 is not redrafted later.
 
 ## The superpowers loop, from "Ready" to "Review"
@@ -355,7 +324,7 @@ is not redrafted later.
    **Branching in place means the subagent owns the directory while it runs.** Until it reports, the
    session does not switch branch, stash, reset, check out a file or edit a tracked file; it reads
    another branch with `git show <branch>:<path>`. On 2026-09-21 a switch under a running subagent
-   corrupted a 20-run measurement on #134 and produced eleven false Firefox failures.
+   corrupted a 20-run measurement on CB#134 and produced eleven false Firefox failures.
 3. **`superpowers:writing-plans`** — turns the acceptance criteria into a plan under
    `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into bite-sized tasks with exact file
    paths, complete code and verification steps. New plans and specs open with a **Date**,
@@ -367,15 +336,15 @@ is not redrafted later.
    **A task is not over while its subagent still runs.** When an implementer or reviewer reports,
    check `ListAgents` and stop any background work it left with `TaskStop` before the next dispatch.
    Left running, it holds the shared e2e rig and can resume under the next task. On 2026-10-09 this
-   happened three times, on #144 and #305. Set by the 2026-10-12 retro.
+   happened three times, on [CB#144](../../../docs/archive/codeberg/144.md) and CB#305. Set by the 2026-10-12 retro.
 5. **`superpowers:test-driven-development`** — governs every implementation task. RED before GREEN,
    and the failing output belongs in the task report; a task that cannot show it is not done.
    **RED fails on the assertion, for the reason the test names** — a compile error, a missing export
    or a timeout is not RED, and the report quotes the failing assertion. **Then every assertion the
    task adds or changes is proven by mutation:** break the code it guards by hand, run that one test,
    show it go red, restore. An assertion that stays green with its code broken is a finding, the same
-   as a failing test. Since #7, mutation found something on every task it ran on; without it, tests
-   that could not fail reached review on at least twelve tickets and `main` on #99 and #117. Set by
+   as a failing test. Since CB#7, mutation found something on every task it ran on; without it, tests
+   that could not fail reached review on at least twelve tickets and `main` on CB#99 and [CB#117](../../../docs/archive/codeberg/117.md). Set by
    the 2026-10-05 retro.
 6. **`superpowers:requesting-code-review`** — between tasks and again before merge.
 7. **`superpowers:finishing-a-development-branch`** — verifies the suite, presents the integration
@@ -394,7 +363,7 @@ does the visual design language, the ticket's own design document, or the protot
 control, a control moved, a new report, a new state a mark has to express, a row gaining a fourth
 thing where three were drawn sharing one height — the design does not cover it and a session is due.
 **Reasoning your way to what the designer would probably have wanted is exactly what this rule
-exists to stop.** It happened on #10: the fetch control was written into a design document as
+exists to stop.** It happened on CB#10: the fetch control was written into a design document as
 joining Week's three-control row, and the prototype's own caption calls those three out as sharing
 one height.
 
@@ -408,7 +377,7 @@ skill's `scripts/frame-template.html`; it styles `card`, `cards`, `mockup`, `moc
 `options`, `header`, `main`, `section`, `split`, `label`, `status`, `placeholder` and a few more.
 Prefix every mock class — `m-card`, not `card`. On 2026-09-03 four rounds of "misaligned" were all
 collisions with `.card`; on 2026-09-30 the frame's `overflow: hidden` on `.card` clipped every
-tooltip in the #246 session.
+tooltip in the CB#246 session.
 
 Two things this does not mean. It is not a session per ticket: a ticket that only rewires what is
 already drawn goes straight to planning as before. And it is not licence to redesign — the session
@@ -439,19 +408,21 @@ it built**, so the owner sees the change rather than reading a description of it
 .claude/tools/pr-attach.sh <pr-number> shots/*.png     # prints the markdown to paste
 ```
 
-They are **attachments, not repository files.** Forgejo serves them from its own store, so a
-screenshot never enters a repository whose own budget is measured in kilobytes, and it dies with the
-pull request rather than outliving it. `tea` cannot do this — `tea api` sends JSON only and an
-attachment needs a multipart POST — which is why the script exists.
+They **live on the orphan branch `pr-assets`, never on a code branch.** GitHub has no API to attach
+an image to a pull request, so the script commits the files under `pr-<n>/` on that branch, signed,
+pushes it, and prints markdown that links each file through
+`https://github.com/dgerrese/ThatApp/blob/pr-assets/pr-<n>/<file>?raw=true`. No code branch and no
+release image ever contains a screenshot. The images stay after the pull request closes; the owner
+accepted that on the move to GitHub.
 
-Three things that cost time the first time, on #8:
+Three things that cost time the first time, on CB#8:
 
 - **Write the files somewhere the host can see.** A Playwright spec writing to `/tmp` writes to the
   *container's* `/tmp`, which vanishes with it — and the previous run's files are still sitting on
   the host, so the capture looks like it worked. `.claude/e2e` is the only host-visible mount; write
   to `/e2e/test-results/shots/` and copy them out.
 - **Capture at rest.** A screenshot taken straight after a click catches the control hovered or
-  focused, which on #8 meant the stop button photographed primary-pink instead of its running green.
+  focused, which on CB#8 meant the stop button photographed primary-pink instead of its running green.
   Park the pointer and blur before shooting, or the picture shows a state the design never described.
 - **Name each file for what it shows** — the script uses the file name as alt text, and a pull
   request full of `screenshot-1.png` helps nobody.
@@ -459,12 +430,12 @@ Three things that cost time the first time, on #8:
 **Every screenshot comes as a pair, one in dark and one in light**, named for what it shows plus
 `-dark` or `-light`. Light was added to the design on 2026-09-04 and is judged on its own, so a
 dark-only picture shows half of what was built. Set the app's theme the way its theme control does,
-through the stored preference or `data-theme`. Asked for by the owner on 2026-09-23, after PR #191.
+through the stored preference or `data-theme`. Asked for by the owner on 2026-09-23, after PR CB#191.
 
 **A prototype is captured inside the design companion's frame, never as a bare file.** The prototypes
 are fragments on purpose: the companion wraps a file in `frame-template.html` — which carries the
 doctype and a small reset — only when the file does *not* start with a doctype. Opened bare, the
-browser falls into quirks mode, where a table does not inherit colour, and on #184 the Summary cells
+browser falls into quirks mode, where a table does not inherit colour, and on CB#184 the Summary cells
 photographed black on the dark card. **Do not "fix" that by adding a doctype to the prototype**: the
 companion then renders it unwrapped, with taller rows and misaligned buttons, which is not the drawing
 the owner approved. Substitute the prototype for `<!-- CONTENT -->` in the brainstorming skill's
@@ -478,9 +449,9 @@ not say what it was checked against. A reviewer still needs that sentence.
 
 **Why this is a rule and not an instinct.** On 2026-09-08, reading Week's header for an unrelated
 reason turned up two things the prototype draws that the app never built: the card around the week
-grid, and a refresh control. Neither was caught by a test, a review, or a gate — #95 shipped the
+grid, and a refresh control. Neither was caught by a test, a review, or a gate — CB#95 shipped the
 second edition across Today and Week through six task reviews and a whole-branch review, and both
-gaps went through all of them. That is #117, and the reason its first job is an audit is that
+gaps went through all of them. That is [CB#117](../../../docs/archive/codeberg/117.md), and the reason its first job is an audit is that
 nobody knows how many more there are.
 
 **One issue, one branch, one pull request.** The pull request body references the issue with
@@ -494,13 +465,13 @@ into the parent branch, and the parent's pull request then carries both to `main
 merges first, retarget the child to `main`:
 
 ```shell
-tea api --method PATCH "repos/{owner}/{repo}/pulls/<n>" -d '{"base":"main"}'
+gh pr edit <n> --base main
 ```
 
 `Closes #<n>` fires only when the work reaches `main`, so a stacked ticket closes when its parent's
 pull request merges, and its `status/*` label comes off then. Asked for by the owner on 2026-09-18,
-after PR #162 (#19) was opened against `main` while built on #157's branch, and its diff carried
-#79's commits too.
+after PR CB#162 (CB#19) was opened against `main` while built on CB#157's branch, and its diff carried
+[CB#79](../../../docs/archive/codeberg/79.md)'s commits too.
 
 **Use the skills' own prompt templates.** `subagent-driven-development` ships
 `implementer-prompt.md`, `task-reviewer-prompt.md` and `re-review-prompt.md`;
@@ -514,7 +485,7 @@ subagent, so it names the skill. `CLAUDE.md` says what ponytail governs here and
 Set by the owner on 2026-10-09.
 
 **Tick the ticket's acceptance criteria as the reviews confirm them**, and untick anything a later
-pass shows has regressed. Asked for by the owner on 2026-09-09, during #117. **The tick follows a
+pass shows has regressed. Asked for by the owner on 2026-09-09, during [CB#117](../../../docs/archive/codeberg/117.md). **The tick follows a
 review, never an implementer's claim** — that is the whole point of it, and it is why the criteria
 become live state rather than a checklist filled in at the end. Do it per task, not in one sweep
 when the branch is finished.
@@ -522,9 +493,9 @@ when the branch is finished.
 The body round-trips through the API; verify the round trip before trusting it:
 
 ```shell
-tea api "repos/{owner}/{repo}/issues/<n>" | python3 -c "import sys,json;print(json.load(sys.stdin)['body'])" > /tmp/<n>.md
+gh issue view <n> --json body -q .body > /tmp/<n>.md
 # edit /tmp/<n>.md
-tea api --method PATCH "repos/{owner}/{repo}/issues/<n>" -F body=@/tmp/<n>.md
+gh issue edit <n> --body-file /tmp/<n>.md
 ```
 
 **A progress update leads with the ledger** — done, running, left — and goes out **when a task
@@ -542,12 +513,11 @@ whole branch and not only per task; what it finds is handled like any other revi
 change touches the frontend or the rig. Paste the output. See
 `superpowers:verification-before-completion` — evidence before assertions, always.
 
-**While Codeberg's hosted CI is stopped, the local run is the only gate.** Codeberg stopped the
-repository's CI for its run volume (#284). The owner set the rule on 2026-10-07: until CI is back,
-run **both** `make verify` and `make test-e2e` before **every** pull request, whatever it touches,
-and paste both results into the body. Pull requests that wait on the owner together are also merged
-on a local scratch branch, which is never pushed, and the full suite runs there once. Batch pushes,
-because each push starts runs. Remove this paragraph when CI is back.
+**CI runs on every pull request, and `Quality gate` is the required check on `main`.** It runs the
+same `make` targets in Docker, so a green local run and a green CI run test the same thing. CI
+decides from the changed files which checks run; a docs-only pull request skips them all. The local
+run above still comes first, because CI is the second gate and not the first. Check the pull
+request's run with `gh pr checks <n>` before reporting it ready.
 
 ## Keeping the handoff current
 

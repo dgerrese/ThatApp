@@ -1,15 +1,14 @@
 #!/bin/sh
-# Attach an image to a pull request or issue, and print the markdown to paste.
+# Put screenshots for a pull request on the orphan branch `pr-assets`, and print
+# the markdown to paste.
 #
 #   usage: pr-attach.sh <number> <file> [<file>...]
 #
-# Forgejo serves attachments from its own store, so a screenshot never enters the
-# repository — which matters here, where the app's own budget is measured in
-# kilobytes. `tea` cannot do this: `tea api` sends JSON only, and an attachment
-# needs a multipart POST, so this reaches for curl.
-#
-# The token is read from tea's existing config and passed straight to curl. It is
-# never echoed, logged, or written anywhere.
+# GitHub has no API to attach an image to a pull request, so the files are
+# committed under pr-<number>/ on a branch that shares no history with the code.
+# No code branch and no release image ever carries a screenshot. The commit is
+# built with plumbing on a throwaway index, so the working tree, the real index
+# and the current branch are never touched, and it is signed like every push.
 set -eu
 
 usage='usage: pr-attach.sh <number> <file> [<file>...]'
@@ -18,31 +17,48 @@ shift
 [ $# -gt 0 ] || { echo "$usage" >&2; exit 2; }
 
 case $number in
-*[!0-9]*) echo "pr-attach: '$number' is not a pull request or issue number" >&2; exit 2 ;;
+*[!0-9]*) echo "pr-attach: '$number' is not a pull request number" >&2; exit 2 ;;
 esac
-
-# The remote decides the repository, so this works unchanged in a fork.
-remote=$(git config --get remote.codeberg.url 2>/dev/null || git config --get remote.origin.url)
-repo=$(printf '%s\n' "$remote" | sed -e 's#^.*[:/]\([^/]*/[^/]*\)$#\1#' -e 's#\.git$##')
-[ -n "$repo" ] || { echo "pr-attach: could not read the repository from the git remote" >&2; exit 1; }
-
-config="${HOME}/.config/tea/config.yml"
-[ -f "$config" ] || { echo "pr-attach: no tea config at $config — run 'tea login add' first" >&2; exit 1; }
-token=$(sed -n 's/^[[:space:]]*token:[[:space:]]*//p' "$config" | head -1)
-[ -n "$token" ] || { echo "pr-attach: no token in $config" >&2; exit 1; }
 
 for file do
 	[ -f "$file" ] || { echo "pr-attach: no such file: $file" >&2; exit 1; }
+	case $(basename "$file") in
+	*[!A-Za-z0-9._-]*) echo "pr-attach: '$file': use only letters, digits, '.', '_' and '-' in the name" >&2; exit 2 ;;
+	esac
+done
 
-	url=$(curl -sS --fail-with-body -X POST \
-		-H "Authorization: token ${token}" \
-		-F "attachment=@${file}" \
-		"https://codeberg.org/api/v1/repos/${repo}/issues/${number}/assets" \
-		| python3 -c 'import sys,json;print(json.load(sys.stdin)["browser_download_url"])')
+# The remote decides the repository, so this works unchanged in a fork.
+remote=$(git config --get branch.main.remote)
+repo=$(git config --get "remote.$remote.url" | sed -e 's#^.*[:/]\([^/]*/[^/]*\)$#\1#' -e 's#\.git$##')
+[ -n "$repo" ] || { echo "pr-attach: could not read the repository from the git remote" >&2; exit 1; }
+branch=pr-assets
 
-	# Markdown, ready to paste into the pull request body. The alt text is the
-	# file name without its extension, which is why the plans ask for names that
-	# say what the shot shows.
-	alt=$(basename "$file" | sed 's/\.[^.]*$//')
-	printf '![%s](%s)\n' "$alt" "$url"
+git fetch -q "$remote" "+refs/heads/$branch:refs/remotes/$remote/$branch" 2>/dev/null || true
+parent=$(git rev-parse -q --verify "refs/remotes/$remote/$branch" || true)
+
+index=$(mktemp -u "${TMPDIR:-/tmp}/pr-attach.XXXXXX")
+trap 'rm -f "$index"' EXIT
+if [ -n "$parent" ]; then
+	GIT_INDEX_FILE=$index git read-tree "$parent"
+else
+	GIT_INDEX_FILE=$index git read-tree --empty
+fi
+
+for file do
+	blob=$(git hash-object -w "$file")
+	GIT_INDEX_FILE=$index git update-index --add --cacheinfo "100644,$blob,pr-$number/$(basename "$file")"
+done
+
+tree=$(GIT_INDEX_FILE=$index git write-tree)
+commit=$(git commit-tree -S "$tree" ${parent:+-p "$parent"} -m "Screenshots for pull request #$number")
+git push -q "$remote" "$commit:refs/heads/$branch"
+
+# Markdown, ready to paste into the pull request body. The alt text is the file
+# name without its extension, which is why the plans ask for names that say what
+# the shot shows. raw.githubusercontent.com caches a 404 for a file asked for
+# before it existed; the blob URL with ?raw=true does not.
+for file do
+	name=$(basename "$file")
+	printf '![%s](https://github.com/%s/blob/%s/pr-%s/%s?raw=true)\n' \
+		"${name%.*}" "$repo" "$branch" "$number" "$name"
 done

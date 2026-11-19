@@ -18,10 +18,8 @@ repo; it does not repeat the design.
 These come from the project owner. They are not preferences and not open to reinterpretation.
 
 - **Local development runs in Docker.** There is no Go, Node or npm on the host, so never run them
-  bare here — drive everything through `make` or `docker compose`. This is a rule about *this
-  machine*, not about the software: CI runs the same tools natively, because a Forgejo Actions job
-  is itself a container and Codeberg's hosted runners provide no Docker daemon inside one. See
-  `.forgejo/workflows/`.
+  bare here — drive everything through `make` or `docker compose`. CI runs the same `make` targets
+  on GitHub's runners, so CI and local cannot drift. See `.github/workflows/ci.yml`.
 - **No JavaScript frameworks.** Vanilla JS only; TypeScript is permitted for typing.
 - **Tailwind CSS v4** for all styling. v4 is CSS-first — there is no `tailwind.config.js`; theme
   values live in `@theme` in `web/src/styles.css`.
@@ -73,20 +71,16 @@ docker compose --profile e2e run --build --rm playwright sh -c 'npm ci --no-audi
 ```
 
 `make verify` and `make test-e2e` together are the source of truth for whether a change is green.
-CI runs the same checks on different triggers: `verify` needs no running stack and runs on every
-pull request that changes more than documentation (`docs/**`, any `*.md`, `.claude/skills/**`); the
-end-to-end suite builds the frontend and waits on the app's health endpoint, so it runs in its own
-workflow, gated to pull requests that touch the frontend or the rig itself — that gate is the
-`paths:` list in `.forgejo/workflows/e2e.yml`, which must name every file the rig depends on and
-ends by excluding Markdown. A docs-only pull request therefore runs no CI at all (#167). Never
-claim work is done without pasting their output.
+CI runs the same `make` targets in one workflow, `.github/workflows/ci.yml`, on every pull request
+and every push to `main`. Its `Changed files` job decides what runs: the verify checks run when
+anything outside documentation changed (`docs/**`, any `*.md`, `.claude/skills/**`); `e2e` runs when
+the frontend or the rig changed — the path list in `scripts/changed-files.sh`, which must name every
+file the rig depends on. `Quality gate` sums the checks and is the one required check on `main`, so
+a docs-only pull request skips every check and still passes it. Never claim work is done without
+pasting the local output.
 
-**CI does not use Compose, and the two can drift.** `make verify` drives each tool through a
-container; `.forgejo/workflows/verify.yml` invokes the same tools directly, and splits them across
-two jobs because Codeberg caps a hosted job at ten minutes. Nothing enforces that the two stay
-equivalent — change one and you must change the other by hand. The end-to-end workflow points the
-Playwright rig at `localhost` through `THAT_BASE_URL` rather than the Compose alias, which is why
-it needs no test changes.
+A merge to `main` that changes more than documentation publishes a pre-release image to
+`ghcr.io/dgerrese/thatapp`; closing a milestone publishes a stable one (`.github/workflows/release.yml`).
 
 ## Layout
 
@@ -121,7 +115,7 @@ about what was attempted. Table-driven tests with `t.Run` subtests, using `httpt
 not reach for `any`, `as any` or a non-null assertion to get past a type error; the error is
 usually right. A node test asserts on a value read from a happy-dom element (`=== null`,
 `.textContent`, `getAttribute`), never on the element itself: a failing `assert.equal(element, …)`
-serialises the node for its message and exhausted 26 GB of memory instead of failing (#206).
+serialises the node for its message and exhausted 26 GB of memory instead of failing (CB#206).
 
 **No test ever contacts a real Jira instance.** Jira client tests run against an `httptest.Server`
 standing in for the API.
@@ -177,13 +171,13 @@ Both are worth a table-driven test that a plausible refactor would fail.
 
 ## Workflow
 
-Development goes by Codeberg issues in `DionGerrese/ThatApp`. Every change to the *product* has
+Development goes by GitHub issues in `dgerrese/ThatApp`. Every change to the *product* has
 an issue, a branch and a pull request. Changes to how the project is *run* — `CLAUDE.md`,
 `.claude/**`, process documents — need no issue and go in their own pull request; split a change
 that touches both. A change to user documentation alone, such as `README.md`, needs no issue either:
 it gets a branch and a pull request titled `[Docs]`.
 
-Open tickets carry exactly one `status/*` label; closed ones carry none, because Codeberg already
+Open tickets carry exactly one `status/*` label; closed ones carry none, because GitHub already
 records how an issue ended:
 
 ```
@@ -191,12 +185,12 @@ records how an issue ended:
                 ↓
 intake → needs-refinement → todo → in-progress → (open PR) → merged & closed
    ↓                                   ↓
-closed as not planned,             blocked (from anywhere)
-labelled wontfix
+closed as not planned               blocked (from anywhere)
 ```
 
 Review and done are **not labels**. An open pull request saying `Closes #<n>` is the review state,
-and a closed issue is the finished one — so the label comes off when the issue closes. A pull
+and a closed issue is the finished one — so the label comes off when the issue closes, which
+`.github/workflows/status-label.yml` does. A pull
 request closed *without* merging is the one gap: move the ticket back to `status/in-progress` by
 hand.
 
@@ -206,11 +200,11 @@ capability. At most one, and plenty of tickets are neither.
 `priority/high` and `priority/low` are a third, answering what to pick up next, and **priority is the
 first thing to read**. Within one priority band, **a `bug` comes before a non-bug** — shipped work
 that does not work is a worse state than work that does not exist — so two `priority/high` tickets
-are not a tie when one of them is a defect. The scope is exclusive, and **normal priority carries no
+are not a tie when one of them is a defect. GitHub labels are not exclusive, so a move removes the old label in the same command. **Normal priority carries no
 label at all** — an unlabelled ticket is normal, not
 untriaged, so there is no `priority/normal` to add. Priority is the owner's to set; suggest, do not
 relabel. Every open issue also carries a **milestone**, a scoped feature set in the way of an epic;
-that is a separate question from priority, and the milestone descriptions on Codeberg say what each
+that is a separate question from priority, and the milestone descriptions on GitHub say what each
 one admits. A new ticket goes into the milestone whose description fits it. A ticket that fits none
 is raised with the owner, because a new milestone is theirs to create. The owner retired the
 release-shaped `v1` and `v2` for feature sets on 2026-10-26.
@@ -277,13 +271,13 @@ done** — by whoever builds it, and again by whoever reviews it. The report say
 and what was found; "looks right" is not a comparison. A difference the ticket forces is reported
 to the owner so the design is updated, never absorbed silently, because the next ticket reads the
 drawing rather than the diff. **A ticket that changes the interface also attaches screenshots of what
-it built to its pull request** — `.claude/tools/pr-attach.sh` uploads them, as Forgejo attachments
-rather than repository files.
+it built to its pull request** — `.claude/tools/pr-attach.sh` commits them to the orphan branch `pr-assets`, never to a code
+branch, and prints the markdown that links them.
 
-The `ticket-workflow` skill holds both tests, how the session runs, and why #117 exists.
+The `ticket-workflow` skill holds both tests, how the session runs, and why [CB#117](docs/archive/codeberg/117.md) exists.
 
 **Invoke the `ticket-workflow` skill** whenever work starts, a ticket changes status, or a blocker
-appears. It holds the label mechanics, the `tea` commands, what each status requires and the loop in
+appears. It holds the label mechanics, the `gh` commands, what each status requires and the loop in
 full — including the standing decision on worktrees and why the whole-branch review is not
 optional.
 
@@ -304,7 +298,7 @@ load-bearing.
 **A rule the owner sets goes into the document that governs it on the day it is set** — `CLAUDE.md`
 or the skill — on a `[Process]` branch. A day file is not read and this machine's memory does not
 leave this machine, so neither is a home for a rule. On 2026-09-21 the owner set in-progress tickets
-first; the rule reached only a day file, and the 2026-09-30 run walked past #123.
+first; the rule reached only a day file, and the 2026-09-30 run walked past CB#123.
 
 **Invoke the `eod` skill when the day ends** — the owner saying "eod", "that's me for today" or
 "shutting down". The end of the day propagates: running subagents are signalled to wrap up and
