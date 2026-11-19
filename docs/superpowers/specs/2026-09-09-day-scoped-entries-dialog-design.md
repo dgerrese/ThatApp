@@ -1,7 +1,7 @@
 # The entries dialog, scoped to a day
 
 **Date:** 2026-09-09
-**Ticket:** [#105](https://codeberg.org/DionGerrese/ThatApp/issues/105)
+**Ticket:** [CB#105](https://codeberg.org/DionGerrese/ThatApp/issues/105)
 **Supersedes:** nothing
 **Superseded by:** nothing
 

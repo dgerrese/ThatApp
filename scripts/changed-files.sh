@@ -2,7 +2,7 @@
 # Reads changed file names on stdin and prints the two flags the CI and release
 # workflows run on:
 #   code  anything but docs/**, Markdown and .claude/skills/**
-#   e2e   any file the Playwright rig depends on, Markdown excluded (#16, #167)
+#   e2e   any file the Playwright rig depends on, Markdown excluded (CB#16, CB#167)
 set -eu
 
 awk '

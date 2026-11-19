@@ -1,0 +1,23 @@
+name: Status label
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  clear:
+    name: Remove status label
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api "repos/$REPO/issues/$ISSUE/labels" --jq '.[].name | select(startswith("status/"))' |
+            while IFS= read -r label; do
+              gh issue edit "$ISSUE" --repo "$REPO" --remove-label "$label"
+            done

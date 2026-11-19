@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#30](https://codeberg.org/DionGerrese/ThatApp/issues/30). The app has no theming:
+The design for [CB#30](https://codeberg.org/DionGerrese/ThatApp/issues/30). The app has no theming:
 `@theme` in `web/src/styles.css` holds one token (`--font-sans`) and every view uses hardcoded light
 utilities. This introduces a colour vocabulary, a dark palette, and a three-state control that
 selects between them.

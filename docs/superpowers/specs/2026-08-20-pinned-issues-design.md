@@ -7,7 +7,7 @@ for the pin form and `that-combobox` (decision 2, and *The frontend*'s `### toda
 `### that-combobox` sections) — CB#84 deleted both and pins now come from the global search.
 Everything else in this document still governs.
 
-The design for [#6](https://codeberg.org/DionGerrese/ThatApp/issues/6). Pins are how time gets
+The design for [CB#6](https://codeberg.org/DionGerrese/ThatApp/issues/6). Pins are how time gets
 logged against tickets that are not assigned to the user — shared work, standing meetings,
 miscellaneous overhead. `GET/POST/DELETE /api/pins` back them, `GET /api/issues/search` finds the
 issue to pin, and the Today view grows a Pinned card above the assigned instance cards.

@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#7](https://codeberg.org/DionGerrese/ThatApp/issues/7). Time is typed against a
+The design for [CB#7](https://codeberg.org/DionGerrese/ThatApp/issues/7). Time is typed against a
 ticket, stored locally, and shown as the day's total. `GET/POST/PATCH/DELETE /api/entries` back it,
 a modal dialog per ticket is the only manual way in, and the rail carries the total and the split.
 
@@ -65,8 +65,8 @@ type Entry struct {
     StartedAt  time.Time
     Seconds    int
     Comment    string
-    WorklogID  string      // empty until #9 pushes
-    PushedAt   *time.Time  // nil until #9 pushes
+    WorklogID  string      // empty until CB#9 pushes
+    PushedAt   *time.Time  // nil until CB#9 pushes
     CreatedAt  time.Time
     UpdatedAt  time.Time
 }
@@ -102,7 +102,7 @@ now := s.now()                                   // injected, see below
 started := now
 day := now.In(s.cfg.Location).Format("2006-01-02")
 
-// day given instead — #105: the clock is not read at all
+// day given instead — CB#105: the clock is not read at all
 started = localMidnight(day, s.cfg.Location)
 ```
 
@@ -185,7 +185,7 @@ Both answer 404 `entry_not_found`.
 
 **A non-numeric id is 400 `invalid_request`**, following `/api/pins/{id}`. `/api/instances/{id}`
 answers 404 for the same input by documented design; this makes it two routes to one, which turns
-[#55](https://codeberg.org/DionGerrese/ThatApp/issues/55) into "change instances to match" rather
+[CB#55](https://codeberg.org/DionGerrese/ThatApp/issues/55) into "change instances to match" rather
 than an open question.
 
 ## The duration control — `web/src/components/that-duration.ts`
@@ -367,7 +367,7 @@ integer is the class of defect this project keeps finding.
   comment into the foot, Save posts a `PATCH` for that id, and Cancel leaves the entry unchanged.
 
 The parse rule is a pure function and the obvious first customer for
-[#51](https://codeberg.org/DionGerrese/ThatApp/issues/51)'s frontend unit runner, which now
+[CB#51](https://codeberg.org/DionGerrese/ThatApp/issues/51)'s frontend unit runner, which now
 covers it as `web/src/duration.test.ts`, gated by `make verify`.
 
 ## Out of scope

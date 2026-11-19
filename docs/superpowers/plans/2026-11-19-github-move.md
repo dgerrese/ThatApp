@@ -3,6 +3,7 @@
 **Date:** 2026-11-19
 **Supersedes:** nothing
 **Superseded by:** nothing
+**Ticket numbers:** `#<n>` in this file are GitHub numbers, except `CB#348`, `CB#349` and `CB#350`, which are Codeberg's.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -12,7 +13,7 @@
 
 **Tech Stack:** GitHub Actions, Docker Compose, Buildx with the `gha` cache, crane (inside `release-image.sh`), POSIX sh.
 
-**Spec:** issue #350's body on Codeberg (`https://codeberg.org/DionGerrese/ThatApp/issues/350`), the same text as GitHub issue #46. Sections *CI*, *Releases and images*, *Order* step 8.
+**Spec:** issue CB#350's body on Codeberg (`https://codeberg.org/DionGerrese/ThatApp/issues/350`), the same text as GitHub issue #46. Sections *CI*, *Releases and images*, *Order* step 8.
 
 ## Global Constraints
 
@@ -28,7 +29,7 @@
   - a milestone closed → stable, built again from `main`: `:VERSION`, `:latest`, `:stable`; a GitHub release (not pre-release) whose notes list the milestone's closed issues (`- <title> (#<n>)`);
   - `VERSION` is `YYYY.WW.N`: ISO year and zero-padded ISO week of the run's date, `N` one more than the highest `N` among tags `vYYYY.WW.*`, starting at 1.
 - Tag names reach scripts through the environment, never interpolated into a `run:` line.
-- The move block (`[data-moved]`) leaves `web/index.html`, with its tests. #349 says the first GitHub release removes it.
+- The move block (`[data-moved]`) leaves `web/index.html`, with its tests. CB#349 says the first GitHub release removes it.
 - README: every image reference becomes `ghcr.io/dgerrese/thatapp`; a section headed exactly `Moving from Codeberg` (anchor `#moving-from-codeberg`) says to change the image line from `codeberg.org/diongerrese/thatapp:stable` to `ghcr.io/dgerrese/thatapp:stable` and pull; the data volume and secret key stay as they are.
 - Light DOM, no framework, initial response under 14kB — unchanged by this work.
 
@@ -53,10 +54,10 @@
 
 ### Task 2: Remove the move notice
 
-**Files:** `web/index.html` (the `<div data-moved>` block), `.claude/e2e/tests/rail-version.spec.ts` (the move `describe` and `MOVED_LINK`), `web/src/rail-version.test.ts` (the repaint-keeps-the-block test), `.claude/e2e/tests/instance-dot.spec.ts` (the extra Tab stop #349 added).
+**Files:** `web/index.html` (the `<div data-moved>` block), `.claude/e2e/tests/rail-version.spec.ts` (the move `describe` and `MOVED_LINK`), `web/src/rail-version.test.ts` (the repaint-keeps-the-block test), `.claude/e2e/tests/instance-dot.spec.ts` (the extra Tab stop CB#349 added).
 
 - [ ] **Step 1:** Change the instance-dot Tab count back and add one e2e assertion: `[data-moved]` has count 0 on `/today`. RED on that assertion.
-- [ ] **Step 2:** Delete the block and the move-only tests. Keep `#rail-version`'s `relative` class (it fixes the sr-only escape for #348's link).
+- [ ] **Step 2:** Delete the block and the move-only tests. Keep `#rail-version`'s `relative` class (it fixes the sr-only escape for CB#348's link).
 - [ ] **Step 3:** GREEN; mutation: put the block back, see the new assertion fail, restore.
 - [ ] **Step 4:** Screenshot pair (dark, light) of the rail foot with a failed check line and the version, compared with rail three of the mockup `.superpowers/brainstorm/219294-1795019192/content/foot-states-v2.html`. Report what was compared.
 - [ ] **Step 5:** `make verify` and `make test-e2e` green. Commit `feat(#46): the rail foot drops the move notice`.

@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#4](https://codeberg.org/DionGerrese/ThatApp/issues/4). It elaborates the ticket
+The design for [CB#4](https://codeberg.org/DionGerrese/ThatApp/issues/4). It elaborates the ticket
 sequence's fourth entry in
 [`2026-08-04-thatapp-design.md`](2026-08-04-thatapp-design.md), which stays the design
 of record wherever the two disagree.

@@ -119,7 +119,7 @@ CREATE TABLE time_entries (
   pushed_at      DATETIME,               -- NULL until pushed
   created_at     DATETIME NOT NULL,
   updated_at     DATETIME NOT NULL,
-  deleted_at     DATETIME                -- set while a delete waits for the push (#280)
+  deleted_at     DATETIME                -- set while a delete waits for the push (CB#280)
 );
 CREATE INDEX idx_entries_day ON time_entries(day);
 CREATE INDEX idx_entries_issue_day ON time_entries(instance_id, issue_key, day);
@@ -219,7 +219,7 @@ GET     /api/entries?from=&to=
 POST    /api/entries
 PATCH   /api/entries/:id
 DELETE  /api/entries/:id
-POST    /api/entries/:id/restore         take back a delete waiting for the push (#280)
+POST    /api/entries/:id/restore         take back a delete waiting for the push (CB#280)
 
 GET     /api/timer
 POST    /api/timer/start
@@ -227,7 +227,7 @@ POST    /api/timer/stop                  creates a time entry
 
 POST    /api/push?day=YYYY-MM-DD         end-of-day push; per-entry results
 GET     /api/week?start=YYYY-MM-DD       weekly rollup
-POST    /mcp                             MCP (JSON-RPC); tools over the routes above, no push, week fetch, instances or pins (#253)
+POST    /mcp                             MCP (JSON-RPC); tools over the routes above, no push, week fetch, instances or pins ([CB#253](../../archive/codeberg/253.md))
 ```
 
 Errors return a JSON body with a stable machine-readable `code` and a human-readable `message`.

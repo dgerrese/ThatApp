@@ -129,7 +129,7 @@ container domains & IPs** is on, in OrbStack's Settings → Network.
 ### 3. Upgrade
 
 Releases are named `YYYY.WW.N` — year, ISO week, and the release number within that week. CI
-publishes them to `ghcr.io/dgerrese/thatapp`: a pre-release for every merged pull request, and a
+publishes them to `ghcr.io/dgerrese/thatapp`: a pre-release for every merged pull request that changes the app (a docs-only merge publishes none), and a
 stable release when a milestone is closed.
 
 Two tags follow new releases. `stable` moves only on a release marked stable, and it is the one

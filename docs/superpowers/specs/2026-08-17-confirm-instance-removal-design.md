@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#29](https://codeberg.org/DionGerrese/ThatApp/issues/29). Removing a Jira instance
+The design for [CB#29](https://codeberg.org/DionGerrese/ThatApp/issues/29). Removing a Jira instance
 takes one click and no confirmation, and `DELETE /api/instances/{id}` cascades to `pinned_issues`,
 `time_entries` and `timers`. That is harmless only while `time_entries` is empty. Once CB#6 ships time
 entry it destroys logged time — the asset `CLAUDE.md`'s *Where correctness lives* exists to protect —

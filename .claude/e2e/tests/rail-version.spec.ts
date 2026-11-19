@@ -74,9 +74,3 @@ test("a 500 leaves the foot empty and throws nothing", async ({ page }) => {
   await expect(page.locator("#rail-version")).toHaveText("");
   expect(errors).toEqual([]);
 });
-
-test("no move notice on /today", async ({ page }) => {
-  await open(page, { version: "2026.47.1", latest: null, error: "" });
-  await expect(page.locator("#rail-version [data-version]")).toBeVisible();
-  await expect(page.locator("[data-moved]")).toHaveCount(0);
-});

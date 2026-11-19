@@ -14,15 +14,15 @@ Elsewhere in the repository, `CB#<n>` names Codeberg item `<n>`. It links here w
 - [CB#89](89.md): Settings: take it out of the nav and redesign the page
 - [CB#117](117.md): The shipped UI has drifted from the prototype, and the count is unknown
 - [CB#144](144.md): Today's instance cards leave holes: a short card wraps under a tall one instead of filling the space beside it
-- [CB#175](175.md): [#139] A pinned ticket has a row in the current week
-- [CB#177](177.md): [#39] One home for alertFor and messageOf
+- [CB#175](175.md): [CB#139] A pinned ticket has a row in the current week
+- [CB#177](177.md): [CB#39] One home for alertFor and messageOf
 - [CB#183](183.md): A running timer's figure and the Today sort disagree
 - [CB#192](192.md): A row that a sort moves loses its start/stop button
 - [CB#200](200.md): Settings: two saves of the same instance in flight can undo the second
 - [CB#204](204.md): A running timer's elapsed time is missing from the card tally and the rail total
 - [CB#217](217.md): tooltip.spec.ts's keyboard-focus test uses .focus(), not a real Tab
 - [CB#220](220.md): CI runs on a self-hosted runner instead of Codeberg's shared pool
-- [CB#242](242.md): [#209] One timer start or stop at a time
+- [CB#242](242.md): [CB#209] One timer start or stop at a time
 - [CB#253](253.md): An MCP server, so an AI assistant can read and log time through the app
 - [CB#267](267.md): A tooltip cannot be dismissed with Escape or hovered, as WCAG 1.4.13 asks
 - [CB#276](276.md): Closing an issue does not remove its status/* label

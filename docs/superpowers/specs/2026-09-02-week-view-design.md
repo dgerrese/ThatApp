@@ -6,7 +6,7 @@
 for the grid's row rule alone (decision 1) — settled for CB#84 and CB#139. Everything else in this
 document still governs.
 
-The design for [#11](https://codeberg.org/DionGerrese/ThatApp/issues/11). A grid of tickets against
+The design for [CB#11](https://codeberg.org/DionGerrese/ThatApp/issues/11). A grid of tickets against
 Monday–Sunday, backed by `GET /api/week?start=YYYY-MM-DD`, with push state on every cell and the
 ability to push an unsettled day without leaving the view.
 

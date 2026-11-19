@@ -4,7 +4,7 @@
 **Supersedes:** nothing
 **Superseded by:** nothing
 
-The design for [#5](https://codeberg.org/DionGerrese/ThatApp/issues/5). `GET /api/issues` fetches
+The design for [CB#5](https://codeberg.org/DionGerrese/ThatApp/issues/5). `GET /api/issues` fetches
 the issues assigned to the user from every configured instance concurrently, and the Today view
 renders them. It is the first view of the app's actual purpose: `/` has shown a placeholder since CB#4.
 
