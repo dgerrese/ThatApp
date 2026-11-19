@@ -1,10 +1,12 @@
 import { startRail } from "./rail";
+import { startRailVersion } from "./rail-version";
 import { openSettings } from "./open-settings";
 import { startRouter } from "./router";
 
 // Before the router, and independent of it: the rail is the shell's own
 // instrument, and it must be reading the day whether or not a view renders.
 startRail();
+startRailVersion();
 
 // Every other reusable component is registered by whichever view imports it
 // first. This one is reached for by tag name from anything that wants a

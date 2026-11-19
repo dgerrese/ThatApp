@@ -271,3 +271,10 @@ export interface WeekRollup {
   rows: WeekRow[];
   seconds: number;
 }
+
+/** GET /api/version: the running build and what the server's last check against GitHub found. */
+export type VersionStatus = {
+  version: string;
+  latest: { version: string; url: string } | null;
+  error: string;
+};

@@ -13,6 +13,7 @@ import (
 	"codeberg.org/DionGerrese/ThatApp/internal/config"
 	"codeberg.org/DionGerrese/ThatApp/internal/crypto"
 	"codeberg.org/DionGerrese/ThatApp/internal/store"
+	"codeberg.org/DionGerrese/ThatApp/internal/update"
 )
 
 // Server routes API requests and serves the PWA's static assets.
@@ -23,6 +24,8 @@ type Server struct {
 	sealer  *crypto.Sealer
 	clients *instanceClients
 	mux     *http.ServeMux
+	// Updates is nil when no update check runs (a dev build).
+	Updates interface{ Status() update.Status }
 	// now reads the wall clock. Tests replace it to place a request at a
 	// chosen instant, which is the only way to prove which local day an entry
 	// lands on when cfg.Location is hours away from the machine's clock.
@@ -52,6 +55,7 @@ func New(cfg *config.Config, assets fs.FS, db *store.Store, sealer *crypto.Seale
 	s.clients = newInstanceClients(db, sealer)
 
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /api/version", s.handleVersion)
 	s.mux.HandleFunc("GET /api/instances", s.handleListInstances)
 	s.mux.HandleFunc("POST /api/instances", s.handleCreateInstance)
 	s.mux.HandleFunc("PATCH /api/instances/{id}", s.handleUpdateInstance)
