@@ -27,9 +27,9 @@ that the owner opened, every rule here is inert and `CLAUDE.md` reads as written
 3. List that milestone's `status/in-progress` **and** `status/todo` tickets. **In-progress comes
    first: finish what is started before starting anything new.** Order each group the same way:
    `priority/high`, then unlabelled, then `priority/low`, and **inside a band a `bug` comes before a
-   non-bug**. Set by the owner on 2026-09-21, mid-run, when the run walked past #83 and #8 — the
+   non-bug**. Set by the owner on 2026-09-21, mid-run, when the run walked past [CB#83](../../../docs/archive/codeberg/83.md) and CB#8 — the
    board's two highest-priority tickets, both in progress with branches pushed. The rule sat in that
-   day's narrative and never reached this skill, so the 2026-09-30 run walked past #123 the same way.
+   day's narrative and never reached this skill, so the 2026-09-30 run walked past CB#123 the same way.
 4. Post the queue as the opening ledger, in the order it will be worked.
 
 **An in-progress ticket is resumed, not restarted.** Its branch and anything already on it — a

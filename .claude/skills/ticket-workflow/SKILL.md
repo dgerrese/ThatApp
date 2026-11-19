@@ -107,14 +107,14 @@ enhancement when the ticket is *clearly an addition* and either *is not necessar
 running* or *is not in the initial design*. Two consequences that catch most misfilings:
 
 - **The design of record's own tickets are not enhancements.** The 13-ticket sequence *is* the
-  initial design, so #8, #10, #11 and #13 carry no type. Neither does a ticket that builds
+  initial design, so CB#8, CB#10, CB#11 and [#6](https://github.com/dgerrese/ThatApp/issues/6) carry no type. Neither does a ticket that builds
   something the visual design language already specifies, such as the phone layout. Building what
   was designed is not an addition to it.
 - **The axis is about the product.** A test-rig change, a formatting gate, a refactor or an API
   reference document is not an addition to the app, whatever else it is. Those stay untyped.
 
 A ticket whose own body says it *widens* an agreed contract rather than correcting it is the clean
-case for `enhancement` — #19 is the worked example.
+case for `enhancement` — CB#19 is the worked example.
 
 **No `enhancement` in a milestone whose scope is not yet determined.** The test above measures a
 ticket against a design, so it has no answer until the milestone has a scope to be measured against.
@@ -155,7 +155,7 @@ belongs to, `priority/high` says it should be picked up first, and a ticket can
 easily be one without the other.
 
 **Priority is read first, and `bug` breaks the tie inside a band.** Settled by the owner on
-2026-09-10, when #121 and #8 were both open, both `priority/high` and both v1. Sort by priority —
+2026-09-10, when CB#121 and CB#8 were both open, both `priority/high` and both v1. Sort by priority —
 `priority/high`, then unlabelled, then `priority/low` — and then, **among tickets sharing a priority,
 a `bug` comes before a non-bug.** A defect is in the product the owner is already using; a feature is
 not yet, so shipped work that does not work is a worse state than work that does not exist.
@@ -292,7 +292,7 @@ command, after the failed one has returned:
 tea api "repos/{owner}/{repo}/issues?state=all&type=issues&q=<title words>&limit=5"
 ```
 
-Retry only when the search finds nothing. #232, #248 and #254 were each a duplicate made by a retry.
+Retry only when the search finds nothing. CB#232, CB#248 and CB#254 were each a duplicate made by a retry.
 
 Never leave an **open** issue with no `status/*` label, and never leave a **closed** one carrying a
 `status/*` label at all. Two statuses at once is no longer possible — the scope is exclusive — so
@@ -308,15 +308,15 @@ scope.** A defect in what this ticket itself builds — its own feature failing,
 acceptance criterion it does not meet — is not a discovery. It is unfinished work: fix it on the
 branch before the pull request opens. If the fix is too big for the ticket, that is a blocker and the
 ticket goes to `status/blocked`; it does not go to review with the defect filed beside it. Set by the
-2026-10-05 retro, after #121, #207–#209, #236 and #221 were each filed against the ticket that built
+2026-10-05 retro, after CB#121, CB#207–CB#209, CB#236 and CB#221 were each filed against the ticket that built
 the thing they describe, and that ticket shipped. A ticket
 the owner asked for does not pass through here; create it at `status/needs-refinement`.
 
 **Refinement.** Research properly: **read every comment on the ticket, not only its body** — the
 owner's decisions often land there, and the body goes stale. Then read the relevant code, check the
 design of record, and resolve open questions with the owner. Read the comments again before any
-status move: on 2026-09-29, #207 and #208 went to `status/todo` over the owner's comment that they
-wait for #123. Finish by rewriting the issue body to hold the problem, the approach,
+status move: on 2026-09-29, CB#207 and CB#208 went to `status/todo` over the owner's comment that they
+wait for CB#123. Finish by rewriting the issue body to hold the problem, the approach,
 explicit acceptance criteria, and anything deliberately out of scope. Refinement is over when
 nothing about the ticket is still fuzzy — not when you have run out of patience with it.
 
@@ -355,7 +355,7 @@ is not redrafted later.
    **Branching in place means the subagent owns the directory while it runs.** Until it reports, the
    session does not switch branch, stash, reset, check out a file or edit a tracked file; it reads
    another branch with `git show <branch>:<path>`. On 2026-09-21 a switch under a running subagent
-   corrupted a 20-run measurement on #134 and produced eleven false Firefox failures.
+   corrupted a 20-run measurement on CB#134 and produced eleven false Firefox failures.
 3. **`superpowers:writing-plans`** — turns the acceptance criteria into a plan under
    `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, decomposed into bite-sized tasks with exact file
    paths, complete code and verification steps. New plans and specs open with a **Date**,
@@ -367,15 +367,15 @@ is not redrafted later.
    **A task is not over while its subagent still runs.** When an implementer or reviewer reports,
    check `ListAgents` and stop any background work it left with `TaskStop` before the next dispatch.
    Left running, it holds the shared e2e rig and can resume under the next task. On 2026-10-09 this
-   happened three times, on #144 and #305. Set by the 2026-10-12 retro.
+   happened three times, on [CB#144](../../../docs/archive/codeberg/144.md) and CB#305. Set by the 2026-10-12 retro.
 5. **`superpowers:test-driven-development`** — governs every implementation task. RED before GREEN,
    and the failing output belongs in the task report; a task that cannot show it is not done.
    **RED fails on the assertion, for the reason the test names** — a compile error, a missing export
    or a timeout is not RED, and the report quotes the failing assertion. **Then every assertion the
    task adds or changes is proven by mutation:** break the code it guards by hand, run that one test,
    show it go red, restore. An assertion that stays green with its code broken is a finding, the same
-   as a failing test. Since #7, mutation found something on every task it ran on; without it, tests
-   that could not fail reached review on at least twelve tickets and `main` on #99 and #117. Set by
+   as a failing test. Since CB#7, mutation found something on every task it ran on; without it, tests
+   that could not fail reached review on at least twelve tickets and `main` on CB#99 and [CB#117](../../../docs/archive/codeberg/117.md). Set by
    the 2026-10-05 retro.
 6. **`superpowers:requesting-code-review`** — between tasks and again before merge.
 7. **`superpowers:finishing-a-development-branch`** — verifies the suite, presents the integration
@@ -394,7 +394,7 @@ does the visual design language, the ticket's own design document, or the protot
 control, a control moved, a new report, a new state a mark has to express, a row gaining a fourth
 thing where three were drawn sharing one height — the design does not cover it and a session is due.
 **Reasoning your way to what the designer would probably have wanted is exactly what this rule
-exists to stop.** It happened on #10: the fetch control was written into a design document as
+exists to stop.** It happened on CB#10: the fetch control was written into a design document as
 joining Week's three-control row, and the prototype's own caption calls those three out as sharing
 one height.
 
@@ -408,7 +408,7 @@ skill's `scripts/frame-template.html`; it styles `card`, `cards`, `mockup`, `moc
 `options`, `header`, `main`, `section`, `split`, `label`, `status`, `placeholder` and a few more.
 Prefix every mock class — `m-card`, not `card`. On 2026-09-03 four rounds of "misaligned" were all
 collisions with `.card`; on 2026-09-30 the frame's `overflow: hidden` on `.card` clipped every
-tooltip in the #246 session.
+tooltip in the CB#246 session.
 
 Two things this does not mean. It is not a session per ticket: a ticket that only rewires what is
 already drawn goes straight to planning as before. And it is not licence to redesign — the session
@@ -444,14 +444,14 @@ screenshot never enters a repository whose own budget is measured in kilobytes, 
 pull request rather than outliving it. `tea` cannot do this — `tea api` sends JSON only and an
 attachment needs a multipart POST — which is why the script exists.
 
-Three things that cost time the first time, on #8:
+Three things that cost time the first time, on CB#8:
 
 - **Write the files somewhere the host can see.** A Playwright spec writing to `/tmp` writes to the
   *container's* `/tmp`, which vanishes with it — and the previous run's files are still sitting on
   the host, so the capture looks like it worked. `.claude/e2e` is the only host-visible mount; write
   to `/e2e/test-results/shots/` and copy them out.
 - **Capture at rest.** A screenshot taken straight after a click catches the control hovered or
-  focused, which on #8 meant the stop button photographed primary-pink instead of its running green.
+  focused, which on CB#8 meant the stop button photographed primary-pink instead of its running green.
   Park the pointer and blur before shooting, or the picture shows a state the design never described.
 - **Name each file for what it shows** — the script uses the file name as alt text, and a pull
   request full of `screenshot-1.png` helps nobody.
@@ -459,12 +459,12 @@ Three things that cost time the first time, on #8:
 **Every screenshot comes as a pair, one in dark and one in light**, named for what it shows plus
 `-dark` or `-light`. Light was added to the design on 2026-09-04 and is judged on its own, so a
 dark-only picture shows half of what was built. Set the app's theme the way its theme control does,
-through the stored preference or `data-theme`. Asked for by the owner on 2026-09-23, after PR #191.
+through the stored preference or `data-theme`. Asked for by the owner on 2026-09-23, after PR CB#191.
 
 **A prototype is captured inside the design companion's frame, never as a bare file.** The prototypes
 are fragments on purpose: the companion wraps a file in `frame-template.html` — which carries the
 doctype and a small reset — only when the file does *not* start with a doctype. Opened bare, the
-browser falls into quirks mode, where a table does not inherit colour, and on #184 the Summary cells
+browser falls into quirks mode, where a table does not inherit colour, and on CB#184 the Summary cells
 photographed black on the dark card. **Do not "fix" that by adding a doctype to the prototype**: the
 companion then renders it unwrapped, with taller rows and misaligned buttons, which is not the drawing
 the owner approved. Substitute the prototype for `<!-- CONTENT -->` in the brainstorming skill's
@@ -478,9 +478,9 @@ not say what it was checked against. A reviewer still needs that sentence.
 
 **Why this is a rule and not an instinct.** On 2026-09-08, reading Week's header for an unrelated
 reason turned up two things the prototype draws that the app never built: the card around the week
-grid, and a refresh control. Neither was caught by a test, a review, or a gate — #95 shipped the
+grid, and a refresh control. Neither was caught by a test, a review, or a gate — CB#95 shipped the
 second edition across Today and Week through six task reviews and a whole-branch review, and both
-gaps went through all of them. That is #117, and the reason its first job is an audit is that
+gaps went through all of them. That is [CB#117](../../../docs/archive/codeberg/117.md), and the reason its first job is an audit is that
 nobody knows how many more there are.
 
 **One issue, one branch, one pull request.** The pull request body references the issue with
@@ -499,8 +499,8 @@ tea api --method PATCH "repos/{owner}/{repo}/pulls/<n>" -d '{"base":"main"}'
 
 `Closes #<n>` fires only when the work reaches `main`, so a stacked ticket closes when its parent's
 pull request merges, and its `status/*` label comes off then. Asked for by the owner on 2026-09-18,
-after PR #162 (#19) was opened against `main` while built on #157's branch, and its diff carried
-#79's commits too.
+after PR CB#162 (CB#19) was opened against `main` while built on CB#157's branch, and its diff carried
+[CB#79](../../../docs/archive/codeberg/79.md)'s commits too.
 
 **Use the skills' own prompt templates.** `subagent-driven-development` ships
 `implementer-prompt.md`, `task-reviewer-prompt.md` and `re-review-prompt.md`;
@@ -514,7 +514,7 @@ subagent, so it names the skill. `CLAUDE.md` says what ponytail governs here and
 Set by the owner on 2026-10-09.
 
 **Tick the ticket's acceptance criteria as the reviews confirm them**, and untick anything a later
-pass shows has regressed. Asked for by the owner on 2026-09-09, during #117. **The tick follows a
+pass shows has regressed. Asked for by the owner on 2026-09-09, during [CB#117](../../../docs/archive/codeberg/117.md). **The tick follows a
 review, never an implementer's claim** — that is the whole point of it, and it is why the criteria
 become live state rather than a checklist filled in at the end. Do it per task, not in one sweep
 when the branch is finished.
@@ -543,7 +543,7 @@ change touches the frontend or the rig. Paste the output. See
 `superpowers:verification-before-completion` — evidence before assertions, always.
 
 **While Codeberg's hosted CI is stopped, the local run is the only gate.** Codeberg stopped the
-repository's CI for its run volume (#284). The owner set the rule on 2026-10-07: until CI is back,
+repository's CI for its run volume ([CB#284](../../../docs/archive/codeberg/284.md)). The owner set the rule on 2026-10-07: until CI is back,
 run **both** `make verify` and `make test-e2e` before **every** pull request, whatever it touches,
 and paste both results into the body. Pull requests that wait on the owner together are also merged
 on a local scratch branch, which is never pushed, and the full suite runs there once. Batch pushes,

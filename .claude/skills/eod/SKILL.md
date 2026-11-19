@@ -179,7 +179,7 @@ UTC and would file a late-evening session under tomorrow.
 ### Verify handoff.md before committing it
 
 The resume document being wrong is the most expensive failure available, and it has happened: on
-2026-09-01 the file still claimed *"PR #78 is open and waiting on the owner"* and *"`handoff-2026-09-01`
+2026-09-01 the file still claimed *"PR CB#78 is open and waiting on the owner"* and *"`handoff-2026-09-01`
 carries three unpushed commits"* — both false, because the forge move had not carried the pull
 requests across.
 
@@ -252,7 +252,7 @@ what tomorrow's session must be told, and the terminal will be closed.
 **Never `make down` here.** That target is `docker compose --profile e2e down -v`, and the `-v`
 drops the build and dependency caches by design — `npm ci`, `go mod download` and a Playwright
 browser fetch before anything runs tomorrow. Correct after a Dockerfile change; wrong as a nightly
-default. The bind-mounted database under `./data` survives either way (#73).
+default. The bind-mounted database under `./data` survives either way (CB#73).
 
 ---
 
@@ -285,7 +285,7 @@ Every one of these is either a hard constraint in `CLAUDE.md` or a decision rese
 | `make down` | `-v` drops the caches. Use `docker compose --profile e2e down`. |
 | Commit anything outside `docs/superpowers/plans/handoff*` | The handoff is the only thing this skill authors. |
 | Stop a peer session or a `Workflow` run | Not this session's work to end. |
-| Delete `.superpowers/` scratch | An SDD ledger was once the only record of #4's review findings. |
+| Delete `.superpowers/` scratch | An SDD ledger was once the only record of CB#4's review findings. |
 
 ## Red flags — stop
 
@@ -297,6 +297,6 @@ Every one of these is either a hard constraint in `CLAUDE.md` or a decision rese
 | "`make down` is the existing target, so use it" | `-v` is the whole difference, and it costs tomorrow's first ten minutes. |
 | "`main` is behind, I'll fast-forward it while I'm here" | Forbidden outright. Report it. |
 | "The push failed, HTTPS would work" | Never. Two prior incidents; the answer both times was to report it. |
-| "handoff.md was right this morning" | It said PR #78 was open for a week after that stopped being true. Check it. |
+| "handoff.md was right this morning" | It said PR CB#78 was open for a week after that stopped being true. Check it. |
 | "`git stash create` is the tool for snapshotting a dirty tree" | It drops untracked files, and returns empty when they are all it has. Use the temp index. |
 | "No agents are running, so Phase 1 is a no-op" | Run `ListAgents` anyway. Peer sessions and workflow runs belong in the report. |

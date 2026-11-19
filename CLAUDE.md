@@ -78,7 +78,7 @@ pull request that changes more than documentation (`docs/**`, any `*.md`, `.clau
 end-to-end suite builds the frontend and waits on the app's health endpoint, so it runs in its own
 workflow, gated to pull requests that touch the frontend or the rig itself — that gate is the
 `paths:` list in `.forgejo/workflows/e2e.yml`, which must name every file the rig depends on and
-ends by excluding Markdown. A docs-only pull request therefore runs no CI at all (#167). Never
+ends by excluding Markdown. A docs-only pull request therefore runs no CI at all (CB#167). Never
 claim work is done without pasting their output.
 
 **CI does not use Compose, and the two can drift.** `make verify` drives each tool through a
@@ -121,7 +121,7 @@ about what was attempted. Table-driven tests with `t.Run` subtests, using `httpt
 not reach for `any`, `as any` or a non-null assertion to get past a type error; the error is
 usually right. A node test asserts on a value read from a happy-dom element (`=== null`,
 `.textContent`, `getAttribute`), never on the element itself: a failing `assert.equal(element, …)`
-serialises the node for its message and exhausted 26 GB of memory instead of failing (#206).
+serialises the node for its message and exhausted 26 GB of memory instead of failing (CB#206).
 
 **No test ever contacts a real Jira instance.** Jira client tests run against an `httptest.Server`
 standing in for the API.
@@ -280,7 +280,7 @@ drawing rather than the diff. **A ticket that changes the interface also attache
 it built to its pull request** — `.claude/tools/pr-attach.sh` uploads them, as Forgejo attachments
 rather than repository files.
 
-The `ticket-workflow` skill holds both tests, how the session runs, and why #117 exists.
+The `ticket-workflow` skill holds both tests, how the session runs, and why [CB#117](docs/archive/codeberg/117.md) exists.
 
 **Invoke the `ticket-workflow` skill** whenever work starts, a ticket changes status, or a blocker
 appears. It holds the label mechanics, the `tea` commands, what each status requires and the loop in
@@ -304,7 +304,7 @@ load-bearing.
 **A rule the owner sets goes into the document that governs it on the day it is set** — `CLAUDE.md`
 or the skill — on a `[Process]` branch. A day file is not read and this machine's memory does not
 leave this machine, so neither is a home for a rule. On 2026-09-21 the owner set in-progress tickets
-first; the rule reached only a day file, and the 2026-09-30 run walked past #123.
+first; the rule reached only a day file, and the 2026-09-30 run walked past CB#123.
 
 **Invoke the `eod` skill when the day ends** — the owner saying "eod", "that's me for today" or
 "shutting down". The end of the day propagates: running subagents are signalled to wrap up and
