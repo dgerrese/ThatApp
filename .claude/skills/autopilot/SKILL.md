@@ -82,7 +82,7 @@ may reverse, and ship. Wording, whether a finding becomes its own ticket, which 
 names — these are review-time conversations, not blockers.
 
 **Every parked question goes to two places:** `docs/superpowers/plans/handoff/<today>.md`, and a
-`tea comment` on the ticket it came from. The day file is what the owner reads back; the comment is
+`gh issue comment` on the ticket it came from. The day file is what the owner reads back; the comment is
 what survives on the forge when the session is gone. Post it in chat as well when it arises — the
 owner may be reading.
 

@@ -27,9 +27,10 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
-> **The forge changed on 2026-09-01.** Issue and pull-request numbers below were verified against
-> GitHub and then carried to Codeberg deliberately unchanged — see *Decisions taken*. Everything
-> before that date happened on GitHub; the numbers still resolve.
+> **The forge changed twice.** On 2026-09-01 the project moved from GitHub to Codeberg, keeping its
+> numbers. On 2026-11-19 it moved to `github.com/dgerrese/ThatApp` ([#46](https://github.com/dgerrese/ThatApp/issues/46)), and the numbers changed:
+> a `#<n>` here is a GitHub number, and `CB#<n>` is a closed Codeberg item, linked to its archive
+> file in `docs/archive/codeberg/` where one exists. See *Decisions taken*.
 
 ### 2026-11-18 — read this first
 
@@ -86,18 +87,11 @@ needs the owner to name a milestone.
 `:2026.44.1`, `:latest` and `:stable`.
 
 **Two channels, set by the owner.** `:latest` moves on every release, pre-releases included, on
-purpose. `:stable` moves only on a stable release and is the default. **To release locally** (Actions
-are off), after `make build-web`:
-
-```shell
-REGISTRY_USER=DionGerrese REGISTRY_TOKEN="$(cat ~/.config/thatapp-release-token)" \
-  docker compose run --build --rm --no-deps -e REGISTRY_USER -e REGISTRY_TOKEN app \
-  sh scripts/release-image.sh <YYYY.WW.N> codeberg.org/diongerrese/thatapp stable   # drop `stable` for a pre-release
-tea releases create --tag v<YYYY.WW.N> --target <sha> --title <YYYY.WW.N> --note-file <notes>   # add --prerelease for a pre-release
-```
-
-Ask the owner whether a release is stable. `v2026.44.1` got its `:stable` tag by hand, before the
-script could set it.
+purpose. `:stable` moves only on a stable release and is the default. **CI publishes every release**
+to `ghcr.io/dgerrese/thatapp` (`.github/workflows/release.yml`): a merge to `main` that changes more
+than documentation is a pre-release, and **closing a milestone is a stable release**, built again
+from `main`, whose notes list the milestone's closed issues. There are no manual release commands
+any more, and no question to ask: the owner closing a milestone is the decision.
 
 ### 2026-10-21 — superseded
 
@@ -1193,10 +1187,32 @@ the product, so rig, gate, refactor and documentation tickets stay untyped. **Th
 session knows it was settled rather than open. Applied across the board it moved exactly one ticket,
 CB#19.
 
-**The forge is Codeberg, and the project is called ThatApp.** Moved on 2026-09-01 from
-`github.com/dgerrese/work-dashboard` to `codeberg.org/DionGerrese/ThatApp`. The GitHub repository is
-kept **private and archived** — it is not the authority on anything, and nothing should be pushed to
-it. Full narrative in `handoff/2026-09-01.md`; four things must not be rediscovered:
+**The forge is GitHub, at `github.com/dgerrese/ThatApp`, public, since 2026-11-19** ([#46](https://github.com/dgerrese/ThatApp/issues/46), whose body
+holds every decision). Codeberg became unreliable and stopped this repository's CI (CB#284). What
+must not be rediscovered:
+
+- **The repository started empty.** `main` and the release tags were pushed, nothing else, and no
+  migration tool was used, for the `refs/pull/*` reason below. The git remote is named `github`.
+- **Ticket numbers changed.** Dependabot opened #1–#5 before the move script ran, so the moved open
+  tickets are #6–#46, in Codeberg number order; each starts `Moved from Codeberg CB#<n>` and carries
+  every comment. Closed items did not move: 28 are archived in `docs/archive/codeberg/`, the rest
+  stay on the archived Codeberg repository. Day files and dated plans keep Codeberg's numbers, with a
+  note at the top of each folder. GitHub does not autolink `CB#<n>`.
+- **Labels are not exclusive on GitHub**, so every status or priority move removes the old label in
+  the same command. A declined ticket closes as *not planned*; `wontfix` is not used.
+  `.github/workflows/status-label.yml` removes `status/*` labels when an issue closes, which replaced
+  the start-of-session sweep.
+- **CI runs the `make` targets in Docker**, one workflow, and `Quality gate` is the one required
+  check on `main` (the owner's ruleset, 2026-11-19). CI and local cannot drift any more.
+- **Screenshots live on the orphan branch `pr-assets`**, under `pr-<n>/`; GitHub has no attachment
+  API. Link them as `blob/pr-assets/…?raw=true`: `raw.githubusercontent.com` cached a 404 for a file
+  asked for before it was pushed.
+
+**From 2026-09-01 to 2026-11-19 the forge was Codeberg** (`codeberg.org/DionGerrese/ThatApp`, now
+archived). Moved on 2026-09-01 from `github.com/dgerrese/work-dashboard`, which stays **private and
+archived** — it is not the authority on anything, and nothing should be pushed to it. Full narrative
+in `handoff/2026-09-01.md`. The Codeberg-specific points below are history; the first and the
+numbering rule still apply:
 
 - **A history rewrite does not clean a GitHub repo that has ever had a pull request.** GitHub's
   `refs/pull/*` refs are read-only, survive a force-push, and held the entire pre-scrub history —
@@ -1362,8 +1378,8 @@ the other repo's naming; renaming closes it. `refinement` became `needs-refineme
 because the ticket has been promoted out of intake but *not* yet refined — which is what [#6](https://github.com/dgerrese/ThatApp/issues/6) and CB#19
 have actually been doing since 2026-08-14.
 
-**Declining an intake is now: close as `NOT_PLANNED`, label `wontfix`.** The stock label was kept
-for exactly this and its description rewritten to say so.
+**Declining an intake is: close as not planned.** On Codeberg, which has no close reason, the
+`wontfix` label did this job; on GitHub since 2026-11-19 the close reason does it alone.
 
 **Type is a second, optional axis.** `bug` and `enhancement` were kept from the stock set to record
 whether a ticket is a defect or new capability. At most one, and plenty of tickets legitimately have
@@ -2081,16 +2097,13 @@ Seen on 2026-09-08, mid-commit.
 
 ## Environment notes
 
-- **The CLI is `tea`, and it will not come from a package manager.** Every label and status move goes
-  through it. There is no apt repository for it — and `apt install tea` installs a *completely
-  different program*, a graphical text editor, which is what happened on 2026-09-01. Install the
-  binary from `dl.gitea.com` and check it against the published `.sha256` (note: `.sha` 404s). On the
-  current machine it is `/usr/local/bin/tea`, v0.15.1. Because it is a manual install it receives no
-  security updates; check its version by hand rather than assuming it is current.
-- **`tea` needs its own token; the SSH key is not enough.** SSH covers `git push`/`pull` only — the
-  Forgejo API takes a token, registered with `tea login add`. The token carries `write:issue`,
-  `write:repository` and `read:user`, deliberately **not** `write:user`, so it cannot create or
-  delete repositories. Do those in the web interface.
+- **The CLI is `gh`**, at `~/.local/bin/gh`, logged in as `dgerrese`. Every label and status move
+  goes through it. Its token carries `gist`, `read:org`, `repo` and `workflow` — **not**
+  `delete_repo`, and not `read:packages`, so it cannot see the `ghcr.io` package; check an image with
+  an anonymous `docker manifest inspect ghcr.io/dgerrese/thatapp:<tag>` instead. CI publishes images
+  with its own `GITHUB_TOKEN`, so no personal token needs package rights.
+- **`tea` is still installed** (`/usr/local/bin/tea`, v0.15.1, a manual install that gets no security
+  updates) only to read the archived Codeberg repository. Nothing in the workflow reaches for it.
 - **The owner runs the release image on this machine**, since 2026-09-17: container `thatapp`,
   `--restart unless-stopped`, bound to `127.0.0.1:8080`, data in the named volume `thatapp-data`.
   **It collides with the dev stack**, which `.env` publishes on `THAT_PORT=8080`, so `make up` and
@@ -2100,20 +2113,11 @@ Seen on 2026-09-08, mid-commit.
 - **Migrating a database into the release takes the WAL and the key.** `thatapp.db` alone is
   almost empty — the data is in `thatapp.db-wal` — and a `THAT_SECRET_KEY` that differs from the
   source's makes every stored Jira token undecryptable without any visible error.
-- **Releases.** Tag in Codeberg's web interface (`/releases/new`, *Create tag only*). That page 404s
-  unless **Releases** is enabled under the repository's unit settings, and **Packages** was enabled
-  alongside it. A tag made there is unsigned, and it does trigger `release.yml`. The push credential
-  is the repository secret `RELEASE_TOKEN`: a personal token with only *package: read and write*.
-  **A tag's run can queue behind the `main` merge runs** — Codeberg ran this repo's jobs roughly one
-  at a time on 2026-09-17, and run 108 waited half an hour before a three-minute job. An
-  `actions/tasks` listing does not show a run until it starts; query `actions/runs` to see it queued.
-- **`gh` is still installed** at `~/.local/bin/gh` and still authenticated, but the GitHub repository
-  is archived and read-only. It is useful only for reading the old record. Nothing in the workflow
-  should reach for it.
-- **The Claude GitHub App no longer applies.** It was installed on the GitHub repository, which is
-  archived; Forgejo has no equivalent, and the `@claude` and automatic-review workflows were deleted
-  in the move. Claude runs locally through the superpowers skills, which is how the work was always
-  actually done.
+- **Releases come from CI**, never by hand: see *Where things stand*. `gh run list --workflow
+  Release` shows them. The first GitHub stable release, `v2026.47.3`, was published on 2026-11-19
+  when the owner closed the Releases milestone.
+- **The Claude GitHub App is not installed** on the new repository. Claude runs locally through the
+  superpowers skills, which is how the work was always actually done.
 - **Commits here are signed, and git will tell you they are not.** Every commit in this repository
   carries a `gpgsig` SSH signature, but `gpg.ssh.allowedSignersFile` is unset, so git cannot verify
   its own work: `git log --show-signature` prints *No signature*, `%G?` reports `N` for all 284
@@ -2122,13 +2126,13 @@ Seen on 2026-09-08, mid-commit.
   which shows the `gpgsig` header plainly. Do not conclude from `--show-signature` that signing is
   broken, and do not "fix" signing on that evidence.
 - **When SSH is down, local git does not merely fail — it answers with stale data.** `git fetch`
-  failing leaves every `codeberg/*` remote-tracking ref frozen at its last successful fetch, so
+  failing leaves every `github/*` remote-tracking ref frozen at its last successful fetch, so
   `git branch -vv`, `git log` and any ahead/behind count describe the forge as it was, with no
   warning that they are out of date. On 2026-09-02 that read a merged branch as unpushed and its
-  pull request as missing. **`tea` and the plain HTTPS API are unaffected**, because they carry a
-  token rather than the SSH key, so check real state there before believing local git:
-  `curl -sS "https://codeberg.org/api/v1/repos/DionGerrese/ThatApp/branches?limit=50"` lists what
-  actually exists on the forge, and `tea pr list --state open` lists what is actually waiting.
+  pull request as missing. **`gh` is unaffected**, because it carries a token rather than the SSH
+  key, so check real state there before believing local git: `gh api repos/{owner}/{repo}/branches`
+  lists what actually exists on the forge, and `gh pr list --state open` lists what is actually
+  waiting.
   **A remote branch that has disappeared usually means its pull request merged**, not that the push
   never happened — check the commit against `main` before concluding work was lost.
 - Local `main` may sit well behind the forge; branch from the remote, not from it. **As of
