@@ -39,9 +39,14 @@ owner's word, one at a time, each rebased on `main` and green on `Quality gate` 
 alert is open. **[#51](https://github.com/dgerrese/ThatApp/issues/51) is refined and at `status/todo`** after a design session: a muted `Help`
 link to the wiki's Home page, first in the rail foot. Its mockup is
 `.superpowers/brainstorm/31579-1795171088/content/wiki-link-place.html`, option A (git-ignored).
+**[#38](https://github.com/dgerrese/ThatApp/issues/38) is refined and at `status/todo`** after a design session: the team is a Settings section behind an
+"I report on a team" Off / On switch, off by default, so a non-PM is not shown the team; adding a
+person reviews the cross-instance matches before saving. Mockups in
+`.superpowers/brainstorm/182485-1795174514/content/` (git-ignored). **The switch also gates #40's Team
+rail row** — recorded as a comment on [#40](https://github.com/dgerrese/ThatApp/issues/40), which its refinement must read.
 
-**The board on 2026-11-20.** 30 at `status/todo` (adds #51), 11 at `status/needs-refinement`, nothing
-in progress, blocked or at intake.
+**The board on 2026-11-20.** 31 at `status/todo` (adds #51 and #38), 10 at `status/needs-refinement`,
+nothing in progress, blocked or at intake.
 
 ### 2026-11-19 — superseded
 
