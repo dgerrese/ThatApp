@@ -3,6 +3,7 @@ import { copyFileSync, mkdirSync, readdirSync, readFileSync, watch as watchPath 
 import { createHash } from "node:crypto";
 import * as esbuild from "esbuild";
 import { reachableFiles } from "./tools/reachable-files.mjs";
+import { serialDebounce } from "./tools/serial-debounce.mjs";
 
 const watch = process.argv.includes("--watch");
 
@@ -138,18 +139,20 @@ if (watch) {
   // in a container started by `docker compose up`.
   const css = spawn("npx", [...tailwindArgs, "--watch=always"], { stdio: "inherit" });
 
+  // Every watch below funnels into this one queue, so worker rebuilds never
+  // overlap and the last trigger's rebuild is the last to write dist/sw.js.
+  // Errors are logged rather than thrown so a bad edit doesn't kill the watcher.
+  const rebuildWorker = serialDebounce(() => buildWorker(assetPaths), {
+    onError: (err) => console.error(`rebuilding the worker failed: ${err.message}`),
+  });
+
   // esbuild's own watcher rebuilds the app on every source edit; without this
   // hook the worker was only ever built once, at startup, and dist/sw.js
-  // would name superseded chunk hashes from the first dev edit onward. Errors
-  // are logged rather than thrown so a bad edit doesn't kill the watcher.
+  // would name superseded chunk hashes from the first dev edit onward.
   const rebuildWorkerPlugin = {
     name: "rebuild-worker",
     setup(build) {
-      build.onEnd(() =>
-        buildWorker(assetPaths).catch((err) => {
-          console.error(err.message);
-        }),
-      );
+      build.onEnd(rebuildWorker);
     },
   };
   const ctx = await esbuild.context({ ...jsOptions, plugins: [rebuildWorkerPlugin] });
@@ -164,6 +167,7 @@ if (watch) {
     pending = setTimeout(() => {
       try {
         copyShell();
+        rebuildWorker();
       } catch (err) {
         console.error(`copying index.html into dist/ failed: ${err.message}`);
       }
@@ -176,30 +180,16 @@ if (watch) {
   // indefinitely (found the hard way in CB#12 task 4: hours of a Playwright
   // rig behaving as if the worker had no fetch handler, because it still
   // didn't). Same directory-not-file watch reasoning as index.html's, above.
-  let pendingWorker;
   watchPath("src", (_event, filename) => {
-    if (filename !== "sw.ts") return;
-    clearTimeout(pendingWorker);
-    pendingWorker = setTimeout(() => {
-      buildWorker(assetPaths).catch((err) => {
-        console.error(`rebuilding sw.ts failed: ${err.message}`);
-      });
-    }, 50);
+    if (filename === "sw.ts") rebuildWorker();
   });
 
   // Tailwind's watcher writes app.css on its own, outside esbuild, so none of the
   // hooks above sees a CSS-only edit and the worker kept a stale build id and a
   // stale precached app.css (CB#164). Watching the output rather than Tailwind
   // catches every rewrite whatever caused it.
-  let pendingCss;
   watchPath("dist", (_event, filename) => {
-    if (filename !== "app.css") return;
-    clearTimeout(pendingCss);
-    pendingCss = setTimeout(() => {
-      buildWorker(assetPaths).catch((err) => {
-        console.error(`rebuilding the worker after app.css changed failed: ${err.message}`);
-      });
-    }, 50);
+    if (filename === "app.css") rebuildWorker();
   });
 
   const stop = () => {
