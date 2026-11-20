@@ -49,6 +49,7 @@ make up          # start the dev stack (its port is THAT_PORT — read it, never
 make down        # stop it and drop its volumes
 make verify      # the full merge gate — lint, tsc, tests
 make test-go     # Go suite only
+make test-race   # Go suite under the race detector (needs cgo; its own image stage)
 make test-e2e    # Playwright suite — brings the app stack up itself
 make lint        # golangci-lint + eslint
 make tsc         # frontend type check
