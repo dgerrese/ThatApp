@@ -24,8 +24,9 @@ help: ## Show this help
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
 
+# --build for the reason above `APP :=`: a stale image has no air.
 up: ## Start the dev stack
-	$(COMPOSE) up
+	$(COMPOSE) up --build
 
 # -v drops the build and dependency caches, which is the point of it. It no
 # longer takes the database: that lives in ./data on the host (CB#73).
