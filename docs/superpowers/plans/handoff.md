@@ -23,7 +23,7 @@ session should not reopen, and when work stops mid-flight. The day's narrative g
 ---
 ## Where things stand
 
-**Verified on 2026-11-11**, against the Codeberg API rather than against local git — see
+**Verified on 2026-11-19**, against GitHub through `gh` rather than against local git — see
 *Environment notes* for why the two disagree. This ledger is the authority on status; the narrative
 further down is history and says otherwise in places.
 
@@ -32,7 +32,26 @@ further down is history and says otherwise in places.
 > a `#<n>` here is a GitHub number, and `CB#<n>` is a closed Codeberg item, linked to its archive
 > file in `docs/archive/codeberg/` where one exists. See *Decisions taken*.
 
-### 2026-11-18 — read this first
+### 2026-11-19 — read this first
+
+Day file: [`handoff/2026-11-19.md`](handoff/2026-11-19.md). **The move to GitHub is finished** ([#46](https://github.com/dgerrese/ThatApp/issues/46)
+closed). The Codeberg repository is archived; its open tickets live here as #6–#45. CI runs on
+every pull request behind the required `Quality gate`; releases come from CI, and `v2026.47.3` is the
+first GitHub stable release. The wiki is at `https://github.com/dgerrese/ThatApp/wiki`. Commits in
+this repository are signed with `~/.ssh/github.pub` (repo-local `user.signingkey`), which GitHub
+verifies.
+
+**The board on 2026-11-19 (checked with `gh`).** 41 open: 29 at `status/todo`, 12 at
+`status/needs-refinement` (the 11 below, now numbered on GitHub, plus **[#51](https://github.com/dgerrese/ThatApp/issues/51)**, a link to the wiki
+in the app, Polish, which needs a design session). Nothing in progress, blocked or at intake. Open
+pull requests: Dependabot's #1–#5, which the owner has not decided on, and today's handoff.
+
+**Two old local branches hold unmerged work and were not moved**, per [#46](https://github.com/dgerrese/ThatApp/issues/46)'s rule that only
+`main` and the tags come along: `issue-66-localhost-forwarder` (4 commits) and
+`issue-261-rail-focus-survives-rebuild` (2 commits). Both are on the archived Codeberg repository at
+the same commits, so nothing exists only on this machine.
+
+### 2026-11-18 — superseded
 
 Day file: [`handoff/2026-11-18.md`](handoff/2026-11-18.md). **The project is moving back to GitHub.**
 [#46](https://github.com/dgerrese/ThatApp/issues/46) holds the whole design and is at `status/todo`; read its body before touching the forge. **Do not
