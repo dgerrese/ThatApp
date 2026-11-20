@@ -37,7 +37,7 @@ services:
       THAT_DB_PATH: /data/thatapp.db
       THAT_SECRET_KEY: "${THAT_SECRET_KEY:-}"
       THAT_TIMEZONE: "${THAT_TIMEZONE:-Europe/Amsterdam}"
-    command: go run -tags dev ./cmd/server
+    command: air -c .air.toml
     depends_on:
       web:
         condition: service_healthy
@@ -80,6 +80,7 @@ services:
       # dies with the container.
       THAT_SECRET_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
       THAT_TIMEZONE: "Europe/Amsterdam"
+    # go run, not air: this stack is torn down every run, so nothing outlives a build.
     command: go run -tags dev ./cmd/server
     depends_on:
       web:
