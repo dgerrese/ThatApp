@@ -32,7 +32,18 @@ further down is history and says otherwise in places.
 > a `#<n>` here is a GitHub number, and `CB#<n>` is a closed Codeberg item, linked to its archive
 > file in `docs/archive/codeberg/` where one exists. See *Decisions taken*.
 
-### 2026-11-19 — read this first
+### 2026-11-20 — read this first
+
+Day file: [`handoff/2026-11-20.md`](handoff/2026-11-20.md). **Dependabot's #1–#5 are merged**, on the
+owner's word, one at a time, each rebased on `main` and green on `Quality gate` first; no Dependabot
+alert is open. **[#51](https://github.com/dgerrese/ThatApp/issues/51) is refined and at `status/todo`** after a design session: a muted `Help`
+link to the wiki's Home page, first in the rail foot. Its mockup is
+`.superpowers/brainstorm/31579-1795171088/content/wiki-link-place.html`, option A (git-ignored).
+
+**The board on 2026-11-20.** 30 at `status/todo` (adds #51), 11 at `status/needs-refinement`, nothing
+in progress, blocked or at intake.
+
+### 2026-11-19 — superseded
 
 Day file: [`handoff/2026-11-19.md`](handoff/2026-11-19.md). **The move to GitHub is finished** ([#46](https://github.com/dgerrese/ThatApp/issues/46)
 closed). The Codeberg repository is archived; its open tickets live here as #6–#45. CI runs on
