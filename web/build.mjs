@@ -2,6 +2,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, watch as watchPath } from "node:fs";
 import { createHash } from "node:crypto";
 import * as esbuild from "esbuild";
+import { cleanDir } from "./tools/clean-dir.mjs";
 import { reachableFiles } from "./tools/reachable-files.mjs";
 import { serialDebounce } from "./tools/serial-debounce.mjs";
 
@@ -123,7 +124,10 @@ const buildWorker = async (assetPaths) => {
   });
 };
 
+// Once per process, before the first pass; watch mode never cleans between
+// rebuilds, so an open tab keeps the lazy chunks it may still import().
 // dist/ may not exist yet — see CB#40.
+cleanDir("dist", [".gitkeep"]);
 mkdirSync("dist", { recursive: true });
 const assetPaths = [...copyShell(), ...copyFonts(), ...copyIcons(), ...copyManifest(), "dist/app.css"];
 
