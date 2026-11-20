@@ -45,8 +45,23 @@ person reviews the cross-instance matches before saving. Mockups in
 `.superpowers/brainstorm/182485-1795174514/content/` (git-ignored). **The switch also gates #40's Team
 rail row** — recorded as a comment on [#40](https://github.com/dgerrese/ThatApp/issues/40), which its refinement must read.
 
-**The board on 2026-11-20.** 31 at `status/todo` (adds #51 and #38), 10 at `status/needs-refinement`,
-nothing in progress, blocked or at intake.
+**An autopilot run shipped "Dev stack and CI"'s five tickets to open pull requests**, all green on
+`Quality gate`, none merged: #20 → #69, #7 → #70, #17 → #71, #26 → #74, and #19 → #73, **which is
+based on #69's branch** (merge #73 first, or retarget it once #69 merges). #70 and #71 both edit the
+`Dockerfile` dev stage, so the second to merge can conflict. #7's `CLAUDE.md` Commands line is on
+`process-test-race-command`, pushed with no pull request. The run worked in the worktree
+`../ThatApp-autopilot`, still on disk.
+
+**A second checkout shares the main directory's Docker stack unless told otherwise.**
+`docker-compose.yml` pins `name: thatapp`, so a worktree's `make down` drops the main directory's
+volumes. Set `COMPOSE_PROJECT_NAME` and `THAT_PORT` in its `.env` before the first `make`. The
+`ticket-workflow` skill still says the directory name separates them; it is wrong on that point. On
+2026-11-20 this dropped the main directory's cache volumes, so its next `make up` is a cold start.
+
+**The board on 2026-11-20 at end of day.** 26 at `status/todo`, 5 at `status/in-progress` (the five
+above), 10 at `status/needs-refinement`, 17 at `status/intake`, none blocked. Intakes #53–#68 were
+filed at 11:00 with **no milestone**, which `CLAUDE.md` requires; #55 is the same change as #26 (PR
+#74). #72 is the run's own finding, in "Dev stack and CI".
 
 ### 2026-11-19 — superseded
 
