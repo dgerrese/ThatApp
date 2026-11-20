@@ -7,8 +7,10 @@ services:
     build:
       context: .
       target: dev
+    # Loopback only: ThatApp has no login, so anything that reaches the port can
+    # use the Jira tokens it holds.
     ports:
-      - "${THAT_PORT:-8080}:8080"
+      - "127.0.0.1:${THAT_PORT:-8080}:8080"
     # As the host user, so ./data/thatapp.db and anything written into the
     # bind-mounted tree belong to whoever runs `make`, not to root. The Makefile
     # exports both from `id -u`/`id -g`; driving Compose directly takes them from
