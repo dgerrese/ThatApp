@@ -48,7 +48,7 @@ test-go: ## Run the Go test suite
 
 # Race-instrumented builds use their own cache keys, so this never evicts test-go's.
 test-race: ## Run the Go test suite under the race detector
-	$(COMPOSE) --profile race run --build --rm --no-deps app-race go test -race ./...
+	$(COMPOSE) run --build --rm --no-deps app-race go test -race ./...
 
 # The release workflow's shell scripts, under the container's busybox date and
 # awk; the GitHub runner runs them under GNU's, which agree on everything used.
