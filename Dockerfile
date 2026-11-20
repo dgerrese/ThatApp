@@ -15,6 +15,11 @@ ENV GOCACHE=/cache/go-build \
 RUN mkdir -p /cache/go-build /cache/go-mod /cache/gopath /cache/home \
     && chmod -R 0777 /cache
 
+# The race detector needs cgo, hence a C toolchain; `dev` stays pure Go.
+FROM dev AS race
+RUN apk add --no-cache gcc musl-dev
+ENV CGO_ENABLED=1
+
 # The frontend watcher, as the host user for the same reason: it writes web/dist
 # and node_modules, and root-owned build output in the working tree needs sudo to
 # clear.

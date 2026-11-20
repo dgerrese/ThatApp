@@ -139,7 +139,7 @@ jobs:
             .ci-cache/go-build
             .ci-cache/go-mod
           key: ${{ needs.app-image.outputs.go-cache }}
-      - run: make test-go test-scripts
+      - run: make test-go test-race test-scripts
 
   lint-web:
     name: lint-web
