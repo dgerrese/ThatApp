@@ -8,6 +8,8 @@ services:
       GOMODCACHE: /src/.ci-cache/go-mod
   app-e2e:
     environment: *go-cache
+  app-race:
+    environment: *go-cache
   web:
     environment:
       npm_config_cache: /src/.ci-cache/npm

@@ -98,6 +98,18 @@ services:
       retries: 20
       start_period: 60s
 
+  # `make test-race` only: the dev image plus a C toolchain, which -race needs.
+  app-race:
+    profiles: [race]
+    build:
+      context: .
+      target: race
+    user: "${THAT_UID:?unset - run through make, or add THAT_UID/THAT_GID to .env (see .env.example)}:${THAT_GID:?unset - see .env.example}"
+    volumes:
+      - .:/src
+      - go-mod-cache:/cache/go-mod
+      - go-build-cache:/cache/go-build
+
   web:
     build:
       context: .

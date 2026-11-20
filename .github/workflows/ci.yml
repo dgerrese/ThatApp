@@ -49,7 +49,7 @@ jobs:
           fi
           git diff --name-only "$BASE...$HEAD" | sh scripts/changed-files.sh | tee -a "$GITHUB_OUTPUT"
 
-  # Saves test-go and e2e the cold Go build (modernc.org/sqlite dominates it):
+  # Saves test-go (plain and -race) and e2e the cold Go build (modernc.org/sqlite dominates it):
   # warms the Go module and build caches once per go.sum and Go version.
   # Only this job writes the cache, so the check jobs never race to save it.
   app-image:
@@ -65,7 +65,7 @@ jobs:
       # Its own step: a build inside the $(...) below writes BuildKit progress to stdout.
       - run: docker compose build app
       - id: key
-        run: echo "key=go-$(docker compose run --rm --no-deps app go env GOVERSION)-${{ hashFiles('go.sum') }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=go-race-$(docker compose run --rm --no-deps app go env GOVERSION)-${{ hashFiles('go.sum') }}" >> "$GITHUB_OUTPUT"
       - id: cache
         uses: actions/cache@v4
         with:
@@ -75,7 +75,9 @@ jobs:
           key: ${{ steps.key.outputs.key }}
           lookup-only: true
       - if: steps.cache.outputs.cache-hit != 'true'
-        run: docker compose run --rm --no-deps app go test -run '^$' ./...
+        run: |
+          docker compose run --rm --no-deps app go test -run '^$' ./...
+          docker compose run --build --rm --no-deps app-race go test -race -run '^$' ./...
 
   # Saves the web checks the npm downloads behind `npm ci`, and e2e the
   # Playwright image build (browsers plus their system packages) by shipping the
@@ -139,7 +141,7 @@ jobs:
             .ci-cache/go-build
             .ci-cache/go-mod
           key: ${{ needs.app-image.outputs.go-cache }}
-      - run: make test-go test-scripts
+      - run: make test-go test-race test-scripts
 
   lint-web:
     name: lint-web
